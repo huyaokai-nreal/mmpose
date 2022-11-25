@@ -3,8 +3,7 @@ import copy
 import os.path as osp
 from copy import deepcopy
 from itertools import filterfalse, groupby
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
-
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Union  # noqa
 import numpy as np
 from mmengine.dataset import BaseDataset, force_full_init
 from mmengine.fileio import load
@@ -94,7 +93,6 @@ class BaseCocoStyleDataset(BaseDataset):
                     'while "bbox_file" is only '
                     'supported when `test_mode==True`.')
         self.bbox_file = bbox_file
-
         super().__init__(
             ann_file=ann_file,
             metainfo=metainfo,
@@ -177,6 +175,7 @@ class BaseCocoStyleDataset(BaseDataset):
                 data_list = self._get_bottomup_data_infos(
                     instance_list, image_list)
 
+        print(f'load data list {len(data_list)}')
         return data_list
 
     def _load_annotations(self) -> Tuple[List[dict], List[dict]]:

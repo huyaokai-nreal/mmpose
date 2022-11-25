@@ -355,6 +355,8 @@ class PoseLocalVisualizer(Visualizer):
         if 'heatmaps' not in fields:
             return None
         heatmaps = fields.heatmaps
+        if isinstance(heatmaps, list):
+            heatmaps = heatmaps[-1]
         if isinstance(heatmaps, np.ndarray):
             heatmaps = torch.from_numpy(heatmaps)
         if heatmaps.dim() == 3:
@@ -502,6 +504,8 @@ class PoseLocalVisualizer(Visualizer):
             self.show(drawn_img, win_name=name, wait_time=wait_time)
 
         if out_file is not None:
+            if not out_file.endswith('.png') or not out_file.endswith('.jpg'):
+                out_file = out_file + '.png'
             mmcv.imwrite(drawn_img[..., ::-1], out_file)
         else:
             # save drawn_img to backends

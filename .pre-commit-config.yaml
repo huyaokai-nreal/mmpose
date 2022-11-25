@@ -54,8 +54,3 @@ repos:
   #       language: python
   #       files: ^configs/.*\.md$
   #       require_serial: true
-  - repo: https://github.com/open-mmlab/pre-commit-hooks
-    rev: v0.2.0
-    hooks:
-      - id: check-copyright
-        args: ["mmpose", "tests", "demo", "tools", "--excludes", "demo/mmdetection_cfg", "demo/mmtracking_cfg"]

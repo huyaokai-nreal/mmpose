@@ -505,15 +505,20 @@ class ResNet_top(BaseModule):
         channels (int): Number of channels of the feature output by ResNet_top.
         init_cfg (dict or list[dict], optional): Initialization config dict.
             Default: None
+        intput_channels (int): input channels
     """
 
-    def __init__(self, norm_cfg=dict(type='BN'), channels=64, init_cfg=None):
+    def __init__(self,
+                 norm_cfg=dict(type='BN'),
+                 channels=64,
+                 init_cfg=None,
+                 input_channels=3):
         # Protect mutable default arguments
         norm_cfg = cp.deepcopy(norm_cfg)
         super().__init__(init_cfg=init_cfg)
         self.top = nn.Sequential(
             ConvModule(
-                3,
+                input_channels,
                 channels,
                 kernel_size=7,
                 stride=2,
@@ -559,6 +564,7 @@ class RSN(BaseBackbone):
                     std=0.01,
                     layer=['Linear']),
             ]``
+        image_channels (int): input image channels
     Example:
         >>> from mmpose.models import RSN
         >>> import torch
@@ -592,7 +598,8 @@ class RSN(BaseBackbone):
                          val=1,
                          layer=['_BatchNorm', 'GroupNorm']),
                      dict(type='Normal', std=0.01, layer=['Linear']),
-                 ]):
+                 ],
+                 image_channels=3):
         # Protect mutable default arguments
         norm_cfg = cp.deepcopy(norm_cfg)
         num_blocks = cp.deepcopy(num_blocks)
@@ -608,7 +615,7 @@ class RSN(BaseBackbone):
         assert self.num_steps > 1
         assert self.num_units > 1
         assert self.num_units == len(self.num_blocks)
-        self.top = ResNet_top(norm_cfg=norm_cfg)
+        self.top = ResNet_top(norm_cfg=norm_cfg, input_channels=image_channels)
         self.multi_stage_rsn = nn.ModuleList([])
         for i in range(self.num_stages):
             if i == 0:
