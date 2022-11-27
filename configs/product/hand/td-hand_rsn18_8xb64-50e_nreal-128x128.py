@@ -17,12 +17,11 @@ param_scheduler = [
     dict(type='LinearLR', begin=0, end=2400, start_factor=0.1,
          by_epoch=False),  # warm-up
     dict(
-        type='MultiStepLR',
-        begin=0,
-        end=50,
-        milestones=[20, 40, 45],
-        gamma=0.1,
-        by_epoch=True)
+        type='CosineAnnealingLR',
+        by_epoch=True,
+        T_max=50,
+        convert_to_iter_based=True,
+        eta_min=1e-7)
 ]
 
 # automatically scaling LR based on the actual training batch size
@@ -68,17 +67,8 @@ model = dict(
         # each sub list is for a stage
         # and each element in each list is for a unit
         level_indices=[0, 1, 2, 3],
-        loss=[
-            dict(
-                type='KeypointMSELoss',
-                use_target_weight=True,
-                loss_weight=0.25)
-        ] * 3 + [
-            dict(
-                type='KeypointOHKMMSELoss',
-                use_target_weight=True,
-                loss_weight=1.)
-        ],
+        loss=[dict(type='JointsL2Loss', loss_weight=0.25)] * 3 +
+        [dict(type='JointsL2Loss', has_ohkm=True, topk=17, loss_weight=1.)],
         decoder=codec[-1]),
     test_cfg=dict(
         flip_test=False,
@@ -145,7 +135,7 @@ val_data_list = [
 train_dataloader = dict(
     batch_size=32,
     num_workers=8,
-    persistent_workers=True,
+    persistent_workers=False,
     pin_memory=False,
     prefetch_factor=32,
     sampler=dict(type='DefaultSampler', shuffle=True),
