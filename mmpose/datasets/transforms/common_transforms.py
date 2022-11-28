@@ -603,12 +603,29 @@ class Albumentation(BaseTransform):
     """
 
     def __init__(self,
-                 transforms: List[dict],
+                 transforms: List[dict] = [],
                  keymap: Optional[dict] = None) -> None:
         if albumentations is None:
             raise RuntimeError('albumentations is not installed')
 
-        self.transforms = transforms
+        if not transforms:
+            self.transforms = [
+                dict(
+                    type='RandomBrightnessContrast',
+                    brightness_limit=[0.1, 0.3],
+                    contrast_limit=[0.1, 0.3],
+                    p=0.2),
+                dict(type='ChannelShuffle', p=0.1),
+                dict(
+                    type='OneOf',
+                    transforms=[
+                        dict(type='Blur', blur_limit=3, p=1.0),
+                        dict(type='MedianBlur', blur_limit=3, p=1.0)
+                    ],
+                    p=0.1),
+            ]
+        else:
+            self.transforms = transforms
 
         self.aug = albumentations.Compose(
             [self.albu_builder(t) for t in self.transforms])

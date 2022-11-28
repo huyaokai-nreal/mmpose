@@ -42,17 +42,57 @@ class TopdownPoseEstimator(BasePoseEstimator):
                  train_cfg: OptConfigType = None,
                  test_cfg: OptConfigType = None,
                  data_preprocessor: OptConfigType = None,
-                 init_cfg: OptMultiConfig = None,
-                 metainfo: Optional[dict] = None):
-        super().__init__(
-            backbone=backbone,
-            neck=neck,
-            head=head,
-            train_cfg=train_cfg,
-            test_cfg=test_cfg,
-            data_preprocessor=data_preprocessor,
-            init_cfg=init_cfg,
-            metainfo=metainfo)
+                 init_cfg: OptMultiConfig = None):
+        super().__init__(data_preprocessor, init_cfg)
+
+        self.backbone = MODELS.build(backbone)
+
+        if neck is not None:
+            self.neck = MODELS.build(neck)
+
+        if head is not None:
+            self.head = MODELS.build(head)
+
+        self.train_cfg = train_cfg if train_cfg else {}
+        self.test_cfg = test_cfg if test_cfg else {}
+
+        # Register the hook to automatically convert old version state dicts
+        self._register_load_state_dict_pre_hook(self._load_state_dict_pre_hook)
+
+    def extract_feat(self, inputs: Tensor) -> Tuple[Tensor]:
+        """Extract features.
+
+        Args:
+            inputs (Tensor): Image tensor with shape (N, C, H ,W).
+
+        Returns:
+            tuple[Tensor]: Multi-level features that may have various
+            resolutions.
+        """
+        x = self.backbone(inputs)
+        if self.with_neck:
+            x = self.neck(x)
+
+        return x
+
+    def _forward(self, inputs: Tensor):
+        """Network forward process. Usually includes backbone, neck and head
+        forward without any post-processing.
+
+        Args:
+            inputs (Tensor): Inputs with shape (N, C, H, W).
+
+        Returns:
+            tuple: A tuple of features from ``rpn_head`` and ``roi_head``
+            forward.
+        """
+
+        x = self.extract_feat(inputs)
+        if self.with_head:
+            x = self.head.forward(x)
+            if isinstance(x, list):
+                x = x[-1]
+        return x
 
     def loss(self, inputs: Tensor, data_samples: SampleList) -> dict:
         """Calculate losses from a batch of inputs and data samples.

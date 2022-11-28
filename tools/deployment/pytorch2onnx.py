@@ -42,7 +42,8 @@ def pytorch2onnx(model,
                  show=False,
                  output_file='tmp.onnx',
                  verify=False,
-                 simplify=False):
+                 simplify=False,
+                 dyn_batch=False):
     """Convert pytorch model to onnx model.
 
     Args:
@@ -58,6 +59,17 @@ def pytorch2onnx(model,
     """
     model.cpu().eval()
     one_img = torch.randn(input_shape)
+    dynamic_axes = None
+    if dyn_batch:
+        dynamic_axes = {
+            'input': {
+                0: 'batch_size'
+            },  # variable length axes
+            'output': {
+                0: 'batch_size'
+            }
+        }
+
     torch.onnx.export(
         model,
         one_img,
@@ -68,14 +80,7 @@ def pytorch2onnx(model,
         opset_version=opset_version,
         input_names=['input'],
         output_names=['output'],
-        dynamic_axes={
-            'input': {
-                0: 'batch_size'
-            },  # variable length axes
-            'output': {
-                0: 'batch_size'
-            }
-        })
+        dynamic_axes=dynamic_axes)
 
     print(f'Successfully exported ONNX model: {output_file}')
     if simplify:
@@ -115,12 +120,10 @@ def pytorch2onnx(model,
                                 {net_feed_input[0]: one_img.detach().numpy()})
 
         # compare results
-        print(pytorch_results[0][0])
-        print(onnx_results[0][0])
         assert len(pytorch_results) == len(onnx_results)
         for pt_result, onnx_result in zip(pytorch_results, onnx_results):
             assert np.allclose(
-                pt_result.detach().cpu().numpy(), onnx_result, atol=1.e-5
+                pt_result.detach().cpu().numpy(), onnx_result, atol=1.e-4
             ), 'The outputs are different between Pytorch and ONNX'
         print('The numerical values are same between Pytorch and ONNX')
 
@@ -148,6 +151,8 @@ def parse_args():
         '-sim',
         action='store_true',
         help='use onnxsim to simplfy the onnx model')
+    parser.add_argument(
+        '--dyn-batch', action='store_true', help='enable dynamic batch input')
     args = parser.parse_args()
     return args
 
@@ -169,12 +174,16 @@ if __name__ == '__main__':
     msg += reset_style
     warnings.warn(msg)
     checkpoint = args.checkpoint if args.checkpoint else None
-    model = init_model(args.config, checkpoint, device='cpu')
+    model = init_model(
+        args.config,
+        checkpoint,
+        device='cpu',
+        cfg_options={'model.data_preprocessor': None})
     model = _convert_batchnorm(model)
 
     # onnx.export does not support kwargs
-    if hasattr(model, 'forward_dummy'):
-        model.forward = model.forward_dummy
+    if hasattr(model, '_forward'):
+        model.forward = model._forward
     else:
         raise NotImplementedError(
             'Please implement the forward method for exporting.')
@@ -187,4 +196,5 @@ if __name__ == '__main__':
         show=args.show,
         output_file=args.output_file,
         verify=args.verify,
-        simplify=args.simplify)
+        simplify=args.simplify,
+        dyn_batch=args.dyn_batch)

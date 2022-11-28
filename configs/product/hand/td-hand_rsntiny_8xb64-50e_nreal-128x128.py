@@ -4,6 +4,10 @@ _base_ = ['../../_base_/default_runtime.py']
 train_cfg = dict(max_epochs=50, val_interval=5)
 
 # optimizer
+log_config = dict(
+    interval=50,
+    hooks=[dict(type='TextLoggerHook'),
+           dict(type='TensorboardLoggerHook')])
 optim_wrapper = dict(
     optimizer=dict(
         type='Adam',
@@ -28,7 +32,8 @@ param_scheduler = [
 auto_scale_lr = dict(base_batch_size=256)
 
 # hooks
-default_hooks = dict(checkpoint=dict(save_best='mAP', rule='greater'))
+default_hooks = dict(
+    checkpoint=dict(interval=5, save_best='mAP', rule='greater'))
 
 # codec settings
 # multiple kernel_sizes of heatmap gaussian for 'Megvii' approach.
@@ -45,21 +50,16 @@ codec = [
 model = dict(
     type='TopdownPoseEstimator',
     data_preprocessor=dict(
-        type='PoseDataPreprocessor', mean=[0.449], std=[0.226]),
+        type='PoseDataPreprocessor', mean=[0.449 * 255], std=[0.226 * 255]),
     backbone=dict(
-        type='RSN',
-        unit_channels=256,
-        num_stages=1,
-        num_units=4,
-        num_blocks=[2, 2, 2, 2],
-        num_steps=4,
-        norm_cfg=dict(type='BN'),
-        image_channels=1,
+        type='RSNTiny',
+        stage_num=1,
+        upsample_chl_num=192,
     ),
     head=dict(
         type='MSPNHead',
         out_shape=(32, 32),
-        unit_channels=256,
+        unit_channels=192,
         out_channels=21,
         num_stages=1,
         num_units=4,
@@ -82,6 +82,7 @@ data_mode = 'topdown'
 
 # pipelines
 train_pipeline = [
+    dict(type='Albumentation'),
     dict(type='GetBBoxCenterScale'),
     dict(type='RandomBBoxTransform'),
     dict(type='TopdownAffine', input_size=codec[0]['input_size']),
@@ -92,7 +93,7 @@ train_pipeline = [
 ]
 
 val_pipeline = [
-    dict(type='GetBBoxCenterScale'),
+    dict(type='GetBBoxCenterScale', padding=1.0),
     dict(type='TopdownAffine', input_size=codec[0]['input_size']),
     dict(type='PackPoseInputs')
 ]
@@ -169,3 +170,5 @@ test_evaluator = val_evaluator
 
 # fp16 settings
 fp16 = dict(loss_scale='dynamic')
+# model wrapper
+find_unused_parameters = True

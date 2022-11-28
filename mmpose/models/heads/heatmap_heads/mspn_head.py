@@ -286,17 +286,6 @@ class MSPNHead(BaseHead):
                 and units.
         """
         out = []
-        assert len(feats) == self.num_stages, (
-            f'The length of feature maps did not match the '
-            f'`num_stages` in {self.__class__.__name__}')
-        for feat in feats:
-            assert len(feat) == self.num_units, (
-                f'The length of feature maps did not match the '
-                f'`num_units` in {self.__class__.__name__}')
-            for f in feat:
-                assert f.shape[1] == self.unit_channels, (
-                    f'The number of feature map channels did not match the '
-                    f'`unit_channels` in {self.__class__.__name__}')
 
         for i in range(self.num_stages):
             for j in range(self.num_units):

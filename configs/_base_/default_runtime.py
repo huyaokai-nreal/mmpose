@@ -5,7 +5,7 @@ default_hooks = dict(
     timer=dict(type='IterTimerHook'),
     logger=dict(type='LoggerHook', interval=50),
     param_scheduler=dict(type='ParamSchedulerHook'),
-    checkpoint=dict(type='CheckpointHook', interval=10),
+    checkpoint=dict(type='CheckpointHook', interval=5),
     sampler_seed=dict(type='DistSamplerSeedHook'),
     visualization=dict(type='PoseVisualizationHook', enable=False),
 )
@@ -25,13 +25,16 @@ env_cfg = dict(
 )
 
 # visualizer
-vis_backends = [dict(type='LocalVisBackend')]
+vis_backends = [
+    dict(type='LocalVisBackend'),
+    dict(type='TensorboardVisBackend')
+]
 visualizer = dict(
     type='PoseLocalVisualizer', vis_backends=vis_backends, name='visualizer')
 
 # logger
 log_processor = dict(
-    type='LogProcessor', window_size=50, by_epoch=True, num_digits=6)
+    type='LogProcessor', window_size=50, by_epoch=True, num_digits=4)
 log_level = 'INFO'
 load_from = None
 resume = False

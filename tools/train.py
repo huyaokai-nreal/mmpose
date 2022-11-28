@@ -6,6 +6,11 @@ import os.path as osp
 from mmengine.config import Config, DictAction
 from mmengine.runner import Runner
 
+from mmpose.utils import register_all_modules
+import torch
+
+torch.multiprocessing.set_sharing_strategy('file_system')
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a pose model')

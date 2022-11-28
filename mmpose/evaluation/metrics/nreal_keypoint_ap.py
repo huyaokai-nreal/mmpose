@@ -19,7 +19,9 @@ class NrealKeypointAP(BaseMetric):
     def __init__(self,
                  ann_file,
                  collect_device: str = 'cpu',
-                 prefix: Optional[str] = None) -> None:
+                 prefix: Optional[str] = None,
+                 flip_left_to_right=True) -> None:
+        self.flip_left_to_right = flip_left_to_right
         super().__init__(collect_device, prefix)
         self.coco = COCO(ann_file)
 
@@ -61,15 +63,15 @@ class NrealKeypointAP(BaseMetric):
             image_id = result['img_id']
             ann_ids = self.coco.getAnnIds(imgIds=image_id, iscrowd=False)
             objs = self.coco.loadAnns(ann_ids)
-            # if cat == 1:
-            #    image_width = self.coco_list[0].imgs[image_id]['width']
-            #    boxes[i][0] = image_width - 1 - boxes[i][0]
-            #    preds[i][:, 0] = image_width - 1 - preds[i][:, 0]
-            #    oks = self._calculate_oks(preds[i],
-            #                                np.array(objs[0]['keypoints']))
+            keypoints = result['keypoints'][0]
+            if self.flip_left_to_right:
+                cat = objs[0]['category_id']
+                if cat == 1:
+                    image_width = self.coco.imgs[image_id]['width']
+                    keypoints[:, 0] = image_width - 1 - keypoints[:, 0]
             item = dict(
                 image_id=image_id,
-                keypoints=result['keypoints'][0].tolist(),
+                keypoints=keypoints.tolist(),
                 gt_keypoints=objs[0]['keypoints'],
                 keypint_scores=result['keypoint_scores'][0].tolist())
             kpt_result.append(item)
