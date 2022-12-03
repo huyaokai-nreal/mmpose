@@ -2,7 +2,7 @@
 import argparse
 import os
 import os.path as osp
-
+from mmpose.utils.lmdb_client import LmdbClient
 import mmcv
 import mmengine
 import numpy as np
@@ -23,6 +23,7 @@ def parse_args():
         type=str,
         help='If there is no display interface, you can save it.')
     parser.add_argument('--not-show', default=False, action='store_true')
+    parser.add_argument('--lmdb', default=True, action='store_true')
     parser.add_argument(
         '--phase',
         default='train',
@@ -80,7 +81,10 @@ def main():
     if args.cfg_options is not None:
         cfg.merge_from_dict(args.cfg_options)
     file_client_args = cfg.get('file_client_args', dict(backend='disk'))
-    file_client = mmengine.FileClient(**file_client_args)
+    if args.lmdb:
+        file_client = LmdbClient(color_type='grayscale')
+    else:
+        file_client = mmengine.FileClient(**file_client_args)
 
     # register all modules in mmpose into the registries
     init_default_scope(cfg.get('default_scope', 'mmpose'))
@@ -121,8 +125,11 @@ def main():
                 continue
             else:
                 img_path = item['img_path']
-                img_bytes = file_client.get(img_path)
-                img = mmcv.imfrombytes(img_bytes, channel_order='bgr')
+                if args.lmdb:
+                    img = file_client.get(img_path)
+                else:
+                    img_bytes = file_client.get(img_path)
+                    img = mmcv.imfrombytes(img_bytes, channel_order='bgr')
 
                 # forge pseudo data_sample
                 gt_instances = InstanceData()
@@ -151,7 +158,7 @@ def main():
             img,
             data_sample,
             draw_pred=False,
-            draw_bbox=(args.mode == 'original'),
+            draw_bbox=False,
             draw_heatmap=True,
             show=not args.not_show,
             wait_time=args.show_interval,

@@ -11,6 +11,7 @@ from mmengine.visualization import Visualizer
 
 from mmpose.registry import HOOKS
 from mmpose.structures import PoseDataSample, merge_data_samples
+from mmpose.utils.lmdb_client import LmdbClient
 
 
 @HOOKS.register_module()
@@ -135,23 +136,34 @@ class PoseVisualizationHook(Hook):
                                         self.out_dir)
             mmengine.mkdir_or_exist(self.out_dir)
 
-        if self.file_client is None:
-            self.file_client = mmengine.FileClient(**self.file_client_args)
-
         self._visualizer.set_dataset_meta(runner.test_evaluator.dataset_meta)
 
         for data_sample in outputs:
+            img_path = data_sample.get('img_path')
+            if self.file_client is None:
+                if 'lmdb' in img_path:
+                    self.file_client = LmdbClient('gray')
+                else:
+                    self.file_client = mmengine.FileClient(
+                        **self.file_client_args)
             self._test_index += 1
 
-            img_path = data_sample.get('img_path')
-            img_bytes = self.file_client.get(img_path)
-            img = mmcv.imfrombytes(img_bytes, channel_order='rgb')
+            if 'lmdb' in img_path:
+                img = self.file_client.get(img_path)
+            else:
+                img_bytes = self.file_client.get(img_path)
+                img = mmcv.imfrombytes(img_bytes, channel_order='rgb')
             data_sample = merge_data_samples([data_sample])
 
             out_file = None
             if self.out_dir is not None:
-                out_file_name, postfix = os.path.basename(img_path).rsplit(
-                    '.', 1)
+                name_list = os.path.basename(img_path).split('.')
+                if len(name_list) == 1:
+                    out_file_name = name_list[0]
+                    postfix = '.png'
+                else:
+                    out_file_name, postfix = os.path.basename(img_path).split(
+                        '.')
                 index = len([
                     fname for fname in os.listdir(self.out_dir)
                     if fname.startswith(out_file_name)
