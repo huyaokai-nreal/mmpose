@@ -1,79 +1,60 @@
 # flake8: noqa
 _base_ = ['../../_base_/default_runtime.py']
+
 # runtime
 train_cfg = dict(max_epochs=50, val_interval=5)
 
 # optimizer
-optim_wrapper = dict(
-    optimizer=dict(
-        type='Adam',
-        lr=2e-3,
-        betas=(0.9, 0.999),
-        weight_decay=1e-6,
-    ))
-optimizer_config = dict(grad_clip=None)
+optim_wrapper = dict(optimizer=dict(
+    type='Adam',
+    lr=5e-4,
+))
+
 # learning policy
 param_scheduler = [
-    dict(type='LinearLR', begin=0, end=2400, start_factor=0.1,
-         by_epoch=False),  # warm-up
     dict(
-        type='CosineAnnealingLR',
-        by_epoch=True,
-        T_max=50,
-        convert_to_iter_based=True,
-        eta_min=1e-7)
+        type='LinearLR', begin=0, end=2400, start_factor=0.001,
+        by_epoch=False),  # warm-up
+    dict(
+        type='MultiStepLR',
+        begin=0,
+        end=50,
+        milestones=[30, 40],
+        gamma=0.1,
+        by_epoch=True)
 ]
 
 # automatically scaling LR based on the actual training batch size
-auto_scale_lr = dict(base_batch_size=256)
+auto_scale_lr = dict(base_batch_size=512)
 
 # hooks
-default_hooks = dict(checkpoint=dict(save_best='mAP', rule='greater'))
+default_hooks = dict(
+    checkpoint=dict(interval=5, save_best='mAP', rule='greater'))
 
 # codec settings
-# multiple kernel_sizes of heatmap gaussian for 'Megvii' approach.
-kernel_sizes = [11, 9, 7, 5]
-codec = [
-    dict(
-        type='NrealHeatmap',
-        input_size=(128, 128),
-        heatmap_size=(32, 32),
-        kernel_size=kernel_size) for kernel_size in kernel_sizes
-]
+codec = dict(
+    type='MSRAHeatmap',
+    input_size=(128, 128),
+    heatmap_size=(32, 32),
+    sigma=1,
+    blur_kernel_size=3)
 
 # model settings
 model = dict(
     type='TopdownPoseEstimator',
     data_preprocessor=dict(
-        type='PoseDataPreprocessor', mean=[0.449], std=[0.226]),
-    backbone=dict(
-        type='RSN',
-        unit_channels=256,
-        num_stages=1,
-        num_units=4,
-        num_blocks=[2, 2, 2, 2],
-        num_steps=4,
-        norm_cfg=dict(type='BN'),
-        image_channels=1,
-    ),
+        type='PoseDataPreprocessor', mean=[0.449 * 255], std=[0.226 * 255]),
+    backbone=dict(type='ResNet', depth=18, in_channels=1),
     head=dict(
-        type='MSPNHead',
-        out_shape=(32, 32),
-        unit_channels=256,
+        type='HeatmapHead',
+        in_channels=512,
         out_channels=21,
-        num_stages=1,
-        num_units=4,
-        norm_cfg=dict(type='BN'),
-        # each sub list is for a stage
-        # and each element in each list is for a unit
-        level_indices=[0, 1, 2, 3],
-        loss=[dict(type='JointsL2Loss', loss_weight=0.25)] * 3 +
-        [dict(type='JointsL2Loss', has_ohkm=True, topk=17, loss_weight=1.)],
-        decoder=codec[-1]),
+        loss=dict(type='KeypointMSELoss', use_target_weight=True),
+        decoder=codec),
     test_cfg=dict(
-        flip_test=False,
+        flip_test=True,
         flip_mode='heatmap',
-        shift_heatmap=False,
+        shift_heatmap=True,
     ))
 
 # base dataset settings
@@ -82,18 +63,22 @@ data_mode = 'topdown'
 
 # pipelines
 train_pipeline = [
+    #dict(type='Albumentation'),
     dict(type='GetBBoxCenterScale'),
-    dict(type='RandomBBoxTransform'),
-    dict(type='TopdownAffine', input_size=codec[0]['input_size']),
     dict(
-        type='GenerateTarget', target_type='multilevel_heatmap',
-        encoder=codec),
+        type='RandomBBoxTransform',
+        scale_factor=[0.75, 1.25],
+        rotate_factor=15,
+        rotate_prob=0.3,
+        shift_prob=0.5,
+        shift_factor=0.2),
+    dict(type='TopdownAffine', input_size=codec['input_size']),
+    dict(type='GenerateTarget', target_type='heatmap', encoder=codec),
     dict(type='PackPoseInputs')
 ]
-
 val_pipeline = [
     dict(type='GetBBoxCenterScale'),
-    dict(type='TopdownAffine', input_size=codec[0]['input_size']),
+    dict(type='TopdownAffine', input_size=codec['input_size']),
     dict(type='PackPoseInputs')
 ]
 train_data_list = [
@@ -131,13 +116,12 @@ train_data_list = [
 val_data_list = [
     '/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_lmdb.json'
 ]
+
 # data loaders
 train_dataloader = dict(
     batch_size=64,
     num_workers=8,
     persistent_workers=True,
-    pin_memory=False,
-    prefetch_factor=2,
     sampler=dict(type='DefaultSampler', shuffle=True),
     dataset=dict(
         type=dataset_type,
@@ -166,6 +150,3 @@ val_evaluator = dict(
     ann_file=val_data_list[0],
 )
 test_evaluator = val_evaluator
-
-# fp16 settings
-fp16 = dict(loss_scale='dynamic')

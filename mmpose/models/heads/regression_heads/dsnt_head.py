@@ -91,6 +91,7 @@ class DSNTHead(IntegralRegressionHead):
                  input_transform: str = 'select',
                  input_index: Union[int, Sequence[int]] = -1,
                  align_corners: bool = False,
+                 output_sigma: bool = False,
                  loss: ConfigType = dict(
                      type='MultipleLossWrapper',
                      losses=[
@@ -115,6 +116,7 @@ class DSNTHead(IntegralRegressionHead):
             input_index=input_index,
             align_corners=align_corners,
             loss=loss,
+            output_sigma=output_sigma,
             decoder=decoder,
             init_cfg=init_cfg)
 
@@ -152,6 +154,8 @@ class DSNTHead(IntegralRegressionHead):
 
         losses.update(loss_kpt=loss)
 
+        if pred_coords.size(-1) == 4:
+            pred_coords = pred_coords[:, :, :2]
         # calculate accuracy
         _, avg_acc, _ = keypoint_pck_accuracy(
             pred=to_numpy(pred_coords),

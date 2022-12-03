@@ -43,7 +43,7 @@ class RLELoss(nn.Module):
 
         self.flow_model = RealNVP()
 
-    def forward(self, pred, sigma, target, target_weight=None):
+    def forward(self, pred, target, target_weight=None):
         """Forward function.
 
         Note:
@@ -58,9 +58,10 @@ class RLELoss(nn.Module):
             target_weight (Tensor[N, K, D]):
                 Weights across different joint types.
         """
+        pos_pred = pred[:, :, :2]
+        sigma = pred[:, :, 2:4]
         sigma = sigma.sigmoid()
-
-        error = (pred - target) / (sigma + 1e-9)
+        error = (pos_pred - target) / (sigma + 1e-9)
         # (B, K, 2)
         log_phi = self.flow_model.log_prob(error.reshape(-1, 2))
         log_phi = log_phi.reshape(target.shape[0], target.shape[1], 1)

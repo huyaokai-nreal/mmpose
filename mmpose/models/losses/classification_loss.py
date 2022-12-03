@@ -73,11 +73,11 @@ class JSDiscretLoss(nn.Module):
 
     def kl(self, p, q):
         eps = 1e-24
-        kl_values = self.kl_loss((q + eps).log(), p)
+        kl_values = self.kl_loss((p + eps).log(), q)
         return kl_values
 
     def js(self, pred_hm, gt_hm):
-        m = 0.5 * (pred_hm + gt_hm)
+        m = 0.5 * (pred_hm + gt_hm).detach()
         js_values = 0.5 * (self.kl(pred_hm, m) + self.kl(gt_hm, m))
         return js_values
 
@@ -95,8 +95,7 @@ class JSDiscretLoss(nn.Module):
 
         if self.size_average:
             loss /= len(gt_hm)
-
-        return loss.sum()
+        return loss
 
 
 @MODELS.register_module()

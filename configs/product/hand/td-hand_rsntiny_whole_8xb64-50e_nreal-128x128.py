@@ -1,7 +1,7 @@
 # flake8: noqa
 _base_ = ['../../_base_/default_runtime.py']
 # runtime
-train_cfg = dict(max_epochs=50, val_interval=5)
+train_cfg = dict(max_epochs=60, val_interval=5)
 
 # optimizer
 optim_wrapper = dict(
@@ -11,15 +11,14 @@ optim_wrapper = dict(
         betas=(0.9, 0.999),
         weight_decay=1e-6,
     ))
-optimizer_config = dict(grad_clip=None)
 # learning policy
 param_scheduler = [
-    dict(type='LinearLR', begin=0, end=2400, start_factor=0.1,
+    dict(type='LinearLR', begin=0, end=2000, start_factor=0.1,
          by_epoch=False),  # warm-up
     dict(
         type='CosineAnnealingLR',
         by_epoch=True,
-        T_max=50,
+        T_max=train_cfg['max_epochs'],
         convert_to_iter_based=True,
         eta_min=1e-7)
 ]
@@ -28,7 +27,8 @@ param_scheduler = [
 auto_scale_lr = dict(base_batch_size=256)
 
 # hooks
-default_hooks = dict(checkpoint=dict(save_best='mAP', rule='greater'))
+default_hooks = dict(
+    checkpoint=dict(interval=5, save_best='mAP', rule='greater'))
 
 # codec settings
 # multiple kernel_sizes of heatmap gaussian for 'Megvii' approach.
@@ -45,21 +45,16 @@ codec = [
 model = dict(
     type='TopdownPoseEstimator',
     data_preprocessor=dict(
-        type='PoseDataPreprocessor', mean=[0.449], std=[0.226]),
+        type='PoseDataPreprocessor', mean=[0.449 * 255], std=[0.226 * 255]),
     backbone=dict(
-        type='RSN',
-        unit_channels=256,
-        num_stages=1,
-        num_units=4,
-        num_blocks=[2, 2, 2, 2],
-        num_steps=4,
-        norm_cfg=dict(type='BN'),
-        image_channels=1,
+        type='RSNTiny',
+        stage_num=1,
+        upsample_chl_num=192,
     ),
     head=dict(
         type='MSPNHead',
         out_shape=(32, 32),
-        unit_channels=256,
+        unit_channels=192,
         out_channels=21,
         num_stages=1,
         num_units=4,
@@ -82,8 +77,19 @@ data_mode = 'topdown'
 
 # pipelines
 train_pipeline = [
-    dict(type='GetBBoxCenterScale'),
-    dict(type='RandomBBoxTransform'),
+    dict(
+        type='Albumentation',
+        transforms=[
+            dict(type='RandomBrightnessContrast', p=0.2),
+        ]),
+    dict(type='GetBBoxCenterScale', padding=1.25),
+    dict(
+        type='RandomBBoxTransform',
+        scale_factor=[0.75, 1.25],
+        rotate_factor=15,
+        rotate_prob=0.3,
+        shift_prob=0.5,
+        shift_factor=0.2),
     dict(type='TopdownAffine', input_size=codec[0]['input_size']),
     dict(
         type='GenerateTarget', target_type='multilevel_heatmap',
@@ -92,7 +98,7 @@ train_pipeline = [
 ]
 
 val_pipeline = [
-    dict(type='GetBBoxCenterScale'),
+    dict(type='GetBBoxCenterScale', padding=1.25),
     dict(type='TopdownAffine', input_size=codec[0]['input_size']),
     dict(type='PackPoseInputs')
 ]
@@ -169,3 +175,5 @@ test_evaluator = val_evaluator
 
 # fp16 settings
 fp16 = dict(loss_scale='dynamic')
+# model wrapper
+find_unused_parameters = False

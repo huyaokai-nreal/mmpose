@@ -91,6 +91,7 @@ class IntegralRegressionHead(BaseHead):
                  conv_out_channels: OptIntSeq = None,
                  conv_kernel_sizes: OptIntSeq = None,
                  has_final_layer: bool = True,
+                 output_sigma: bool = False,
                  input_transform: str = 'select',
                  input_index: Union[int, Sequence[int]] = -1,
                  align_corners: bool = False,
@@ -111,6 +112,10 @@ class IntegralRegressionHead(BaseHead):
         self.align_corners = align_corners
         self.input_transform = input_transform
         self.input_index = input_index
+        self.output_sigma = output_sigma
+        if self.output_sigma:
+            self.gap = nn.AdaptiveAvgPool2d((1, 1))
+            self.sigma_fc = nn.Linear(self.in_channels, self.num_joints * 2)
         self.loss_module = MODELS.build(loss)
         if decoder is not None:
             self.decoder = KEYPOINT_CODECS.build(decoder)
@@ -212,11 +217,11 @@ class IntegralRegressionHead(BaseHead):
         """
         if self.simplebaseline_head is None:
             feats = self._transform_inputs(feats)
+            raw_feats = feats
             if self.final_layer is not None:
                 feats = self.final_layer(feats)
         else:
             feats = self.simplebaseline_head(feats)
-
         heatmaps = self._flat_softmax(feats * self.beta)
 
         pred_x = self._linear_expectation(heatmaps, self.linspace_x)
@@ -229,6 +234,12 @@ class IntegralRegressionHead(BaseHead):
             pred_y = C / (C - 1) * (pred_y - 1 / (2 * C))
 
         coords = torch.cat([pred_x, pred_y], dim=-1)
+        if self.output_sigma:
+            x = self.gap(raw_feats).reshape(raw_feats.size(0), -1)
+            pred_sigma = self.sigma_fc(x)
+            pred_sigma = pred_sigma.reshape(
+                pred_sigma.size(0), self.num_joints, 2)
+            coords = torch.cat([coords, pred_sigma], dim=-1)
         return coords, heatmaps
 
     def predict(self,
@@ -325,6 +336,8 @@ class IntegralRegressionHead(BaseHead):
         losses.update(loss_kpt=loss)
 
         # calculate accuracy
+        if pred_coords.size(-1) == 4:
+            pred_coords = pred_coords[:, :, :2]
         _, avg_acc, _ = keypoint_pck_accuracy(
             pred=to_numpy(pred_coords),
             gt=to_numpy(keypoint_labels),

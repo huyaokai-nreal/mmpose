@@ -154,7 +154,8 @@ class MobileNetV2(BaseBackbone):
                          type='Constant',
                          val=1,
                          layer=['_BatchNorm', 'GroupNorm'])
-                 ]):
+                 ],
+                 image_channel=3):
         # Protect mutable default arguments
         norm_cfg = copy.deepcopy(norm_cfg)
         act_cfg = copy.deepcopy(act_cfg)
@@ -180,7 +181,7 @@ class MobileNetV2(BaseBackbone):
         self.in_channels = make_divisible(32 * widen_factor, 8)
 
         self.conv1 = ConvModule(
-            in_channels=3,
+            in_channels=image_channel,
             out_channels=self.in_channels,
             kernel_size=3,
             stride=2,
