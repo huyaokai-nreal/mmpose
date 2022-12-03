@@ -1,7 +1,7 @@
 # flake8: noqa
 _base_ = ['../../_base_/default_runtime.py']
 # runtime
-train_cfg = dict(max_epochs=50, val_interval=5)
+train_cfg = dict(max_epochs=60, val_interval=5)
 
 # optimizer
 optim_wrapper = dict(
@@ -11,15 +11,14 @@ optim_wrapper = dict(
         betas=(0.9, 0.999),
         weight_decay=1e-6,
     ))
-optimizer_config = dict(grad_clip=None)
 # learning policy
 param_scheduler = [
-    dict(type='LinearLR', begin=0, end=2400, start_factor=0.1,
+    dict(type='LinearLR', begin=0, end=2000, start_factor=0.1,
          by_epoch=False),  # warm-up
     dict(
         type='CosineAnnealingLR',
         by_epoch=True,
-        T_max=50,
+        T_max=train_cfg['max_epochs'],
         convert_to_iter_based=True,
         eta_min=1e-7)
 ]
@@ -30,13 +29,18 @@ auto_scale_lr = dict(base_batch_size=256)
 # hooks
 default_hooks = dict(
     checkpoint=dict(interval=5, save_best='mAP', rule='greater'))
-
+custom_hooks = [
+    # Synchronize model buffers such as running_mean and running_var in BN
+    # at the end of each epoch
+    dict(type='SyncBuffersHook'),
+    dict(type='EMAHook'),
+]
 # codec settings
 # multiple kernel_sizes of heatmap gaussian for 'Megvii' approach.
 kernel_sizes = [11, 9, 7, 5]
 codec = [
     dict(
-        type='MegviiHeatmap',
+        type='NrealHeatmap',
         input_size=(128, 128),
         heatmap_size=(32, 32),
         kernel_size=kernel_size) for kernel_size in kernel_sizes
@@ -78,9 +82,15 @@ data_mode = 'topdown'
 
 # pipelines
 train_pipeline = [
-    dict(type='Albumentation'),
-    dict(type='GetBBoxCenterScale'),
-    dict(type='RandomBBoxTransform'),
+    #dict(type='Albumentation'),
+    dict(type='GetBBoxCenterScale', padding=1.25),
+    dict(
+        type='RandomBBoxTransform',
+        scale_factor=[0.75, 1.25],
+        rotate_factor=15,
+        rotate_prob=0.3,
+        shift_prob=0.5,
+        shift_factor=0.2),
     dict(type='TopdownAffine', input_size=codec[0]['input_size']),
     dict(
         type='GenerateTarget', target_type='multilevel_heatmap',
@@ -89,7 +99,7 @@ train_pipeline = [
 ]
 
 val_pipeline = [
-    dict(type='GetBBoxCenterScale', padding=1.0),
+    dict(type='GetBBoxCenterScale', padding=1.25),
     dict(type='TopdownAffine', input_size=codec[0]['input_size']),
     dict(type='PackPoseInputs')
 ]
@@ -126,7 +136,9 @@ train_data_list = [
 ]
 
 val_data_list = [
-    '/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_lmdb.json'
+    #'/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_lmdb.json'
+    '/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_3_1_221201_fisheye_vertical_binocular_lmdb.json'
+    #'/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_3_2_221201_fisheye_horizontal_binocular_lmdb.json'
 ]
 # data loaders
 train_dataloader = dict(
@@ -150,6 +162,7 @@ val_dataloader = dict(
     sampler=dict(type='DefaultSampler', shuffle=False, round_up=False),
     dataset=dict(
         type=dataset_type,
+        flip_left_to_right=True,
         data_file_list=val_data_list,
         data_mode=data_mode,
         test_mode=True,

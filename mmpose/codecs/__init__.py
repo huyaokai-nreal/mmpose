@@ -8,9 +8,10 @@ from .regression_label import RegressionLabel
 from .simcc_label import SimCCLabel
 from .spr import SPR
 from .udp_heatmap import UDPHeatmap
+from .nreal_heatmap import NrealHeatmap
 
 __all__ = [
     'MSRAHeatmap', 'MegviiHeatmap', 'UDPHeatmap', 'RegressionLabel',
     'SimCCLabel', 'IntegralRegressionLabel', 'AssociativeEmbedding', 'SPR',
-    'DecoupledHeatmap'
+    'DecoupledHeatmap', 'NrealHeatmap'
 ]

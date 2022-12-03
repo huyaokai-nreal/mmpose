@@ -392,11 +392,16 @@ class Single_stage_module(nn.Module):
 @MODELS.register_module()
 class RSNTiny(nn.Module):
 
-    def __init__(self, stage_num, upsample_chl_num, **kwargs):
+    def __init__(self,
+                 stage_num,
+                 upsample_chl_num,
+                 output_last_only=False,
+                 **kwargs):
         super().__init__()
         self.top = ResNet_top()
         self.stage_num = stage_num
         self.upsample_chl_num = upsample_chl_num
+        self.output_last_only = output_last_only
         self.mspn_modules = list()
         for i in range(self.stage_num):
             if i == 0:
@@ -426,4 +431,7 @@ class RSNTiny(nn.Module):
         for i in range(self.stage_num):
             out, skip1, skip2, x = eval('self.stage' + str(i))(x, skip1, skip2)
             outputs.append(out)
-        return outputs
+        if self.output_last_only:
+            return outputs[-1]
+        else:
+            return outputs
