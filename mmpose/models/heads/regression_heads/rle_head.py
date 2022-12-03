@@ -158,17 +158,15 @@ class RLEHead(BaseHead):
             d.gt_instance_labels.keypoint_weights for d in batch_data_samples
         ])
 
-        pred_coords = pred_outputs[:, :, :2]
-        pred_sigma = pred_outputs[:, :, 2:4]
-
         # calculate losses
         losses = dict()
-        loss = self.loss_module(pred_coords, pred_sigma, keypoint_labels,
+        loss = self.loss_module(pred_outputs, keypoint_labels,
                                 keypoint_weights.unsqueeze(-1))
 
         losses.update(loss_kpt=loss)
 
         # calculate accuracy
+        pred_coords = pred_outputs[:, :, :2]
         _, avg_acc, _ = keypoint_pck_accuracy(
             pred=to_numpy(pred_coords),
             gt=to_numpy(keypoint_labels),
