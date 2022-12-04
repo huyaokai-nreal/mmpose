@@ -1,14 +1,13 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from typing import Callable, List, Optional, Sequence, Union
 
-import cv2
-import lmdb
 import numpy as np
 from mmengine.logging import MMLogger
 from xtcocotools.coco import COCO
 import os.path as osp
 from mmpose.datasets.builder import DATASETS
 from ..base import BaseCocoStyleDataset
+from mmpose.utils.lmdb_client import LmdbClient
 
 
 @DATASETS.register_module()
@@ -31,7 +30,7 @@ class HANDDataset(BaseCocoStyleDataset):
                  dataset_weight_list: List = []):
         self.flip_left_to_right = flip_left_to_right
         self.data_file_list = data_file_list
-        self.lmdb_server_map = {}
+        self.lmdb_client = LmdbClient()
         self.dataset_info_list = list()
         self.dataset_weight_list = dataset_weight_list
         self.dataset_num = len(self.data_file_list)
@@ -117,15 +116,6 @@ class HANDDataset(BaseCocoStyleDataset):
         for i, anno_file in enumerate(self.data_file_list):
             coco = COCO(anno_file)
             lmdb_path = coco.dataset['lmdb_path']
-            lmdb_env = lmdb.open(
-                lmdb_path,
-                max_readers=3,
-                readonly=True,
-                lock=False,
-                readahead=False,
-                meminit=False)
-            lmdb_txn = lmdb_env.begin()
-            self.lmdb_server_map[lmdb_path] = dict(env=lmdb_env, txn=lmdb_txn)
             sub_dataset_num = 0
             img_ids = coco.getImgIds()
             for img_id in img_ids:
@@ -148,15 +138,6 @@ class HANDDataset(BaseCocoStyleDataset):
         logger.info(f'HandDataset loaded {len(data_list)} images')
         return data_list
 
-    def _get_image(self, img_info):
-        lmdb_name = img_info.split(':')[0]
-        img_id = img_info.split(':')[1]
-        img_array = self.lmdb_server_map[lmdb_name]['txn'].get(img_id.encode())
-        img_array = np.fromstring(img_array, np.uint8)
-        img = cv2.imdecode(img_array, cv2.IMREAD_GRAYSCALE)
-        img = img[:, :, np.newaxis]
-        return img
-
     def __left_2_right_hand(self, results):
         img = results['img']
         width = img.shape[1]
@@ -170,7 +151,7 @@ class HANDDataset(BaseCocoStyleDataset):
         if self.dataset_weight_list:
             idx = self.__get_weighted_random_image_id()
         data_info = super().get_data_info(idx)
-        data_info['img'] = self._get_image(data_info['img_path'])
+        data_info['img'] = self.lmdb_client.get(data_info['img_path'])
         data_info['img_shape'] = data_info['img'].shape[:2]
         data_info['ori_shape'] = data_info['img'].shape[:2]
         if self.flip_left_to_right and data_info['cat_id'] == 1:
