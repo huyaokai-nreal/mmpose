@@ -27,10 +27,16 @@ class HANDDataset(BaseCocoStyleDataset):
                  serialize_data: bool = False,
                  lazy_init: bool = False,
                  max_refetch: int = 100,
-                 flip_left_to_right: bool = True):
+                 flip_left_to_right: bool = True,
+                 dataset_weight_list: List = []):
         self.flip_left_to_right = flip_left_to_right
         self.data_file_list = data_file_list
         self.lmdb_server_map = {}
+        self.dataset_info_list = list()
+        self.dataset_weight_list = dataset_weight_list
+        self.dataset_num = len(self.data_file_list)
+        if dataset_weight_list:
+            assert len(dataset_weight_list) == len(data_file_list)
         super().__init__(
             data_root='',
             data_mode=data_mode,
@@ -107,7 +113,8 @@ class HANDDataset(BaseCocoStyleDataset):
 
     def _load_annotations(self):
         data_list = []
-        for anno_file in self.data_file_list:
+        sub_dataset_start_id = 0
+        for i, anno_file in enumerate(self.data_file_list):
             coco = COCO(anno_file)
             lmdb_path = coco.dataset['lmdb_path']
             lmdb_env = lmdb.open(
@@ -119,6 +126,7 @@ class HANDDataset(BaseCocoStyleDataset):
                 meminit=False)
             lmdb_txn = lmdb_env.begin()
             self.lmdb_server_map[lmdb_path] = dict(env=lmdb_env, txn=lmdb_txn)
+            sub_dataset_num = 0
             img_ids = coco.getImgIds()
             for img_id in img_ids:
                 img = coco.loadImgs(img_id)[0]
@@ -132,6 +140,10 @@ class HANDDataset(BaseCocoStyleDataset):
                     data_info[
                         'img_path'] = f"{lmdb_path}:{data_info['img_path']}"
                     data_list.append(data_info)
+                    sub_dataset_num += 1
+            self.dataset_info_list.append(
+                (sub_dataset_start_id, sub_dataset_num))
+            sub_dataset_start_id += sub_dataset_num
         logger: MMLogger = MMLogger.get_current_instance()
         logger.info(f'HandDataset loaded {len(data_list)} images')
         return data_list
@@ -155,7 +167,8 @@ class HANDDataset(BaseCocoStyleDataset):
         results['bbox'][:, 2] = width - 1 - results['bbox'][:, 2]
 
     def get_data_info(self, idx):
-
+        if self.dataset_weight_list:
+            idx = self.__get_weighted_random_image_id()
         data_info = super().get_data_info(idx)
         data_info['img'] = self._get_image(data_info['img_path'])
         data_info['img_shape'] = data_info['img'].shape[:2]
@@ -163,3 +176,11 @@ class HANDDataset(BaseCocoStyleDataset):
         if self.flip_left_to_right and data_info['cat_id'] == 1:
             self.__left_2_right_hand(data_info)
         return data_info
+
+    def __get_weighted_random_image_id(self):
+        db_index = np.random.choice([i for i in range(self.dataset_num)],
+                                    p=self.dataset_weight_list)
+        sample_index = np.random.choice(self.dataset_info_list[db_index][1],
+                                        1)[0]
+        sample_index = self.dataset_info_list[db_index][0] + sample_index
+        return sample_index

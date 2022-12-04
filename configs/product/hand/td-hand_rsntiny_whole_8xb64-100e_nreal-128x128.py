@@ -1,7 +1,7 @@
 # flake8: noqa
 _base_ = ['../../_base_/default_runtime.py']
 # runtime
-train_cfg = dict(max_epochs=60, val_interval=5)
+train_cfg = dict(max_epochs=100, val_interval=10)
 
 # optimizer
 optim_wrapper = dict(
@@ -107,7 +107,7 @@ train_data_list = [
     '/data/data_hand/hand_keypoint/annotations/train_nreal_gesture_0318_1_14_bad_data_twohand_lmdb.json',
     '/data/data_hand/hand_keypoint/annotations/train_nreal_gesture_0616_1_21_bad_data_twohand_lmdb.json',
     '/data/data_hand/hand_keypoint/annotations/train_nreal_gesture_0127_1_10_twohand_lmdb.json',
-    '/data/data_hand/hand_keypoint/annotations/train_hanco_rgb_gesture_lmdb_refresh.json',
+    #'/data/data_hand/hand_keypoint/annotations/train_hanco_rgb_gesture_lmdb_refresh.json',
     '/data/data_hand/hand_keypoint/annotations/train_nreal_gesture_0517_1_19_bad_data_twohand_lmdb.json',
     '/data/data_hand/hand_keypoint/annotations/train_nreal_gesture_1111_1_1_twohand_lmdb.json',
     '/data/data_hand/hand_keypoint/annotations/train_nreal_gesture_baidu_0107_2_1_lmdb.json',
