@@ -58,7 +58,7 @@ model = dict(
                 dict(type='KeypointMSELoss', use_target_weight=True)
             ]),
         decoder=codec,
-        deploy=True,
+        deploy=False,
         output_sigma=True),
     test_cfg=dict(
         flip_test=False,
