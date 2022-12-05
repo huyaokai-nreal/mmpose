@@ -48,6 +48,9 @@ class DSNTHead(IntegralRegressionHead):
             Defaults to ``None``
         conv_kernel_sizes (sequence[int | tuple], optional): The kernel size
             of each intermediate conv layer. Defaults to ``None``
+        has_final_layer (bool): 1x1 conv layer to produce keypoint outputs.
+            Defaults to ``True``
+        output_sigma (bool): generate sigma for coords, Defaults to ``False``
         input_transform (str): Transformation of input features which should
             be one of the following options:
 
@@ -70,6 +73,7 @@ class DSNTHead(IntegralRegressionHead):
             keypoint coordinates from the network output. Defaults to ``None``
         init_cfg (Config, optional): Config to control the initialization. See
             :attr:`default_init_cfg` for default settings
+        deploy (bool, optional): inferece in deploy mode, Defaults to ``False``
 
     .. _`DSNT`: https://arxiv.org/abs/1801.07372
     """
@@ -99,7 +103,8 @@ class DSNTHead(IntegralRegressionHead):
                          dict(type='JSDiscretLoss', use_target_weight=True)
                      ]),
                  decoder: OptConfigType = None,
-                 init_cfg: OptConfigType = None):
+                 init_cfg: OptConfigType = None,
+                 deploy: bool = False):
 
         super().__init__(
             in_channels=in_channels,
@@ -118,7 +123,8 @@ class DSNTHead(IntegralRegressionHead):
             loss=loss,
             output_sigma=output_sigma,
             decoder=decoder,
-            init_cfg=init_cfg)
+            init_cfg=init_cfg,
+            deploy=deploy)
 
         self.lambda_t = lambda_t
 

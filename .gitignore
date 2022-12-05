@@ -129,5 +129,5 @@ docs/**/modelzoo.md
 
 # Pytorch
 *.pth
-
+*.onnx
 *.DS_Store

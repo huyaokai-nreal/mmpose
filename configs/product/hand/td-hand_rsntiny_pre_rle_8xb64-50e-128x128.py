@@ -25,14 +25,7 @@ param_scheduler = [
 auto_scale_lr = dict(base_batch_size=512)
 
 # codec settings
-codec = dict(
-    type='IntegralRegressionLabel',
-    input_size=(128, 128),
-    heatmap_size=(32, 32),
-    sigma=1,
-    normalize=False,
-    blur_kernel_size=1,
-)
+codec = dict(type='RegressionLabel', input_size=(128, 128))
 
 # model settings
 model = dict(
@@ -43,32 +36,24 @@ model = dict(
         type='RSNTiny',
         stage_num=1,
         upsample_chl_num=192,
-        output_last_only=True),
+        output_last_only=True,
+    ),
+    neck=dict(type='GlobalAveragePooling'),
     head=dict(
-        type='DSNTHead',
+        type='RLEHead',
         in_channels=192,
-        deconv_out_channels=(),
-        has_final_layer=True,
-        in_featuremap_size=(32, 32),
+        input_index=-1,
         num_joints=21,
-        loss=dict(
-            type='MultipleLossWrapper',
-            losses=[
-                dict(type='RLELoss', use_target_weight=False),
-                dict(type='KeypointMSELoss', use_target_weight=True)
-            ]),
-        decoder=codec,
-        deploy=True,
-        output_sigma=True),
+        loss=dict(type='RLELoss', use_target_weight=True),
+        decoder=codec),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
-        shift_heatmap=False,
     ),
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/home/zx_li/workspace/mmpose/work_dirs/td-hand_rsntiny_over_8xb64-50e_nreal-128x128/epoch_50.pth'
+        '/home/zx_li/workspace/mmpose/work_dirs/td-hand_rsntiny_whole_8xb64-100e_nreal-128x128/epoch_100.pth'
     ),
 )
 
@@ -114,8 +99,12 @@ val_data_list = [
 
 # pipelines
 train_pipeline = [
-    #dict(type='Albumentation'),
-    dict(type='GetBBoxCenterScale'),
+    dict(
+        type='Albumentation',
+        transforms=[
+            dict(type='RandomBrightnessContrast', p=0.2),
+        ]),
+    dict(type='GetBBoxCenterScale', padding=1.25),
     dict(
         type='RandomBBoxTransform',
         scale_factor=[0.75, 1.25],
@@ -124,10 +113,7 @@ train_pipeline = [
         shift_prob=0.5,
         shift_factor=0.2),
     dict(type='TopdownAffine', input_size=codec['input_size']),
-    dict(
-        type='GenerateTarget',
-        target_type='heatmap+keypoint_label',
-        encoder=codec),
+    dict(type='GenerateTarget', target_type='keypoint_label', encoder=codec),
     dict(type='PackPoseInputs')
 ]
 val_pipeline = [
@@ -177,4 +163,4 @@ test_evaluator = val_evaluator
 # fp16 settings
 fp16 = dict(loss_scale='dynamic')
 # model wrapper
-find_unused_parameters = False
+find_unused_parameters = True

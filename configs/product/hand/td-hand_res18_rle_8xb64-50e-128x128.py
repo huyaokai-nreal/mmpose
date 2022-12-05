@@ -43,8 +43,8 @@ model = dict(
         loss=dict(type='RLELoss', use_target_weight=True),
         decoder=codec),
     test_cfg=dict(
-        flip_test=True,
-        shift_coords=True,
+        flip_test=False,
+        shift_coords=False,
     ),
 )
 

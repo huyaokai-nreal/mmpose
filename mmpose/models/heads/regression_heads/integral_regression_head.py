@@ -51,6 +51,9 @@ class IntegralRegressionHead(BaseHead):
             Defaults to ``None``
         conv_kernel_sizes (sequence[int | tuple], optional): The kernel size
             of each intermediate conv layer. Defaults to ``None``
+        has_final_layer (bool): 1x1 conv layer to produce keypoint outputs.
+            Defaults to ``True``
+        output_sigma (bool): generate sigma for coords, Defaults to ``False``
         input_transform (str): Transformation of input features which should
             be one of the following options:
 
@@ -73,6 +76,7 @@ class IntegralRegressionHead(BaseHead):
             keypoint coordinates from the network output. Defaults to ``None``
         init_cfg (Config, optional): Config to control the initialization. See
             :attr:`default_init_cfg` for default settings
+        deploy (bool, optional): inferece in deploy mode, Defaults to ``False``
 
     .. _`IPR`: https://arxiv.org/abs/1711.08229
     .. _`Debias`:
@@ -98,7 +102,8 @@ class IntegralRegressionHead(BaseHead):
                  loss: ConfigType = dict(
                      type='SmoothL1Loss', use_target_weight=True),
                  decoder: OptConfigType = None,
-                 init_cfg: OptConfigType = None):
+                 init_cfg: OptConfigType = None,
+                 deploy: bool = False):
 
         if init_cfg is None:
             init_cfg = self.default_init_cfg
@@ -113,6 +118,7 @@ class IntegralRegressionHead(BaseHead):
         self.input_transform = input_transform
         self.input_index = input_index
         self.output_sigma = output_sigma
+        self.deploy = deploy
         if self.output_sigma:
             self.gap = nn.AdaptiveAvgPool2d((1, 1))
             self.sigma_fc = nn.Linear(self.in_channels, self.num_joints * 2)
@@ -177,8 +183,8 @@ class IntegralRegressionHead(BaseHead):
                 'multiple input features.')
 
         W, H = self.heatmap_size
-        self.linspace_x = torch.arange(0.0, 1.0 * W, 1).reshape(1, 1, 1, W) / W
-        self.linspace_y = torch.arange(0.0, 1.0 * H, 1).reshape(1, 1, H, 1) / H
+        self.linspace_x = torch.arange(0.0, 1.0 * W, 1) / W
+        self.linspace_y = torch.arange(0.0, 1.0 * H, 1) / H
 
         self.linspace_x = nn.Parameter(self.linspace_x, requires_grad=False)
         self.linspace_y = nn.Parameter(self.linspace_y, requires_grad=False)
@@ -202,7 +208,6 @@ class IntegralRegressionHead(BaseHead):
 
         featmaps = featmaps.reshape(-1, N, H * W)
         heatmaps = F.softmax(featmaps, dim=2)
-
         return heatmaps.reshape(-1, N, H, W)
 
     def forward(self, feats: Tuple[Tensor]) -> Union[Tensor, Tuple[Tensor]]:
@@ -222,10 +227,16 @@ class IntegralRegressionHead(BaseHead):
                 feats = self.final_layer(feats)
         else:
             feats = self.simplebaseline_head(feats)
-        heatmaps = self._flat_softmax(feats * self.beta)
-
-        pred_x = self._linear_expectation(heatmaps, self.linspace_x)
-        pred_y = self._linear_expectation(heatmaps, self.linspace_y)
+        if self.beta > 1.0:
+            heatmaps = self._flat_softmax(feats * self.beta)
+        else:
+            heatmaps = self._flat_softmax(feats)
+        x_fea = heatmaps.sum(dim=2)
+        y_fea = heatmaps.sum(dim=3)
+        pred_x = x_fea.mul(self.linspace_x)
+        pred_y = y_fea.mul(self.linspace_y)
+        pred_x = pred_x.sum(dim=-1, keepdim=True)
+        pred_y = pred_y.sum(dim=-1, keepdim=True)
 
         if self.debias:
             B, N, H, W = feats.shape
@@ -240,6 +251,8 @@ class IntegralRegressionHead(BaseHead):
             pred_sigma = pred_sigma.reshape(
                 pred_sigma.size(0), self.num_joints, 2)
             coords = torch.cat([coords, pred_sigma], dim=-1)
+        if self.deploy:
+            return pred_x, pred_y
         return coords, heatmaps
 
     def predict(self,
