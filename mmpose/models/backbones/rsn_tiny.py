@@ -1,20 +1,21 @@
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.checkpoint import checkpoint
 from mmpose.registry import MODELS
+from .utils.repvgg import RepVGGBlock
 
 
 class conv_bn_relu(nn.Module):
 
-    def __init__(self,
-                 in_planes,
-                 out_planes,
-                 kernel_size,
-                 stride,
-                 padding,
-                 has_bn=True,
-                 has_relu=True,
-                 efficient=False):
+    def __init__(
+        self,
+        in_planes,
+        out_planes,
+        kernel_size,
+        stride,
+        padding,
+        has_bn=True,
+        has_relu=True,
+    ):
         super(conv_bn_relu, self).__init__()
         self.conv = nn.Conv2d(
             in_planes,
@@ -24,7 +25,6 @@ class conv_bn_relu(nn.Module):
             padding=padding)
         self.has_bn = has_bn
         self.has_relu = has_relu
-        self.efficient = efficient
         self.bn = nn.BatchNorm2d(out_planes)
         self.relu = nn.ReLU(inplace=True)
 
@@ -45,23 +45,41 @@ class conv_bn_relu(nn.Module):
         func = _func_factory(self.conv, self.bn, self.relu, self.has_bn,
                              self.has_relu)
 
-        if self.efficient:
-            x = checkpoint(func, x)
-        else:
-            x = func(x)
+        x = func(x)
 
         return x
+
+
+class RepVGGBottleneck(nn.Module):
+    expansion = 1
+
+    def __init__(self, in_planes, planes, stride=1, downsample=None):
+        super(RepVGGBottleneck, self).__init__()
+        self.conv_bn_relu1 = conv_bn_relu(
+            in_planes,
+            planes,
+            kernel_size=1,
+            stride=1,
+            padding=0,
+            has_bn=True,
+            has_relu=True)
+        self.conv_bn_relu2 = RepVGGBlock(
+            planes,
+            planes * self.expansion,
+            kernel_size=3,
+            stride=stride,
+            padding=1)
+
+    def forward(self, x):
+        out = self.conv_bn_relu1(x)
+        out = self.conv_bn_relu2(out)
+        return out
 
 
 class Bottleneck(nn.Module):
     expansion = 1
 
-    def __init__(self,
-                 in_planes,
-                 planes,
-                 stride=1,
-                 downsample=None,
-                 efficient=False):
+    def __init__(self, in_planes, planes, stride=1, downsample=None):
         super(Bottleneck, self).__init__()
         self.conv_bn_relu1 = conv_bn_relu(
             in_planes,
@@ -70,8 +88,7 @@ class Bottleneck(nn.Module):
             stride=1,
             padding=0,
             has_bn=True,
-            has_relu=True,
-            efficient=efficient)
+            has_relu=True)
         self.conv_bn_relu2 = conv_bn_relu(
             planes,
             planes,
@@ -79,8 +96,7 @@ class Bottleneck(nn.Module):
             stride=stride,
             padding=1,
             has_bn=True,
-            has_relu=True,
-            efficient=efficient)
+            has_relu=True)
         self.conv_bn_relu3 = conv_bn_relu(
             planes,
             planes * self.expansion,
@@ -88,8 +104,7 @@ class Bottleneck(nn.Module):
             stride=1,
             padding=0,
             has_bn=True,
-            has_relu=False,
-            efficient=efficient)
+            has_relu=False)
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
 
@@ -134,19 +149,24 @@ class ResNet_downsample_module(nn.Module):
                  block,
                  layers,
                  has_skip=False,
-                 efficient=False,
                  zero_init_residual=False):
         super(ResNet_downsample_module, self).__init__()
         self.has_skip = has_skip
         self.in_planes = 64
-        self.layer1 = self._make_layer(
-            block, 48, layers[0], efficient=efficient)
-        self.layer2 = self._make_layer(
-            block, 96, layers[1], stride=2, efficient=efficient)
+        self.layer1 = self._make_layer(block, 48, layers[0])
+        self.layer2 = self._make_layer(block, 96, layers[1], stride=2)
         self.layer3 = self._make_layer(
-            block, 128, layers[2], stride=2, efficient=efficient)
+            block,
+            128,
+            layers[2],
+            stride=2,
+        )
         self.layer4 = self._make_layer(
-            block, 160, layers[3], stride=2, efficient=efficient)
+            block,
+            160,
+            layers[3],
+            stride=2,
+        )
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -161,7 +181,7 @@ class ResNet_downsample_module(nn.Module):
                 if isinstance(m, Bottleneck):
                     nn.init.constant_(m.bn3.weight, 0)
 
-    def _make_layer(self, block, planes, blocks, stride=1, efficient=False):
+    def _make_layer(self, block, planes, blocks, stride=1):
         downsample = None
         if stride != 1 or self.in_planes != planes * block.expansion:
             downsample = conv_bn_relu(
@@ -171,20 +191,13 @@ class ResNet_downsample_module(nn.Module):
                 stride=stride,
                 padding=0,
                 has_bn=True,
-                has_relu=False,
-                efficient=efficient)
+                has_relu=False)
 
         layers = list()
-        layers.append(
-            block(
-                self.in_planes,
-                planes,
-                stride,
-                downsample,
-                efficient=efficient))
+        layers.append(block(self.in_planes, planes, stride, downsample))
         self.in_planes = planes * block.expansion
         for _ in range(1, blocks):
-            layers.append(block(self.in_planes, planes, efficient=efficient))
+            layers.append(block(self.in_planes, planes))
 
         return nn.Sequential(*layers)
 
@@ -213,8 +226,7 @@ class Upsample_unit(nn.Module):
                  up_size,
                  chl_num=192,
                  gen_skip=False,
-                 gen_cross_conv=False,
-                 efficient=False):
+                 gen_cross_conv=False):
         super(Upsample_unit, self).__init__()
 
         self.u_skip = conv_bn_relu(
@@ -224,8 +236,7 @@ class Upsample_unit(nn.Module):
             stride=1,
             padding=0,
             has_bn=True,
-            has_relu=False,
-            efficient=efficient)
+            has_relu=False)
         self.relu = nn.ReLU(inplace=True)
 
         self.ind = ind
@@ -238,8 +249,7 @@ class Upsample_unit(nn.Module):
                 stride=1,
                 padding=0,
                 has_bn=True,
-                has_relu=False,
-                efficient=efficient)
+                has_relu=False)
 
         self.gen_skip = gen_skip
         if self.gen_skip:
@@ -250,8 +260,7 @@ class Upsample_unit(nn.Module):
                 stride=1,
                 padding=0,
                 has_bn=True,
-                has_relu=True,
-                efficient=efficient)
+                has_relu=True)
             self.skip2 = conv_bn_relu(
                 chl_num,
                 in_planes,
@@ -259,8 +268,7 @@ class Upsample_unit(nn.Module):
                 stride=1,
                 padding=0,
                 has_bn=True,
-                has_relu=True,
-                efficient=efficient)
+                has_relu=True)
 
         self.gen_cross_conv = gen_cross_conv
         if self.ind == 3 and self.gen_cross_conv:
@@ -271,8 +279,7 @@ class Upsample_unit(nn.Module):
                 stride=1,
                 padding=0,
                 has_bn=True,
-                has_relu=True,
-                efficient=efficient)
+                has_relu=True)
 
     def forward(self, x, up_x):
         out = self.u_skip(x)
@@ -298,11 +305,7 @@ class Upsample_unit(nn.Module):
 
 class Upsample_module(nn.Module):
 
-    def __init__(self,
-                 chl_num=192,
-                 gen_skip=False,
-                 gen_cross_conv=False,
-                 efficient=False):
+    def __init__(self, chl_num=192, gen_skip=False, gen_cross_conv=False):
         super(Upsample_module, self).__init__()
         self.in_planes = [160, 128, 96, 48]
         h, w = (32, 32)
@@ -317,32 +320,28 @@ class Upsample_module(nn.Module):
             self.up_sizes[0],
             chl_num=chl_num,
             gen_skip=self.gen_skip,
-            gen_cross_conv=self.gen_cross_conv,
-            efficient=efficient)
+            gen_cross_conv=self.gen_cross_conv)
         self.up2 = Upsample_unit(
             1,
             self.in_planes[1],
             self.up_sizes[1],
             chl_num=chl_num,
             gen_skip=self.gen_skip,
-            gen_cross_conv=self.gen_cross_conv,
-            efficient=efficient)
+            gen_cross_conv=self.gen_cross_conv)
         self.up3 = Upsample_unit(
             2,
             self.in_planes[2],
             self.up_sizes[2],
             chl_num=chl_num,
             gen_skip=self.gen_skip,
-            gen_cross_conv=self.gen_cross_conv,
-            efficient=efficient)
+            gen_cross_conv=self.gen_cross_conv)
         self.up4 = Upsample_unit(
             3,
             self.in_planes[3],
             self.up_sizes[3],
             chl_num=chl_num,
             gen_skip=self.gen_skip,
-            gen_cross_conv=self.gen_cross_conv,
-            efficient=efficient)
+            gen_cross_conv=self.gen_cross_conv)
 
     def forward(self, x4, x3, x2, x1):
         out1, skip1_1, skip2_1, _ = self.up1(x4, None)
@@ -358,17 +357,18 @@ class Upsample_module(nn.Module):
         return out, skip1, skip2, cross_conv
 
 
+bottleneck_map = dict(default=Bottleneck, repvgg=RepVGGBottleneck)
+
+
 class Single_stage_module(nn.Module):
 
-    def __init__(
-        self,
-        has_skip=False,
-        gen_skip=False,
-        gen_cross_conv=False,
-        chl_num=256,
-        efficient=False,
-        zero_init_residual=False,
-    ):
+    def __init__(self,
+                 has_skip=False,
+                 gen_skip=False,
+                 gen_cross_conv=False,
+                 chl_num=256,
+                 zero_init_residual=False,
+                 bottleneck_type='default'):
         super(Single_stage_module, self).__init__()
         self.has_skip = has_skip
         self.gen_skip = gen_skip
@@ -376,11 +376,11 @@ class Single_stage_module(nn.Module):
         self.chl_num = chl_num
         self.zero_init_residual = zero_init_residual
         self.layers = [2, 2, 2, 2]
-        self.downsample = ResNet_downsample_module(Bottleneck, self.layers,
-                                                   self.has_skip, efficient,
-                                                   self.zero_init_residual)
+        self.downsample = ResNet_downsample_module(
+            bottleneck_map[bottleneck_type], self.layers, self.has_skip,
+            self.zero_init_residual)
         self.upsample = Upsample_module(self.chl_num, self.gen_skip,
-                                        self.gen_cross_conv, efficient)
+                                        self.gen_cross_conv)
 
     def forward(self, x, skip1, skip2):
         x4, x3, x2, x1 = self.downsample(x, skip1, skip2)
@@ -396,6 +396,7 @@ class RSNTiny(nn.Module):
                  stage_num,
                  upsample_chl_num,
                  output_last_only=False,
+                 bottleneck_type='default',
                  **kwargs):
         super().__init__()
         self.top = ResNet_top()
@@ -420,6 +421,7 @@ class RSNTiny(nn.Module):
                     gen_skip=gen_skip,
                     gen_cross_conv=gen_cross_conv,
                     chl_num=self.upsample_chl_num,
+                    bottleneck_type=bottleneck_type,
                     **kwargs))
             setattr(self, 'stage%d' % i, self.mspn_modules[i])
 

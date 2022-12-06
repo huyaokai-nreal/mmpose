@@ -1,7 +1,7 @@
 # flake8: noqa
 _base_ = ['../../_base_/default_runtime.py']
 # runtime
-train_cfg = dict(max_epochs=50, val_interval=10)
+train_cfg = dict(max_epochs=50, val_interval=5)
 
 # optimizer
 optim_wrapper = dict(
@@ -50,7 +50,7 @@ model = dict(
         type='RSNTiny',
         stage_num=1,
         upsample_chl_num=192,
-    ),
+        bottleneck_type='repvgg'),
     head=dict(
         type='MSPNHead',
         out_shape=(32, 32),

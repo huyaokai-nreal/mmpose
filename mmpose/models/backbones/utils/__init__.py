@@ -4,8 +4,9 @@ from .inverted_residual import InvertedResidual
 from .make_divisible import make_divisible
 from .se_layer import SELayer
 from .utils import get_state_dict, load_checkpoint
+from .repvgg import RepVGGBlock, repvgg_model_convert
 
 __all__ = [
     'channel_shuffle', 'make_divisible', 'InvertedResidual', 'SELayer',
-    'load_checkpoint', 'get_state_dict'
+    'load_checkpoint', 'get_state_dict', 'RepVGGBlock', 'repvgg_model_convert'
 ]
