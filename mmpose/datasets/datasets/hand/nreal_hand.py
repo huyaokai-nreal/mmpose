@@ -1,6 +1,5 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from typing import Callable, List, Optional, Sequence, Union
-
 import numpy as np
 from mmengine.logging import MMLogger
 from xtcocotools.coco import COCO
@@ -17,6 +16,7 @@ class HANDDataset(BaseCocoStyleDataset):
 
     def __init__(self,
                  data_file_list,
+                 data_root: str = '/data',
                  data_mode: str = 'topdown',
                  test_mode: bool = False,
                  pipeline: List[Union[dict, Callable]] = [],
@@ -34,6 +34,7 @@ class HANDDataset(BaseCocoStyleDataset):
         self.dataset_info_list = list()
         self.dataset_weight_list = dataset_weight_list
         self.dataset_num = len(self.data_file_list)
+        self.data_root = data_root
         if dataset_weight_list:
             assert len(dataset_weight_list) == len(data_file_list)
         super().__init__(
@@ -115,7 +116,7 @@ class HANDDataset(BaseCocoStyleDataset):
         sub_dataset_start_id = 0
         for i, anno_file in enumerate(self.data_file_list):
             coco = COCO(anno_file)
-            lmdb_path = coco.dataset['lmdb_path']
+            lmdb_path = osp.join(self.data_root, coco.dataset['lmdb_path'])
             sub_dataset_num = 0
             img_ids = coco.getImgIds()
             for img_id in img_ids:

@@ -44,7 +44,7 @@ def mmcv_track_func(func):
 
 
 @mmcv_track_func
-def lmdb2coco(lmdb_path, json_path):
+def lmdb2coco(lmdb_root, lmdb_path, json_path):
     cats = [{
         'id': 1,
         'name': 'left_hand',
@@ -53,7 +53,7 @@ def lmdb2coco(lmdb_path, json_path):
         'name': 'right_hand',
     }]
     env = lmdb.open(
-        lmdb_path,
+        os.path.join(lmdb_root, lmdb_path),
         max_readers=3,
         readonly=True,
         lock=False,
@@ -113,79 +113,47 @@ def lmdb2coco(lmdb_path, json_path):
 
 
 if __name__ == '__main__':
-    DIR = '/data/'
+    root_dir = '/data/'
     lmdb_path_list = [
-        DIR +
         'data_hand/hand_keypoint/public_data/train_hanco_rgb_gesture_lmdb_refresh',  #84k
-        DIR +
         'data_hand/hand_keypoint/baidu_data/train_nreal_baidu1_gesture_right_0930_lmdb',  #13.4k
-        DIR +
         'data_hand/hand_keypoint/baidu_data/train_nreal_baidu2_gesture_right_1014_lmdb',  #12k
-        DIR +
         'data_hand/hand_keypoint/baidu_data/train_nreal_gesture_baidu_0107_2_1_lmdb',  #16.8k
-        DIR +
         'data_hand/hand_keypoint/baidu_data/train_nreal_gesture_baidu_220216_2_2_lmdb',  #32k
-        DIR +
         'data_hand/hand_keypoint/baidu_data/train_nreal_gesture_baidu_220216_2_3_lmdb',  #12k
-        DIR +
         'data_hand/hand_keypoint/platform_data/train_nreal_gesture_1111_1_1_twohand_lmdb',  #13.2k
-        DIR +
         'data_hand/hand_keypoint/platform_data/train_nreal_gesture_1118_1_2_twohand_lmdb',  #24k
-        DIR +
         'data_hand/hand_keypoint/platform_data/train_nreal_gesture_1125_1_3_twohand_lmdb',  #29.7k
-        DIR +
         'data_hand/hand_keypoint/platform_data/train_nreal_gesture_1202_1_4_twohand_lmdb',  #31.8k
-        DIR +
         'data_hand/hand_keypoint/platform_data/train_nreal_gesture_1209_1_5_twohand_lmdb',  #24.3k
-        DIR +
         'data_hand/hand_keypoint/platform_data/train_nreal_gesture_1216_1_6_twohand_lmdb',  #25.1k
-        DIR +
         'data_hand/hand_keypoint/platform_data/train_nreal_gesture_1223_1_7_twohand_lmdb',  #27.8k
-        DIR +
         'data_hand/hand_keypoint/platform_data/train_nreal_gesture_1230_1_8_twohand_lmdb',  #17.2k
-        DIR +
         'data_hand/hand_keypoint/platform_data/train_nreal_gesture_0113_1_9_twohand_lmdb',  #24k
-        DIR +
         'data_hand/hand_keypoint/platform_data/train_nreal_gesture_0127_1_10_twohand_lmdb',  #25k
-        DIR +
         'data_hand/hand_keypoint/platform_data/train_nreal_gesture_0218_1_11_twohand_lmdb',  #16k
-        DIR +
         'data_hand/hand_keypoint/platform_data/train_nreal_gesture_0304_1_12_twohand_lmdb',  #22k
-        DIR +
         'data_hand/hand_keypoint/platform_data/train_nreal_gesture_0318_1_13_twohand_lmdb',  #6k
-        DIR +
         'data_hand/hand_keypoint/platform_data/train_nreal_gesture_0318_1_14_bad_data_twohand_lmdb',  #11k
-        DIR +
         'data_hand/hand_keypoint/platform_data/train_nreal_gesture_0401_1_15_bad_data_twohand_lmdb',
-        DIR +
         'data_hand/hand_keypoint/platform_data/train_nreal_gesture_0415_1_16_bad_data_twohand_lmdb',
-        DIR +
         'data_hand/hand_keypoint/platform_data/train_nreal_gesture_0424_1_17_bad_data_twohand_lmdb',
-        DIR +
         'data_hand/hand_keypoint/platform_data/train_nreal_gesture_0510_1_18_bad_data_twohand_lmdb',
-        DIR +
         'data_hand/hand_keypoint/platform_data/train_nreal_gesture_0517_1_19_bad_data_twohand_lmdb',
-        DIR +
         'data_hand/hand_keypoint/platform_data/train_nreal_gesture_0523_1_20_bad_data_twohand_lmdb',
-        DIR +
         'data_hand/hand_keypoint/platform_data/train_nreal_gesture_0616_1_21_bad_data_twohand_lmdb',
-        DIR +
         'data_hand/hand_keypoint/platform_data/train_nreal_gesture_0624_1_22_bad_data_twohand_lmdb',
-        DIR +
         'data_hand/hand_keypoint/unity_data/train_nreal_synth_gesture_1008_lmdb_3_arbitrary'
     ]  #38k
     json_dir = '/data/data_hand/hand_keypoint/annotations'
     lmdb_path_list = [
-        '/data/data_hand/hand_keypoint/platform_data/test_nreal_gesture_1111_1_1_twohand_lmdb'
+        'data_hand/hand_keypoint/platform_data/test_nreal_gesture_1111_1_1_twohand_lmdb'
     ]
     lmdb_path_list = [
-        '/data/data_hand/hand_keypoint/platform_data/test_nreal_gesture_3_1_221201_fisheye_vertical_binocular_lmdb',
-        '/data/AI_DATA/data_hand/hand_keypoint/platform_data/test_nreal_gesture_3_2_221201_fisheye_horizontal_binocular_lmdb'
+        'data_hand/hand_keypoint/platform_data/test_nreal_gesture_3_1_221201_fisheye_vertical_binocular_lmdb',
+        'data_hand/hand_keypoint/platform_data/test_nreal_gesture_3_2_221201_fisheye_horizontal_binocular_lmdb'
     ]
-    #lmdb2coco((lmdb_path_list[0],
-    #           os.path.join(json_dir,
-    #                        os.path.basename(lmdb_path_list[0]) + '.json')))
-    tasks = [(lmdb_path,
+    tasks = [(root_dir, lmdb_path,
               os.path.join(json_dir,
                            os.path.basename(lmdb_path) + '.json'))
              for lmdb_path in lmdb_path_list]

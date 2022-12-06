@@ -1,5 +1,6 @@
 chumpy
 json_tricks
+lmdb
 matplotlib
 munkres
 numpy

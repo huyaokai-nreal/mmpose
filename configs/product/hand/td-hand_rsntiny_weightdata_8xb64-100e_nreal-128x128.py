@@ -138,6 +138,8 @@ dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 val_data_list = [
     '/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_lmdb.json'
 ]
+# lmdb root dir, maybe different between beijing and wuxi
+data_root = '/data'
 # data loaders
 train_dataloader = dict(
     batch_size=64,
@@ -148,6 +150,7 @@ train_dataloader = dict(
     sampler=dict(type='DefaultSampler', shuffle=True),
     dataset=dict(
         type=dataset_type,
+        data_root=data_root,
         data_file_list=train_data_list,
         data_mode=data_mode,
         pipeline=train_pipeline,
@@ -160,6 +163,7 @@ val_dataloader = dict(
     sampler=dict(type='DefaultSampler', shuffle=False, round_up=False),
     dataset=dict(
         type=dataset_type,
+        data_root=data_root,
         data_file_list=val_data_list,
         data_mode=data_mode,
         test_mode=True,
