@@ -69,9 +69,8 @@ model = dict(
     ),
     init_cfg=dict(
         type='Pretrained',
-        #checkpoint='/home/zx_li/workspace/mmpose/work_dirs/td-hand_rsntiny_over_8xb64-50e_nreal-128x128/epoch_50.pth'),
         checkpoint=
-        '/home/zx_li/workspace/mmpose/work_dirs/td-hand_rsntiny_pre_ipr_8xb64-50e-128x128/best_mAP_epoch_45.pth'
+        '/home/zx_li/workspace/mmpose/work_dirs/td-hand_rsntiny_over_8xb64-50e_nreal-128x128/epoch_50.pth'
     ),
 )
 
