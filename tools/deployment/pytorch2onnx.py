@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 from mmpose.apis import init_model
-
+from mmpose.models.backbones.utils import repvgg_model_convert
 try:
     import onnx
     import onnxruntime as rt
@@ -180,6 +180,7 @@ if __name__ == '__main__':
         device='cpu',
         cfg_options={'model.data_preprocessor': None})
     model = _convert_batchnorm(model)
+    model = repvgg_model_convert(model)
 
     # onnx.export does not support kwargs
     if hasattr(model, '_forward'):

@@ -29,6 +29,12 @@ auto_scale_lr = dict(base_batch_size=256)
 # hooks
 default_hooks = dict(
     checkpoint=dict(interval=5, save_best='mAP', rule='greater'))
+custom_hooks = [
+    # Synchronize model buffers such as running_mean and running_var in BN
+    # at the end of each epoch
+    dict(type='SyncBuffersHook'),
+    dict(type='RepVGGHook')
+]
 
 # codec settings
 # multiple kernel_sizes of heatmap gaussian for 'Megvii' approach.

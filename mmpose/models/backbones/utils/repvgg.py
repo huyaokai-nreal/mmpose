@@ -203,8 +203,6 @@ class RepVGGBlock(nn.Module):
     def switch_to_deploy(self):
         if hasattr(self, 'rbr_reparam'):
             return
-        logger = MMLogger.get_current_instance()
-        logger.info('repvgg block switch to deploy')
         kernel, bias = self.get_equivalent_kernel_bias()
         self.rbr_reparam = nn.Conv2d(
             in_channels=self.rbr_dense.conv.in_channels,
@@ -224,6 +222,8 @@ class RepVGGBlock(nn.Module):
         if hasattr(self, 'id_tensor'):
             self.__delattr__('id_tensor')
         self.deploy = True
+        logger = MMLogger.get_current_instance()
+        logger.info(f'repvgg block switch to deploy {self._get_name()}')
 
 
 class RepVGG(nn.Module):
