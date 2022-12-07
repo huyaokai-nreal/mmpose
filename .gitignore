@@ -130,4 +130,5 @@ docs/**/modelzoo.md
 # Pytorch
 *.pth
 *.onnx
+*.mp4
 *.DS_Store

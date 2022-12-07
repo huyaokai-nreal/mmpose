@@ -44,6 +44,34 @@ def mmcv_track_func(func):
 
 
 @mmcv_track_func
+def lmdb2json(lmdb_root, lmdb_path, json_path):
+    env = lmdb.open(
+        os.path.join(lmdb_root, lmdb_path),
+        max_readers=3,
+        readonly=True,
+        lock=False,
+        readahead=False,
+        meminit=False)
+    txn = env.begin()
+    db_size = env.stat()['entries']
+    data_num = int(db_size / 2)
+    result = dict(lmdb_path=lmdb_path)
+    item_list = list()
+    for i in tqdm(range(data_num)):
+        file_name = '{:0>8d}'.format(i * 2)
+        str_value_id = '{:0>8d}'.format(i * 2 + 1)
+        label_value = txn.get(str_value_id.encode())
+        label_value = bytes.decode(label_value)
+        item = json.loads(label_value)
+        item['file_name'] = file_name
+        item_list.append(item)
+    result['data'] = item_list
+    with open(json_path, 'w') as f:
+        json.dump(result, f)
+    print(f'save json file to {json_path}')
+
+
+@mmcv_track_func
 def lmdb2coco(lmdb_root, lmdb_path, json_path):
     cats = [{
         'id': 1,
@@ -145,7 +173,6 @@ if __name__ == '__main__':
         'data_hand/hand_keypoint/platform_data/train_nreal_gesture_0624_1_22_bad_data_twohand_lmdb',
         'data_hand/hand_keypoint/unity_data/train_nreal_synth_gesture_1008_lmdb_3_arbitrary'
     ]  #38k
-    json_dir = '/data/data_hand/hand_keypoint/annotations'
     lmdb_path_list = [
         'data_hand/hand_keypoint/platform_data/test_nreal_gesture_1111_1_1_twohand_lmdb'
     ]
@@ -153,8 +180,13 @@ if __name__ == '__main__':
         'data_hand/hand_keypoint/platform_data/test_nreal_gesture_3_1_221201_fisheye_vertical_binocular_lmdb',
         'data_hand/hand_keypoint/platform_data/test_nreal_gesture_3_2_221201_fisheye_horizontal_binocular_lmdb'
     ]
+    root_dir = os.path.join(os.environ['HOME'], 'hand_group/data')
+    json_dir = os.path.join(root_dir, 'data_hand/hand_keypoint/annotations')
+    lmdb_path_list = [
+        'data_hand/hand_keypoint/seq_data/test_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0000'
+    ]
     tasks = [(root_dir, lmdb_path,
               os.path.join(json_dir,
                            os.path.basename(lmdb_path) + '.json'))
              for lmdb_path in lmdb_path_list]
-    track_parallel_progress(lmdb2coco, tasks, nproc=2)
+    track_parallel_progress(lmdb2json, tasks, nproc=1)
