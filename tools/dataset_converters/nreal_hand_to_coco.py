@@ -138,6 +138,7 @@ def lmdb2coco(lmdb_root, lmdb_path, json_path):
     )
     with open(json_path, 'w') as f:
         json.dump(data, f)
+    print(f'save json to {json_path}')
 
 
 if __name__ == '__main__':
@@ -185,8 +186,13 @@ if __name__ == '__main__':
     lmdb_path_list = [
         'data_hand/hand_keypoint/seq_data/test_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0000'
     ]
+    lmdb_path_list = [
+        #'data_hand/hand_keypoint/platform_data/test_nreal_gesture_1_1_221205_bmp_lmdb',
+        #'data_hand/hand_keypoint/platform_data/test_nreal_gesture_1_1_221205_jpg_50_lmdb'
+        'data_hand/hand_keypoint/platform_data/test_nreal_gesture_1_1_221205_jpg_lmdb'
+    ]
     tasks = [(root_dir, lmdb_path,
               os.path.join(json_dir,
                            os.path.basename(lmdb_path) + '.json'))
              for lmdb_path in lmdb_path_list]
-    track_parallel_progress(lmdb2json, tasks, nproc=1)
+    track_parallel_progress(lmdb2coco, tasks, nproc=2)

@@ -138,9 +138,15 @@ train_data_list = [
 val_data_list = [
     #'/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_lmdb.json'
     #'/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_3_1_221201_fisheye_vertical_binocular_lmdb.json'
-    '/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_3_2_221201_fisheye_horizontal_binocular_lmdb.json'
+    #'/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_3_2_221201_fisheye_horizontal_binocular_lmdb.json'
+    #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_1_221205_jpg_50_lmdb.json'
+    #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_1_221205_bmp_lmdb.json'
+    '/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_1_221205_jpg_lmdb.json'
 ]
 # data loaders
+import os
+
+data_root = os.path.join(os.environ['HOME'], 'hand_group/data')
 train_dataloader = dict(
     batch_size=64,
     num_workers=8,
@@ -153,7 +159,7 @@ train_dataloader = dict(
         data_file_list=train_data_list,
         data_mode=data_mode,
         pipeline=train_pipeline,
-    ))
+        data_root=data_root))
 val_dataloader = dict(
     batch_size=32,
     num_workers=4,
@@ -162,6 +168,7 @@ val_dataloader = dict(
     sampler=dict(type='DefaultSampler', shuffle=False, round_up=False),
     dataset=dict(
         type=dataset_type,
+        data_root=data_root,
         flip_left_to_right=True,
         data_file_list=val_data_list,
         data_mode=data_mode,

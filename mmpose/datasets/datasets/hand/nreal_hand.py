@@ -34,7 +34,7 @@ class HANDDataset(BaseCocoStyleDataset):
         self.dataset_info_list = list()
         self.dataset_weight_list = dataset_weight_list
         self.dataset_num = len(self.data_file_list)
-        self.data_root = data_root
+        self.lmdb_data_root = data_root
         if dataset_weight_list:
             assert len(dataset_weight_list) == len(data_file_list)
         super().__init__(
@@ -116,7 +116,8 @@ class HANDDataset(BaseCocoStyleDataset):
         sub_dataset_start_id = 0
         for i, anno_file in enumerate(self.data_file_list):
             coco = COCO(anno_file)
-            lmdb_path = osp.join(self.data_root, coco.dataset['lmdb_path'])
+            lmdb_path = osp.join(self.lmdb_data_root,
+                                 coco.dataset['lmdb_path'])
             sub_dataset_num = 0
             img_ids = coco.getImgIds()
             for img_id in img_ids:
