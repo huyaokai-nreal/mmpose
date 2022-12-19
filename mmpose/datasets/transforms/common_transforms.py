@@ -465,12 +465,14 @@ class RandomBBoxTransform(BaseTransform):
                  shift_factor: float = 0.16,
                  shift_prob: float = 0.3,
                  scale_factor: Tuple[float, float] = (0.5, 1.5),
+                 scale_norm_low: float = -1,
                  scale_prob: float = 1.0,
                  rotate_factor: float = 80.0,
                  rotate_prob: float = 0.6) -> None:
         super().__init__()
 
         self.shift_factor = shift_factor
+        self.scale_norm_low = scale_norm_low
         self.shift_prob = shift_prob
         self.scale_factor = scale_factor
         self.scale_prob = scale_prob
@@ -506,7 +508,8 @@ class RandomBBoxTransform(BaseTransform):
         scale_min, scale_max = self.scale_factor
         mu = (scale_max + scale_min) * 0.5
         sigma = (scale_max - scale_min) * 0.5
-        scale = self._truncnorm(size=(num_bboxes, 1)) * sigma + mu
+        scale = self._truncnorm(
+            low=self.scale_norm_low, size=(num_bboxes, 1)) * sigma + mu
         scale = np.where(
             np.random.rand(num_bboxes, 1) < self.scale_prob, scale, 1.)
 

@@ -4,6 +4,7 @@ import os.path as osp
 import tempfile
 from typing import Optional, Sequence
 
+from mmengine.logging import MMLogger
 import numpy as np
 from mmengine.evaluator import BaseMetric
 from xtcocotools.coco import COCO
@@ -20,10 +21,12 @@ class NrealKeypointAP(BaseMetric):
                  ann_file,
                  collect_device: str = 'cpu',
                  prefix: Optional[str] = None,
-                 flip_left_to_right=True) -> None:
+                 flip_left_to_right=True,
+                 result_dir=None) -> None:
         self.flip_left_to_right = flip_left_to_right
         super().__init__(collect_device, prefix)
         self.coco = COCO(ann_file)
+        self.result_dir = result_dir
 
     def process(self, data_batch, data_samples: Sequence[dict]) -> None:
         for data_sample in data_samples:
@@ -56,8 +59,13 @@ class NrealKeypointAP(BaseMetric):
             self.results.append(result)
 
     def compute_metrics(self, results: list) -> dict:
-        tmp_folder = tempfile.TemporaryDirectory()
-        res_file = osp.join(tmp_folder.name, 'result_keypoints.json')
+        if self.result_dir is None:
+            tmp_folder = tempfile.TemporaryDirectory()
+            res_file = osp.join(tmp_folder, 'result_keypoints.json')
+        else:
+            res_file = osp.join(self.result_dir, 'result_keypoints.json')
+        logger = MMLogger.get_current_instance()
+        logger.info(f'result file path is {res_file}')
         kpt_result = list()
         for result in results:
             image_id = result['img_id']

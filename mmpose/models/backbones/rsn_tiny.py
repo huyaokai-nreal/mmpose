@@ -147,24 +147,24 @@ class ResNet_downsample_module(nn.Module):
 
     def __init__(self,
                  block,
-                 layers,
+                 num_blocks,
                  has_skip=False,
                  zero_init_residual=False):
         super(ResNet_downsample_module, self).__init__()
         self.has_skip = has_skip
         self.in_planes = 64
-        self.layer1 = self._make_layer(block, 48, layers[0])
-        self.layer2 = self._make_layer(block, 96, layers[1], stride=2)
+        self.layer1 = self._make_layer(block, 48, num_blocks[0])
+        self.layer2 = self._make_layer(block, 96, num_blocks[1], stride=2)
         self.layer3 = self._make_layer(
             block,
             128,
-            layers[2],
+            num_blocks[2],
             stride=2,
         )
         self.layer4 = self._make_layer(
             block,
             160,
-            layers[3],
+            num_blocks[3],
             stride=2,
         )
 
@@ -305,10 +305,15 @@ class Upsample_unit(nn.Module):
 
 class Upsample_module(nn.Module):
 
-    def __init__(self, chl_num=192, gen_skip=False, gen_cross_conv=False):
+    def __init__(self,
+                 chl_num=192,
+                 gen_skip=False,
+                 gen_cross_conv=False,
+                 in_planes=[160, 128, 96, 48],
+                 output_shape=(32, 32)):
         super(Upsample_module, self).__init__()
-        self.in_planes = [160, 128, 96, 48]
-        h, w = (32, 32)
+        self.in_planes = in_planes
+        h, w = output_shape
         self.up_sizes = [(h // 8, w // 8), (h // 4, w // 4), (h // 2, w // 2),
                          (h, w)]
         self.gen_skip = gen_skip
@@ -368,6 +373,7 @@ class Single_stage_module(nn.Module):
                  gen_cross_conv=False,
                  chl_num=256,
                  zero_init_residual=False,
+                 num_blocks=[2, 2, 2, 2],
                  bottleneck_type='default'):
         super(Single_stage_module, self).__init__()
         self.has_skip = has_skip
@@ -375,9 +381,9 @@ class Single_stage_module(nn.Module):
         self.gen_cross_conv = gen_cross_conv
         self.chl_num = chl_num
         self.zero_init_residual = zero_init_residual
-        self.layers = [2, 2, 2, 2]
+        self.num_blocks = num_blocks
         self.downsample = ResNet_downsample_module(
-            bottleneck_map[bottleneck_type], self.layers, self.has_skip,
+            bottleneck_map[bottleneck_type], self.num_blocks, self.has_skip,
             self.zero_init_residual)
         self.upsample = Upsample_module(self.chl_num, self.gen_skip,
                                         self.gen_cross_conv)
@@ -397,7 +403,7 @@ class RSNTiny(nn.Module):
                  upsample_chl_num,
                  output_last_only=False,
                  bottleneck_type='default',
-                 **kwargs):
+                 num_blocks=[2, 2, 2, 2]):
         super().__init__()
         self.top = ResNet_top()
         self.stage_num = stage_num
@@ -422,7 +428,7 @@ class RSNTiny(nn.Module):
                     gen_cross_conv=gen_cross_conv,
                     chl_num=self.upsample_chl_num,
                     bottleneck_type=bottleneck_type,
-                    **kwargs))
+                    num_blocks=num_blocks))
             setattr(self, 'stage%d' % i, self.mspn_modules[i])
 
     def forward(self, imgs):

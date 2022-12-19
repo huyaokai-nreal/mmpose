@@ -42,6 +42,11 @@ def parse_args():
         default=1,
         help='visualize per interval samples.')
     parser.add_argument(
+        '--score-thr',
+        type=float,
+        default=-99,
+        help='socre threshold for show each joint')
+    parser.add_argument(
         '--wait-time',
         type=float,
         default=1,
@@ -73,6 +78,7 @@ def merge_args(cfg, args):
             cfg.default_hooks.visualization.wait_time = args.wait_time
         cfg.default_hooks.visualization.out_dir = args.show_dir
         cfg.default_hooks.visualization.interval = args.interval
+        cfg.default_hooks.visualization.score_thr = args.score_thr
 
     # -------------------- Dump predictions --------------------
     if args.dump is not None:

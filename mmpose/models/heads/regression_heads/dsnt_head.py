@@ -104,7 +104,8 @@ class DSNTHead(IntegralRegressionHead):
                      ]),
                  decoder: OptConfigType = None,
                  init_cfg: OptConfigType = None,
-                 deploy: bool = False):
+                 deploy: bool = False,
+                 output_fuse_coord=False):
 
         super().__init__(
             in_channels=in_channels,
@@ -124,7 +125,8 @@ class DSNTHead(IntegralRegressionHead):
             output_sigma=output_sigma,
             decoder=decoder,
             init_cfg=init_cfg,
-            deploy=deploy)
+            deploy=deploy,
+            output_fuse_coord=output_fuse_coord)
 
         self.lambda_t = lambda_t
 

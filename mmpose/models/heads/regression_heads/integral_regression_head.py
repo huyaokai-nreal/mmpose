@@ -103,7 +103,8 @@ class IntegralRegressionHead(BaseHead):
                      type='SmoothL1Loss', use_target_weight=True),
                  decoder: OptConfigType = None,
                  init_cfg: OptConfigType = None,
-                 deploy: bool = False):
+                 deploy: bool = False,
+                 output_fuse_coord=False):
 
         if init_cfg is None:
             init_cfg = self.default_init_cfg
@@ -119,9 +120,14 @@ class IntegralRegressionHead(BaseHead):
         self.input_index = input_index
         self.output_sigma = output_sigma
         self.deploy = deploy
+        self.output_fuse_coord = output_fuse_coord
         if self.output_sigma:
             self.gap = nn.AdaptiveAvgPool2d((1, 1))
             self.sigma_fc = nn.Linear(self.in_channels, self.num_joints * 2)
+        if self.output_fuse_coord:
+            self.coord_fc1 = nn.Linear(self.in_channels, 128)
+            self.coord_fc2 = nn.Linear(128, self.num_joints * 2)
+            self.coord_fc = nn.Linear(self.num_joints * 4, self.num_joints * 2)
         self.loss_module = MODELS.build(loss)
         if decoder is not None:
             self.decoder = KEYPOINT_CODECS.build(decoder)
@@ -221,6 +227,7 @@ class IntegralRegressionHead(BaseHead):
             Tensor: output coordinates(and sigmas[optional]).
         """
         if self.simplebaseline_head is None:
+            last_feat = feats[0]
             feats = self._transform_inputs(feats)
             raw_feats = feats
             if self.final_layer is not None:
@@ -250,7 +257,23 @@ class IntegralRegressionHead(BaseHead):
             pred_sigma = self.sigma_fc(x)
             pred_sigma = pred_sigma.reshape(
                 pred_sigma.size(0), self.num_joints, 2)
-            coords = torch.cat([coords, pred_sigma], dim=-1)
+            if self.output_fuse_coord:
+                last_x = self.gap(last_feat).reshape(raw_feats.size(0), -1)
+                global_coords = self.coord_fc1(last_x)
+                global_coords = F.relu(global_coords)
+                global_coords = self.coord_fc2(global_coords)
+                coords = torch.cat([
+                    coords,
+                    global_coords.reshape(
+                        pred_sigma.size(0), self.num_joints, 2)
+                ],
+                                   dim=-1)
+                coords = self.coord_fc(coords.reshape(pred_sigma.size(0), -1))
+            coords = torch.cat([
+                coords.reshape(pred_sigma.size(0), self.num_joints, 2),
+                pred_sigma
+            ],
+                               dim=-1)
         if self.deploy:
             return pred_x, pred_y
         return coords, heatmaps

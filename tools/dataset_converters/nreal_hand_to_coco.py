@@ -122,11 +122,13 @@ def lmdb2coco(lmdb_root, lmdb_path, json_path):
             iscrowd=0,
             id=hand_id)
         hand_id += 1
-        image = get_image_from_lmdb(txn, str_id)
+        #image = get_image_from_lmdb(txn, str_id)
         img = dict(
             file_name=str_id,
-            height=image.shape[0],
-            width=image.shape[1],
+            #height=image.shape[0],
+            #width=image.shape[1],
+            height=480,
+            width=640,
             id=i)
         annos.append(anno)
         imgs.append(img)
@@ -191,8 +193,26 @@ if __name__ == '__main__':
         #'data_hand/hand_keypoint/platform_data/test_nreal_gesture_1_1_221205_jpg_50_lmdb'
         'data_hand/hand_keypoint/platform_data/test_nreal_gesture_1_1_221205_jpg_lmdb'
     ]
+    lmdb_path_list = [
+        '/data/AI_DATA/data_hand/hand_keypoint/platform_data/test_nreal_gesture_1_2_221209_bmp_dark_lmdb',
+        '/data/AI_DATA/data_hand/hand_keypoint/platform_data/test_nreal_gesture_1_2_221209_jpg_dark_lmdb',
+        '/data/AI_DATA/data_hand/hand_keypoint/platform_data/test_nreal_gesture_1_2_221209_jpg_50_dark_lmdb',
+        '/data/AI_DATA/data_hand/hand_keypoint/platform_data/test_nreal_gesture_1_3_221209_bmp_light_lmdb',
+        '/data/AI_DATA/data_hand/hand_keypoint/platform_data/test_nreal_gesture_1_3_221209_jpg_light_lmdb',
+        '/data/AI_DATA/data_hand/hand_keypoint/platform_data/test_nreal_gesture_1_3_221209_jpg_50_light_lmdb'
+    ]
+    lmdb_path_list = [
+        'data_hand/hand_keypoint/platform_data/test_nreal_gesture_1111_1_1_binocular_twohand_lmdb'
+    ]
+    root_dir = '/data/AI_DATA'
+    lmdb_path_list = [
+        'data_hand/hand_keypoint/platform_data/test_nreal_gesture_1_1_221205_jpg_90_lmdb',
+        'data_hand/hand_keypoint/platform_data/test_nreal_gesture_1_1_221205_jpg_80_lmdb',
+        'data_hand/hand_keypoint/platform_data/test_nreal_gesture_1_1_221205_jpg_70_lmdb',
+        'data_hand/hand_keypoint/platform_data/test_nreal_gesture_1_1_221205_jpg_60_lmdb',
+    ]
     tasks = [(root_dir, lmdb_path,
               os.path.join(json_dir,
                            os.path.basename(lmdb_path) + '.json'))
              for lmdb_path in lmdb_path_list]
-    track_parallel_progress(lmdb2coco, tasks, nproc=2)
+    track_parallel_progress(lmdb2coco, tasks, nproc=4)

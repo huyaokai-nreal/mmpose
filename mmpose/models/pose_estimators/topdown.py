@@ -8,6 +8,7 @@ from mmpose.registry import MODELS
 from mmpose.utils.typing import (ConfigType, InstanceList, OptConfigType,
                                  OptMultiConfig, PixelDataList, SampleList)
 from .base import BasePoseEstimator
+from mmpose.structures.bbox import bbox_cs2xyxy
 
 
 @MODELS.register_module()
@@ -203,7 +204,8 @@ class TopdownPoseEstimator(BasePoseEstimator):
                             value[:, output_keypoint_indices], key)
 
             # add bbox information into pred_instances
-            pred_instances.bboxes = gt_instances.bboxes
+            # pred_instances.bboxes = gt_instances.bboxes
+            pred_instances.bboxes = bbox_cs2xyxy(bbox_centers, bbox_scales)
             pred_instances.bbox_scores = gt_instances.bbox_scores
 
             data_sample.pred_instances = pred_instances

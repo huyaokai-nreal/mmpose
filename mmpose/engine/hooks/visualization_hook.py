@@ -2,7 +2,7 @@
 import os
 import warnings
 from typing import Optional, Sequence
-
+import cv2
 import mmcv
 import mmengine
 from mmengine.hooks import Hook
@@ -50,7 +50,7 @@ class PoseVisualizationHook(Hook):
     def __init__(self,
                  enable: bool = False,
                  interval: int = 50,
-                 score_thr: float = 0.3,
+                 score_thr: float = 0.0,
                  show: bool = False,
                  wait_time: float = 0.,
                  out_dir: Optional[str] = None,
@@ -142,7 +142,7 @@ class PoseVisualizationHook(Hook):
             img_path = data_sample.get('img_path')
             if self.file_client is None:
                 if 'lmdb' in img_path:
-                    self.file_client = LmdbClient('gray')
+                    self.file_client = LmdbClient('grayscale')
                 else:
                     self.file_client = mmengine.FileClient(
                         **self.file_client_args)
@@ -150,10 +150,12 @@ class PoseVisualizationHook(Hook):
 
             if 'lmdb' in img_path:
                 img = self.file_client.get(img_path)
+                img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
             else:
                 img_bytes = self.file_client.get(img_path)
                 img = mmcv.imfrombytes(img_bytes, channel_order='rgb')
             data_sample = merge_data_samples([data_sample])
+            print(data_sample)
 
             out_file = None
             if self.out_dir is not None:
@@ -176,9 +178,9 @@ class PoseVisualizationHook(Hook):
                 img,
                 data_sample=data_sample,
                 show=self.show,
-                draw_gt=False,
+                draw_gt=True,
                 draw_bbox=True,
-                draw_heatmap=True,
+                draw_heatmap=False,
                 wait_time=self.wait_time,
                 kpt_score_thr=self.score_thr,
                 out_file=out_file,

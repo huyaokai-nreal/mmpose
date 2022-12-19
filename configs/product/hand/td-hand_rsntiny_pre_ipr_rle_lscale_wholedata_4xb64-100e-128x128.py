@@ -16,8 +16,8 @@ param_scheduler = [
     dict(
         type='MultiStepLR',
         begin=0,
-        end=50,
-        milestones=[60, 80],
+        end=train_cfg['max_epochs'],
+        milestones=[30 * 2, 40 * 2],
         gamma=0.1,
         by_epoch=True)
 ]
@@ -60,7 +60,8 @@ model = dict(
             ]),
         decoder=codec,
         deploy=False,
-        output_sigma=True),
+        output_sigma=True,
+        output_fuse_coord=True),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
@@ -115,8 +116,7 @@ train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
-    #'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_lmdb.json'
-    'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_binocular_twohand_lmdb.json'
+    'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_lmdb.json'
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # pipelines
@@ -126,6 +126,7 @@ train_pipeline = [
     dict(
         type='RandomBBoxTransform',
         scale_factor=[0.75, 1.25],
+        scale_norm_low=-2.0,
         rotate_factor=15,
         rotate_prob=0.3,
         shift_prob=0.5,

@@ -141,12 +141,21 @@ val_data_list = [
     #'/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_3_2_221201_fisheye_horizontal_binocular_lmdb.json'
     #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_1_221205_jpg_50_lmdb.json'
     #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_1_221205_bmp_lmdb.json'
-    '/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_1_221205_jpg_lmdb.json'
+    #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_1_221205_jpg_lmdb.json'
+    #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_2_221209_bmp_dark_lmdb.json'
+    #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_2_221209_jpg_dark_lmdb.json'
+    #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_2_221209_jpg_50_dark_lmdb.json'
+    #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_3_221209_bmp_light_lmdb.json'
+    #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_3_221209_jpg_light_lmdb.json'
+    #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_3_221209_jpg_50_light_lmdb.json'
+    #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_1_221205_jpg_60_lmdb.json'
+    '/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_1_221205_jpg_90_lmdb.json'
 ]
 # data loaders
 import os
 
-data_root = os.path.join(os.environ['HOME'], 'hand_group/data')
+#data_root = os.path.join(os.environ['HOME'], 'hand_group/data')
+data_root = '/data/AI_DATA'
 train_dataloader = dict(
     batch_size=64,
     num_workers=8,
