@@ -61,7 +61,7 @@ class NrealKeypointAP(BaseMetric):
     def compute_metrics(self, results: list) -> dict:
         if self.result_dir is None:
             tmp_folder = tempfile.TemporaryDirectory()
-            res_file = osp.join(tmp_folder, 'result_keypoints.json')
+            res_file = osp.join(tmp_folder.name, 'result_keypoints.json')
         else:
             res_file = osp.join(self.result_dir, 'result_keypoints.json')
         logger = MMLogger.get_current_instance()
