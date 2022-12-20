@@ -599,7 +599,8 @@ class RSN(BaseBackbone):
                          layer=['_BatchNorm', 'GroupNorm']),
                      dict(type='Normal', std=0.01, layer=['Linear']),
                  ],
-                 image_channels=3):
+                 image_channels=3,
+                 output_last_only=False):
         # Protect mutable default arguments
         norm_cfg = cp.deepcopy(norm_cfg)
         num_blocks = cp.deepcopy(num_blocks)
@@ -610,6 +611,7 @@ class RSN(BaseBackbone):
         self.num_blocks = num_blocks
         self.num_steps = num_steps
         self.norm_cfg = norm_cfg
+        self.output_last_only = output_last_only
 
         assert self.num_stages > 0
         assert self.num_steps > 1
@@ -643,5 +645,7 @@ class RSN(BaseBackbone):
         for i in range(self.num_stages):
             out, skip1, skip2, x = self.multi_stage_rsn[i](x, skip1, skip2)
             out_feats.append(out)
+        if self.output_last_only:
+            return out_feats[-1]
 
         return out_feats

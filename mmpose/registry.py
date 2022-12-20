@@ -132,3 +132,8 @@ INFERENCERS = Registry(
     'inferencer',
     parent=MMENGINE_INFERENCERS,
     locations=['mmpose.apis.inferencers'])
+# manage post-process filters
+FILTERS = Registry('filters')
+
+# manage all kinds of hooks like `CheckpointHook`
+HOOKS = Registry('hook', parent=MMENGINE_HOOKS)
