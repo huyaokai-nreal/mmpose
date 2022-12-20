@@ -2,7 +2,7 @@
 import warnings
 from copy import deepcopy
 from typing import Dict, List, Optional, Sequence, Tuple, Union
-
+import random
 import mmcv
 import mmengine
 import numpy as np
@@ -14,16 +14,66 @@ from scipy.stats import truncnorm
 
 from mmpose.codecs import *  # noqa: F401, F403
 from mmpose.registry import KEYPOINT_CODECS, TRANSFORMS
-from mmpose.structures.bbox import bbox_xyxy2cs, flip_bbox
+from mmpose.structures.bbox import bbox_xyxy2cs, flip_bbox, get_IoU
 from mmpose.structures.keypoint import flip_keypoints
 from mmpose.utils.typing import MultiConfig
-
 try:
     import albumentations
 except ImportError:
     albumentations = None
 
 Number = Union[int, float]
+
+
+@TRANSFORMS.register_module()
+class GetNegtiveBBox(BaseTransform):
+
+    def __init__(self,
+                 prob=0.5,
+                 low_iou_th=0.01,
+                 high_iou_th=0.2,
+                 try_num=100) -> None:
+        super().__init__()
+        self.prob = prob
+        self.low_iou_th = low_iou_th
+        self.high_iou_th = high_iou_th
+        self.try_num = try_num
+
+    def transform(self,
+                  results: Dict) -> Optional[Union[Dict, Tuple[List, List]]]:
+        if np.random.rand() < self.prob:
+            bbox = results['bbox'][0]
+            img_width = results['ori_shape'][1]
+            img_height = results['ori_shape'][0]
+            bbox_height = bbox[3] - bbox[1]
+            bbox_width = bbox[2] - bbox[0]
+            i = 0
+            while i < self.try_num:
+                rand_x = random.randint(0, int(img_width - bbox_width) - 1)
+                rand_y = random.randint(0, int(img_height - bbox_height) - 1)
+                fake_bbox = np.array([
+                    rand_x, rand_y, rand_x + bbox_width, rand_y + bbox_height
+                ])
+                iou = get_IoU(fake_bbox, bbox)
+                if iou < self.high_iou_th and iou > self.low_iou_th:
+                    results['bbox'] = np.array([fake_bbox])
+                    results['attr_labels'] = np.array([0])
+                    results['keypoints_visible'] *= 0
+                    return results
+        results['attr_labels'] = 1
+        return results
+
+    def __repr__(self) -> str:
+        """print the basic information of the transform.
+
+        Returns:
+            str: Formatted string.
+        """
+        repr_str = self.__class__.__name__ + f'(prob={self.prob},'
+        repr_str += f'low_iou_th={self.low_iou_th}),'
+        repr_str += f'high_iou_th={self.high_iou_th},'
+        repr_str += f'try_num={self.try_num}'
+        return repr_str
 
 
 @TRANSFORMS.register_module()

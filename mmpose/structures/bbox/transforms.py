@@ -359,3 +359,30 @@ def _get_3rd_point(a: np.ndarray, b: np.ndarray):
     direction = a - b
     c = b + np.r_[-direction[1], direction[0]]
     return c
+
+
+def get_IoU(pred_bbox, gt_bbox):
+    """return iou score between pred / gt bboxes.
+
+    :param pred_bbox: predict bbox coordinate
+    :param gt_bbox: ground truth bbox coordinate
+    :return: iou score
+    """
+
+    ixmin = max(pred_bbox[0], gt_bbox[0])
+    iymin = max(pred_bbox[1], gt_bbox[1])
+    ixmax = min(pred_bbox[2], gt_bbox[2])
+    iymax = min(pred_bbox[3], gt_bbox[3])
+    iw = np.maximum(ixmax - ixmin + 1., 0.)
+    ih = np.maximum(iymax - iymin + 1., 0.)
+
+    inters = iw * ih
+
+    uni = ((pred_bbox[2] - pred_bbox[0] + 1.) *
+           (pred_bbox[3] - pred_bbox[1] + 1.) +
+           (gt_bbox[2] - gt_bbox[0] + 1.) * (gt_bbox[3] - gt_bbox[1] + 1.) -
+           inters)
+
+    overlaps = inters / uni
+
+    return overlaps
