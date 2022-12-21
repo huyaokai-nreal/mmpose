@@ -30,7 +30,7 @@ class GetNegtiveBBox(BaseTransform):
 
     def __init__(self,
                  prob=0.5,
-                 low_iou_th=0.01,
+                 low_iou_th=0.0001,
                  high_iou_th=0.2,
                  try_num=100) -> None:
         super().__init__()
@@ -55,12 +55,13 @@ class GetNegtiveBBox(BaseTransform):
                     rand_x, rand_y, rand_x + bbox_width, rand_y + bbox_height
                 ])
                 iou = get_IoU(fake_bbox, bbox)
-                if iou < self.high_iou_th and iou > self.low_iou_th:
+                if iou < self.high_iou_th and iou >= self.low_iou_th:
                     results['bbox'] = np.array([fake_bbox])
-                    results['attr_labels'] = np.array([0])
+                    results['attr_labels'] = np.array([0], dtype=np.int32)
                     results['keypoints_visible'] *= 0
                     return results
-        results['attr_labels'] = 1
+                i += 1
+        results['attr_labels'] = np.array([1], dtype=np.int32)
         return results
 
     def __repr__(self) -> str:
