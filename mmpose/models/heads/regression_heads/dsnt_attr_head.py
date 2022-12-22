@@ -181,11 +181,10 @@ class DSNTAttrHead(DSNTHead):
                 coords = self.coord_fc(coords.reshape(pred_sigma.size(0), -1))
                 attr = self.attr_fc_1(last_x)
                 attr = self.attr_fc_out(F.relu(attr))
-            coords = torch.cat([
-                coords.reshape(pred_sigma.size(0), self.num_joints, 2),
-                pred_sigma
-            ],
-                               dim=-1)
+                coords = coords.reshape(pred_sigma.size(0), self.num_joints, 2)
+            if self.deploy:
+                return coords, attr
+            coords = torch.cat([coords, pred_sigma], dim=-1)
         if self.deploy:
             return pred_x, pred_y
         return coords, heatmaps, attr
@@ -233,9 +232,9 @@ class DSNTAttrHead(DSNTHead):
             pred_fields = [
                 PixelData(heatmaps=hm) for hm in batch_heatmaps.detach()
             ]
-            return preds, pred_fields
+            return preds, batch_attrs, pred_fields
         else:
-            return preds
+            return preds, batch_attrs
 
     def loss(self,
              inputs: Tuple[Tensor],

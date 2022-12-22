@@ -83,7 +83,7 @@ class RLELoss(nn.Module):
 
         if self.use_target_weight:
             assert target_weight is not None
-            loss *= target_weight
+            loss *= target_weight.unsqueeze(-1)
 
         if self.size_average:
             loss /= len(loss)

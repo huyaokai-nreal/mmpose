@@ -36,14 +36,17 @@ def _convert_batchnorm(module):
     return module_output
 
 
-def pytorch2onnx(model,
-                 input_shape,
-                 opset_version=11,
-                 show=False,
-                 output_file='tmp.onnx',
-                 verify=False,
-                 simplify=False,
-                 dyn_batch=False):
+def pytorch2onnx(
+    model,
+    input_shape,
+    output_names,
+    opset_version=11,
+    show=False,
+    output_file='tmp.onnx',
+    verify=False,
+    simplify=False,
+    dyn_batch=False,
+):
     """Convert pytorch model to onnx model.
 
     Args:
@@ -79,7 +82,7 @@ def pytorch2onnx(model,
         do_constant_folding=True,
         opset_version=opset_version,
         input_names=['input'],
-        output_names=['output'],
+        output_names=output_names,
         dynamic_axes=dynamic_axes)
 
     print(f'Successfully exported ONNX model: {output_file}')
@@ -147,6 +150,12 @@ def parse_args():
         default=[1, 3, 256, 192],
         help='input size')
     parser.add_argument(
+        '--output-names',
+        type=str,
+        nargs='+',
+        default=['output'],
+        help='output name list')
+    parser.add_argument(
         '--simplify',
         '-sim',
         action='store_true',
@@ -193,6 +202,7 @@ if __name__ == '__main__':
     pytorch2onnx(
         model,
         args.shape,
+        output_names=args.output_names,
         opset_version=args.opset_version,
         show=args.show,
         output_file=args.output_file,
