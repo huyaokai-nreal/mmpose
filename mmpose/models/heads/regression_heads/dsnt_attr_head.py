@@ -288,5 +288,7 @@ class DSNTAttrHead(DSNTHead):
         acc_pose = torch.tensor(avg_acc, device=keypoint_labels.device)
         losses.update(acc_pose=acc_pose)
         losses.update(acc_attr=acc_attr)
+        attr_pos_rate = attr_labels.mean()
+        losses.update(attr_pos_rate=attr_pos_rate)
 
         return losses

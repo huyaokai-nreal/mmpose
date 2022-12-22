@@ -187,7 +187,10 @@ if __name__ == '__main__':
         args.config,
         checkpoint,
         device='cpu',
-        cfg_options={'model.data_preprocessor': None})
+        cfg_options={
+            'model.data_preprocessor': None,
+            'model.head.deploy': True
+        })
     model = _convert_batchnorm(model)
     model = repvgg_model_convert(model)
 
