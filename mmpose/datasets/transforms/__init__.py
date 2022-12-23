@@ -4,7 +4,8 @@ from .bottomup_transforms import (BottomupGetHeatmapMask, BottomupRandomAffine,
 from .common_transforms import (Albumentation, GenerateTarget,
                                 GetBBoxCenterScale, PhotometricDistortion,
                                 RandomBBoxTransform, RandomFlip,
-                                RandomHalfBody, GetNegtiveBBox)
+                                RandomHalfBody, GetNegtiveBBox,
+                                ChangeImageQuality)
 from .converting import KeypointConverter
 from .formatting import PackPoseInputs
 from .loading import LoadImage
@@ -15,5 +16,5 @@ __all__ = [
     'RandomHalfBody', 'TopdownAffine', 'Albumentation',
     'PhotometricDistortion', 'PackPoseInputs', 'LoadImage',
     'BottomupGetHeatmapMask', 'BottomupRandomAffine', 'BottomupResize',
-    'GenerateTarget', 'KeypointConverter', 'GetNegtiveBBox'
+    'GenerateTarget', 'KeypointConverter', 'GetNegtiveBBox','ChangeImageQuality'
 ]

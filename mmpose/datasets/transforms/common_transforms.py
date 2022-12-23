@@ -2,6 +2,7 @@
 import warnings
 from copy import deepcopy
 from typing import Dict, List, Optional, Sequence, Tuple, Union
+import cv2
 import random
 import mmcv
 import mmengine
@@ -23,6 +24,35 @@ except ImportError:
     albumentations = None
 
 Number = Union[int, float]
+
+
+@TRANSFORMS.register_module()
+class ChangeImageQuality(BaseTransform):
+
+    def __init__(self, img_quality=95, prob=0.0) -> None:
+        super().__init__()
+        self.prob = prob
+        self.img_quality = img_quality
+
+    def transform(self,
+                  results: Dict) -> Optional[Union[Dict, Tuple[List, List]]]:
+        if np.random.rand() <= self.prob:
+            img = results['img']
+            img_encode = cv2.imencode('.jpg', img,
+                                      [cv2.IMWRITE_JPEG_QUALITY, 80])[1]
+            img = cv2.imdecode(img_encode, cv2.IMREAD_GRAYSCALE)
+            results['img'] = img[:, :, np.newaxis]
+        return results
+
+    def __repr__(self) -> str:
+        """print the basic information of the transform.
+
+        Returns:
+            str: Formatted string.
+        """
+        repr_str = self.__class__.__name__ + f'(prob={self.prob},'
+        repr_str += f'img_quality={self.img_quality}),'
+        return repr_str
 
 
 @TRANSFORMS.register_module()
@@ -79,7 +109,7 @@ class GetNegtiveBBox(BaseTransform):
 
 @TRANSFORMS.register_module()
 class GetBBoxCenterScale(BaseTransform):
-    """Convert bboxes from [x, y, w, h] to center and scale.
+    """Convert bboxes from [x1, y1, x2, y2] to center and scale.
 
     The center is the coordinates of the bbox center, and the scale is the
     bbox width and height normalized by a scale factor.
