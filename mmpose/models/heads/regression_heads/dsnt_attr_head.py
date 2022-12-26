@@ -232,9 +232,9 @@ class DSNTAttrHead(DSNTHead):
             pred_fields = [
                 PixelData(heatmaps=hm) for hm in batch_heatmaps.detach()
             ]
-            return preds, batch_attrs, pred_fields
+            return preds, pred_fields
         else:
-            return preds, batch_attrs
+            return preds
 
     def loss(self,
              inputs: Tuple[Tensor],
