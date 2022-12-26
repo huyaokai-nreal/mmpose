@@ -2,6 +2,7 @@ dataset_info = dict(
     dataset_name='nreal_hand',
     paper_info=dict(),
     flip_pairs=[],
+    flip_indices=list(range(21)),
     keypoint_info={
         0:
         dict(name='wrist', id=0, color=[255, 255, 255], type='', swap=''),

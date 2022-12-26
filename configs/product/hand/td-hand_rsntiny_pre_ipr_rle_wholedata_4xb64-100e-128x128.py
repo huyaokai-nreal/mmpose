@@ -115,8 +115,8 @@ train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
-    #'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_lmdb.json'
-    'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_binocular_twohand_lmdb.json'
+    'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_lmdb.json'
+    #'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_binocular_twohand_lmdb.json'
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # pipelines
@@ -167,6 +167,7 @@ val_dataloader = dict(
         data_mode=data_mode,
         test_mode=True,
         pipeline=val_pipeline,
+        flip_left_to_right=False,
         data_root=data_root))
 test_dataloader = val_dataloader
 
@@ -178,6 +179,7 @@ default_hooks = dict(
 val_evaluator = dict(
     type='NrealKeypointAP',
     ann_file=val_data_list[0],
+    flip_left_to_right=False,
 )
 test_evaluator = val_evaluator
 

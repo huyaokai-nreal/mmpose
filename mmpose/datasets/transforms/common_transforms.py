@@ -612,6 +612,10 @@ class RandomBBoxTransform(BaseTransform):
         Returns:
             dict: The result dict.
         """
+        # image with no hand will be ignored
+        if 'attr_labels' in results:
+            if results['attr_labels'][0] == 0:
+                return results
         bbox_scale = results['bbox_scale']
         num_bboxes = bbox_scale.shape[0]
 
