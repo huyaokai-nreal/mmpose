@@ -1,7 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import argparse
-import warnings
-
+from torch import nn
 import numpy as np
 import torch
 
@@ -34,6 +33,35 @@ def _convert_batchnorm(module):
         module_output.add_module(name, _convert_batchnorm(child))
     del module
     return module_output
+
+
+def _get_conv_layer(submodule):
+    for name, child in submodule.named_children():
+        if isinstance(child, nn.Conv2d):
+            return name, child
+        else:
+            return _get_conv_layer(child)
+
+
+def _fuse_preprocess(module):
+    mean = model.cfg.mean
+    std = model.cfg.std
+    mean = torch.as_tensor([mean])
+    std = torch.as_tensor([std])
+    for name, child in module.named_children():
+        if name == 'backbone':
+            name, conv_layer = _get_conv_layer(child)
+            print(
+                f'fuse preprocess with mean {mean}, std {std} to conv {name}')
+            w = conv_layer.weight.data
+            b = conv_layer.bias.data
+            fuse_w = w / std
+            fuse_b = -(w * mean / std).view((b.size(0), -1)).sum(dim=-1) + b
+            conv_layer.weight.data = fuse_w
+            conv_layer.bias.data = fuse_b
+            return module
+    print('can not find first conv in backbone to fuse preprocess')
+    return module
 
 
 def pytorch2onnx(
@@ -171,18 +199,6 @@ if __name__ == '__main__':
     args = parse_args()
 
     assert args.opset_version == 11, 'MMPose only supports opset 11 now'
-
-    # Following strings of text style are from colorama package
-    bright_style, reset_style = '\x1b[1m', '\x1b[0m'
-    red_text, blue_text = '\x1b[31m', '\x1b[34m'
-    white_background = '\x1b[107m'
-
-    msg = white_background + bright_style + red_text
-    msg += 'DeprecationWarning: This tool will be deprecated in future. '
-    msg += blue_text + 'Welcome to use the unified model deployment toolbox '
-    msg += 'MMDeploy: https://github.com/open-mmlab/mmdeploy'
-    msg += reset_style
-    warnings.warn(msg)
     checkpoint = args.checkpoint if args.checkpoint else None
     model = init_model(
         args.config,
@@ -192,6 +208,7 @@ if __name__ == '__main__':
             'model.data_preprocessor': None,
             'model.head.deploy': True
         })
+    model = _fuse_preprocess(model)
     model = _convert_batchnorm(model)
     model = repvgg_model_convert(model)
 

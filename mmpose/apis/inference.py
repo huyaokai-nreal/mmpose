@@ -88,6 +88,8 @@ def init_model(config: Union[str, Path, Config],
     elif not isinstance(config, Config):
         raise TypeError('config must be a filename or Config object, '
                         f'but got {type(config)}')
+    config.mean = config.model.data_preprocessor.mean
+    config.std = config.model.data_preprocessor.std
     if cfg_options is not None:
         config.merge_from_dict(cfg_options)
     elif 'init_cfg' in config.model.backbone:
