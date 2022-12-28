@@ -9,12 +9,13 @@ from .common_transforms import (Albumentation, GenerateTarget,
 from .converting import KeypointConverter
 from .formatting import PackPoseInputs
 from .loading import LoadImage
-from .topdown_transforms import TopdownAffine
+from .topdown_transforms import TopdownAffine, RandomBackground
 
 __all__ = [
     'GetBBoxCenterScale', 'RandomBBoxTransform', 'RandomFlip',
     'RandomHalfBody', 'TopdownAffine', 'Albumentation',
     'PhotometricDistortion', 'PackPoseInputs', 'LoadImage',
     'BottomupGetHeatmapMask', 'BottomupRandomAffine', 'BottomupResize',
-    'GenerateTarget', 'KeypointConverter', 'GetNegtiveBBox','ChangeImageQuality'
+    'GenerateTarget', 'KeypointConverter', 'GetNegtiveBBox','ChangeImageQuality',
+    'RandomBackground'
 ]

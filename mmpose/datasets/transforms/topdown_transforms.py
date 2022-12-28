@@ -1,8 +1,8 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-from typing import Dict, Optional, Tuple
-
+from typing import Dict, Optional, Tuple, Union, List
 import cv2
 import numpy as np
+import os
 from mmcv.transforms import BaseTransform
 from mmengine import is_seq_of
 
@@ -137,4 +137,36 @@ class TopdownAffine(BaseTransform):
         repr_str = self.__class__.__name__
         repr_str += f'(input_size={self.input_size}, '
         repr_str += f'use_udp={self.use_udp})'
+        return repr_str
+
+
+@TRANSFORMS.register_module()
+class RandomBackground(BaseTransform):
+
+    def __init__(self, bg_image_root) -> None:
+        super().__init__()
+        self.bg_image_root = bg_image_root
+        self.bg_image_list = [
+            os.path.join(bg_image_root, image_path)
+            for image_path in os.listdir(bg_image_root) if 'jpg' in image_path
+        ]
+
+    def transform(self,
+                  results: Dict) -> Optional[Union[Dict, Tuple[List, List]]]:
+        bg_image_path = np.random.choice(self.bg_image_list)
+        bg_image = cv2.imread(bg_image_path)
+        mask = results['mask']
+        x1, y1, x2, y2 = results['bbox'][0].astype(np.int)
+        w = x2 - x1
+        h = y2 - y1
+        mask = cv2.resize(mask, (w, h), cv2.INTER_LINEAR)
+        img = results['img']
+        bg_image[y1:y2, x1:x2, :][mask > 0] = img[y1:y2, x1:x2, :][mask > 0]
+        results['img'] = bg_image
+        return results
+
+    def __repr__(self) -> str:
+        repr_str = self.__class__.__name__
+        repr_str += f'(bg_image_root={self.bg_image_root}, '
+        repr_str += f'bg image number={len(self.bg_image_list)})'
         return repr_str

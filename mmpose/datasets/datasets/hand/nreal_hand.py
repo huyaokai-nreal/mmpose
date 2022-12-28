@@ -27,7 +27,8 @@ class HANDDataset(BaseCocoStyleDataset):
                  lazy_init: bool = False,
                  max_refetch: int = 100,
                  flip_left_to_right: bool = True,
-                 dataset_weight_list: List = []):
+                 dataset_weight_list: List = [],
+                 with_mask: bool = False):
         self.flip_left_to_right = flip_left_to_right
         self.data_file_list = data_file_list
         self.lmdb_client = LmdbClient()
@@ -35,6 +36,7 @@ class HANDDataset(BaseCocoStyleDataset):
         self.dataset_weight_list = dataset_weight_list
         self.dataset_num = len(self.data_file_list)
         self.lmdb_data_root = data_root
+        self.with_mask = with_mask
         if dataset_weight_list:
             assert len(dataset_weight_list) == len(data_file_list)
         super().__init__(
@@ -129,6 +131,10 @@ class HANDDataset(BaseCocoStyleDataset):
                     # skip invalid instance annotation.
                     if not data_info:
                         continue
+                    if self.with_mask:
+                        data_info[
+                            'mask_path'] = \
+                            f"{lmdb_path}_mask:{data_info['img_path']}"
                     data_info[
                         'img_path'] = f"{lmdb_path}:{data_info['img_path']}"
                     data_list.append(data_info)
@@ -154,6 +160,8 @@ class HANDDataset(BaseCocoStyleDataset):
             idx = self.__get_weighted_random_image_id()
         data_info = super().get_data_info(idx)
         data_info['img'] = self.lmdb_client.get(data_info['img_path'])
+        if self.with_mask:
+            data_info['mask'] = self.lmdb_client.get(data_info['mask_path'])
         data_info['img_shape'] = data_info['img'].shape[:2]
         data_info['ori_shape'] = data_info['img'].shape[:2]
         if self.flip_left_to_right and data_info['cat_id'] == 1:
