@@ -152,8 +152,13 @@ class HANDDataset(BaseCocoStyleDataset):
         results['img'] = img[:, ::-1]
         results['keypoints'][:, :,
                              0] = width - 1 - results['keypoints'][:, :, 0]
-        results['bbox'][:, 0] = width - 1 - results['bbox'][:, 0]
-        results['bbox'][:, 2] = width - 1 - results['bbox'][:, 2]
+        bbox = results['bbox']
+        bbox[:, ::2] = width - 1 - bbox[:, ::2]
+        min_x = np.min(bbox[:, ::2])
+        max_x = np.max(bbox[:, ::2])
+        min_y = np.min(bbox[:, 1::2])
+        max_y = np.max(bbox[:, 1::2])
+        results['bbox'] = np.array([[min_x, min_y, max_x, max_y]], np.float32)
 
     def get_data_info(self, idx):
         if self.dataset_weight_list:

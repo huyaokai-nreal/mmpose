@@ -154,7 +154,8 @@ class RandomBackground(BaseTransform):
     def transform(self,
                   results: Dict) -> Optional[Union[Dict, Tuple[List, List]]]:
         bg_image_path = np.random.choice(self.bg_image_list)
-        bg_image = cv2.imread(bg_image_path)
+        bg_image = cv2.imread(bg_image_path, cv2.IMREAD_GRAYSCALE)[:, :,
+                                                                   np.newaxis]
         mask = results['mask']
         x1, y1, x2, y2 = results['bbox'][0].astype(np.int)
         w = x2 - x1
