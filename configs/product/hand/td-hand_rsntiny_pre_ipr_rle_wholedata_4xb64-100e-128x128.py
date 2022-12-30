@@ -167,7 +167,7 @@ val_dataloader = dict(
         data_mode=data_mode,
         test_mode=True,
         pipeline=val_pipeline,
-        flip_left_to_right=False,
+        flip_left_to_right=True,
         data_root=data_root))
 test_dataloader = val_dataloader
 
@@ -179,7 +179,7 @@ default_hooks = dict(
 val_evaluator = dict(
     type='NrealKeypointAP',
     ann_file=val_data_list[0],
-    flip_left_to_right=False,
+    flip_left_to_right=True,
 )
 test_evaluator = val_evaluator
 

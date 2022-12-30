@@ -269,8 +269,7 @@ class IntegralRegressionHead(BaseHead):
                 ],
                                    dim=-1)
                 coords = self.coord_fc(coords.reshape(pred_sigma.size(0), -1))
-                coords = coords.reshape(
-                    pred_sigma.size(0), self.num_joints, 2),
+                coords = coords.reshape(pred_sigma.size(0), self.num_joints, 2)
                 if self.deploy:
                     return coords
             coords = torch.cat([coords, pred_sigma], dim=-1)
