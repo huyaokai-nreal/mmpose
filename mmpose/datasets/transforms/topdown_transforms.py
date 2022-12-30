@@ -2,10 +2,11 @@
 from typing import Dict, Optional, Tuple, Union, List
 import cv2
 import numpy as np
+import pickle as pkl
 import os
 from mmcv.transforms import BaseTransform
 from mmengine import is_seq_of
-
+from mmpose.utils.lmdb_client import LmdbClient
 from mmpose.registry import TRANSFORMS
 from mmpose.structures.bbox import get_udp_warp_matrix, get_warp_matrix
 
@@ -143,19 +144,27 @@ class TopdownAffine(BaseTransform):
 @TRANSFORMS.register_module()
 class RandomBackground(BaseTransform):
 
-    def __init__(self, bg_image_root) -> None:
+    def __init__(self, bg_lmdb_path_list) -> None:
         super().__init__()
-        self.bg_image_root = bg_image_root
-        self.bg_image_list = [
-            os.path.join(bg_image_root, image_path)
-            for image_path in os.listdir(bg_image_root) if 'jpg' in image_path
-        ]
+        self.bg_lmdb_path_list = bg_lmdb_path_list
+        self.data_list = self.load_data()
+        self.lmdb_client = LmdbClient()
+
+    def load_data(self):
+        data_list = []
+        for lmdb_path in self.bg_lmdb_path_list:
+            with open(os.path.join(lmdb_path, 'meta.pkl'), 'rb') as f:
+                meta_info = pkl.load(f)
+                data_list += [
+                    f'{lmdb_path}:{file_name}'
+                    for file_name in meta_info['file_name_list']
+                ]
+        return data_list
 
     def transform(self,
                   results: Dict) -> Optional[Union[Dict, Tuple[List, List]]]:
-        bg_image_path = np.random.choice(self.bg_image_list)
-        bg_image = cv2.imread(bg_image_path, cv2.IMREAD_GRAYSCALE)[:, :,
-                                                                   np.newaxis]
+        bg_image_path = np.random.choice(self.data_list)
+        bg_image = self.lmdb_client.get(bg_image_path)
         mask = results['mask']
         x1, y1, x2, y2 = results['bbox'][0].astype(np.int)
         w = x2 - x1
@@ -168,6 +177,5 @@ class RandomBackground(BaseTransform):
 
     def __repr__(self) -> str:
         repr_str = self.__class__.__name__
-        repr_str += f'(bg_image_root={self.bg_image_root}, '
-        repr_str += f'bg image number={len(self.bg_image_list)})'
+        repr_str += f'bg image number={len(self.data_list)})'
         return repr_str
