@@ -1,7 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from itertools import zip_longest
 from typing import Optional, Tuple
-import torch
 from torch import Tensor
 
 from mmpose.registry import MODELS
@@ -40,6 +39,7 @@ class TopdownPoseEstimator(BasePoseEstimator):
                  backbone: ConfigType,
                  neck: OptConfigType = None,
                  head: OptConfigType = None,
+                 pruning_loss: OptConfigType = None,
                  train_cfg: OptConfigType = None,
                  test_cfg: OptConfigType = None,
                  data_preprocessor: OptConfigType = None,
@@ -53,6 +53,9 @@ class TopdownPoseEstimator(BasePoseEstimator):
 
         if head is not None:
             self.head = MODELS.build(head)
+
+        if pruning_loss is not None:
+            self.pruning_loss = MODELS.build(pruning_loss)
 
         self.train_cfg = train_cfg if train_cfg else {}
         self.test_cfg = test_cfg if test_cfg else {}
@@ -113,17 +116,9 @@ class TopdownPoseEstimator(BasePoseEstimator):
         if self.with_head:
             losses.update(
                 self.head.loss(feats, data_samples, train_cfg=self.train_cfg))
-
-        filter_reg_loss = 0
-        lamda = 0.05
-        for name, param in self.backbone.named_parameters():
-            # only weights in conv layer
-            if 'conv.weight' in name:
-                ith_filter_reg_loss = torch.sqrt(torch.sum(torch.pow(param, 2), dim=[1, 2, 3]))   # GL
-                # ith_filter_reg_loss = torch.sqrt(torch.sum(torch.abs(param), dim=[1, 2, 3]))  # 1 -> 1/2   GL1/2
-                filter_reg_loss += torch.sum(ith_filter_reg_loss)
-        losses['loss_kpt'] += filter_reg_loss * lamda
-
+        if self.pruning_loss:
+            loss_pruning = self.pruning_loss(self)
+            losses['loss_pruning'] = loss_pruning
         return losses
 
     def predict(self, inputs: Tensor, data_samples: SampleList) -> SampleList:

@@ -3,12 +3,11 @@ import argparse
 import os
 import os.path as osp
 import torch
-import mmengine
 from mmengine.config import Config, DictAction
-from mmengine.hooks import Hook
 from mmengine.runner import Runner
 
 from mmpose.utils import register_all_modules
+import numpy as np
 
 
 def parse_args():
@@ -88,18 +87,23 @@ def merge_args(cfg, args):
 
     return cfg
 
-import numpy as np
+
 def get_sparsity(module):
     zero = 0
     total = 0
 
     for name, param in module.named_parameters():
         if 'conv.weight' in name:  # 仅计算卷积权重的稀疏
-            total += (param.shape[0] * param.shape[1] * param.shape[2] * param.shape[3])
+            total += (
+                param.shape[0] * param.shape[1] * param.shape[2] *
+                param.shape[3])
             p = param.cpu().detach().numpy()
-            zero += np.count_nonzero(p == 0)  # 此时处于剪枝之后，等于0的属于被剪枝的，而且在np.countzero中是true，计算其数量就是零值数量
+            zero += np.count_nonzero(
+                p ==
+                0)  # 此时处于剪枝之后，等于0的属于被剪枝的，而且在np.countzero中是true，计算其数量就是零值数量
 
     return 100 * (zero / total)
+
 
 def main():
     args = parse_args()
@@ -139,32 +143,38 @@ def main():
 
     #     runner.register_hook(SaveMetricHook(), 'LOWEST')
 
-
     # prune
     runner.load_or_resume()
     filter_num = 0
     zero_filter_num = 0
-    thre = 0.001
+    thr = 0.001
 
     for name, param in runner.model.named_parameters():
         if 'conv.weight' in name:
             filter_num += param.shape[0]
             for i in range(param.shape[0]):
-                idx = torch.lt(abs(param.data[i, :, :, :]), thre)  # prune
+                idx = torch.lt(abs(param.data[i, :, :, :]), thr)  # prune
                 param.data[i, :, :, :][idx] = 0
-                ith_filter_L1_score = torch.sum(abs(param.data[i, :, :, :]))  # 统计移除的filter的数目
+                ith_filter_L1_score = torch.sum(abs(
+                    param.data[i, :, :, :]))  # 统计移除的filter的数目
                 # print(name,": ",ith_filter_L1_score)
-                if ith_filter_L1_score == 0: 
+                if ith_filter_L1_score == 0:
                     zero_filter_num += 1
 
     #  compute sparsity
     weight_sparsity = get_sparsity(runner.model)
     filter_sparsity = 100 * zero_filter_num / filter_num
-    
-    print(f'weight_sparsity: {weight_sparsity:.2f},filter_sparsity: {filter_sparsity:.2f}')
 
-    runner.train()  # 新建文件夹，设置epoch=1,lr=0，保存的epoch_1.pth为剪枝后的checkpoint
+    print(f'weight_sparsity: {weight_sparsity:.2f}, \
+        filter_sparsity: {filter_sparsity:.2f}')
 
+    runner.optim_wrapper = runner.build_optim_wrapper(runner.optim_wrapper)
+    runner.save_checkpoint(
+        'work_dirs',
+        'pruned.pth',
+        file_client_args=None,
+        save_optimizer=True,
+        save_param_scheduler=False)
 
 
 if __name__ == '__main__':
