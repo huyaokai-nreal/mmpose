@@ -149,7 +149,21 @@ val_data_list = [
     #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_3_221209_jpg_light_lmdb.json'
     #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_3_221209_jpg_50_light_lmdb.json'
     #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_1_221205_jpg_60_lmdb.json'
-    '/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_1_221205_jpg_90_lmdb.json'
+    #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_1_221205_jpg_90_lmdb.json'
+    #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_4_221223_bmp_dark_lmdb.json',
+    #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_4_221223_jpg_dark_lmdb.json',
+    #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_4_221223_jpg_50_dark_lmdb.json',
+    #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_4_221223_jpg_60_dark_lmdb.json',
+    #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_4_221223_jpg_70_dark_lmdb.json',
+    #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_4_221223_jpg_80_dark_lmdb.json',
+    #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_4_221223_jpg_90_dark_lmdb.json',
+    #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_5_221223_bmp_light_lmdb.json',
+    #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_5_221223_jpg_light_lmdb.json',
+    #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_5_221223_jpg_60_light_lmdb.json',
+    #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_5_221223_jpg_70_light_lmdb.json',
+    #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_5_221223_jpg_80_light_lmdb.json',
+    #'/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_5_221223_jpg_90_light_lmdb.json',
+    '/home/zx_li/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1_5_221223_jpg_50_light_lmdb.json',
 ]
 # data loaders
 import os
