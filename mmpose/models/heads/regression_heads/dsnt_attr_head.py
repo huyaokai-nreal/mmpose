@@ -261,15 +261,15 @@ class DSNTAttrHead(DSNTHead):
 
         loss_list = self.loss_module(input_list, target_list, keypoint_weights)
 
-        loss = loss_list[0] + loss_list[1] + loss_list[2]
+        loss_kpt = loss_list[0] + loss_list[1]
 
         if self.lambda_t > 0:
             mh = MessageHub.get_current_instance()
             cur_epoch = mh.get_info('epoch')
             if cur_epoch >= self.lambda_t:
-                loss = loss_list[0]
+                loss_kpt = loss_list[0]
 
-        losses.update(loss_kpt=loss)
+        losses.update(loss_kpt=loss_kpt)
         losses.update(loss_attr=loss_list[2])
 
         if pred_coords.size(-1) == 4:
