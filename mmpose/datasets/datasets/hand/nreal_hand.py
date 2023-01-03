@@ -159,6 +159,8 @@ class HANDDataset(BaseCocoStyleDataset):
         min_y = np.min(bbox[:, 1::2])
         max_y = np.max(bbox[:, 1::2])
         results['bbox'] = np.array([[min_x, min_y, max_x, max_y]], np.float32)
+        if 'mask' in results:
+            results['mask'] = results['mask'][:, ::-1]
 
     def get_data_info(self, idx):
         if self.dataset_weight_list:
