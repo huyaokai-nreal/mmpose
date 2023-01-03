@@ -87,7 +87,6 @@ train_pipeline = [
             dict(type='RandomBrightnessContrast', p=0.2),
         ]),
     dict(type='GetBBoxCenterScale', padding=1.25),
-    dict(type='RandomFlip', prob=0.5),
     dict(
         type='RandomBBoxTransform',
         scale_factor=[0.75, 1.25],
@@ -178,7 +177,7 @@ val_dataloader = dict(
         test_mode=True,
         pipeline=val_pipeline,
         flip_left_to_right=True,
-        with_mask=True))
+    ))
 test_dataloader = val_dataloader
 
 # evaluators
