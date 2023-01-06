@@ -173,6 +173,10 @@ def parse_args():
         action='store_true',
         help='verify the onnx model output against pytorch output')
     parser.add_argument(
+        '--fuse_pre',
+        action='store_true',
+        help='fuse preprocess to the first conv')
+    parser.add_argument(
         '--shape',
         type=int,
         nargs='+',
@@ -208,7 +212,9 @@ if __name__ == '__main__':
             'model.data_preprocessor': None,
             'model.head.deploy': True
         })
-    model = _fuse_preprocess(model)
+    if args.fuse_pre:
+        print('enable fuse preprocess mean std to first conv')
+        model = _fuse_preprocess(model)
     model = _convert_batchnorm(model)
     model = repvgg_model_convert(model)
 

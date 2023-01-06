@@ -23,6 +23,7 @@ def img_to_lmdb(image_root, lmdb_path, img_ext):
         os.path.join(image_root, image_name)
         for image_name in os.listdir(image_root) if img_ext in image_name
     ]
+    image_paths.sort()
     mmengine.mkdir_or_exist(lmdb_path)
     db = lmdb.open(lmdb_path, map_size=1099511627776)
     image_keys = []
@@ -35,7 +36,7 @@ def img_to_lmdb(image_root, lmdb_path, img_ext):
                 image_keys.append(key)
                 txn.put(key.encode(), image_data)
     db.close()
-    meta_info = dict(file_name_list=image_keys)
+    meta_info = dict(file_name_list=image_keys, image_paths=image_paths)
     with open(os.path.join(lmdb_path, 'meta.pkl'), 'wb') as f:
         pkl.dump(meta_info, f)
 
