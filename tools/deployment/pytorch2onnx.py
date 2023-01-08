@@ -194,6 +194,11 @@ def parse_args():
         action='store_true',
         help='use onnxsim to simplfy the onnx model')
     parser.add_argument(
+        '--deploy-head',
+        '-dh',
+        action='store_true',
+        help='enable deploy arg for head')
+    parser.add_argument(
         '--dyn-batch', action='store_true', help='enable dynamic batch input')
     args = parser.parse_args()
     return args
@@ -204,14 +209,13 @@ if __name__ == '__main__':
 
     assert args.opset_version == 11, 'MMPose only supports opset 11 now'
     checkpoint = args.checkpoint if args.checkpoint else None
+    cfg_options = {
+        'model.data_preprocessor': None,
+    }
+    if args.deploy_head:
+        cfg_options['model.head.deploy'] = True
     model = init_model(
-        args.config,
-        checkpoint,
-        device='cpu',
-        cfg_options={
-            'model.data_preprocessor': None,
-            'model.head.deploy': True
-        })
+        args.config, checkpoint, device='cpu', cfg_options=cfg_options)
     if args.fuse_pre:
         print('enable fuse preprocess mean std to first conv')
         model = _fuse_preprocess(model)
