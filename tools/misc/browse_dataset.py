@@ -37,6 +37,8 @@ def parse_args():
         default=2,
         help='the interval of show (s)')
     parser.add_argument(
+        '--interval', type=int, default=1, help='interval to show the result')
+    parser.add_argument(
         '--mode',
         default='transformed',
         type=str,
@@ -107,7 +109,7 @@ def main():
     item = dataset[0]
 
     while idx < len(dataset):
-        idx += 1
+        idx += args.interval
         next_item = None if idx >= len(dataset) else dataset[idx]
 
         if args.mode == 'original':
@@ -121,7 +123,7 @@ def main():
                      next_item['keypoints_visible']))
                 item['bbox'] = np.concatenate(
                     (item['bbox'], next_item['bbox']))
-                progress_bar.update()
+                progress_bar.update(args.interval)
                 continue
             else:
                 img_path = item['img_path']
@@ -164,7 +166,7 @@ def main():
             wait_time=args.show_interval,
             out_file=out_file)
 
-        progress_bar.update()
+        progress_bar.update(args.interval)
 
 
 if __name__ == '__main__':

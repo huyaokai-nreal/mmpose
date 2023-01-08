@@ -28,7 +28,9 @@ class HANDDataset(BaseCocoStyleDataset):
                  max_refetch: int = 100,
                  flip_left_to_right: bool = True,
                  dataset_weight_list: List = [],
-                 with_mask: bool = False):
+                 with_mask: bool = False,
+                 mask_ext: str = 'mask',
+                 sub_data_index=-1):
         self.flip_left_to_right = flip_left_to_right
         self.data_file_list = data_file_list
         self.lmdb_client = LmdbClient()
@@ -37,6 +39,8 @@ class HANDDataset(BaseCocoStyleDataset):
         self.dataset_num = len(self.data_file_list)
         self.lmdb_data_root = data_root
         self.with_mask = with_mask
+        self.mask_ext = mask_ext
+        self.sub_data_index = int(sub_data_index)
         if dataset_weight_list:
             assert len(dataset_weight_list) == len(data_file_list)
         super().__init__(
@@ -100,6 +104,8 @@ class HANDDataset(BaseCocoStyleDataset):
         data_info = {
             'img_id': ann['image_id'],
             'img_path': img_path,
+            'image_width': img_w,
+            'image_height': img_h,
             'bbox': bbox,
             'bbox_score': np.ones(1, dtype=np.float32),
             'num_keypoints': num_keypoints,
@@ -116,6 +122,8 @@ class HANDDataset(BaseCocoStyleDataset):
     def _load_annotations(self):
         data_list = []
         sub_dataset_start_id = 0
+        if self.sub_data_index >= 0:
+            self.data_file_list = [self.data_file_list[self.sub_data_index]]
         for i, anno_file in enumerate(self.data_file_list):
             coco = COCO(anno_file)
             lmdb_path = osp.join(self.lmdb_data_root,
@@ -134,7 +142,7 @@ class HANDDataset(BaseCocoStyleDataset):
                     if self.with_mask:
                         data_info[
                             'mask_path'] = \
-                            f"{lmdb_path}_mask:{data_info['img_path']}"
+                            f"{lmdb_path}_{self.mask_ext}:{data_info['img_path']}" # noqa
                     data_info[
                         'img_path'] = f"{lmdb_path}:{data_info['img_path']}"
                     data_list.append(data_info)
