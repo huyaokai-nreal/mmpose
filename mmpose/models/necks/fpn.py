@@ -3,8 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from mmcv.cnn import ConvModule
 from mmengine.model import xavier_init
-
 from mmpose.registry import MODELS
+from mmpose.models.utils.upsample import UPSAMPLE_METHODS
 
 
 @MODELS.register_module()
@@ -70,7 +70,10 @@ class FPN(nn.Module):
                  conv_cfg=None,
                  norm_cfg=None,
                  act_cfg=None,
-                 upsample_cfg=dict(mode='nearest')):
+                 upsample_style='fpn',
+                 upsample_cfg=dict(mode='nearest'),
+                 reverse_output=False,
+                 apply_fpn_conv: bool = True):
         super().__init__()
         assert isinstance(in_channels, list)
         self.in_channels = in_channels
@@ -80,7 +83,10 @@ class FPN(nn.Module):
         self.relu_before_extra_convs = relu_before_extra_convs
         self.no_norm_on_lateral = no_norm_on_lateral
         self.fp16_enabled = False
+        self.apply_fpn_conv = apply_fpn_conv
         self.upsample_cfg = upsample_cfg.copy()
+        self.upsample_style = upsample_style
+        self.reverse_output = reverse_output
 
         if end_level == -1 or end_level == self.num_ins - 1:
             self.backbone_end_level = self.num_ins
@@ -102,6 +108,7 @@ class FPN(nn.Module):
 
         self.lateral_convs = nn.ModuleList()
         self.fpn_convs = nn.ModuleList()
+        self.upsample_modules = nn.ModuleList()
 
         for i in range(self.start_level, self.backbone_end_level):
             l_conv = ConvModule(
@@ -121,9 +128,13 @@ class FPN(nn.Module):
                 norm_cfg=norm_cfg,
                 act_cfg=act_cfg,
                 inplace=False)
-
+            upsample_module = UPSAMPLE_METHODS[self.upsample_style](
+                scale=2,
+                unit_channels=out_channels,
+                upsample_cfg=self.upsample_cfg)
             self.lateral_convs.append(l_conv)
             self.fpn_convs.append(fpn_conv)
+            self.upsample_modules.append(upsample_module)
 
         # add extra conv layers (e.g., RetinaNet)
         extra_levels = num_outs - self.backbone_end_level + self.start_level
@@ -164,22 +175,19 @@ class FPN(nn.Module):
         # build top-down path
         used_backbone_levels = len(laterals)
         for i in range(used_backbone_levels - 1, 0, -1):
-            # In some cases, fixing `scale factor` (e.g. 2) is preferred, but
-            #  it cannot co-exist with `size` in `F.interpolate`.
-            if 'scale_factor' in self.upsample_cfg:
-                # fix runtime error of "+=" inplace operation in PyTorch 1.10
-                laterals[i - 1] = laterals[i - 1] + F.interpolate(
-                    laterals[i], **self.upsample_cfg)
-            else:
-                prev_shape = laterals[i - 1].shape[2:]
-                laterals[i - 1] = laterals[i - 1] + F.interpolate(
-                    laterals[i], size=prev_shape, **self.upsample_cfg)
+            laterals[i - 1] = laterals[i - 1] + self.upsample_modules[i](
+                laterals[i])
+            laterals[i - 1] = F.relu(laterals[i - 1])
 
         # build outputs
         # part 1: from original levels
-        outs = [
-            self.fpn_convs[i](laterals[i]) for i in range(used_backbone_levels)
-        ]
+        if self.apply_fpn_conv:
+            outs = [
+                self.fpn_convs[i](laterals[i])
+                for i in range(used_backbone_levels)
+            ]
+        else:
+            outs = [laterals[i] for i in range(used_backbone_levels)]
         # part 2: add extra levels
         if self.num_outs > len(outs):
             # use max pool to get more levels on top of outputs
@@ -203,4 +211,7 @@ class FPN(nn.Module):
                         outs.append(self.fpn_convs[i](F.relu(outs[-1])))
                     else:
                         outs.append(self.fpn_convs[i](outs[-1]))
-        return outs
+        if self.reverse_output:
+            outs.reverse()
+
+        return [outs]

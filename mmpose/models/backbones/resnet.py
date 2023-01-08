@@ -492,6 +492,7 @@ class ResNet(BaseBackbone):
 
     arch_settings = {
         18: (BasicBlock, (2, 2, 2, 2)),
+        26: (Bottleneck, (2, 2, 2, 2)),
         34: (BasicBlock, (3, 4, 6, 3)),
         50: (Bottleneck, (3, 4, 6, 3)),
         101: (Bottleneck, (3, 4, 23, 3)),
@@ -523,9 +524,11 @@ class ResNet(BaseBackbone):
                          type='Constant',
                          val=1,
                          layer=['_BatchNorm', 'GroupNorm'])
-                 ]):
+                 ],
+                 out_channels=[]):
         # Protect mutable default arguments
         norm_cfg = copy.deepcopy(norm_cfg)
+        self.out_channels = copy.deepcopy(out_channels)
         super(ResNet, self).__init__(init_cfg)
         if depth not in self.arch_settings:
             raise KeyError(f'invalid depth {depth} for resnet')
@@ -557,14 +560,19 @@ class ResNet(BaseBackbone):
         self.res_layers = []
         _in_channels = stem_channels
         _out_channels = base_channels * self.expansion
-        for i, num_blocks in enumerate(self.stage_blocks):
+        if len(out_channels) != num_stages:
+            self.out_channels = [
+                _out_channels * (2**ratio) for ratio in range(num_stages)
+            ]
+        for i, (num_blocks, out_channel) in enumerate(
+                zip(self.stage_blocks, self.out_channels)):
             stride = strides[i]
             dilation = dilations[i]
             res_layer = self.make_res_layer(
                 block=self.block,
                 num_blocks=num_blocks,
                 in_channels=_in_channels,
-                out_channels=_out_channels,
+                out_channels=out_channel,
                 expansion=self.expansion,
                 stride=stride,
                 dilation=dilation,
@@ -573,8 +581,7 @@ class ResNet(BaseBackbone):
                 with_cp=with_cp,
                 conv_cfg=conv_cfg,
                 norm_cfg=norm_cfg)
-            _in_channels = _out_channels
-            _out_channels *= 2
+            _in_channels = out_channel
             layer_name = f'layer{i + 1}'
             self.add_module(layer_name, res_layer)
             self.res_layers.append(layer_name)

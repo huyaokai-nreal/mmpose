@@ -53,7 +53,7 @@ class TopdownPoseEstimator(BasePoseEstimator):
 
         if head is not None:
             self.head = MODELS.build(head)
-
+        self.pruning_loss = None
         if pruning_loss is not None:
             self.pruning_loss = MODELS.build(pruning_loss)
 
@@ -76,7 +76,6 @@ class TopdownPoseEstimator(BasePoseEstimator):
         x = self.backbone(inputs)
         if self.with_neck:
             x = self.neck(x)
-
         return x
 
     def _forward(self, inputs: Tensor):
