@@ -73,7 +73,8 @@ class FPN(nn.Module):
                  upsample_style='fpn',
                  upsample_cfg=dict(mode='nearest'),
                  reverse_output=False,
-                 apply_fpn_conv: bool = True):
+                 apply_fpn_conv: bool = True,
+                 output_as_seq_of_seq: bool = False):
         super().__init__()
         assert isinstance(in_channels, list)
         self.in_channels = in_channels
@@ -87,6 +88,7 @@ class FPN(nn.Module):
         self.upsample_cfg = upsample_cfg.copy()
         self.upsample_style = upsample_style
         self.reverse_output = reverse_output
+        self.output_as_seq_of_seq = output_as_seq_of_seq
 
         if end_level == -1 or end_level == self.num_ins - 1:
             self.backbone_end_level = self.num_ins
@@ -213,5 +215,7 @@ class FPN(nn.Module):
                         outs.append(self.fpn_convs[i](outs[-1]))
         if self.reverse_output:
             outs.reverse()
+        if self.output_as_seq_of_seq:
+            outs = [outs]
 
-        return [outs]
+        return outs

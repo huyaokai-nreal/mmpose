@@ -16,7 +16,7 @@ param_scheduler = [
     dict(
         type='MultiStepLR',
         begin=0,
-        end=50,
+        end=train_cfg['max_epochs'],
         milestones=[60, 80],
         gamma=0.1,
         by_epoch=True)
