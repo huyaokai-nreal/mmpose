@@ -638,7 +638,8 @@ class ResNet(BaseBackbone):
                 kernel_size=7,
                 stride=2,
                 padding=3,
-                bias=False)
+                bias=True)
+            nn.init.constant_(self.conv1.bias, 0)
             self.norm1_name, norm1 = build_norm_layer(
                 self.norm_cfg, stem_channels, postfix=1)
             self.add_module(self.norm1_name, norm1)

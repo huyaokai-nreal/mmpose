@@ -173,7 +173,7 @@ def parse_args():
         action='store_true',
         help='verify the onnx model output against pytorch output')
     parser.add_argument(
-        '--fuse_pre',
+        '--fuse-pre',
         action='store_true',
         help='fuse preprocess to the first conv')
     parser.add_argument(
