@@ -24,7 +24,7 @@ param_scheduler = [
 ]
 
 # automatically scaling LR based on the actual training batch size
-auto_scale_lr = dict(base_batch_size=256)
+auto_scale_lr = dict(base_batch_size=128)
 
 # hooks
 default_hooks = dict(
@@ -106,7 +106,7 @@ train_pipeline = [
 ]
 
 val_pipeline = [
-    dict(type='GetBBoxCenterScale', padding=1.25),
+    dict(type='GetBBoxCenterScale', padding=1.0),
     dict(type='TopdownAffine', input_size=codec[0]['input_size']),
     dict(type='PackPoseInputs')
 ]
@@ -115,35 +115,34 @@ import os
 data_root = os.path.join(os.environ['HOME'], 'hand_group/data')
 train_data_list = [
     'data_hand/hand_keypoint/annotations/train_nreal_baidu2_gesture_right_1014_lmdb.json',
-    #'data_hand/hand_keypoint/annotations/train_nreal_gesture_0318_1_14_bad_data_twohand_lmdb.json',
-    #'data_hand/hand_keypoint/annotations/train_nreal_gesture_0616_1_21_bad_data_twohand_lmdb.json',
-    #'data_hand/hand_keypoint/annotations/train_nreal_gesture_0127_1_10_twohand_lmdb.json',
-    ##/data_hand/hand_keypoint/annotations/train_hanco_rgb_gesture_lmdb_refresh.json',
-    #'data_hand/hand_keypoint/annotations/train_nreal_gesture_0517_1_19_bad_data_twohand_lmdb.json',
-    #'data_hand/hand_keypoint/annotations/train_nreal_gesture_1111_1_1_twohand_lmdb.json',
-    ##'data_hand/hand_keypoint/annotations/train_nreal_gesture_baidu_0107_2_1_lmdb.json',
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_0318_1_14_bad_data_twohand_lmdb.json',
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_0616_1_21_bad_data_twohand_lmdb.json',
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_0127_1_10_twohand_lmdb.json',
+    #/data_hand/hand_keypoint/annotations/train_hanco_rgb_gesture_lmdb_refresh.json',
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_0517_1_19_bad_data_twohand_lmdb.json',
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_1111_1_1_twohand_lmdb.json',
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_baidu_0107_2_1_lmdb.json',
     #'data_hand/hand_keypoint/annotations/train_nreal_synth_gesture_1008_lmdb_3_arbitrary.json',
-    #'data_hand/hand_keypoint/annotations/train_nreal_gesture_0401_1_15_bad_data_twohand_lmdb.json',
-    #'data_hand/hand_keypoint/annotations/train_nreal_gesture_1118_1_2_twohand_lmdb.json',
-    #'data_hand/hand_keypoint/annotations/train_nreal_gesture_0624_1_22_bad_data_twohand_lmdb.json',
-    #'data_hand/hand_keypoint/annotations/train_nreal_gesture_1202_1_4_twohand_lmdb.json',
-    #'data_hand/hand_keypoint/annotations/train_nreal_gesture_0415_1_16_bad_data_twohand_lmdb.json',
-    #'data_hand/hand_keypoint/annotations/train_nreal_gesture_baidu_220216_2_3_lmdb.json',
-    #'data_hand/hand_keypoint/annotations/train_nreal_gesture_0510_1_18_bad_data_twohand_lmdb.json',
-    #'data_hand/hand_keypoint/annotations/train_nreal_gesture_0523_1_20_bad_data_twohand_lmdb.json',
-    #'data_hand/hand_keypoint/annotations/train_nreal_gesture_0318_1_13_twohand_lmdb.json',
-    #'data_hand/hand_keypoint/annotations/train_nreal_gesture_0304_1_12_twohand_lmdb.json',
-    ##############################################################################################
-    #'data_hand/hand_keypoint/annotations/train_nreal_gesture_baidu_220216_2_2_lmdb.json',
-    #'data_hand/hand_keypoint/annotations/train_nreal_gesture_1223_1_7_twohand_lmdb.json',
-    #'data_hand/hand_keypoint/annotations/train_nreal_gesture_1230_1_8_twohand_lmdb.json',
-    #'data_hand/hand_keypoint/annotations/train_nreal_gesture_1125_1_3_twohand_lmdb.json',
-    #'data_hand/hand_keypoint/annotations/train_nreal_gesture_0424_1_17_bad_data_twohand_lmdb.json',
-    #'data_hand/hand_keypoint/annotations/train_nreal_gesture_1216_1_6_twohand_lmdb.json',
-    #'data_hand/hand_keypoint/annotations/train_nreal_baidu1_gesture_right_0930_lmdb.json',
-    #'data_hand/hand_keypoint/annotations/train_nreal_gesture_1209_1_5_twohand_lmdb.json',
-    #'data_hand/hand_keypoint/annotations/train_nreal_gesture_0113_1_9_twohand_lmdb.json',
-    #'data_hand/hand_keypoint/annotations/train_nreal_gesture_0218_1_11_twohand_lmdb.json'
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_0401_1_15_bad_data_twohand_lmdb.json',
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_1118_1_2_twohand_lmdb.json',
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_0624_1_22_bad_data_twohand_lmdb.json',
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_1202_1_4_twohand_lmdb.json',
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_0415_1_16_bad_data_twohand_lmdb.json',
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_baidu_220216_2_3_lmdb.json',
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_0510_1_18_bad_data_twohand_lmdb.json',
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_0523_1_20_bad_data_twohand_lmdb.json',
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_0318_1_13_twohand_lmdb.json',
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_0304_1_12_twohand_lmdb.json',
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_baidu_220216_2_2_lmdb.json',
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_1223_1_7_twohand_lmdb.json',
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_1230_1_8_twohand_lmdb.json',
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_1125_1_3_twohand_lmdb.json',
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_0424_1_17_bad_data_twohand_lmdb.json',
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_1216_1_6_twohand_lmdb.json',
+    'data_hand/hand_keypoint/annotations/train_nreal_baidu1_gesture_right_0930_lmdb.json',
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_1209_1_5_twohand_lmdb.json',
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_0113_1_9_twohand_lmdb.json',
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_0218_1_11_twohand_lmdb.json'
 ]
 
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]

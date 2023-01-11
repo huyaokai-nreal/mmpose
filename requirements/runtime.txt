@@ -3,6 +3,7 @@ json_tricks
 lmdb
 matplotlib
 munkres
+nreal_data_tool@git+https://github.com/nreal-alg-ai/nreal_data_tool.git@master
 numpy
 opencv-python
 pillow

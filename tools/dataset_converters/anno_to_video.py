@@ -1,5 +1,5 @@
 import json
-from mmpose.utils.lmdb_client import LmdbClient
+from nreal_data_tool import LmdbClient
 import os
 import cv2
 from tqdm import tqdm

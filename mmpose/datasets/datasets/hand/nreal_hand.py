@@ -6,7 +6,7 @@ from xtcocotools.coco import COCO
 import os.path as osp
 from mmpose.datasets.builder import DATASETS
 from ..base import BaseCocoStyleDataset
-from mmpose.utils.lmdb_client import LmdbClient
+from nreal_data_tool import LmdbClient
 
 
 @DATASETS.register_module()

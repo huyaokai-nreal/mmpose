@@ -11,7 +11,7 @@ from mmengine.visualization import Visualizer
 
 from mmpose.registry import HOOKS
 from mmpose.structures import PoseDataSample, merge_data_samples
-from mmpose.utils.lmdb_client import LmdbClient
+from nreal_data_tool import LmdbClient
 
 
 @HOOKS.register_module()

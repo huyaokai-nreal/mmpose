@@ -2,7 +2,7 @@
 import argparse
 import os
 import os.path as osp
-from mmpose.utils.lmdb_client import LmdbClient
+from nreal_data_tool import LmdbClient
 import mmcv
 import mmengine
 import numpy as np

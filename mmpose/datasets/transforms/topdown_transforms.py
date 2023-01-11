@@ -6,7 +6,7 @@ import pickle as pkl
 import os
 from mmcv.transforms import BaseTransform
 from mmengine import is_seq_of
-from mmpose.utils.lmdb_client import LmdbClient
+from nreal_data_tool import LmdbClient
 from mmpose.registry import TRANSFORMS
 from mmpose.structures.bbox import get_udp_warp_matrix, get_warp_matrix
 
