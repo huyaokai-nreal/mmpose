@@ -6,6 +6,7 @@ import torch
 
 from mmpose.apis import init_model
 from mmpose.models.backbones.utils import repvgg_model_convert
+from mmpose.utils import md5sum
 try:
     import onnx
     import onnxruntime as rt
@@ -113,7 +114,6 @@ def pytorch2onnx(
         output_names=output_names,
         dynamic_axes=dynamic_axes)
 
-    print(f'Successfully exported ONNX model: {output_file}')
     if simplify:
         print('Try to refine onnx model with onnxsim')
         try:
@@ -127,6 +127,11 @@ def pytorch2onnx(
             onnx.save(model_sim, output_file)
         else:
             print('Failed to refine onnx model with onnxsim')
+    md5 = md5sum(output_file)
+    onnx_model = onnx.load(output_file)
+    output_file = output_file.replace('.onnx', f'_{md5[:6]}.onnx')
+    print(f'Successfully exported ONNX model: {output_file}')
+    onnx.save(model_sim, output_file)
     if verify:
         # check by onnx
         onnx_model = onnx.load(output_file)

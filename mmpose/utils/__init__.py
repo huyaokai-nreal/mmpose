@@ -4,8 +4,9 @@ from .collect_env import collect_env
 from .logger import get_root_logger
 from .setup_env import register_all_modules, setup_multi_processes
 from .timer import StopWatch
+from .file import md5sum
 
 __all__ = [
     'get_root_logger', 'collect_env', 'StopWatch', 'setup_multi_processes',
-    'register_all_modules', 'SimpleCamera', 'SimpleCameraTorch'
+    'register_all_modules', 'SimpleCamera', 'SimpleCameraTorch', 'md5sum'
 ]
