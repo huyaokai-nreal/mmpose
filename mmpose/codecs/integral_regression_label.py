@@ -7,6 +7,7 @@ import numpy as np
 from mmpose.registry import KEYPOINT_CODECS
 from .base import BaseKeypointCodec
 from .msra_heatmap import MSRAHeatmap
+from .megvii_heatmap import MegviiHeatmap
 from .regression_label import RegressionLabel
 
 
@@ -40,6 +41,8 @@ class IntegralRegressionLabel(BaseKeypointCodec):
             modulation in DarkPose. The kernel size and sigma should follow
             the expirical formula :math:`sigma = 0.3*((ks-1)*0.5-1)+0.8`.
             Defaults to 11
+        heatmap_codec_type (str): msra or megvii
+        kernel_size (int): kernel size for megvii codec
         normalize (bool): Whether to normalize the heatmaps. Defaults to True.
 
     .. _`DSNT`: https://arxiv.org/abs/1801.07372
@@ -51,11 +54,19 @@ class IntegralRegressionLabel(BaseKeypointCodec):
                  sigma: float,
                  unbiased: bool = False,
                  blur_kernel_size: int = 11,
+                 heatmap_codec_type: str = 'msra',
+                 kernel_size: int = 3,
                  normalize: bool = True) -> None:
         super().__init__()
 
-        self.heatmap_codec = MSRAHeatmap(input_size, heatmap_size, sigma,
-                                         unbiased, blur_kernel_size)
+        if heatmap_codec_type == 'msra':
+            self.heatmap_codec = MSRAHeatmap(input_size, heatmap_size, sigma,
+                                             unbiased, blur_kernel_size)
+        elif heatmap_codec_type == 'megvii':
+            self.heatmap_codec = MegviiHeatmap(
+                input_size, heatmap_size, kernel_size=kernel_size)
+        else:
+            raise NotImplementedError
         self.keypoint_codec = RegressionLabel(input_size)
         self.normalize = normalize
 

@@ -6,6 +6,8 @@ import pickle as pkl
 import os
 from mmcv.transforms import BaseTransform
 from mmengine import is_seq_of
+from mmengine.dist import get_world_size, get_rank
+from mmengine.logging import MMLogger
 from nreal_data_tool import LmdbClient
 from mmpose.registry import TRANSFORMS
 from mmpose.structures.bbox import get_udp_warp_matrix, get_warp_matrix
@@ -147,18 +149,18 @@ class RandomBackground(BaseTransform):
 
     def __init__(self,
                  bg_lmdb_path_list,
-                 version=1,
                  align_mean=False,
                  bbox_scale=1.0,
-                 edge_fuse=False) -> None:
+                 edge_fuse=False,
+                 worker_slice=False) -> None:
         super().__init__()
         self.bg_lmdb_path_list = bg_lmdb_path_list
-        self.data_list = self.load_data()
+        self.worker_slice = worker_slice
         self.lmdb_client = LmdbClient()
-        self.version = version
         self.align_mean = align_mean
         self.bbox_scale = bbox_scale
         self.edge_fuse = edge_fuse
+        self.data_list = self.load_data()
 
     def load_data(self):
         data_list = []
@@ -169,6 +171,16 @@ class RandomBackground(BaseTransform):
                     f'{lmdb_path}:{file_name}'
                     for file_name in meta_info['file_name_list']
                 ]
+        if self.worker_slice:
+            world_size = get_world_size()
+            batch_num = len(data_list) // world_size
+            local_rank = get_rank()
+            start_index = batch_num * local_rank
+            end_index = min(len(data_list), start_index + batch_num)
+            data_list = data_list[start_index:end_index]
+            logger: MMLogger = MMLogger.get_current_instance()
+            logger.info(
+                f'load {len(data_list)} bg images on rank {local_rank}')
         return data_list
 
     def _apply_gt_with_offset(self, results, offset_x, offset_y):
@@ -187,61 +199,59 @@ class RandomBackground(BaseTransform):
         bg_image_path = np.random.choice(self.data_list)
         bg_image = self.lmdb_client.get(bg_image_path)
         mask = results['mask']
-        if self.version == 1:
-            if self.align_mean:
-                bg_mean = bg_image.mean()
-            x1, y1, x2, y2 = results['bbox'][0].astype(np.int)
+        if self.align_mean:
+            bg_mean = bg_image.mean()
+        x1, y1, x2, y2 = results['bbox'][0].astype(np.int)
+        w = x2 - x1
+        h = y2 - y1
+        img_w = results['image_width']
+        img_h = results['image_height']
+        if self.bbox_scale > 1:
+            x1 = x1 - w * (self.bbox_scale - 1) / 2.0
+            y1 = y1 - h * (self.bbox_scale - 1) / 2.0
+            w = w * self.bbox_scale
+            h = h * self.bbox_scale
+            x1 = int(np.clip(x1, 0, img_w - 1))
+            y1 = int(np.clip(y1, 0, img_h - 1))
+            x2 = int(np.clip(x1 + w, 0, img_w - 1))
+            y2 = int(np.clip(y1 + h, 0, img_h - 1))
             w = x2 - x1
             h = y2 - y1
-            img_w = results['image_width']
-            img_h = results['image_height']
-            if self.bbox_scale > 1:
-                x1 = x1 - w * (self.bbox_scale - 1) / 2.0
-                y1 = y1 - h * (self.bbox_scale - 1) / 2.0
-                w = w * self.bbox_scale
-                h = h * self.bbox_scale
-                x1 = int(np.clip(x1, 0, img_w - 1))
-                y1 = int(np.clip(y1, 0, img_h - 1))
-                x2 = int(np.clip(x1 + w, 0, img_w - 1))
-                y2 = int(np.clip(y1 + h, 0, img_h - 1))
-                w = x2 - x1
-                h = y2 - y1
-            bg_x1 = np.random.randint(0, img_w - w)
-            bg_y1 = np.random.randint(0, img_h - h)
-            bg_x2 = bg_x1 + w
-            bg_y2 = bg_y1 + h
-            offset_x = bg_x1 - x1
-            offset_y = bg_y1 - y1
+        bg_x1 = np.random.randint(0, img_w - w)
+        bg_y1 = np.random.randint(0, img_h - h)
+        bg_x2 = bg_x1 + w
+        bg_y2 = bg_y1 + h
+        offset_x = bg_x1 - x1
+        offset_y = bg_y1 - y1
 
-            mask = cv2.resize(mask, (w, h), cv2.INTER_LINEAR)
-            if mask.sum() == 0:
-                return results
-            img = results['img']
-            if self.edge_fuse:
-                mask[mask > 0] = 255
-                hand_weight = mask.copy().astype(np.float32)
-                contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
-                                               cv2.CHAIN_APPROX_SIMPLE)
-                cv2.drawContours(
-                    hand_weight, contours, -1, (50), 1, lineType=cv2.LINE_AA)
-                hand_weight = hand_weight[:, :, np.newaxis]
-                hand_weight[hand_weight == 255] = 1.0
-                hand_weight[hand_weight == 50] = 0.2
-                crop_bg_img = bg_image[bg_y1:bg_y2, bg_x1:bg_x2, :]
-                crop_front_img = img[y1:y2, x1:x2, :]
-                crop_img = crop_bg_img * (
-                    1 - hand_weight) + crop_front_img * hand_weight
-                bg_image[bg_y1:bg_y2, bg_x1:bg_x2, :] = crop_img
-            else:
-                bg_image[bg_y1:bg_y2,
-                         bg_x1:bg_x2, :][mask > 0] = img[y1:y2,
-                                                         x1:x2, :][mask > 0]
-            if self.align_mean:
-                hand = bg_image[bg_y1:bg_y2, bg_x1:bg_x2, :][mask > 0]
-                bg_image[bg_y1:bg_y2, bg_x1:bg_x2, :][
-                    mask > 0] = hand - hand.mean() + bg_mean
-            results['img'] = bg_image
-            results = self._apply_gt_with_offset(results, offset_x, offset_y)
+        mask = cv2.resize(mask, (w, h), cv2.INTER_LINEAR)
+        if mask.sum() == 0:
+            return results
+        img = results['img']
+        if self.edge_fuse:
+            mask[mask > 0] = 255
+            hand_weight = mask.copy().astype(np.float32)
+            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
+                                           cv2.CHAIN_APPROX_SIMPLE)
+            cv2.drawContours(
+                hand_weight, contours, -1, (50), 1, lineType=cv2.LINE_AA)
+            hand_weight = hand_weight[:, :, np.newaxis]
+            hand_weight[hand_weight == 255] = 1.0
+            hand_weight[hand_weight == 50] = 0.2
+            crop_bg_img = bg_image[bg_y1:bg_y2, bg_x1:bg_x2, :]
+            crop_front_img = img[y1:y2, x1:x2, :]
+            crop_img = crop_bg_img * (
+                1 - hand_weight) + crop_front_img * hand_weight
+            bg_image[bg_y1:bg_y2, bg_x1:bg_x2, :] = crop_img
+        else:
+            bg_image[bg_y1:bg_y2,
+                     bg_x1:bg_x2, :][mask > 0] = img[y1:y2, x1:x2, :][mask > 0]
+        if self.align_mean:
+            hand = bg_image[bg_y1:bg_y2, bg_x1:bg_x2, :][mask > 0]
+            bg_image[bg_y1:bg_y2,
+                     bg_x1:bg_x2, :][mask > 0] = hand - hand.mean() + bg_mean
+        results['img'] = bg_image
+        results = self._apply_gt_with_offset(results, offset_x, offset_y)
         return results
 
     def __repr__(self) -> str:

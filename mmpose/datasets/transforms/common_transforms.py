@@ -12,7 +12,7 @@ from mmcv.transforms import BaseTransform
 from mmcv.transforms.utils import avoid_cache_randomness, cache_randomness
 from mmengine import is_list_of
 from scipy.stats import truncnorm
-
+from mmengine.logging import MessageHub
 from mmpose.codecs import *  # noqa: F401, F403
 from mmpose.registry import KEYPOINT_CODECS, TRANSFORMS
 from mmpose.structures.bbox import bbox_xyxy2cs, flip_bbox, get_IoU
@@ -540,6 +540,8 @@ class RandomBBoxTransform(BaseTransform):
             to 80.0
         rotate_prob (float): Probability of applying random rotation. Defaults
             to 0.6
+        enable_epoch_num (int): enable this transform before this epoch number,
+            -1 means enable all the time
     """
 
     def __init__(self,
@@ -549,7 +551,8 @@ class RandomBBoxTransform(BaseTransform):
                  scale_norm_low: float = -1,
                  scale_prob: float = 1.0,
                  rotate_factor: float = 80.0,
-                 rotate_prob: float = 0.6) -> None:
+                 rotate_prob: float = 0.6,
+                 enable_epoch_num: int = -1) -> None:
         super().__init__()
 
         self.shift_factor = shift_factor
@@ -559,6 +562,7 @@ class RandomBBoxTransform(BaseTransform):
         self.scale_prob = scale_prob
         self.rotate_factor = rotate_factor
         self.rotate_prob = rotate_prob
+        self.enable_epoch_num = enable_epoch_num
 
     @staticmethod
     def _truncnorm(low: float = -1.,
@@ -612,6 +616,11 @@ class RandomBBoxTransform(BaseTransform):
         Returns:
             dict: The result dict.
         """
+        if self.enable_epoch_num > 0:
+            mh = MessageHub.get_current_instance()
+            cur_epoch = mh.get_info('epoch')
+            if cur_epoch >= self.enable_epoch_num:
+                return results
         # image with no hand will be ignored
         if 'attr_labels' in results:
             if results['attr_labels'][0] == 0:
@@ -640,6 +649,7 @@ class RandomBBoxTransform(BaseTransform):
         repr_str += f'scale_factor={self.scale_factor}, '
         repr_str += f'rotate_prob={self.rotate_prob}, '
         repr_str += f'rotate_factor={self.rotate_factor})'
+        repr_str += f'enable_epoch_num={self.enable_epoch_num})'
         return repr_str
 
 

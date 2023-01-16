@@ -2,10 +2,13 @@
 import math
 from functools import partial
 
+from collections import OrderedDict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from mmengine import MMLogger
+from mmengine.runner import CheckpointLoader, load_state_dict
 from mmpose.registry import MODELS
 from ..utils.realnvp import RealNVP
 
@@ -34,7 +37,9 @@ class RLELoss(nn.Module):
                  use_target_weight=False,
                  size_average=True,
                  residual=True,
-                 q_distribution='laplace'):
+                 q_distribution='laplace',
+                 flow_model_pretrain_path='',
+                 freeze_flow=False):
         super(RLELoss, self).__init__()
         self.size_average = size_average
         self.use_target_weight = use_target_weight
@@ -42,6 +47,28 @@ class RLELoss(nn.Module):
         self.q_distribution = q_distribution
 
         self.flow_model = RealNVP()
+        if flow_model_pretrain_path:
+            self.init_flow_model(flow_model_pretrain_path, freeze_flow)
+
+    def init_flow_model(self, pretrain_path, freeze=False):
+        checkpoint = CheckpointLoader.load_checkpoint(pretrain_path, 'cpu')
+        if 'state_dict' in checkpoint:
+            state_dict_tmp = checkpoint['state_dict']
+        elif 'model' in checkpoint:
+            state_dict_tmp = checkpoint['model']
+        else:
+            state_dict_tmp = checkpoint
+        state_dict = OrderedDict()
+        for k, v in state_dict_tmp.items():
+            if 'flow_model' in k:
+                state_dict[k.replace('head.loss_module.loss_modules.0.',
+                                     '')] = v
+        logger = MMLogger.get_current_instance()
+        logger.info(f'load flow weight from {pretrain_path}')
+        load_state_dict(self, state_dict, strict=False)
+        if freeze:
+            for param in self.flow_model.parameters():
+                param.requires_grad = False
 
     def forward(self, pred, target, target_weight=None):
         """Forward function.

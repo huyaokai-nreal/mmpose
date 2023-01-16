@@ -152,16 +152,15 @@ class DSNTHead(IntegralRegressionHead):
 
         loss_list = self.loss_module(input_list, target_list, keypoint_weights)
 
-        loss = loss_list[0] + loss_list[1]
+        loss_reg = loss_list[0]
+        loss_ht = loss_list[1]
 
         if self.lambda_t > 0:
             mh = MessageHub.get_current_instance()
             cur_epoch = mh.get_info('epoch')
             if cur_epoch >= self.lambda_t:
-                loss = loss_list[0]
-
-        losses.update(loss_kpt=loss)
-
+                loss_ht = 0
+        losses.update(loss_ht=loss_ht, loss_reg=loss_reg)
         if pred_coords.size(-1) == 4:
             pred_coords = pred_coords[:, :, :2]
         # calculate accuracy
