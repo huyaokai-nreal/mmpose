@@ -65,17 +65,16 @@ def _fuse_preprocess(module):
     return module
 
 
-def pytorch2onnx(
-    model,
-    input_shape,
-    output_names,
-    opset_version=11,
-    show=False,
-    output_file='tmp.onnx',
-    verify=False,
-    simplify=False,
-    dyn_batch=False,
-):
+def pytorch2onnx(model,
+                 input_shape,
+                 output_names,
+                 opset_version=11,
+                 show=False,
+                 output_file='tmp.onnx',
+                 verify=False,
+                 simplify=False,
+                 dyn_batch=False,
+                 graph_mode='eval'):
     """Convert pytorch model to onnx model.
 
     Args:
@@ -101,11 +100,15 @@ def pytorch2onnx(
                 0: 'batch_size'
             }
         }
+    mode = torch.onnx.TrainingMode.EVAL
+    if graph_mode == 'train':
+        mode = torch.onnx.TrainingMode.TRAINING
 
     torch.onnx.export(
         model,
         one_img,
         output_file,
+        training=mode,
         export_params=True,
         verbose=show,
         do_constant_folding=True,
@@ -131,7 +134,7 @@ def pytorch2onnx(
     onnx_model = onnx.load(output_file)
     output_file = output_file.replace('.onnx', f'_{md5[:6]}.onnx')
     print(f'Successfully exported ONNX model: {output_file}')
-    onnx.save(model_sim, output_file)
+    onnx.save(onnx_model, output_file)
     if verify:
         # check by onnx
         onnx_model = onnx.load(output_file)
@@ -199,6 +202,11 @@ def parse_args():
         action='store_true',
         help='use onnxsim to simplfy the onnx model')
     parser.add_argument(
+        '--graph-mode',
+        '-gm',
+        default='eval',
+        help='train or eval graph to export')
+    parser.add_argument(
         '--deploy-head',
         '-dh',
         action='store_true',
@@ -244,4 +252,5 @@ if __name__ == '__main__':
         output_file=args.output_file,
         verify=args.verify,
         simplify=args.simplify,
-        dyn_batch=args.dyn_batch)
+        dyn_batch=args.dyn_batch,
+        graph_mode=args.graph_mode)
