@@ -135,7 +135,8 @@ class FPN(nn.Module):
                 unit_channels=out_channels,
                 upsample_cfg=self.upsample_cfg)
             self.lateral_convs.append(l_conv)
-            self.fpn_convs.append(fpn_conv)
+            if self.apply_fpn_conv:
+                self.fpn_convs.append(fpn_conv)
             self.upsample_modules.append(upsample_module)
 
         # add extra conv layers (e.g., RetinaNet)

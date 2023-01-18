@@ -47,7 +47,8 @@ class BasicBlock(BaseModule):
                  with_cp=False,
                  conv_cfg=None,
                  norm_cfg=dict(type='BN'),
-                 init_cfg=None):
+                 init_cfg=None,
+                 bias_in_conv=False):
         # Protect mutable default arguments
         norm_cfg = copy.deepcopy(norm_cfg)
         super().__init__(init_cfg=init_cfg)
@@ -77,7 +78,7 @@ class BasicBlock(BaseModule):
             stride=stride,
             padding=dilation,
             dilation=dilation,
-            bias=False)
+            bias=bias_in_conv)
         self.add_module(self.norm1_name, norm1)
         self.conv2 = build_conv_layer(
             conv_cfg,
@@ -85,7 +86,7 @@ class BasicBlock(BaseModule):
             out_channels,
             3,
             padding=1,
-            bias=False)
+            bias=bias_in_conv)
         self.add_module(self.norm2_name, norm2)
 
         self.relu = nn.ReLU(inplace=True)
@@ -167,7 +168,8 @@ class Bottleneck(BaseModule):
                  with_cp=False,
                  conv_cfg=None,
                  norm_cfg=dict(type='BN'),
-                 init_cfg=None):
+                 init_cfg=None,
+                 bias_in_conv=False):
         # Protect mutable default arguments
         norm_cfg = copy.deepcopy(norm_cfg)
         super().__init__(init_cfg=init_cfg)
@@ -205,7 +207,7 @@ class Bottleneck(BaseModule):
             self.mid_channels,
             kernel_size=1,
             stride=self.conv1_stride,
-            bias=False)
+            bias=bias_in_conv)
         self.add_module(self.norm1_name, norm1)
         self.conv2 = build_conv_layer(
             conv_cfg,
@@ -215,7 +217,7 @@ class Bottleneck(BaseModule):
             stride=self.conv2_stride,
             padding=dilation,
             dilation=dilation,
-            bias=False)
+            bias=bias_in_conv)
 
         self.add_module(self.norm2_name, norm2)
         self.conv3 = build_conv_layer(
@@ -223,7 +225,7 @@ class Bottleneck(BaseModule):
             self.mid_channels,
             out_channels,
             kernel_size=1,
-            bias=False)
+            bias=bias_in_conv)
         self.add_module(self.norm3_name, norm3)
 
         self.relu = nn.ReLU(inplace=True)
@@ -348,6 +350,7 @@ class ResLayer(nn.Sequential):
                  conv_cfg=None,
                  norm_cfg=dict(type='BN'),
                  downsample_first=True,
+                 bias_in_conv=False,
                  **kwargs):
         # Protect mutable default arguments
         norm_cfg = copy.deepcopy(norm_cfg)
@@ -373,7 +376,7 @@ class ResLayer(nn.Sequential):
                     out_channels,
                     kernel_size=1,
                     stride=conv_stride,
-                    bias=False),
+                    bias=bias_in_conv),
                 build_norm_layer(norm_cfg, out_channels)[1]
             ])
             downsample = nn.Sequential(*downsample)
@@ -525,7 +528,8 @@ class ResNet(BaseBackbone):
                          val=1,
                          layer=['_BatchNorm', 'GroupNorm'])
                  ],
-                 out_channels=[]):
+                 out_channels=[],
+                 bias_in_conv=False):
         # Protect mutable default arguments
         norm_cfg = copy.deepcopy(norm_cfg)
         self.out_channels = copy.deepcopy(out_channels)
@@ -554,6 +558,7 @@ class ResNet(BaseBackbone):
         self.block, stage_blocks = self.arch_settings[depth]
         self.stage_blocks = stage_blocks[:num_stages]
         self.expansion = get_expansion(self.block, expansion)
+        self.bias_in_conv = bias_in_conv
 
         self._make_stem_layer(in_channels, stem_channels)
 
@@ -638,8 +643,7 @@ class ResNet(BaseBackbone):
                 kernel_size=7,
                 stride=2,
                 padding=3,
-                bias=True)
-            nn.init.constant_(self.conv1.bias, 0)
+                bias=self.bias_in_conv)
             self.norm1_name, norm1 = build_norm_layer(
                 self.norm_cfg, stem_channels, postfix=1)
             self.add_module(self.norm1_name, norm1)
@@ -667,8 +671,13 @@ class ResNet(BaseBackbone):
 
     def init_weights(self):
         """Initialize the weights in backbone."""
-        super(ResNet, self).init_weights()
-
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(
+                    m.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
         if (isinstance(self.init_cfg, dict)
                 and self.init_cfg['type'] == 'Pretrained'):
             # Suppress zero_init_residual if use pretrained model.

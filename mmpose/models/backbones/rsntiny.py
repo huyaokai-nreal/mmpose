@@ -2,6 +2,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from mmpose.registry import MODELS
 from .utils.repvgg import RepVGGBlock
+import copy
 
 
 class conv_bn_relu(nn.Module):
@@ -149,21 +150,25 @@ class ResNet_downsample_module(nn.Module):
                  block,
                  num_blocks,
                  has_skip=False,
-                 zero_init_residual=False):
+                 zero_init_residual=False,
+                 block_channels=[48, 96, 128, 160]):
         super(ResNet_downsample_module, self).__init__()
         self.has_skip = has_skip
         self.in_planes = 64
-        self.layer1 = self._make_layer(block, 48, num_blocks[0])
-        self.layer2 = self._make_layer(block, 96, num_blocks[1], stride=2)
+        self.block_channels = copy.deepcopy(block_channels)
+        self.layer1 = self._make_layer(block, self.block_channels[0],
+                                       num_blocks[0])
+        self.layer2 = self._make_layer(
+            block, self.block_channels[1], num_blocks[1], stride=2)
         self.layer3 = self._make_layer(
             block,
-            128,
+            self.block_channels[2],
             num_blocks[2],
             stride=2,
         )
         self.layer4 = self._make_layer(
             block,
-            160,
+            self.block_channels[3],
             num_blocks[3],
             stride=2,
         )
@@ -374,19 +379,27 @@ class Single_stage_module(nn.Module):
                  chl_num=256,
                  zero_init_residual=False,
                  num_blocks=[2, 2, 2, 2],
+                 block_channels=[48, 96, 128, 160],
                  bottleneck_type='default'):
         super(Single_stage_module, self).__init__()
         self.has_skip = has_skip
         self.gen_skip = gen_skip
         self.gen_cross_conv = gen_cross_conv
+        self.block_channels = copy.deepcopy(block_channels)
         self.chl_num = chl_num
         self.zero_init_residual = zero_init_residual
         self.num_blocks = num_blocks
         self.downsample = ResNet_downsample_module(
-            bottleneck_map[bottleneck_type], self.num_blocks, self.has_skip,
-            self.zero_init_residual)
-        self.upsample = Upsample_module(self.chl_num, self.gen_skip,
-                                        self.gen_cross_conv)
+            bottleneck_map[bottleneck_type],
+            self.num_blocks,
+            self.has_skip,
+            self.zero_init_residual,
+            block_channels=self.block_channels)
+        self.upsample = Upsample_module(
+            self.chl_num,
+            self.gen_skip,
+            self.gen_cross_conv,
+            in_planes=block_channels[::-1])
 
     def forward(self, x, skip1, skip2):
         x4, x3, x2, x1 = self.downsample(x, skip1, skip2)
@@ -403,7 +416,8 @@ class RSNTiny(nn.Module):
                  upsample_chl_num,
                  output_last_only=False,
                  bottleneck_type='default',
-                 num_blocks=[2, 2, 2, 2]):
+                 num_blocks=[2, 2, 2, 2],
+                 block_channels=[48, 96, 128, 160]):
         super().__init__()
         self.top = ResNet_top()
         self.stage_num = stage_num
@@ -428,7 +442,8 @@ class RSNTiny(nn.Module):
                     gen_cross_conv=gen_cross_conv,
                     chl_num=self.upsample_chl_num,
                     bottleneck_type=bottleneck_type,
-                    num_blocks=num_blocks))
+                    num_blocks=num_blocks,
+                    block_channels=block_channels))
             setattr(self, 'stage%d' % i, self.mspn_modules[i])
 
     def forward(self, imgs):
