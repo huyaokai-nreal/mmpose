@@ -184,8 +184,11 @@ class PoseLocalVisualizer(Visualizer):
             scales = _get_adaptive_scales(areas)
 
             for i, (pos, label) in enumerate(zip(positions, labels)):
-                label_text = classes[
-                    label] if classes is not None else f'class {label}'
+                if isinstance(label, int):
+                    label_text = classes[
+                        label] if classes is not None else f'class {label}'
+                elif isinstance(label, str):
+                    label_text = label
 
                 if isinstance(self.bbox_color,
                               tuple) and max(self.bbox_color) > 1:
