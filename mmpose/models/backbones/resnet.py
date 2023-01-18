@@ -392,6 +392,7 @@ class ResLayer(nn.Sequential):
                     downsample=downsample,
                     conv_cfg=conv_cfg,
                     norm_cfg=norm_cfg,
+                    bias_in_conv=bias_in_conv,
                     **kwargs))
             in_channels = out_channels
             for _ in range(1, num_blocks):
@@ -403,6 +404,7 @@ class ResLayer(nn.Sequential):
                         stride=1,
                         conv_cfg=conv_cfg,
                         norm_cfg=norm_cfg,
+                        bias_in_conv=bias_in_conv,
                         **kwargs))
         else:  # downsample_first=False is for HourglassModule
             for i in range(0, num_blocks - 1):
@@ -414,6 +416,7 @@ class ResLayer(nn.Sequential):
                         stride=1,
                         conv_cfg=conv_cfg,
                         norm_cfg=norm_cfg,
+                        bias_in_conv=bias_in_conv,
                         **kwargs))
             layers.append(
                 block(
@@ -424,6 +427,7 @@ class ResLayer(nn.Sequential):
                     downsample=downsample,
                     conv_cfg=conv_cfg,
                     norm_cfg=norm_cfg,
+                    bias_in_conv=bias_in_conv,
                     **kwargs))
 
         super().__init__(*layers)
@@ -585,7 +589,8 @@ class ResNet(BaseBackbone):
                 avg_down=self.avg_down,
                 with_cp=with_cp,
                 conv_cfg=conv_cfg,
-                norm_cfg=norm_cfg)
+                norm_cfg=norm_cfg,
+                bias_in_conv=self.bias_in_conv)
             _in_channels = out_channel
             layer_name = f'layer{i + 1}'
             self.add_module(layer_name, res_layer)
