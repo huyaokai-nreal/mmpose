@@ -648,7 +648,8 @@ class ResNet(BaseBackbone):
                 kernel_size=7,
                 stride=2,
                 padding=3,
-                bias=self.bias_in_conv)
+                bias=True)
+            nn.init.constant_(self.conv1.bias, 0)
             self.norm1_name, norm1 = build_norm_layer(
                 self.norm_cfg, stem_channels, postfix=1)
             self.add_module(self.norm1_name, norm1)
@@ -676,13 +677,7 @@ class ResNet(BaseBackbone):
 
     def init_weights(self):
         """Initialize the weights in backbone."""
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(
-                    m.weight, mode='fan_out', nonlinearity='relu')
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
+        super().init_weights()
         if (isinstance(self.init_cfg, dict)
                 and self.init_cfg['type'] == 'Pretrained'):
             # Suppress zero_init_residual if use pretrained model.

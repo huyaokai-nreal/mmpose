@@ -48,6 +48,8 @@ model = dict(
         base_channels=32,
         expansion=1,
         out_indices=(0, 1, 2, 3),
+        zero_init_residual=False,
+        bias_in_conv=False,
         out_channels=backbone_out_channels),
     neck=dict(
         type='FPN',
@@ -56,6 +58,7 @@ model = dict(
         num_outs=4,
         upsample_cfg=dict(mode='bilinear', align_corners=True),
         upsample_style='rsn',
+        norm_cfg=dict(type='BN'),
         reverse_output=True,
         apply_fpn_conv=False),
     head=dict(
@@ -87,7 +90,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/home/zx_li/workspace/mmpose/work_dirs/td-hand_res26_fpn_sk_weightdata_4xb64-50e_0919data-128x128/epoch_50.pth'
+        '/home/zx_li/workspace/mmpose/work_dirs/td-hand_res26_fpn_sk_weightdata_4xb64-50e_0919data-128x128/epoch_45.pth'
     ),
 )
 
