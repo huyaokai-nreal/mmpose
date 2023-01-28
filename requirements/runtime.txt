@@ -9,4 +9,4 @@ opencv-python
 pillow
 scipy
 torchvision
-xtcocotools>=1.12
+xtcocotools@git+https://github.com/nreal-alg-ai/xtcocoapi.git@master

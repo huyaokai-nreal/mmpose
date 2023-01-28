@@ -41,26 +41,11 @@ model = dict(
     data_preprocessor=dict(
         type='PoseDataPreprocessor', mean=[0.449 * 255], std=[0.226 * 255]),
     backbone=dict(
-        type='ResNet',
-        depth=26,
-        in_channels=1,
-        stem_channels=64,
-        base_channels=32,
-        expansion=1,
-        out_indices=(0, 1, 2, 3),
-        zero_init_residual=False,
-        bias_in_conv=False,
-        out_channels=backbone_out_channels),
-    neck=dict(
-        type='FPN',
-        in_channels=backbone_out_channels,
-        out_channels=192,
-        num_outs=4,
-        upsample_cfg=dict(mode='bilinear', align_corners=True),
-        upsample_style='rsn',
-        norm_cfg=dict(type='BN'),
-        reverse_output=True,
-        apply_fpn_conv=False),
+        type='RSNTiny',
+        stage_num=1,
+        upsample_chl_num=192,
+        block_channels=backbone_out_channels,
+        output_last_only=True),
     head=dict(
         type='DSNTHead',
         in_channels=192,
@@ -90,7 +75,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/home/zx_li/workspace/mmpose/work_dirs/td-hand_res26_fpn_sk_weightdata_4xb64-50e_0919data-128x128/epoch_50.pth'
+        '/home/zx_li/workspace/mmpose/work_dirs/td-hand_rsntiny_sk_weightdata_4xb64-50e_0919data-128x128/epoch_50.pth'
     ),
 )
 
@@ -208,4 +193,4 @@ test_evaluator = val_evaluator
 # fp16 settings
 fp16 = dict(loss_scale='dynamic')
 # model wrapper
-find_unused_parameters = True
+find_unused_parameters = False
