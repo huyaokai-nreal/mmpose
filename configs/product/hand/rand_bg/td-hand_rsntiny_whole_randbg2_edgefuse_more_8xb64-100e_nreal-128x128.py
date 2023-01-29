@@ -84,10 +84,6 @@ train_pipeline = [
         worker_slice=False,
         bg_lmdb_path_list=[
             '/home/zx_li/hand_group/data/data_hand/background/background_202206_202212_lmdb',
-            '/home/zx_li/hand_group/data/data_hand/background/20220616_seg_wo_hand_3_lmdb',
-            '/home/zx_li/hand_group/data/data_hand/background/20220616_seg_wo_hand_2_lmdb',
-            '/home/zx_li/hand_group/data/data_hand/background/20220616_seg_wo_hand_1_lmdb',
-            '/home/zx_li/hand_group/data/data_hand/background/20220616_seg_wo_hand_0_lmdb',
             '/home/zx_li/hand_group/data/data_hand/background/20220707_depth_seg_wo_hand_2_lmdb',
             '/home/zx_li/hand_group/data/data_hand/background/20220707_depth_seg_wo_hand_5_lmdb',
             '/home/zx_li/hand_group/data/data_hand/background/20220707_depth_seg_wo_hand_0_lmdb',
@@ -200,11 +196,7 @@ val_dataloader = dict(
 test_dataloader = val_dataloader
 
 # evaluators
-val_evaluator = dict(
-    type='NrealKeypointAP',
-    ann_file=val_data_list[0],
-    flip_left_to_right=True,
-)
+val_evaluator = dict(type='NrealKeypointAP', )
 test_evaluator = val_evaluator
 
 # fp16 settings

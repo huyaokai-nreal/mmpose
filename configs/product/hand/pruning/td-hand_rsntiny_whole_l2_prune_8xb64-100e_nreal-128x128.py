@@ -178,11 +178,7 @@ val_dataloader = dict(
 test_dataloader = val_dataloader
 
 # evaluators
-val_evaluator = dict(
-    type='NrealKeypointAP',
-    ann_file=val_data_list[0],
-    flip_left_to_right=True,
-)
+val_evaluator = dict(type='NrealKeypointAP', )
 test_evaluator = val_evaluator
 
 # fp16 settings

@@ -183,11 +183,7 @@ default_hooks = dict(
     checkpoint=dict(interval=10, save_best='mAP', rule='greater'))
 
 # evaluators
-val_evaluator = dict(
-    type='NrealKeypointAP',
-    ann_file=val_data_list[0],
-    flip_left_to_right=True,
-)
+val_evaluator = dict(type='NrealKeypointAP', )
 test_evaluator = val_evaluator
 
 # fp16 settings

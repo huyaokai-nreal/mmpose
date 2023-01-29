@@ -116,7 +116,7 @@ train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
-    'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_lmdb.json'
+    'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_gesture_lmdb.json'
     #'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_binocular_twohand_lmdb.json'
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
@@ -144,7 +144,7 @@ train_pipeline = [
     dict(type='PackPoseInputs')
 ]
 val_pipeline = [
-    dict(type='GetBBoxCenterScale', padding=1.25),
+    dict(type='GetBBoxCenterScale', padding=1.0),
     dict(type='TopdownAffine', input_size=codec['input_size']),
     dict(type='PackPoseInputs')
 ]
@@ -183,11 +183,7 @@ default_hooks = dict(
     checkpoint=dict(interval=5, save_best='mAP', rule='greater'))
 
 # evaluators
-val_evaluator = dict(
-    type='NrealKeypointAP',
-    ann_file=val_data_list[0],
-    flip_left_to_right=True,
-)
+val_evaluator = dict(type='NrealKeypointAP', )
 test_evaluator = val_evaluator
 
 # fp16 settings

@@ -24,7 +24,7 @@ param_scheduler = [
 ]
 
 # automatically scaling LR based on the actual training batch size
-auto_scale_lr = dict(base_batch_size=128)
+auto_scale_lr = dict(base_batch_size=256)
 
 # hooks
 default_hooks = dict(
@@ -42,20 +42,24 @@ codec = [
 ]
 
 # model settings
-backbone_out_channels = [64, 96, 128, 160]
 model = dict(
     type='TopdownPoseEstimator',
     data_preprocessor=dict(
         type='PoseDataPreprocessor', mean=[0.449 * 255], std=[0.226 * 255]),
     backbone=dict(
-        type='RSNTiny',
-        stage_num=1,
-        upsample_chl_num=192,
-        block_channels=backbone_out_channels),
+        type='RSN',
+        unit_channels=256,
+        num_stages=1,
+        num_units=4,
+        num_blocks=[3, 4, 6, 3],
+        num_steps=4,
+        image_channels=1,
+        norm_cfg=dict(type='BN'),
+    ),
     head=dict(
         type='MSPNHead',
         out_shape=(32, 32),
-        unit_channels=192,
+        unit_channels=256,
         out_channels=21,
         num_stages=1,
         num_units=4,
@@ -178,4 +182,4 @@ test_evaluator = val_evaluator
 # fp16 settings
 fp16 = dict(loss_scale='dynamic')
 # model wrapper
-find_unused_parameters = True
+find_unused_parameters = False
