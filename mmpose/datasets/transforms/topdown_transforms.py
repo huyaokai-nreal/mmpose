@@ -2,7 +2,7 @@
 from typing import Dict, Optional, Tuple, Union, List
 import cv2
 import numpy as np
-import pickle as pkl
+import json
 import os
 from mmcv.transforms import BaseTransform
 from mmengine import is_seq_of
@@ -165,8 +165,8 @@ class RandomBackground(BaseTransform):
     def load_data(self):
         data_list = []
         for lmdb_path in self.bg_lmdb_path_list:
-            with open(os.path.join(lmdb_path, 'meta.pkl'), 'rb') as f:
-                meta_info = pkl.load(f)
+            with open(os.path.join(lmdb_path, 'meta.json'), 'r') as f:
+                meta_info = json.load(f)
                 data_list += [
                     f'{lmdb_path}:{file_name}'
                     for file_name in meta_info['file_name_list']

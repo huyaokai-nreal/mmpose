@@ -2,8 +2,9 @@ import lmdb
 import os
 import argparse
 from tqdm import tqdm
-import pickle as pkl
+import json
 import mmengine
+import warnings
 
 
 def parse_args():
@@ -37,12 +38,23 @@ def img_to_lmdb(image_root, lmdb_path, img_ext):
                 txn.put(key.encode(), image_data)
     db.close()
     meta_info = dict(file_name_list=image_keys, image_paths=image_paths)
-    with open(os.path.join(lmdb_path, 'meta.pkl'), 'wb') as f:
-        pkl.dump(meta_info, f)
+    with open(os.path.join(lmdb_path, 'meta.json'), 'w') as f:
+        json.dump(meta_info, f)
 
 
 def main():
     args = parse_args()
+    # Following strings of text style are from colorama package
+    bright_style, reset_style = '\x1b[1m', '\x1b[0m'
+    red_text, blue_text = '\x1b[31m', '\x1b[34m'
+    white_background = '\x1b[107m'
+
+    msg = white_background + bright_style + red_text
+    msg += 'DeprecationWarning: This tool will be deprecated in future. '
+    msg += blue_text + 'Welcome to use the nreal data tool '
+    msg += 'nreal_data_tool: https://github.com/nreal-alg-ai/nreal_data_tool'
+    msg += reset_style
+    warnings.warn(msg)
     img_to_lmdb(args.image_root, args.lmdb_path, args.img_ext)
 
 
