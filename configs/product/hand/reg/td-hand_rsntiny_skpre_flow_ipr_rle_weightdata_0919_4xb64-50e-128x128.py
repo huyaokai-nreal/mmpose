@@ -183,7 +183,10 @@ default_hooks = dict(
     checkpoint=dict(interval=5, save_best='mAP', rule='greater'))
 
 # evaluators
-val_evaluator = dict(type='NrealKeypointAP', )
+gesture_list = [
+    'Click', 'Grab', 'Pinch', 'OpenHand', 'Victory', 'Call', 'Home'
+]
+val_evaluator = dict(type='NrealKeypointAP', gesture_list=gesture_list)
 test_evaluator = val_evaluator
 
 # fp16 settings

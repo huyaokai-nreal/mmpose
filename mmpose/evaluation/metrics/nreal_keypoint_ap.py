@@ -10,20 +10,22 @@ from mmengine.evaluator import BaseMetric
 from nreal_data_tool.schema import KeypointEvaluationItem
 from nreal_data_tool.metric import KeypointOKSMetric
 from mmpose.registry import METRICS
+from typing import List
+from copy import deepcopy
 
 
 @METRICS.register_module()
 class NrealKeypointAP(BaseMetric):
-
     default_prefix: Optional[str] = ''
 
     def __init__(self,
+                 gesture_list: List[str] = [],
                  collect_device: str = 'cpu',
                  prefix: Optional[str] = None,
                  result_dir=None) -> None:
         super().__init__(collect_device, prefix)
         self.result_dir = result_dir
-        self.metric = KeypointOKSMetric()
+        self.metric = KeypointOKSMetric(gesture_list=deepcopy(gesture_list))
 
     def process(self, data_batch, data_samples: Sequence[dict]) -> None:
         for data_sample in data_samples:
@@ -43,10 +45,10 @@ class NrealKeypointAP(BaseMetric):
             result['keypoints'] = keypoints
             result['keypoint_scores'] = keypoint_scores
             result['bbox_scores'] = data_sample['gt_instances']['bbox_scores']
-
+            result['meta'] = data_sample['meta']
             # get area information
             if 'bbox_scales' in data_sample['gt_instances']:
-                result['areas'] = np.prod(
+                result['area'] = np.prod(
                     data_sample['gt_instances']['bbox_scales'], axis=1)
             # add converted result to the results list
             self.results.append(result)
@@ -65,8 +67,10 @@ class NrealKeypointAP(BaseMetric):
             keypoints = result['keypoints'][0]
             item = KeypointEvaluationItem(
                 image_id=image_id,
+                area=float(result['area']),
                 keypoints=keypoints.tolist(),
                 gt_keypoints=result['gt_keypoints'][0].tolist(),
+                meta=result['meta'],
                 keypoint_scores=result['keypoint_scores'][0].tolist())
             kpt_result.append(item.to_dict())
         with open(res_file, 'w') as f:
