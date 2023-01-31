@@ -120,6 +120,7 @@ docs/**/topics/
 docs/**/papers/*.md
 docs/**/datasets.md
 docs/**/modelzoo.md
+output/
 
 !tests/data/**/*.pkl
 !tests/data/**/*.pkl.json
