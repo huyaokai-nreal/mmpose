@@ -134,3 +134,4 @@ output/
 *.mp4
 *.DS_Store
 data
+*.json
