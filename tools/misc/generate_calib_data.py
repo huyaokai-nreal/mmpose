@@ -22,7 +22,10 @@ def parse_args():
         type=str,
         help='If there is no display interface, you can save it.')
     parser.add_argument(
-        '--nr-sample', default=4096, type=int, help='number of data samples')
+        '--nr-sample',
+        default=4096,
+        type=int,
+        help='number of data samples, -1 means get all data in order')
     parser.add_argument(
         '--phase',
         default='train',
@@ -34,7 +37,8 @@ def parse_args():
         '--type',
         default='png',
         type=str,
-        help='save result type, png for image or npy for numpy ndarray')
+        help='save result type, png for image or npy for numpy ndarray,'
+        'raw for snpe in [N, H, W, C]')
     parser.add_argument(
         '--cfg-options',
         nargs='+',
@@ -76,15 +80,22 @@ def main():
         -1].pack_transformed = True
 
     dataset = build_from_cfg(cfg[f'{args.phase}_dataloader'].dataset, DATASETS)
-    sample_index = random.sample(range(len(dataset)), args.nr_sample)
+    if args.nr_sample > 0:
+        sample_index = random.sample(range(len(dataset)), args.nr_sample)
+    else:
+        sample_index = range(len(dataset))
     for i, id in enumerate(tqdm(sample_index)):
+        img_id = str(i).zfill(8)
         item = dataset[id]
-        img = item['inputs'].unsqueeze(0).numpy()
+        img = item['inputs'].unsqueeze(0).numpy().astype(np.float32)
         if args.type == 'npy':
-            np.save(os.path.join(args.output_dir, f'{i}.npy'), img)
+            np.save(os.path.join(args.output_dir, f'{img_id}.npy'), img)
+        if args.type == 'raw':
+            img = img.transpose((0, 2, 3, 1))
+            img.tofile(os.path.join(args.output_dir, f'{img_id}.raw'))
         if args.type == 'png':
             img = img[0].transpose((1, 2, 0))
-            cv2.imwrite(os.path.join(args.output_dir, f'{i}.png'), img)
+            cv2.imwrite(os.path.join(args.output_dir, f'{img_id}.png'), img)
 
 
 if __name__ == '__main__':
