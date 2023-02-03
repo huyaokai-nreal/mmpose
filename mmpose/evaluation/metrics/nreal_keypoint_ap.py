@@ -25,7 +25,9 @@ class NrealKeypointAP(BaseMetric):
                  result_dir=None) -> None:
         super().__init__(collect_device, prefix)
         self.result_dir = result_dir
-        self.metric = KeypointOKSMetric(gesture_list=deepcopy(gesture_list))
+        self.logger = MMLogger.get_current_instance()
+        self.metric = KeypointOKSMetric(
+            gesture_list=deepcopy(gesture_list), logger=self.logger)
 
     def process(self, data_batch, data_samples: Sequence[dict]) -> None:
         for data_sample in data_samples:
@@ -48,6 +50,10 @@ class NrealKeypointAP(BaseMetric):
             result['meta'] = data_sample['meta']
             # get area information
             if 'bbox_scales' in data_sample['gt_instances']:
+                result['meta']['bbox_scales'] = data_sample['gt_instances'][
+                    'bbox_scales'].tolist()
+                result['meta']['bbox_centers'] = data_sample['gt_instances'][
+                    'bbox_centers'].tolist()
                 result['area'] = np.prod(
                     data_sample['gt_instances']['bbox_scales'], axis=1)
             # add converted result to the results list
@@ -59,8 +65,7 @@ class NrealKeypointAP(BaseMetric):
             res_file = osp.join(tmp_folder.name, 'result_keypoints.json')
         else:
             res_file = osp.join(self.result_dir, 'result_keypoints.json')
-        logger = MMLogger.get_current_instance()
-        logger.info(f'result file path is {res_file}')
+        self.logger.info(f'result file path is {res_file}')
         kpt_result = list()
         for result in results:
             image_id = result['img_id']
