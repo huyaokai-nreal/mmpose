@@ -5,6 +5,7 @@ import tempfile
 from argparse import ArgumentParser
 import json
 import glob
+from tqdm import tqdm
 
 import mmcv
 import mmengine
@@ -105,7 +106,7 @@ def main():
     parser.add_argument('--pose_config', type=str, default='configs/hand_2d_keypoint/topdown_heatmap/onehand10k/td-hm_hrnetv2-w18_8xb64-210e_onehand10k-256x256.py', help='Config file for pose')
     parser.add_argument('--pose_checkpoint', type=str, default='https://download.openmmlab.com/mmpose/hand/hrnetv2/hrnetv2_w18_onehand10k_256x256-30bc9c6b_20210330.pth', help='Checkpoint file for pose')
     parser.add_argument(
-        '--input', type=str, default='/data/AI_DATA/data_hand/original_data/hand_keypoint/simulation_data/test1.1/*.png', help='Image path')
+        '--input', type=str, default='/data/AI_DATA/data_hand/original_data/hand_keypoint/simulation_data/test1.4/*.png', help='Image path')
     parser.add_argument(
         '--show',
         action='store_true',
@@ -114,7 +115,7 @@ def main():
     parser.add_argument(
         '--output-root',
         type=str,
-        default='/data/AI_DATA/data_hand/original_data/hand_keypoint/simulation_data/test1.1_pre_anno/',
+        default='/data/AI_DATA/data_hand/original_data/hand_keypoint/simulation_data/test1.4_pre_anno/',
         help='root of the output img file. '
         'Default not saving the visualization images.')
     parser.add_argument(
@@ -177,8 +178,8 @@ def main():
         cfg_options=dict(
             model=dict(test_cfg=dict(output_heatmaps=args.draw_heatmap))))
 
-    input_lists = glob.glob(args.input)
-    for img_path in input_lists:
+    input_lists = sorted(glob.glob(args.input))
+    for img_path in tqdm(input_lists):
         pipline_inference(args, img_path, detector, pose_estimator)
 
 
