@@ -7,6 +7,7 @@ from nreal_data_tool.metric import KeypointOKSMetric
 import tempfile
 import argparse
 from mmengine import mkdir_or_exist
+from mmpose.codecs.utils import get_simcc_maximum
 
 
 def parse_args():
@@ -20,8 +21,27 @@ def parse_args():
         '-o',
         default='',
         help='json save path for generated result')
+    parser.add_argument(
+        '--model-type',
+        '-m',
+        default='reg',
+        help='result type reg, hm or siamcc')
     args = parser.parse_args()
     return args
+
+
+def reg_to_kpt(kpt_x, kpt_y):
+    kpts = np.concatenate([kpt_x, kpt_y], axis=-1)
+    return kpts
+
+
+def simacc_to_kpt(kpt_x, kpt_y, output_size=256):
+    kpt_x = kpt_x.reshape(1, 21, output_size)
+    kpt_y = kpt_y.reshape(1, 21, output_size)
+    keypoints, scores = get_simcc_maximum(kpt_x, kpt_y)
+    keypoints = keypoints[0]
+    keypoints /= float(output_size - 1)
+    return keypoints
 
 
 def main():
@@ -47,11 +67,19 @@ def main():
         kpt_y = np.fromfile(
             os.path.join(dsp_output_dir, f'{str(i).zfill(8)}_kpt_y.raw'),
             dtype=np.float32)[:, np.newaxis]
-        kpts = np.concatenate([kpt_x, kpt_y], axis=-1)
+        if args.model_type == 'reg':
+            kpts = reg_to_kpt(kpt_x, kpt_y)
+        elif args.model_type == 'simcc':
+            kpts = simacc_to_kpt(kpt_x, kpt_y)
+        else:
+            print(f'model type {args.model_type} is not supported')
+            return
         kpts = kpts * bbox_scales + bbox_centers - 0.5 * bbox_scales
+
         result_list[i]['keypoints'] = kpts.tolist()
     with open(res_file, 'w') as f:
         json.dump(result_list, f)
+    print(f'save result to {res_file}')
     metric = KeypointOKSMetric()
     result = metric(res_file)
     print(result)
