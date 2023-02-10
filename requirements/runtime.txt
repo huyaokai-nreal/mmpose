@@ -3,10 +3,10 @@ json_tricks
 lmdb
 matplotlib
 munkres
-nreal_data_tool@git+https://github.com/nreal-alg-ai/nreal_data_tool.git@master
+nreal_data_tool@git+ssh://git@github.com/nreal-alg-ai/nreal_data_tool.git@master
 numpy
 opencv-python
 pillow
 scipy
 torchvision
-xtcocotools@git+https://github.com/nreal-alg-ai/xtcocoapi.git@master
+xtcocotools@git+ssh://git@github.com/nreal-alg-ai/xtcocoapi.git@master
