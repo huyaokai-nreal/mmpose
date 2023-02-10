@@ -80,7 +80,6 @@ class HANDDataset(BaseCocoStyleDataset):
 
         img_path = osp.join(self.data_prefix['img'], img['file_name'])
         img_w, img_h = img['width'], img['height']
-
         # get bbox in shape [1, 4], formatted as xywh
         x, y, w, h = ann['bbox']
         x1 = np.clip(x, 0, img_w - 1)
@@ -180,8 +179,10 @@ class HANDDataset(BaseCocoStyleDataset):
             data_info['mask'] = self.lmdb_client.get(data_info['mask_path'])
         data_info['img_shape'] = data_info['img'].shape[:2]
         data_info['ori_shape'] = data_info['img'].shape[:2]
+        data_info['meta']['flipped'] = False
         if self.flip_left_to_right and data_info['cat_id'] == 1:
             self.__left_2_right_hand(data_info)
+            data_info['meta']['flipped'] = True
         return data_info
 
     def __get_weighted_random_image_id(self):

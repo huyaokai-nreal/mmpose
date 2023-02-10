@@ -524,7 +524,9 @@ class ResNet_top(BaseModule):
                 stride=2,
                 padding=3,
                 norm_cfg=norm_cfg,
-                inplace=True), MaxPool2d(kernel_size=3, stride=2, padding=1))
+                inplace=True,
+                bias=True), MaxPool2d(kernel_size=3, stride=2, padding=1))
+        nn.init.constant_(self.top[0].conv.bias, 0)
 
     def forward(self, img):
         return self.top(img)

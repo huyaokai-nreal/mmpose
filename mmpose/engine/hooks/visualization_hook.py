@@ -155,6 +155,8 @@ class PoseVisualizationHook(Hook):
                 img_bytes = self.file_client.get(img_path)
                 img = mmcv.imfrombytes(img_bytes, channel_order='rgb')
             data_sample = merge_data_samples([data_sample])
+            if data_sample.meta['flipped']:
+                img = img[:, ::-1]
             out_file = None
             if self.out_dir is not None:
                 name_list = os.path.basename(img_path).split('.')

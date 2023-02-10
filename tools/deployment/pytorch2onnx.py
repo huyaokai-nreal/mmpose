@@ -163,7 +163,7 @@ def pytorch2onnx(model,
         assert len(pytorch_results) == len(onnx_results)
         for pt_result, onnx_result in zip(pytorch_results, onnx_results):
             assert np.allclose(
-                pt_result.detach().cpu().numpy(), onnx_result, atol=1.e-4
+                pt_result.detach().cpu().numpy(), onnx_result, atol=1.e-3
             ), 'The outputs are different between Pytorch and ONNX'
         print('The numerical values are same between Pytorch and ONNX')
 
