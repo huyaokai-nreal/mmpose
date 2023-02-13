@@ -219,29 +219,27 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
-
-    assert args.opset_version == 11, 'MMPose only supports opset 11 now'
-    checkpoint = args.checkpoint if args.checkpoint else None
-    cfg_options = {
-        'model.data_preprocessor': None,
-    }
-    if args.deploy_head:
-        cfg_options['model.head.deploy'] = True
-    model = init_model(
-        args.config, checkpoint, device='cpu', cfg_options=cfg_options)
-    if args.fuse_pre:
-        print('enable fuse preprocess mean std to first conv')
-        model = _fuse_preprocess(model)
-    model = _convert_batchnorm(model)
-    model = repvgg_model_convert(model)
+    if args.config.endswith('.py'):
+        exec(f'from {args.config[:-3].replace("/", ".")} import model')
+    else:
+        assert args.opset_version == 11, 'MMPose only supports opset 11 now'
+        checkpoint = args.checkpoint if args.checkpoint else None
+        cfg_options = {
+            'model.data_preprocessor': None,
+        }
+        if args.deploy_head:
+            cfg_options['model.head.deploy'] = True
+        model = init_model(
+            args.config, checkpoint, device='cpu', cfg_options=cfg_options)
+        if args.fuse_pre:
+            print('enable fuse preprocess mean std to first conv')
+            model = _fuse_preprocess(model)
+        model = _convert_batchnorm(model)
+        model = repvgg_model_convert(model)
 
     # onnx.export does not support kwargs
     if hasattr(model, '_forward'):
         model.forward = model._forward
-    else:
-        raise NotImplementedError(
-            'Please implement the forward method for exporting.')
-
     # convert model to onnx file
     pytorch2onnx(
         model,
