@@ -114,7 +114,7 @@ class HANDDataset(BaseCocoStyleDataset):
             'segmentation': ann.get('segmentation', None),
             'id': ann['id'],
             'cat_id': ann['category_id'],
-            'meta': ann.get('meta', None)
+            'meta': ann.get('meta', dict())
         }
 
         return data_info
