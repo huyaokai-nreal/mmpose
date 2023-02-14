@@ -104,7 +104,9 @@ class IntegralRegressionHead(BaseHead):
                  decoder: OptConfigType = None,
                  init_cfg: OptConfigType = None,
                  deploy: bool = False,
-                 output_fuse_coord=False):
+                 output_fuse_coord=False,
+                 feat_norm_type='softmax',
+                 symmetry_ipr=False):
 
         if init_cfg is None:
             init_cfg = self.default_init_cfg
@@ -121,6 +123,8 @@ class IntegralRegressionHead(BaseHead):
         self.output_sigma = output_sigma
         self.deploy = deploy
         self.output_fuse_coord = output_fuse_coord
+        self.feat_norm_type = feat_norm_type
+        self.symmetry_ipr = symmetry_ipr
         if self.output_sigma:
             self.gap = nn.AdaptiveAvgPool2d((1, 1))
             self.sigma_fc = nn.Linear(self.in_channels, self.num_joints * 2)
@@ -188,12 +192,18 @@ class IntegralRegressionHead(BaseHead):
                 f'{self.__class__.__name__} does not support selecting '
                 'multiple input features.')
 
-        W, H = self.heatmap_size
-        self.linspace_x = torch.arange(0.0, 1.0 * W, 1) / W
-        self.linspace_y = torch.arange(0.0, 1.0 * H, 1) / H
+        if self.symmetry_ipr:
+            from .symmetry_intergral_regression import IngetralCoordinate
+            self.hm_to_corrd = IngetralCoordinate.apply
+        else:
+            W, H = self.heatmap_size
+            self.linspace_x = torch.arange(0.0, 1.0 * W, 1) / W
+            self.linspace_y = torch.arange(0.0, 1.0 * H, 1) / H
 
-        self.linspace_x = nn.Parameter(self.linspace_x, requires_grad=False)
-        self.linspace_y = nn.Parameter(self.linspace_y, requires_grad=False)
+            self.linspace_x = nn.Parameter(
+                self.linspace_x, requires_grad=False)
+            self.linspace_y = nn.Parameter(
+                self.linspace_y, requires_grad=False)
 
         self._register_load_state_dict_pre_hook(self._load_state_dict_pre_hook)
 
@@ -216,6 +226,13 @@ class IntegralRegressionHead(BaseHead):
         heatmaps = F.softmax(featmaps, dim=2)
         return heatmaps.reshape(-1, N, H, W)
 
+    def _sigmod_sum_norm(self, featmaps: Tensor) -> Tensor:
+        _, N, H, W = featmaps.shape
+        featmaps = featmaps.sigmoid()
+        featmaps = featmaps.reshape(-1, N, H * W)
+        heatmaps = featmaps / featmaps.sum(dim=2, keepdim=True)
+        return heatmaps.reshape(-1, N, H, W)
+
     def forward(self, feats: Tuple[Tensor]) -> Union[Tensor, Tuple[Tensor]]:
         """Forward the network. The input is multi scale feature maps and the
         output is the coordinates.
@@ -234,14 +251,21 @@ class IntegralRegressionHead(BaseHead):
                 feats = self.final_layer(feats)
         else:
             feats = self.simplebaseline_head(feats)
-        if self.beta > 1.0:
-            heatmaps = self._flat_softmax(feats * self.beta)
-        else:
-            heatmaps = self._flat_softmax(feats)
+        if self.feat_norm_type == 'softmax':
+            if self.beta > 1.0:
+                heatmaps = self._flat_softmax(feats * self.beta)
+            else:
+                heatmaps = self._flat_softmax(feats)
+        elif self.feat_norm_type == 'sigmoid_sum_norm':
+            heatmaps = self._sigmod_sum_norm(feats)
         x_fea = heatmaps.sum(dim=2)
         y_fea = heatmaps.sum(dim=3)
-        pred_x = x_fea.mul(self.linspace_x)
-        pred_y = y_fea.mul(self.linspace_y)
+        if self.symmetry_ipr:
+            pred_x = self.hm_to_corrd(x_fea)
+            pred_y = self.hm_to_corrd(y_fea)
+        else:
+            pred_x = x_fea.mul(self.linspace_x)
+            pred_y = y_fea.mul(self.linspace_y)
         pred_x = pred_x.sum(dim=-1, keepdim=True)
         pred_y = pred_y.sum(dim=-1, keepdim=True)
 
