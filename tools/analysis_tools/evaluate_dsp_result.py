@@ -8,7 +8,10 @@ import tempfile
 import argparse
 from mmengine import mkdir_or_exist
 from mmpose.codecs.utils import get_simcc_maximum
-
+from mmpose.models.utils.heatmap_to_kpt import HeatmapToKeypoint
+from mmpose.codecs.nreal_heatmap import NrealHeatmap
+import torch.nn.functional as F 
+import torch
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -33,7 +36,10 @@ def parse_args():
 def reg_to_kpt(kpt_x, kpt_y):
     kpts = np.concatenate([kpt_x, kpt_y], axis=-1)
     return kpts
+hm_codec = NrealHeatmap((128, 128),(32, 32), 3)
 
+def hm_to_kpt(hm):
+    return hm_codec.decode(hm)[0]
 
 def simacc_to_kpt(kpt_x, kpt_y, output_size=256):
     kpt_x = kpt_x.reshape(1, 21, output_size)
@@ -42,7 +48,9 @@ def simacc_to_kpt(kpt_x, kpt_y, output_size=256):
     keypoints = keypoints[0]
     keypoints /= float(output_size - 1)
     return keypoints
-
+post_model = HeatmapToKeypoint()
+def feat_to_kpt(feat):
+    return post_model.forward(feat)
 
 def main():
     args = parse_args()
@@ -61,21 +69,33 @@ def main():
     for i, result in enumerate(tqdm(result_list)):
         bbox_centers = np.array(result['meta']['bbox_centers'])
         bbox_scales = np.array(result['meta']['bbox_scales'])
-        kpt_x = np.fromfile(
-            os.path.join(dsp_output_dir, f'{str(i).zfill(8)}_kpt_x.raw'),
-            dtype=np.float32)[:, np.newaxis]
-        kpt_y = np.fromfile(
-            os.path.join(dsp_output_dir, f'{str(i).zfill(8)}_kpt_y.raw'),
-            dtype=np.float32)[:, np.newaxis]
-        if args.model_type == 'reg':
-            kpts = reg_to_kpt(kpt_x, kpt_y)
-        elif args.model_type == 'simcc':
-            kpts = simacc_to_kpt(kpt_x, kpt_y)
+        if args.model_type in ['reg', 'simcc']:
+            kpt_x = np.fromfile(
+                os.path.join(dsp_output_dir, f'{str(i).zfill(8)}_kpt_x.raw'),
+                dtype=np.float32)[:, np.newaxis]
+            kpt_y = np.fromfile(
+                os.path.join(dsp_output_dir, f'{str(i).zfill(8)}_kpt_y.raw'),
+                dtype=np.float32)[:, np.newaxis]
+            if args.model_type == 'reg':
+                kpts = reg_to_kpt(kpt_x, kpt_y)
+            else: 
+                kpts = simacc_to_kpt(kpt_x, kpt_y)
+        elif args.model_type == 'feat':
+            feat = np.fromfile(
+                os.path.join(dsp_output_dir, f'{str(i).zfill(8)}_feat.raw'),
+                dtype=np.float32).reshape((1, 32 ,32, 21)).transpose((0,3,1,2))
+            feat = torch.from_numpy(feat)
+            kpts = feat_to_kpt(feat=feat)[0].numpy()
+        elif args.model_type == 'hm':
+            feat = np.fromfile(
+                os.path.join(dsp_output_dir, f'{str(i).zfill(8)}_hm.raw'),
+                dtype=np.float32).reshape((32 ,32, 21)).transpose((2,0,1))
+            kpts = hm_codec.decode(feat)[0][0]/128.0
+
         else:
             print(f'model type {args.model_type} is not supported')
             return
         kpts = kpts * bbox_scales + bbox_centers - 0.5 * bbox_scales
-
         result_list[i]['keypoints'] = kpts.tolist()
     with open(res_file, 'w') as f:
         json.dump(result_list, f)
