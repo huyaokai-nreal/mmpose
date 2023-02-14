@@ -67,7 +67,8 @@ model = dict(
         type='DSNTHead',
         in_channels=192,
         deconv_out_channels=(),
-        feat_norm_type='softmax',
+        feat_norm_type='sigmoid_sum_norm',
+        symmetry_ipr=False,
         has_final_layer=True,
         in_featuremap_size=(32, 32),
         num_joints=21,
@@ -134,18 +135,8 @@ train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
-    #'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_gesture_lmdb.json'
+    'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_gesture_lmdb.json'
     #'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_binocular_twohand_lmdb.json'
-    'data_hand/hand_keypoint/annotations/hand_test_0206_0207__new_camera_module_lmdb__by_agdxtcc_020616.json',
-    'data_hand/hand_keypoint/annotations/hand_test_0206_0207__new_camera_module_lmdb__by_agsw_020717.json',
-    'data_hand/hand_keypoint/annotations/hand_test_0206_0207__new_camera_module_lmdb__by_bgsw_020614.json',
-    'data_hand/hand_keypoint/annotations/hand_test_0206_0207__new_camera_module_lmdb__by_sgsw_020614.json',
-    'data_hand/hand_keypoint/annotations/hand_test_0206_0207__new_camera_module_lmdb__by_zcghys_020615.json',
-    'data_hand/hand_keypoint/annotations/hand_test_0206_0207__new_camera_module_lmdb__zy_agdxtcc_020710.json',
-    'data_hand/hand_keypoint/annotations/hand_test_0206_0207__new_camera_module_lmdb__zy_agsw_020717.json',
-    'data_hand/hand_keypoint/annotations/hand_test_0206_0207__new_camera_module_lmdb__zy_bgsw_020614.json',
-    'data_hand/hand_keypoint/annotations/hand_test_0206_0207__new_camera_module_lmdb__zy_sgsw_020614.json',
-    'data_hand/hand_keypoint/annotations/hand_test_0206_0207__new_camera_module_lmdb__zy_zcghys_020710.json'
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # pipelines

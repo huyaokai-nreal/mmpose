@@ -4,12 +4,7 @@ _base_ = ['../../../_base_/default_runtime.py']
 train_cfg = dict(max_epochs=50, val_interval=5)
 
 # optimizer
-optim_wrapper = dict(
-    optimizer=dict(type='Adam', lr=5e-4, weight_decay=1e-4),
-    paramwise_cfg=dict(
-        norm_decay_mult=0,
-        bias_decay_mult=0,
-        custom_keys={'head.loss_module': dict(lr_mult=0.0, decay_mult=0.0)}))
+optim_wrapper = dict(optimizer=dict(type='Adam', lr=5e-4, weight_decay=1e-4))
 # learning policy
 param_scheduler = [
     dict(
@@ -24,7 +19,7 @@ param_scheduler = [
 ]
 
 # automatically scaling LR based on the actual training batch size
-auto_scale_lr = dict(base_batch_size=128)
+auto_scale_lr = dict(base_batch_size=256)
 
 # codec settings
 codec = dict(
@@ -37,54 +32,37 @@ codec = dict(
 )
 
 # model settings
-backbone_out_channels = [64, 96, 128, 160]
 model = dict(
     type='TopdownPoseEstimator',
     data_preprocessor=dict(
         type='PoseDataPreprocessor', mean=[0.449 * 255], std=[0.226 * 255]),
     backbone=dict(
-        type='ResNet',
-        depth=26,
-        in_channels=1,
-        stem_channels=64,
-        base_channels=32,
-        expansion=1,
-        out_indices=(0, 1, 2, 3),
-        zero_init_residual=False,
-        bias_in_conv=False,
-        out_channels=backbone_out_channels),
-    neck=dict(
-        type='FPN',
-        in_channels=backbone_out_channels,
-        out_channels=192,
-        num_outs=4,
-        upsample_cfg=dict(mode='bilinear', align_corners=True),
-        upsample_style='rsn',
+        type='RSN',
+        unit_channels=256,
+        num_stages=1,
+        num_units=4,
+        num_blocks=[3, 4, 6, 3],
+        num_steps=4,
+        image_channels=1,
         norm_cfg=dict(type='BN'),
-        reverse_output=True,
-        apply_fpn_conv=False),
+        output_last_only=True),
     head=dict(
         type='DSNTHead',
-        in_channels=192,
+        in_channels=256,
         deconv_out_channels=(),
-        feat_norm_type='softmax',
         has_final_layer=True,
         in_featuremap_size=(32, 32),
         num_joints=21,
         loss=dict(
             type='MultipleLossWrapper',
             losses=[
-                dict(
-                    type='RLELoss',
-                    use_target_weight=False,
-                    flow_model_pretrain_path=
-                    '/home/zx_li/hand_group/model_zoo/mmpose/td-hand_rsn50_pre_ipr_rle_lscale_wholedata_4xb64-100e-128x128/epoch_100.pth'
-                ),
+                dict(type='RLELoss', use_target_weight=False),
                 dict(type='KeypointMSELoss', use_target_weight=True)
             ]),
         decoder=codec,
         deploy=False,
-        output_sigma=True),
+        output_sigma=True,
+        output_fuse_coord=True),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
@@ -93,7 +71,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/home/zx_li/workspace/mmpose/work_dirs/td-hand_res26_fpn_sk_weightdata_4xb64-50e_0919data-128x128/epoch_50.pth'
+        '/home/zx_li/workspace/mmpose/work_dirs/td-hand_rsn50_weightdata_4xb64-50e_nreal_0919data-128x128/epoch_40.pth'
     ),
 )
 
@@ -134,18 +112,7 @@ train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
-    #'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_gesture_lmdb.json'
-    #'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_binocular_twohand_lmdb.json'
-    'data_hand/hand_keypoint/annotations/hand_test_0206_0207__new_camera_module_lmdb__by_agdxtcc_020616.json',
-    'data_hand/hand_keypoint/annotations/hand_test_0206_0207__new_camera_module_lmdb__by_agsw_020717.json',
-    'data_hand/hand_keypoint/annotations/hand_test_0206_0207__new_camera_module_lmdb__by_bgsw_020614.json',
-    'data_hand/hand_keypoint/annotations/hand_test_0206_0207__new_camera_module_lmdb__by_sgsw_020614.json',
-    'data_hand/hand_keypoint/annotations/hand_test_0206_0207__new_camera_module_lmdb__by_zcghys_020615.json',
-    'data_hand/hand_keypoint/annotations/hand_test_0206_0207__new_camera_module_lmdb__zy_agdxtcc_020710.json',
-    'data_hand/hand_keypoint/annotations/hand_test_0206_0207__new_camera_module_lmdb__zy_agsw_020717.json',
-    'data_hand/hand_keypoint/annotations/hand_test_0206_0207__new_camera_module_lmdb__zy_bgsw_020614.json',
-    'data_hand/hand_keypoint/annotations/hand_test_0206_0207__new_camera_module_lmdb__zy_sgsw_020614.json',
-    'data_hand/hand_keypoint/annotations/hand_test_0206_0207__new_camera_module_lmdb__zy_zcghys_020710.json'
+    'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_gesture_lmdb.json'
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # pipelines
@@ -159,11 +126,11 @@ train_pipeline = [
     dict(
         type='RandomBBoxTransform',
         scale_factor=[0.75, 1.25],
+        scale_norm_low=-2.0,
         rotate_factor=15,
         rotate_prob=0.3,
         shift_prob=0.5,
-        shift_factor=0.2,
-        enable_epoch_num=40),
+        shift_factor=0.2),
     dict(type='TopdownAffine', input_size=codec['input_size']),
     dict(
         type='GenerateTarget',
@@ -202,7 +169,6 @@ val_dataloader = dict(
         data_mode=data_mode,
         test_mode=True,
         pipeline=val_pipeline,
-        flip_left_to_right=True,
         data_root=data_root))
 test_dataloader = val_dataloader
 
@@ -214,11 +180,10 @@ default_hooks = dict(
 gesture_list = [
     'Click', 'Grab', 'Pinch', 'OpenHand', 'Victory', 'Call', 'Home'
 ]
-val_evaluator = dict(
-    type='NrealKeypointAP', gesture_list=gesture_list, result_dir='./')
+val_evaluator = dict(type='NrealKeypointAP', gesture_list=gesture_list)
 test_evaluator = val_evaluator
 
 # fp16 settings
 fp16 = dict(loss_scale='dynamic')
 # model wrapper
-find_unused_parameters = True
+find_unused_parameters = False
