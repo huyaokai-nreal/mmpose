@@ -212,6 +212,11 @@ def parse_args():
         action='store_true',
         help='enable deploy arg for head')
     parser.add_argument(
+        '--python-model',
+        '-pm',
+        action='store_true',
+        help='import model from python file')
+    parser.add_argument(
         '--dyn-batch', action='store_true', help='enable dynamic batch input')
     args = parser.parse_args()
     return args
@@ -219,7 +224,8 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
-    if args.config.endswith('.py'):
+
+    if args.python_model:
         exec(f'from {args.config[:-3].replace("/", ".")} import model')
     else:
         assert args.opset_version == 11, 'MMPose only supports opset 11 now'
