@@ -169,7 +169,7 @@ class ShuffleNetV2(BaseBackbone):
 
     def __init__(self,
                  widen_factor=1.0,
-                 out_indices=(3, ),
+                 out_indices=(4, ),
                  frozen_stages=-1,
                  conv_cfg=None,
                  norm_cfg=dict(type='BN'),
@@ -183,7 +183,8 @@ class ShuffleNetV2(BaseBackbone):
                          val=1,
                          bias=0.0001,
                          layer=['_BatchNorm', 'GroupNorm'])
-                 ]):
+                 ],
+                 image_channel=3):
         # Protect mutable default arguments
         norm_cfg = copy.deepcopy(norm_cfg)
         act_cfg = copy.deepcopy(act_cfg)
@@ -219,14 +220,15 @@ class ShuffleNetV2(BaseBackbone):
 
         self.in_channels = 24
         self.conv1 = ConvModule(
-            in_channels=3,
+            in_channels=image_channel,
             out_channels=self.in_channels,
             kernel_size=3,
             stride=2,
             padding=1,
             conv_cfg=conv_cfg,
             norm_cfg=norm_cfg,
-            act_cfg=act_cfg)
+            act_cfg=act_cfg,
+            bias=True)
 
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
@@ -294,12 +296,11 @@ class ShuffleNetV2(BaseBackbone):
         x = self.conv1(x)
         x = self.maxpool(x)
 
-        outs = []
+        outs = [x]
         for i, layer in enumerate(self.layers):
             x = layer(x)
             if i in self.out_indices:
                 outs.append(x)
-
         return tuple(outs)
 
     def train(self, mode=True):

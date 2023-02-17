@@ -188,7 +188,8 @@ class MobileNetV2(BaseBackbone):
             padding=1,
             conv_cfg=self.conv_cfg,
             norm_cfg=self.norm_cfg,
-            act_cfg=self.act_cfg)
+            act_cfg=self.act_cfg,
+            bias=True)
 
         self.layers = []
 
