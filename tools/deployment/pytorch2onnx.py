@@ -246,6 +246,8 @@ if __name__ == '__main__':
     # onnx.export does not support kwargs
     if hasattr(model, '_forward'):
         model.forward = model._forward
+    if hasattr(model.backbone, 'switch_to_deploy'):
+        model.backbone.switch_to_deploy()
     # convert model to onnx file
     pytorch2onnx(
         model,
