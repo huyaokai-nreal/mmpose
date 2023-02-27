@@ -22,11 +22,13 @@ class NNIPruneHook(Hook):
     def __init__(self,
                  pruner_name: str = 'l1',
                  config_list: Optional[List] = None,
-                 input_shape: Optional[List] = None) -> None:
+                 input_shape: Optional[List] = None,
+                 mode: str = 'dependency_aware') -> None:
         super().__init__()
         assert pruner_name in PRUNERS, f'{pruner_name} pruner is not defined'
         self.pruner_name = pruner_name
         self.config_list = config_list
+        self.mode = mode
         if self.config_list is None:
             self.config_list = [{
                 'sparsity_per_layer': 0.5,
@@ -45,7 +47,7 @@ class NNIPruneHook(Hook):
         if self.input_shape is None:
             self.input_shape = [1, 1, 128, 128]
 
-    def before_train(self, runner: Runner) -> None:
+    def before_run(self, runner: Runner) -> None:
         if hasattr(runner.model, 'module'):
             model = runner.model.module
         else:
@@ -54,7 +56,7 @@ class NNIPruneHook(Hook):
             model,
             config_list=self.config_list,
             dummy_input=torch.rand(*self.input_shape).to(get_device()),
-            mode='dependency_aware')
+            mode=self.mode)
         model, masks = self.pruner.compress()
         # show the masks sparsity
         for name, mask in masks.items():
@@ -71,11 +73,5 @@ class NNIPruneHook(Hook):
             model = runner.wrap_model(
                 runner.cfg.get('model_wrapper_cfg'), model)
         runner.model = model
-        runner.optim_wrapper = runner.build_optim_wrapper(
-            runner.cfg['optim_wrapper'])
-        # Automatically scaling lr by linear scaling rule
-        runner.scale_lr(runner.optim_wrapper, runner.auto_scale_lr)
-        runner.param_schedulers = runner.build_param_scheduler(  # type: ignore
-            runner.cfg['param_scheduler'])  # type: ignore
         with open(os.path.join(runner.work_dir, 'prune_mask.pkl'), 'wb') as f:
             pkl.dump(mask, f)

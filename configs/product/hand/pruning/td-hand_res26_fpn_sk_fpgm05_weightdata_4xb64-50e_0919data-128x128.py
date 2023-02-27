@@ -1,20 +1,20 @@
 # flake8: noqa
 _base_ = ['../../../_base_/default_runtime.py']
-
+# runtime
 train_cfg = dict(max_epochs=50, val_interval=5)
 
 # optimizer
 optim_wrapper = dict(
-    optimizer=dict(type='Adam', lr=5e-4, weight_decay=1e-4),
-    paramwise_cfg=dict(
-        norm_decay_mult=0,
-        bias_decay_mult=0,
-        custom_keys={'head.loss_module': dict(lr_mult=0.0, decay_mult=0.0)}))
+    optimizer=dict(
+        type='Adam',
+        lr=2e-3,
+        betas=(0.9, 0.999),
+        weight_decay=1e-6,
+    ))
 # learning policy
 param_scheduler = [
-    dict(
-        type='LinearLR', begin=0, end=2000, start_factor=0.001,
-        by_epoch=False),  # warm-up
+    dict(type='LinearLR', begin=0, end=2000, start_factor=0.1,
+         by_epoch=False),  # warm-up
     dict(
         type='CosineAnnealingLR',
         by_epoch=True,
@@ -26,15 +26,26 @@ param_scheduler = [
 # automatically scaling LR based on the actual training batch size
 auto_scale_lr = dict(base_batch_size=128)
 
+# hooks
+default_hooks = dict(
+    checkpoint=dict(interval=5, save_best='mAP', rule='greater'))
+custom_hooks = [
+    # Synchronize model buffers such as running_mean and running_var in BN
+    # at the end of each epoch
+    dict(type='SyncBuffersHook'),
+    dict(type='NNIPruneHook', pruner_name='fpgm')
+]
+
 # codec settings
-codec = dict(
-    type='IntegralRegressionLabel',
-    input_size=(128, 128),
-    heatmap_size=(32, 32),
-    sigma=1,
-    normalize=False,
-    blur_kernel_size=5,
-)
+# multiple kernel_sizes of heatmap gaussian for 'Megvii' approach.
+kernel_sizes = [9, 7, 5, 3]
+codec = [
+    dict(
+        type='NrealHeatmap',
+        input_size=(128, 128),
+        heatmap_size=(32, 32),
+        kernel_size=kernel_size) for kernel_size in kernel_sizes
+]
 
 # model settings
 backbone_out_channels = [64, 96, 128, 160]
@@ -57,55 +68,71 @@ model = dict(
         type='FPN',
         in_channels=backbone_out_channels,
         out_channels=192,
+        norm_cfg=dict(type='BN'),
         num_outs=4,
         upsample_cfg=dict(mode='bilinear', align_corners=True),
         upsample_style='rsn',
-        norm_cfg=dict(type='BN'),
         reverse_output=True,
-        apply_fpn_conv=False),
+        apply_fpn_conv=False,
+        output_as_seq_of_seq=True),
     head=dict(
-        type='DSNTHead',
-        in_channels=192,
-        deconv_out_channels=(),
-        feat_norm_type='sigmoid_sum_norm',
-        symmetry_ipr=False,
-        has_final_layer=True,
-        in_featuremap_size=(32, 32),
-        num_joints=21,
-        loss=dict(
-            type='MultipleLossWrapper',
-            losses=[
-                dict(
-                    type='RLELoss',
-                    use_target_weight=False,
-                    flow_model_pretrain_path=
-                    '/data/hand_group/model_zoo/mmpose/td-hand_rsn50_pre_ipr_rle_lscale_wholedata_4xb64-100e-128x128/epoch_100.pth'
-                ),
-                dict(type='KeypointMSELoss', use_target_weight=True)
-            ]),
-        decoder=codec,
-        deploy=False,
-        output_sigma=True),
-    test_cfg=dict(
-        flip_test=False,
-        shift_coords=False,
-        shift_heatmap=False,
-    ),
+        type='MSPNHead',
+        out_shape=(32, 32),
+        unit_channels=192,
+        out_channels=21,
+        num_stages=1,
+        num_units=4,
+        norm_cfg=dict(type='BN'),
+        # each sub list is for a stage
+        # and each element in each list is for a unit
+        level_indices=[0, 1, 2, 3],
+        loss=[dict(type='JointsL2Loss', loss_weight=0.25)] * 3 +
+        [dict(type='JointsL2Loss', has_ohkm=True, topk=17, loss_weight=1.)],
+        decoder=codec[-1]),
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
         '/home/zx_li/workspace/mmpose/work_dirs/td-hand_res26_fpn_sk_weightdata_4xb64-50e_0919data-128x128/epoch_50.pth'
     ),
-)
+    test_cfg=dict(
+        flip_test=False,
+        flip_mode='heatmap',
+        shift_heatmap=False,
+    ))
 
 # base dataset settings
 dataset_type = 'HANDDataset'
 data_mode = 'topdown'
 
+# pipelines
+train_pipeline = [
+    dict(
+        type='Albumentation',
+        transforms=[
+            dict(type='RandomBrightnessContrast', p=0.2),
+        ]),
+    dict(type='GetBBoxCenterScale', padding=1),
+    dict(
+        type='RandomBBoxTransform',
+        scale_factor=[0.75, 1.25],
+        rotate_factor=15,
+        rotate_prob=0.3,
+        shift_prob=0.5,
+        shift_factor=0.2),
+    dict(type='TopdownAffine', input_size=codec[0]['input_size']),
+    dict(
+        type='GenerateTarget', target_type='multilevel_heatmap',
+        encoder=codec),
+    dict(type='PackPoseInputs')
+]
+
+val_pipeline = [
+    dict(type='GetBBoxCenterScale', padding=1),
+    dict(type='TopdownAffine', input_size=codec[0]['input_size']),
+    dict(type='PackPoseInputs')
+]
 import os
 # lmdb root dir, maybe different between beijing and wuxi
-data_root = os.path.join(os.environ['HOME'],
-                         'hand_group/data/data_hand/lmdb_data')
 data_root = '/data/hand_group/data'
 train_data_list = [
     'data_hand/hand_keypoint/annotations/train_hanco_rgb_gesture_lmdb_refresh.json',  #84k
@@ -137,79 +164,43 @@ train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
-    #'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_gesture_lmdb.json'
-    #'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_binocular_twohand_lmdb.json'
-    '/home/zx_li/workspace/nreal_data_tool/data/0222/hand_test_flora_0222_lmdb__by_agzl_0217.json'
+    'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_lmdb.json'
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
-# pipelines
-train_pipeline = [
-    dict(
-        type='Albumentation',
-        transforms=[
-            dict(type='RandomBrightnessContrast', p=0.2),
-        ]),
-    dict(type='GetBBoxCenterScale', padding=1.0),
-    dict(
-        type='RandomBBoxTransform',
-        scale_factor=[0.75, 1.25],
-        rotate_factor=15,
-        rotate_prob=0.3,
-        shift_prob=0.5,
-        shift_factor=0.2,
-        enable_epoch_num=40),
-    dict(type='TopdownAffine', input_size=codec['input_size']),
-    dict(
-        type='GenerateTarget',
-        target_type='heatmap+keypoint_label',
-        encoder=codec),
-    dict(type='PackPoseInputs')
-]
-val_pipeline = [
-    dict(type='GetBBoxCenterScale', padding=1.0),
-    dict(type='TopdownAffine', input_size=codec['input_size']),
-    dict(type='PackPoseInputs')
-]
 
 # data loaders
 train_dataloader = dict(
-    batch_size=64,
+    batch_size=128,
     num_workers=8,
     persistent_workers=True,
+    pin_memory=False,
+    prefetch_factor=2,
     sampler=dict(type='DefaultSampler', shuffle=True),
     dataset=dict(
         type=dataset_type,
+        data_root=data_root,
         data_file_list=train_data_list,
         data_mode=data_mode,
         pipeline=train_pipeline,
-        dataset_weight_list=dataset_weight_list,
-        data_root=data_root))
+        dataset_weight_list=dataset_weight_list))
 val_dataloader = dict(
     batch_size=32,
-    num_workers=2,
-    persistent_workers=True,
+    num_workers=4,
+    persistent_workers=False,
     drop_last=False,
     sampler=dict(type='DefaultSampler', shuffle=False, round_up=False),
     dataset=dict(
         type=dataset_type,
+        data_root=data_root,
         data_file_list=val_data_list,
         data_mode=data_mode,
         test_mode=True,
         pipeline=val_pipeline,
-        flip_left_to_right=True,
-        data_root=data_root))
+    ))
 test_dataloader = val_dataloader
 
-# hooks
-default_hooks = dict(
-    checkpoint=dict(interval=5, save_best='mAP', rule='greater'))
-
 # evaluators
-gesture_list = [
-    'Click', 'Grab', 'Pinch', 'OpenHand', 'Victory', 'Call', 'Home'
-]
-val_evaluator = dict(
-    type='NrealKeypointAP', gesture_list=gesture_list, result_dir='./')
+val_evaluator = dict(type='NrealKeypointAP', )
 test_evaluator = val_evaluator
 
 # fp16 settings

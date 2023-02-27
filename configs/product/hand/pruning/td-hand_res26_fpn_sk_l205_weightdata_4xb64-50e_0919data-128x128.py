@@ -33,7 +33,7 @@ custom_hooks = [
     # Synchronize model buffers such as running_mean and running_var in BN
     # at the end of each epoch
     dict(type='SyncBuffersHook'),
-    dict(type='NNIPruneHook')
+    dict(type='NNIPruneHook', pruner_name='l2')
 ]
 
 # codec settings
@@ -111,7 +111,7 @@ train_pipeline = [
         transforms=[
             dict(type='RandomBrightnessContrast', p=0.2),
         ]),
-    dict(type='GetBBoxCenterScale', padding=1.25),
+    dict(type='GetBBoxCenterScale', padding=1),
     dict(
         type='RandomBBoxTransform',
         scale_factor=[0.75, 1.25],
@@ -127,7 +127,7 @@ train_pipeline = [
 ]
 
 val_pipeline = [
-    dict(type='GetBBoxCenterScale', padding=1.25),
+    dict(type='GetBBoxCenterScale', padding=1),
     dict(type='TopdownAffine', input_size=codec[0]['input_size']),
     dict(type='PackPoseInputs')
 ]
@@ -170,7 +170,7 @@ val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 
 # data loaders
 train_dataloader = dict(
-    batch_size=64,
+    batch_size=128,
     num_workers=8,
     persistent_workers=True,
     pin_memory=False,
