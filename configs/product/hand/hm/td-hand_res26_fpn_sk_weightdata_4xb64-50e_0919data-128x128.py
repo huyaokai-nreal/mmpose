@@ -100,7 +100,7 @@ train_pipeline = [
         transforms=[
             dict(type='RandomBrightnessContrast', p=0.2),
         ]),
-    dict(type='GetBBoxCenterScale', padding=1.25),
+    dict(type='GetBBoxCenterScale', padding=1),
     dict(
         type='RandomBBoxTransform',
         scale_factor=[0.75, 1.25],
@@ -116,13 +116,13 @@ train_pipeline = [
 ]
 
 val_pipeline = [
-    dict(type='GetBBoxCenterScale', padding=1.25),
+    dict(type='GetBBoxCenterScale', padding=1),
     dict(type='TopdownAffine', input_size=codec[0]['input_size']),
     dict(type='PackPoseInputs')
 ]
 import os
 # lmdb root dir, maybe different between beijing and wuxi
-data_root = os.path.join(os.environ['HOME'], 'hand_group/data')
+data_root = '/data/hand_group/data'
 train_data_list = [
     'data_hand/hand_keypoint/annotations/train_hanco_rgb_gesture_lmdb_refresh.json',  #84k
     'data_hand/hand_keypoint/annotations/train_nreal_baidu1_gesture_right_0930_lmdb.json',  #13.4k
@@ -171,6 +171,7 @@ train_dataloader = dict(
         data_file_list=train_data_list,
         data_mode=data_mode,
         pipeline=train_pipeline,
+        serialize_data=True,
         dataset_weight_list=dataset_weight_list))
 val_dataloader = dict(
     batch_size=32,

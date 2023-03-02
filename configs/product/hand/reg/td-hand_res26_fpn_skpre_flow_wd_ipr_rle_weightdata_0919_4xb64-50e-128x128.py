@@ -103,7 +103,7 @@ data_mode = 'topdown'
 
 import os
 # lmdb root dir, maybe different between beijing and wuxi
-data_root = '/data/hand_group/data/data_hand/lmdb_data'
+data_root = '/data/hand_group/data/'
 train_data_list = [
     'data_hand/hand_keypoint/annotations/train_hanco_rgb_gesture_lmdb_refresh.json',  #84k
     'data_hand/hand_keypoint/annotations/train_nreal_baidu1_gesture_right_0930_lmdb.json',  #13.4k
@@ -134,7 +134,7 @@ train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
-    #'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_gesture_lmdb.json'
+    '/data/hand_group/data/data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_gesture_lmdb.json'
     #'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_binocular_twohand_lmdb.json'
     #'data_hand/hand_keypoint/annotations/hand_test_0206_0207__new_camera_module_lmdb__by_agdxtcc_020616.json',
     #'data_hand/hand_keypoint/annotations/hand_test_0206_0207__new_camera_module_lmdb__by_agsw_020717.json',
@@ -146,16 +146,16 @@ val_data_list = [
     #'data_hand/hand_keypoint/annotations/hand_test_0206_0207__new_camera_module_lmdb__zy_bgsw_020614.json',
     #'data_hand/hand_keypoint/annotations/hand_test_0206_0207__new_camera_module_lmdb__zy_sgsw_020614.json',
     #'data_hand/hand_keypoint/annotations/hand_test_0206_0207__new_camera_module_lmdb__zy_zcghys_020710.json'
-    '/home/zx_li/workspace/nreal_data_tool/data/0222/hand_test_ella_0222_lmdb__by_agzl_0217.json',
-    '/home/zx_li/workspace/nreal_data_tool/data/0222/hand_test_ella_0222_lmdb__by_bwsy_0220.json',
-    '/home/zx_li/workspace/nreal_data_tool/data/0222/hand_test_ella_0222_lmdb__by_ngsy_0219.json',
-    '/home/zx_li/workspace/nreal_data_tool/data/0222/hand_test_ella_0222_lmdb__by_sgsy_0219.json',
-    '/home/zx_li/workspace/nreal_data_tool/data/0222/hand_test_ella_0222_lmdb__by_zcghys_0217.json',
-    '/home/zx_li/workspace/nreal_data_tool/data/0222/hand_test_ella_0222_lmdb__zy_agzl_0217.json',
-    '/home/zx_li/workspace/nreal_data_tool/data/0222/hand_test_ella_0222_lmdb__zy_bwsy_0220.json',
-    '/home/zx_li/workspace/nreal_data_tool/data/0222/hand_test_ella_0222_lmdb__zy_ngsy_0219.json',
-    '/home/zx_li/workspace/nreal_data_tool/data/0222/hand_test_ella_0222_lmdb__zy_sgsy_0219.json',
-    '/home/zx_li/workspace/nreal_data_tool/data/0222/hand_test_ella_0222_lmdb__zy_zcghys_0217.json',
+    #'/home/zx_li/workspace/nreal_data_tool/data/0222/hand_test_ella_0222_lmdb__by_agzl_0217.json',
+    #'/home/zx_li/workspace/nreal_data_tool/data/0222/hand_test_ella_0222_lmdb__by_bwsy_0220.json',
+    #'/home/zx_li/workspace/nreal_data_tool/data/0222/hand_test_ella_0222_lmdb__by_ngsy_0219.json',
+    #'/home/zx_li/workspace/nreal_data_tool/data/0222/hand_test_ella_0222_lmdb__by_sgsy_0219.json',
+    #'/home/zx_li/workspace/nreal_data_tool/data/0222/hand_test_ella_0222_lmdb__by_zcghys_0217.json',
+    #'/home/zx_li/workspace/nreal_data_tool/data/0222/hand_test_ella_0222_lmdb__zy_agzl_0217.json',
+    #'/home/zx_li/workspace/nreal_data_tool/data/0222/hand_test_ella_0222_lmdb__zy_bwsy_0220.json',
+    #'/home/zx_li/workspace/nreal_data_tool/data/0222/hand_test_ella_0222_lmdb__zy_ngsy_0219.json',
+    #'/home/zx_li/workspace/nreal_data_tool/data/0222/hand_test_ella_0222_lmdb__zy_sgsy_0219.json',
+    #'/home/zx_li/workspace/nreal_data_tool/data/0222/hand_test_ella_0222_lmdb__zy_zcghys_0217.json',
     #'/home/zx_li/workspace/nreal_data_tool/data/0222/hand_test_flora_0222_lmdb__by_agzl_0217.json',
     #'/home/zx_li/workspace/nreal_data_tool/data/0222/hand_test_flora_0222_lmdb__by_bwsy_0217.json',
     #'/home/zx_li/workspace/nreal_data_tool/data/0222/hand_test_flora_0222_lmdb__by_ngsw_0219.json',
