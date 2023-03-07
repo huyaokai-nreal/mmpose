@@ -230,9 +230,7 @@ if __name__ == '__main__':
     else:
         assert args.opset_version == 11, 'MMPose only supports opset 11 now'
         checkpoint = args.checkpoint if args.checkpoint else None
-        cfg_options = {
-            'model.data_preprocessor': None,
-        }
+        cfg_options = dict()
         if args.deploy_head:
             cfg_options['model.head.deploy'] = True
         model = init_model(

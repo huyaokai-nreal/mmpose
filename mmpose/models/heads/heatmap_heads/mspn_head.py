@@ -380,10 +380,12 @@ class MSPNHead(BaseHead):
         """
         # multi-stage multi-unit predict heatmaps
         msmu_pred_heatmaps = self.forward(feats)
-
         keypoint_weights = torch.cat([
             d.gt_instance_labels.keypoint_weights for d in batch_data_samples
         ])  # shape: [B*N, L, K]
+        batch_size = msmu_pred_heatmaps[0].shape[0]
+        keypoint_weights = keypoint_weights.view(batch_size, -1,
+                                                 keypoint_weights.shape[-1])
 
         # calculate losses over multiple stages and multiple units
         losses = dict()

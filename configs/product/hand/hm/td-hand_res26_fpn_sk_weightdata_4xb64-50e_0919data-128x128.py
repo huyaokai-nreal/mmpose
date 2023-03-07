@@ -110,7 +110,9 @@ train_pipeline = [
         shift_factor=0.2),
     dict(type='TopdownAffine', input_size=codec[0]['input_size']),
     dict(
-        type='GenerateTarget', target_type='multilevel_heatmap',
+        type='GenerateTarget',
+        target_type='multilevel_heatmap',
+        multilevel=True,
         encoder=codec),
     dict(type='PackPoseInputs')
 ]
@@ -164,6 +166,7 @@ train_dataloader = dict(
     persistent_workers=True,
     pin_memory=False,
     prefetch_factor=2,
+    collate_fn=dict(type='default_collate', ),
     sampler=dict(type='DefaultSampler', shuffle=True),
     dataset=dict(
         type=dataset_type,
@@ -178,6 +181,7 @@ val_dataloader = dict(
     num_workers=4,
     persistent_workers=False,
     drop_last=False,
+    collate_fn=dict(type='default_collate', ),
     sampler=dict(type='DefaultSampler', shuffle=False, round_up=False),
     dataset=dict(
         type=dataset_type,

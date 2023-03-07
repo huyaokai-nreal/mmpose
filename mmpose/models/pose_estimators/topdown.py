@@ -44,22 +44,17 @@ class TopdownPoseEstimator(BasePoseEstimator):
                  test_cfg: OptConfigType = None,
                  data_preprocessor: OptConfigType = None,
                  init_cfg: OptMultiConfig = None):
-        super().__init__(data_preprocessor, init_cfg)
-
-        self.backbone = MODELS.build(backbone)
-
-        if neck is not None:
-            self.neck = MODELS.build(neck)
-
-        if head is not None:
-            self.head = MODELS.build(head)
+        super().__init__(
+            backbone,
+            neck,
+            head,
+            train_cfg,
+            test_cfg,
+            data_preprocessor,
+            init_cfg=init_cfg)
         self.pruning_loss = None
         if pruning_loss is not None:
             self.pruning_loss = MODELS.build(pruning_loss)
-
-        self.train_cfg = train_cfg if train_cfg else {}
-        self.test_cfg = test_cfg if test_cfg else {}
-
         # Register the hook to automatically convert old version state dicts
         self._register_load_state_dict_pre_hook(self._load_state_dict_pre_hook)
 

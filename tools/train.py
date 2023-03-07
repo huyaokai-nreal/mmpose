@@ -2,12 +2,11 @@
 import argparse
 import os
 import os.path as osp
-
 from mmengine.config import Config, DictAction
 from mmengine.runner import Runner
-
-from mmpose.utils import register_all_modules
 import torch
+from mmengine.registry import init_default_scope
+from mmpose.utils import register_all_modules
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 
@@ -148,6 +147,9 @@ def main():
 
     # set preprocess configs to model
     cfg.model.setdefault('data_preprocessor', cfg.get('preprocess_cfg', {}))
+    register_all_modules()
+
+    init_default_scope(cfg.get('default_scope', 'mmpose'))
 
     # build the runner from config
     runner = Runner.from_cfg(cfg)

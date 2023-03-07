@@ -203,6 +203,7 @@ train_dataloader = dict(
     num_workers=8,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
+    collate_fn=dict(type='default_collate'),
     dataset=dict(
         type=dataset_type,
         data_file_list=train_data_list,
@@ -216,6 +217,7 @@ val_dataloader = dict(
     persistent_workers=True,
     drop_last=False,
     sampler=dict(type='DefaultSampler', shuffle=False, round_up=False),
+    collate_fn=dict(type='default_collate'),
     dataset=dict(
         type=dataset_type,
         data_file_list=val_data_list,

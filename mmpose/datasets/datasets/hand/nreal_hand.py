@@ -120,7 +120,8 @@ class HANDDataset(BaseCocoStyleDataset):
         return data_info
 
     def _load_annotations(self):
-        data_list = []
+        image_list = []
+        instance_list = []
         sub_dataset_start_id = 0
         if self.sub_data_index >= 0:
             self.data_file_list = [self.data_file_list[self.sub_data_index]]
@@ -132,6 +133,7 @@ class HANDDataset(BaseCocoStyleDataset):
             img_ids = coco.getImgIds()
             for img_id in img_ids:
                 img = coco.loadImgs(img_id)[0]
+                image_list.append(img)
                 ann_ids = coco.getAnnIds(imgIds=img_id, iscrowd=False)
                 for ann in coco.loadAnns(ann_ids):
                     data_info = self.parse_data_info(
@@ -145,14 +147,16 @@ class HANDDataset(BaseCocoStyleDataset):
                             f"{lmdb_path}_{self.mask_ext}:{data_info['img_path']}" # noqa
                     data_info[
                         'img_path'] = f"{lmdb_path}:{data_info['img_path']}"
-                    data_list.append(data_info)
+                    instance_list.append(data_info)
                     sub_dataset_num += 1
             self.dataset_info_list.append(
                 (sub_dataset_start_id, sub_dataset_num))
             sub_dataset_start_id += sub_dataset_num
         logger: MMLogger = MMLogger.get_current_instance()
-        logger.info(f'HandDataset loaded {len(data_list)} images')
-        return data_list
+        logger.info(
+            f'HandDataset loaded {len(image_list)} images, {len(instance_list)} instances'  # noqa
+        )
+        return instance_list, image_list
 
     def __left_2_right_hand(self, results):
         img = results['img']

@@ -4,7 +4,11 @@ from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 import mmcv
 import numpy as np
-from mmdet.apis.det_inferencer import DetInferencer
+try:
+    from mmdet.apis.det_inferencer import DetInferencer
+except ImportError as e:
+    print(f'Please install mmdetection first. {e}')
+
 from mmengine.config import Config, ConfigDict
 from mmengine.infer.infer import ModelType
 from mmengine.registry import init_default_scope
