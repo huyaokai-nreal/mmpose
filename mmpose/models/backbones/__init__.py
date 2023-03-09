@@ -28,6 +28,7 @@ from .vipnas_mbv3 import ViPNAS_MobileNetV3
 from .vipnas_resnet import ViPNAS_ResNet
 from .rsntiny import RSNTiny
 from .mobileone import MobileOne
+from .cspnext import CSPNeXt
 
 __all__ = [
     'AlexNet', 'HourglassNet', 'HourglassAENet', 'HRNet', 'MobileNetV2',
@@ -35,5 +36,6 @@ __all__ = [
     'SEResNet', 'SEResNeXt', 'ShuffleNetV1', 'ShuffleNetV2', 'CPM', 'RSN',
     'MSPN', 'ResNeSt', 'VGG', 'TCN', 'ViPNAS_ResNet', 'ViPNAS_MobileNetV3',
     'LiteHRNet', 'V2VNet', 'HRFormer', 'PyramidVisionTransformer',
-    'PyramidVisionTransformerV2', 'SwinTransformer', 'RSNTiny', 'MobileOne'
+    'PyramidVisionTransformerV2', 'SwinTransformer', 'RSNTiny', 'MobileOne',
+    'CSPNeXt'
 ]
