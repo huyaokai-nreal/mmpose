@@ -4,8 +4,9 @@ from .integral_regression_head import IntegralRegressionHead
 from .regression_head import RegressionHead
 from .rle_head import RLEHead
 from .dsnt_attr_head import DSNTAttrHead
+from .rtm_ipr_head import RTMIPRHead
 
 __all__ = [
     'RegressionHead', 'IntegralRegressionHead', 'DSNTHead', 'RLEHead',
-    'DSNTAttrHead'
+    'DSNTAttrHead', 'RTMIPRHead'
 ]
