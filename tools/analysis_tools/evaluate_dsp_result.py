@@ -10,8 +10,9 @@ from mmengine import mkdir_or_exist
 from mmpose.codecs.utils import get_simcc_maximum
 from mmpose.models.utils.heatmap_to_kpt import HeatmapToKeypoint
 from mmpose.codecs.nreal_heatmap import NrealHeatmap
-import torch.nn.functional as F 
+import torch.nn.functional as F
 import torch
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -33,13 +34,33 @@ def parse_args():
     return args
 
 
+onnx_path = '/mmpose/data/rsntiny_attr_post_rename.onnx'
+
+import onnxruntime
+try:
+    onnx_model = onnxruntime.InferenceSession(onnx_path)
+except:
+    print('onnx path is not found')
+
+
+def feat_to_kpt_attr(kpt_feat, global_feat):
+    inputs = {'kpt_feat': kpt_feat, 'global_feat': global_feat}
+    output = onnx_model.run(None, inputs)
+    kpt = output[0]
+    return kpt[0]
+
+
 def reg_to_kpt(kpt_x, kpt_y):
     kpts = np.concatenate([kpt_x, kpt_y], axis=-1)
     return kpts
-hm_codec = NrealHeatmap((128, 128),(32, 32), 3)
+
+
+hm_codec = NrealHeatmap((128, 128), (32, 32), 3)
+
 
 def hm_to_kpt(hm):
     return hm_codec.decode(hm)[0]
+
 
 def simacc_to_kpt(kpt_x, kpt_y, output_size=256):
     kpt_x = kpt_x.reshape(1, 21, output_size)
@@ -48,9 +69,14 @@ def simacc_to_kpt(kpt_x, kpt_y, output_size=256):
     keypoints = keypoints[0]
     keypoints /= float(output_size - 1)
     return keypoints
+
+
 post_model = HeatmapToKeypoint()
+
+
 def feat_to_kpt(feat):
     return post_model.forward(feat)
+
 
 def main():
     args = parse_args()
@@ -78,20 +104,37 @@ def main():
                 dtype=np.float32)[:, np.newaxis]
             if args.model_type == 'reg':
                 kpts = reg_to_kpt(kpt_x, kpt_y)
-            else: 
+            else:
                 kpts = simacc_to_kpt(kpt_x, kpt_y)
         elif args.model_type == 'feat':
             feat = np.fromfile(
                 os.path.join(dsp_output_dir, f'{str(i).zfill(8)}_feat.raw'),
-                dtype=np.float32).reshape((1, 32 ,32, 21)).transpose((0,3,1,2))
+                dtype=np.float32).reshape((1, 32, 32, 21)).transpose(
+                    (0, 3, 1, 2))
             feat = torch.from_numpy(feat)
             kpts = feat_to_kpt(feat=feat)[0].numpy()
         elif args.model_type == 'hm':
             feat = np.fromfile(
                 os.path.join(dsp_output_dir, f'{str(i).zfill(8)}_hm.raw'),
-                dtype=np.float32).reshape((32 ,32, 21)).transpose((2,0,1))
-            kpts = hm_codec.decode(feat)[0][0]/128.0
-
+                dtype=np.float32).reshape((32, 32, 21)).transpose((2, 0, 1))
+            kpts = hm_codec.decode(feat)[0][0] / 128.0
+        elif args.model_type == 'direct_reg':
+            feat = np.fromfile(
+                os.path.join(dsp_output_dir, f'{str(i).zfill(8)}_kpt.raw'),
+                dtype=np.float32).reshape((21, 2))
+            kpts = feat
+        elif args.model_type == 'attr':
+            kpt_feat = np.fromfile(
+                os.path.join(dsp_output_dir,
+                             f'{str(i).zfill(8)}_kpt_feat.raw'),
+                dtype=np.float32).reshape((1, 32, 32, 21)).transpose(
+                    (0, 3, 1, 2))
+            global_feat = np.fromfile(
+                os.path.join(dsp_output_dir,
+                             f'{str(i).zfill(8)}_global_feat.raw'),
+                dtype=np.float32).reshape((1, 4, 4, 192)).transpose(
+                    (0, 3, 1, 2))
+            kpts = feat_to_kpt_attr(kpt_feat=kpt_feat, global_feat=global_feat)
         else:
             print(f'model type {args.model_type} is not supported')
             return
