@@ -164,6 +164,7 @@ class CSPNeXt(BaseModule):
                 padding=1,
                 stride=2,
                 norm_cfg=norm_cfg,
+                bias=True,
                 act_cfg=act_cfg),
             ConvModule(
                 int(arch_setting[0][0] * widen_factor // 2),
@@ -181,6 +182,7 @@ class CSPNeXt(BaseModule):
                 stride=1,
                 norm_cfg=norm_cfg,
                 act_cfg=act_cfg))
+        nn.init.constant_(self.stem[0].conv.bias, 0)
         self.layers = ['stem']
 
         for i, (in_channels, out_channels, num_blocks, add_identity,
