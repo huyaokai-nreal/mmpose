@@ -130,7 +130,7 @@ class RTMIPRHead(RTMHead):
             pred_sigma = pred_sigma.reshape(
                 pred_sigma.size(0), self.out_channels, 2)
         if self.deploy:
-            return pred_x, pred_y
+            return torch.cat([pred_x, pred_y], dim=-1)
         else:
             output = torch.cat([pred_x, pred_y, pred_sigma], dim=-1)
             return output, heatmaps

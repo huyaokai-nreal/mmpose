@@ -45,8 +45,8 @@ def _get_conv_layer(submodule):
 
 
 def _fuse_preprocess(module):
-    mean = model.cfg.mean
-    std = model.cfg.std
+    mean = module.cfg.mean
+    std = module.cfg.std
     mean = torch.as_tensor([mean])
     std = torch.as_tensor([std])
     for name, child in module.named_children():
