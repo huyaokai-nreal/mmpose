@@ -7,17 +7,18 @@ from mmengine.logging import MessageHub
 from torch import Tensor, nn
 import torch.nn.functional as F
 from mmengine.structures import PixelData
+from mmengine import is_seq_of
 from mmpose.evaluation.functional import keypoint_pck_accuracy
 from mmpose.registry import MODELS
 from mmpose.utils.tensor_utils import to_numpy
 from mmpose.utils.typing import ConfigType, OptConfigType, OptSampleList
-from .dsnt_head import DSNTHead
+from .integral_regression_head import IntegralRegressionHead
 
 OptIntSeq = Optional[Sequence[int]]
 
 
 @MODELS.register_module()
-class DSNTAttrHead(DSNTHead):
+class DSNTAttrHead(IntegralRegressionHead):
     """
     Args:
         in_channels (int | sequence[int]): Number of input channels
@@ -99,7 +100,9 @@ class DSNTAttrHead(DSNTHead):
                  decoder: OptConfigType = None,
                  init_cfg: OptConfigType = None,
                  deploy: bool = False,
-                 output_fuse_coord=False):
+                 output_fuse_coord=False,
+                 attr_dim=0,
+                 output_oks=False):
 
         super().__init__(
             in_channels=in_channels,
@@ -120,11 +123,25 @@ class DSNTAttrHead(DSNTHead):
             decoder=decoder,
             init_cfg=init_cfg,
             deploy=deploy,
-            output_fuse_coord=output_fuse_coord)
+            output_fuse_coord=output_fuse_coord,
+            output_heatmap=output_oks)
 
         self.lambda_t = lambda_t
-        self.attr_fc_1 = nn.Linear(self.in_channels, 128)
-        self.attr_fc_out = nn.Linear(128, 1)
+        self.output_attr = False
+        if attr_dim > 0:
+            self.output_attr = True
+            self.attr_fc_1 = nn.Linear(self.in_channels, 128)
+            self.attr_fc_out = nn.Linear(128, attr_dim)
+        self.output_oks = output_oks
+        if self.output_oks:
+            self.oks_fc_1 = nn.Linear(self.num_joints, 64)
+            self.osk_fc_out = nn.Linear(64, 1)
+            sigmas = torch.Tensor([
+                .87, .62, .35, .25, .25, .39, .25, .25, .25, .39, .25, .25,
+                .25, .25, .25, .25, .25, .39, .25, .25, .25
+            ]) / 10.0
+            self.vars = nn.Parameter((sigmas * 2)**2, requires_grad=False)
+            self.gt_area = 128 * 128
 
     def forward(self, feats: Tuple[Tensor]) -> Union[Tensor, Tuple[Tensor]]:
         """Forward the network. The input is multi scale feature maps and the
@@ -136,58 +153,37 @@ class DSNTAttrHead(DSNTHead):
         Returns:
             Tensor: output coordinates(and sigmas[optional]).
         """
-        if self.simplebaseline_head is None:
-            last_feat = feats[0]
-            feats = self._transform_inputs(feats)
-            raw_feats = feats
-            if self.final_layer is not None:
-                feats = self.final_layer(feats)
-        else:
-            feats = self.simplebaseline_head(feats)
-        if self.beta > 1.0:
-            heatmaps = self._flat_softmax(feats * self.beta)
-        else:
-            heatmaps = self._flat_softmax(feats)
-        x_fea = heatmaps.sum(dim=2)
-        y_fea = heatmaps.sum(dim=3)
-        pred_x = x_fea.mul(self.linspace_x)
-        pred_y = y_fea.mul(self.linspace_y)
-        pred_x = pred_x.sum(dim=-1, keepdim=True)
-        pred_y = pred_y.sum(dim=-1, keepdim=True)
-
-        if self.debias:
-            B, N, H, W = feats.shape
-            C = feats.reshape(B, N, H * W).exp().sum(dim=2).reshape(B, N, 1)
-            pred_x = C / (C - 1) * (pred_x - 1 / (2 * C))
-            pred_y = C / (C - 1) * (pred_y - 1 / (2 * C))
-
-        coords = torch.cat([pred_x, pred_y], dim=-1)
-        if self.output_sigma:
-            x = self.gap(raw_feats).reshape(raw_feats.size(0), -1)
-            pred_sigma = self.sigma_fc(x)
-            pred_sigma = pred_sigma.reshape(
-                pred_sigma.size(0), self.num_joints, 2)
-            if self.output_fuse_coord:
-                last_x = self.gap(last_feat).reshape(raw_feats.size(0), -1)
-                global_coords = self.coord_fc1(last_x)
-                global_coords = F.relu(global_coords)
-                global_coords = self.coord_fc2(global_coords)
-                coords = torch.cat([
-                    coords,
-                    global_coords.reshape(
-                        pred_sigma.size(0), self.num_joints, 2)
-                ],
-                                   dim=-1)
-                coords = self.coord_fc(coords.reshape(pred_sigma.size(0), -1))
-                attr = self.attr_fc_1(last_x)
-                attr = self.attr_fc_out(F.relu(attr))
-                coords = coords.reshape(pred_sigma.size(0), self.num_joints, 2)
+        output_list = []
+        if self.output_oks:
+            if not self.deploy:
+                coords, heatmaps = super().forward(feats)
+            else:
+                kpt_x, kpt_y, heatmaps = super().forward(feats)
+            _, N, H, W = heatmaps.shape
+            oks_feat = heatmaps.reshape(-1, N, H * W)
+            oks_feat = torch.max(oks_feat, dim=-1).values
+            oks = self.oks_fc_1(oks_feat)
+            oks = self.osk_fc_out(F.relu(oks))
             if self.deploy:
-                return coords, attr
-            coords = torch.cat([coords, pred_sigma], dim=-1)
-        if self.deploy:
-            return pred_x, pred_y
-        return coords, heatmaps, attr
+                output_list += [kpt_x, kpt_y, oks]
+            else:
+                output_list += [coords, heatmaps, oks]
+        else:
+            if not self.deploy:
+                coords, heatmaps = super().forward(feats)
+                output_list += [coords, heatmaps]
+            else:
+                kpt_x, kpt_y = super().forward(feats)
+                output_list += [kpt_x, kpt_y]
+        if self.output_attr:
+            if is_seq_of(feats, torch.Tensor):
+                last_x = feats[0]
+            else:
+                last_x = feats[0][0]
+            attr = self.attr_fc_1(last_x)
+            attr = self.attr_fc_out(F.relu(attr))
+            output_list.append(attr)
+        return tuple(output_list)
 
     def predict(self,
                 feats: Tuple[Tensor],
@@ -223,8 +219,9 @@ class DSNTAttrHead(DSNTHead):
                 - heatmaps (Tensor): The predicted heatmaps in shape (K, h, w)
         """
 
-        batch_coords, batch_heatmaps, batch_attrs = self.forward(
-            feats)  # (B, K, D)
+        outputs = self.forward(feats)  # (B, K, D)
+        batch_coords = outputs[0]
+        batch_heatmaps = outputs[0]
         batch_coords.unsqueeze_(dim=1)  # (B, N, K, D)
         preds = self.decode(batch_coords)
 
@@ -236,33 +233,51 @@ class DSNTAttrHead(DSNTHead):
         else:
             return preds
 
+    def __calculate_oks(self, output, target):
+        dx = output[:, :, 0] - target[:, :, 0]
+        dy = output[:, :, 1] - target[:, :, 1]
+        errors = (dx**2 + dy**2) / self.vars / (
+            self.gt_area + torch.finfo(torch.float32).eps) / 2
+        oks = torch.sum(torch.exp(-errors), dim=1) / errors.shape[0]
+        return oks
+
     def loss(self,
              inputs: Tuple[Tensor],
              batch_data_samples: OptSampleList,
              train_cfg: ConfigType = {}) -> dict:
         """Calculate losses from a batch of inputs and data samples."""
-
-        pred_coords, pred_heatmaps, pred_attrs = self.forward(inputs)
+        outputs = self.forward(inputs)
+        pred_coords = outputs[0]
+        pred_heatmaps = outputs[1]
+        if self.output_oks:
+            pred_oks = outputs[2]
+        if self.output_attr:
+            pred_attrs = outputs[3]
         keypoint_labels = torch.cat(
             [d.gt_instance_labels.keypoint_labels for d in batch_data_samples])
         keypoint_weights = torch.cat([
             d.gt_instance_labels.keypoint_weights for d in batch_data_samples
         ])
-        attr_labels = torch.cat(
-            [d.gt_instance_labels.attr_labels for d in batch_data_samples])
         gt_heatmaps = torch.stack(
             [d.gt_fields.heatmaps for d in batch_data_samples])
-        pred_attrs = torch.sigmoid(pred_attrs)
-        attr_labels = attr_labels.unsqueeze(-1).to(torch.float32)
-        input_list = [pred_coords, pred_heatmaps, pred_attrs]
-        target_list = [keypoint_labels, gt_heatmaps, attr_labels]
+        input_list = [pred_coords, pred_heatmaps]
+        target_list = [keypoint_labels, gt_heatmaps]
+        if self.output_attr:
+            attr_labels = torch.cat(
+                [d.gt_instance_labels.attr_labels for d in batch_data_samples])
+            pred_attrs = torch.sigmoid(pred_attrs)
+            attr_labels = attr_labels.unsqueeze(-1).to(torch.float32)
+            input_list.append(pred_attrs)
+            target_list.append(attr_labels)
+        if self.output_oks:
+            target_oks = self.__calculate_oks(pred_coords[:, :, :2],
+                                              keypoint_labels)
+            input_list.append(pred_oks)
+            target_list.append(target_oks.detach())
         # calculate losses
         losses = dict()
-
         loss_list = self.loss_module(input_list, target_list, keypoint_weights)
-
         loss_kpt = loss_list[0] + loss_list[1]
-
         if self.lambda_t > 0:
             mh = MessageHub.get_current_instance()
             cur_epoch = mh.get_info('epoch')
@@ -270,14 +285,21 @@ class DSNTAttrHead(DSNTHead):
                 loss_kpt = loss_list[0]
 
         losses.update(loss_kpt=loss_kpt)
-        losses.update(loss_attr=loss_list[2])
-
+        loss_idx = 2
+        if self.output_attr:
+            losses.update(loss_attr=loss_list[loss_idx])
+            loss_idx += 1
+            preds = torch.round(pred_attrs).detach()
+            correct = torch.eq(preds, attr_labels).float()
+            acc_attr = correct.mean()
+            losses.update(acc_attr=acc_attr)
+            attr_pos_rate = attr_labels.mean()
+            losses.update(attr_pos_rate=attr_pos_rate)
+        if self.output_oks:
+            losses.update(loss_oks=loss_list[loss_idx])
         if pred_coords.size(-1) == 4:
             pred_coords = pred_coords[:, :, :2]
         # calculate accuracy
-        preds = torch.round(pred_attrs).detach()
-        correct = torch.eq(preds, attr_labels).float()
-        acc_attr = correct.mean()
         _, avg_acc, _ = keypoint_pck_accuracy(
             pred=to_numpy(pred_coords),
             gt=to_numpy(keypoint_labels),
@@ -287,8 +309,5 @@ class DSNTAttrHead(DSNTHead):
 
         acc_pose = torch.tensor(avg_acc, device=keypoint_labels.device)
         losses.update(acc_pose=acc_pose)
-        losses.update(acc_attr=acc_attr)
-        attr_pos_rate = attr_labels.mean()
-        losses.update(attr_pos_rate=attr_pos_rate)
 
         return losses

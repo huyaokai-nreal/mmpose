@@ -106,7 +106,8 @@ class IntegralRegressionHead(BaseHead):
                  deploy: bool = False,
                  output_fuse_coord=False,
                  feat_norm_type='softmax',
-                 symmetry_ipr=False):
+                 symmetry_ipr=False,
+                 output_heatmap=False):
 
         if init_cfg is None:
             init_cfg = self.default_init_cfg
@@ -115,6 +116,7 @@ class IntegralRegressionHead(BaseHead):
 
         self.in_channels = in_channels
         self.num_joints = num_joints
+        self.output_heatmap = output_heatmap
         self.debias = debias
         self.beta = beta
         self.align_corners = align_corners
@@ -297,6 +299,8 @@ class IntegralRegressionHead(BaseHead):
                 if self.deploy:
                     return coords
             coords = torch.cat([coords, pred_sigma], dim=-1)
+        if self.deploy and self.output_heatmap:
+            return pred_x, pred_y, heatmaps
         if self.deploy:
             return pred_x, pred_y
         return coords, heatmaps

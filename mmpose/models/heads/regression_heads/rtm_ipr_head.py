@@ -11,13 +11,13 @@ from mmpose.registry import MODELS
 from mmpose.utils.tensor_utils import to_numpy
 from mmpose.utils.typing import (ConfigType, OptConfigType, OptSampleList)
 from ...utils.siamcc_to_kpt import SimCCToKeypoint
-from ..heatmap_heads import RTMHead
+from ..coord_cls_heads import RTMCCHead
 
 OptIntSeq = Optional[Sequence[int]]
 
 
 @MODELS.register_module()
-class RTMIPRHead(RTMHead):
+class RTMIPRHead(RTMCCHead):
     """Top-down head introduced in RTMPose (2023). The head is composed of a
     large-kernel convolutional layer, a fully-connected layer and a Gated
     Attention Unit to generate 1d representation from low-resolution feature
