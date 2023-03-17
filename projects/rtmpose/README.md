@@ -226,12 +226,14 @@ We provide two appoaches to try RTMPose:
 
 MMDeploy provides a precompiled SDK for Pipeline reasoning on RTMPose projects, where the model used for reasoning is the SDK version. For the tutorial of exporting the SDK version model, see [SDK Reasoning](#%EF%B8%8F-step3-inference-with-sdk), and for detailed parameter settings of inference, see [Pipeline Reasoning](#-step4-pipeline-inference).
 
+#### Linux
+
 Env Requirements:
 
 - GCC >= 7.5
 - cmake >= 3.20
 
-#### ONNX
+##### ONNX
 
 ```shell
 # Download pre-compiled files
@@ -260,7 +262,7 @@ bash build.sh
 ./bin/pose_tracker {det work-dir} {pose work-dir} {your_video.mp4} --device cpu
 ```
 
-#### TensorRT
+##### TensorRT
 
 ```shell
 # Download pre-compiled files
