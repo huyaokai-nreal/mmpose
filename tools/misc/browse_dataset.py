@@ -5,6 +5,7 @@ import os.path as osp
 from nreal_data_tool import LmdbClient
 import mmcv
 import mmengine
+import mmengine.fileio as fileio
 import numpy as np
 from mmengine import Config, DictAction
 from mmengine.registry import build_from_cfg, init_default_scope

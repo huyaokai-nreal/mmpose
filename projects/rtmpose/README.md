@@ -423,7 +423,7 @@ cd ${PATH_TO_MMDEPLOY}
 
 # run the command to convert RTMDet
 python tools/deploy.py \
-    configs/mmdet/detection/detection_onnxrumtime_static.py \
+    configs/mmdet/detection/detection_onnxruntime_static.py \
     {RTMPOSE_PROJECT}/rtmdet/person/rtmdet_nano_320-8xb32_coco-person.py \
     ../rtmdet_nano/rtmdet_nano.pth \
     demo/resources/human-pose.jpg \
@@ -499,7 +499,7 @@ To use SDK, you need to dump the required info during converting the model. Just
 ```shell
 # RTMDet
 python tools/deploy.py \
-    configs/mmdet/detection/detection_onnxrumtime_dynamic.py \
+    configs/mmdet/detection/detection_onnxruntime_dynamic.py \
     {RTMPOSE_PROJECT}/rtmdet/person/rtmdet_nano_320-8xb32_coco-person.py \
     ../rtmdet_nano/rtmdet_nano.pth \
     demo/resources/human-pose.jpg \
