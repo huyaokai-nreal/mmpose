@@ -455,6 +455,7 @@ class PoseLocalVisualizer(Visualizer):
 
         gt_img_data = None
         pred_img_data = None
+        image = image.astype(np.uint8)
 
         if draw_gt:
             gt_img_data = image.copy()

@@ -105,7 +105,8 @@ class RTMIPRHead(RTMCCHead):
         self.lambda_t = lambda_t
         if self.output_sigma:
             self.gap = nn.AdaptiveAvgPool2d((1, 1))
-            self.sigma_fc = nn.Linear(self.in_channels, self.out_channels * 2)
+            self.sigma_conv = nn.Conv2d(
+                self.in_channels, self.out_channels * 2, kernel_size=1)
 
     def forward(self, feats: Tuple[Tensor]) -> Tuple[Tensor, Tensor]:
         """Forward the network.
@@ -125,14 +126,14 @@ class RTMIPRHead(RTMCCHead):
         raw_feats = self._transform_inputs(feats)
         pred_x, pred_y = self.ipr_module(pred_x, pred_y)
         if self.output_sigma:
-            x = self.gap(raw_feats).reshape(raw_feats.size(0), -1)
-            pred_sigma = self.sigma_fc(x)
-            pred_sigma = pred_sigma.reshape(
+            x = self.gap(raw_feats)
+            pred_sigma = self.sigma_conv(x)
+            pred_sigma_reshape = pred_sigma.reshape(
                 pred_sigma.size(0), self.out_channels, 2)
         if self.deploy:
-            return torch.cat([pred_x, pred_y], dim=-1)
+            return torch.cat([pred_x, pred_y], dim=-1), pred_sigma
         else:
-            output = torch.cat([pred_x, pred_y, pred_sigma], dim=-1)
+            output = torch.cat([pred_x, pred_y, pred_sigma_reshape], dim=-1)
             return output, heatmaps
 
     def predict(self,
@@ -196,6 +197,8 @@ class RTMIPRHead(RTMCCHead):
         else:
             batch_coords, batch_heatmaps = self.forward(feats)  # (B, K, D)
 
+        if self.output_sigma:
+            batch_coords[..., 2:] = batch_coords[..., 2:].sigmoid()
         batch_coords.unsqueeze_(dim=1)  # (B, N, K, D)
         preds = self.decode(batch_coords)
 
@@ -241,3 +244,24 @@ class RTMIPRHead(RTMCCHead):
         losses.update(acc_pose=acc_pose)
 
         return losses
+
+    def _load_state_dict_pre_hook(self, state_dict, prefix, local_meta, *args,
+                                  **kwargs):
+        """A hook function to load weights of deconv layers from
+        :class:`HeatmapHead` into `simplebaseline_head`.
+
+        The hook will be automatically registered during initialization.
+        """
+
+        # convert old-version state dict
+        keys = list(state_dict.keys())
+        for _k in keys:
+            if not _k.startswith(prefix):
+                continue
+            v = state_dict.pop(_k)
+            # convert fc to conv
+            if _k == 'head.sigma_fc.weight':
+                state_dict['head.sigma_conv.weight'] = torch.unsqueeze(
+                    torch.unsqueeze(v, -1), -1)
+            if _k == 'head.sigma_fc.bias':
+                state_dict['head.sigma_conv.bias'] = v

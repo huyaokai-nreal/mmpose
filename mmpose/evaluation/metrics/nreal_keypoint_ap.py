@@ -72,6 +72,7 @@ class NrealKeypointAP(BaseMetric):
             keypoints = result['keypoints'][0]
             item = KeypointEvaluationItem(
                 image_id=image_id,
+                score=float(np.mean(result['keypoint_scores'][0])),
                 area=float(result['area']),
                 keypoints=keypoints.tolist(),
                 gt_keypoints=result['gt_keypoints'][0].tolist(),

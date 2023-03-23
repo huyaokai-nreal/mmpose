@@ -79,6 +79,7 @@ class DSNTAttrHead(IntegralRegressionHead):
                  in_channels: Union[int, Sequence[int]],
                  in_featuremap_size: Tuple[int, int],
                  num_joints: int,
+                 input_shape: OptIntSeq = (128, 128),
                  lambda_t: int = -1,
                  debias: bool = False,
                  beta: float = 1.0,
@@ -100,7 +101,6 @@ class DSNTAttrHead(IntegralRegressionHead):
                  decoder: OptConfigType = None,
                  init_cfg: OptConfigType = None,
                  deploy: bool = False,
-                 output_fuse_coord=False,
                  attr_dim=0,
                  output_oks=False):
 
@@ -123,10 +123,10 @@ class DSNTAttrHead(IntegralRegressionHead):
             decoder=decoder,
             init_cfg=init_cfg,
             deploy=deploy,
-            output_fuse_coord=output_fuse_coord,
             output_heatmap=output_oks)
 
         self.lambda_t = lambda_t
+        self.input_shape = input_shape
         self.output_attr = False
         if attr_dim > 0:
             self.output_attr = True
@@ -134,14 +134,14 @@ class DSNTAttrHead(IntegralRegressionHead):
             self.attr_fc_out = nn.Linear(128, attr_dim)
         self.output_oks = output_oks
         if self.output_oks:
-            self.oks_fc_1 = nn.Linear(self.num_joints, 64)
+            self.oks_fc_1 = nn.Linear(self.in_channels, 64)
             self.osk_fc_out = nn.Linear(64, 1)
             sigmas = torch.Tensor([
                 .87, .62, .35, .25, .25, .39, .25, .25, .25, .39, .25, .25,
                 .25, .25, .25, .25, .25, .39, .25, .25, .25
             ]) / 10.0
             self.vars = nn.Parameter((sigmas * 2)**2, requires_grad=False)
-            self.gt_area = 128 * 128
+            self.gt_area = self.input_shape[0] * self.input_shape[1]
 
     def forward(self, feats: Tuple[Tensor]) -> Union[Tensor, Tuple[Tensor]]:
         """Forward the network. The input is multi scale feature maps and the
@@ -154,16 +154,18 @@ class DSNTAttrHead(IntegralRegressionHead):
             Tensor: output coordinates(and sigmas[optional]).
         """
         output_list = []
+        if is_seq_of(feats, torch.Tensor):
+            last_x = feats[0]
+        else:
+            last_x = feats[0][0]
+        global_feat = self.gap(last_x).reshape(last_x.size(0), -1)
         if self.output_oks:
             if not self.deploy:
                 coords, heatmaps = super().forward(feats)
             else:
                 kpt_x, kpt_y, heatmaps = super().forward(feats)
-            _, N, H, W = heatmaps.shape
-            oks_feat = heatmaps.reshape(-1, N, H * W)
-            oks_feat = torch.max(oks_feat, dim=-1).values
-            oks = self.oks_fc_1(oks_feat)
-            oks = self.osk_fc_out(F.relu(oks))
+            oks = self.oks_fc_1(global_feat)
+            oks = self.osk_fc_out(F.relu(oks)).sigmoid()
             if self.deploy:
                 output_list += [kpt_x, kpt_y, oks]
             else:
@@ -176,11 +178,7 @@ class DSNTAttrHead(IntegralRegressionHead):
                 kpt_x, kpt_y = super().forward(feats)
                 output_list += [kpt_x, kpt_y]
         if self.output_attr:
-            if is_seq_of(feats, torch.Tensor):
-                last_x = feats[0]
-            else:
-                last_x = feats[0][0]
-            attr = self.attr_fc_1(last_x)
+            attr = self.attr_fc_1(global_feat)
             attr = self.attr_fc_out(F.relu(attr))
             output_list.append(attr)
         return tuple(output_list)
@@ -221,10 +219,12 @@ class DSNTAttrHead(IntegralRegressionHead):
 
         outputs = self.forward(feats)  # (B, K, D)
         batch_coords = outputs[0]
-        batch_heatmaps = outputs[0]
+        batch_coords[..., 2:] = batch_coords[..., 2:].sigmoid()
+        batch_heatmaps = outputs[1]
         batch_coords.unsqueeze_(dim=1)  # (B, N, K, D)
         preds = self.decode(batch_coords)
-
+        pred_oks = outputs[2]
+        pred_oks[..., 2:] = 1 - pred_oks.unsqueeze_(dim=-1)
         if test_cfg.get('output_heatmaps', False):
             pred_fields = [
                 PixelData(heatmaps=hm) for hm in batch_heatmaps.detach()
@@ -236,9 +236,11 @@ class DSNTAttrHead(IntegralRegressionHead):
     def __calculate_oks(self, output, target):
         dx = output[:, :, 0] - target[:, :, 0]
         dy = output[:, :, 1] - target[:, :, 1]
+        dx *= self.input_shape[0]
+        dy *= self.input_shape[1]
         errors = (dx**2 + dy**2) / self.vars / (
             self.gt_area + torch.finfo(torch.float32).eps) / 2
-        oks = torch.sum(torch.exp(-errors), dim=1) / errors.shape[0]
+        oks = torch.sum(torch.exp(-errors), dim=1) / errors.shape[1]
         return oks
 
     def loss(self,
@@ -285,6 +287,9 @@ class DSNTAttrHead(IntegralRegressionHead):
                 loss_kpt = loss_list[0]
 
         losses.update(loss_kpt=loss_kpt)
+        if self.output_oks:
+            losses.update(oks_mean=target_oks.mean())
+            losses.update(oks_min=target_oks.min())
         loss_idx = 2
         if self.output_attr:
             losses.update(loss_attr=loss_list[loss_idx])

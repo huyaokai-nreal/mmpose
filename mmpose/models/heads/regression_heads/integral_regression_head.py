@@ -77,6 +77,7 @@ class IntegralRegressionHead(BaseHead):
         init_cfg (Config, optional): Config to control the initialization. See
             :attr:`default_init_cfg` for default settings
         deploy (bool, optional): inferece in deploy mode, Defaults to ``False``
+        deploy_output (str, optional): 'feat' or 'kpt'
 
     .. _`IPR`: https://arxiv.org/abs/1711.08229
     .. _`Debias`:
@@ -84,30 +85,31 @@ class IntegralRegressionHead(BaseHead):
 
     _version = 2
 
-    def __init__(self,
-                 in_channels: Union[int, Sequence[int]],
-                 in_featuremap_size: Tuple[int, int],
-                 num_joints: int,
-                 debias: bool = False,
-                 beta: float = 1.0,
-                 deconv_out_channels: OptIntSeq = (256, 256, 256),
-                 deconv_kernel_sizes: OptIntSeq = (4, 4, 4),
-                 conv_out_channels: OptIntSeq = None,
-                 conv_kernel_sizes: OptIntSeq = None,
-                 has_final_layer: bool = True,
-                 output_sigma: bool = False,
-                 input_transform: str = 'select',
-                 input_index: Union[int, Sequence[int]] = -1,
-                 align_corners: bool = False,
-                 loss: ConfigType = dict(
-                     type='SmoothL1Loss', use_target_weight=True),
-                 decoder: OptConfigType = None,
-                 init_cfg: OptConfigType = None,
-                 deploy: bool = False,
-                 output_fuse_coord=False,
-                 feat_norm_type='softmax',
-                 symmetry_ipr=False,
-                 output_heatmap=False):
+    def __init__(
+        self,
+        in_channels: Union[int, Sequence[int]],
+        in_featuremap_size: Tuple[int, int],
+        num_joints: int,
+        debias: bool = False,
+        beta: float = 1.0,
+        deconv_out_channels: OptIntSeq = (256, 256, 256),
+        deconv_kernel_sizes: OptIntSeq = (4, 4, 4),
+        conv_out_channels: OptIntSeq = None,
+        conv_kernel_sizes: OptIntSeq = None,
+        has_final_layer: bool = True,
+        output_sigma: bool = False,
+        input_transform: str = 'select',
+        input_index: Union[int, Sequence[int]] = -1,
+        align_corners: bool = False,
+        loss: ConfigType = dict(type='SmoothL1Loss', use_target_weight=True),
+        decoder: OptConfigType = None,
+        init_cfg: OptConfigType = None,
+        deploy: bool = False,
+        feat_norm_type='softmax',
+        symmetry_ipr=False,
+        deploy_output: str = 'feat+score',
+        output_fuse_coord: bool = False,
+    ):
 
         if init_cfg is None:
             init_cfg = self.default_init_cfg
@@ -116,20 +118,21 @@ class IntegralRegressionHead(BaseHead):
 
         self.in_channels = in_channels
         self.num_joints = num_joints
-        self.output_heatmap = output_heatmap
         self.debias = debias
         self.beta = beta
         self.align_corners = align_corners
         self.input_transform = input_transform
         self.input_index = input_index
         self.output_sigma = output_sigma
-        self.deploy = deploy
         self.output_fuse_coord = output_fuse_coord
+        self.deploy = deploy
+        self.deploy_output = deploy_output
         self.feat_norm_type = feat_norm_type
         self.symmetry_ipr = symmetry_ipr
         if self.output_sigma:
             self.gap = nn.AdaptiveAvgPool2d((1, 1))
-            self.sigma_fc = nn.Linear(self.in_channels, self.num_joints * 2)
+            self.sigma_conv = nn.Conv2d(
+                self.in_channels, self.num_joints * 2, kernel_size=1)
         if self.output_fuse_coord:
             self.coord_fc1 = nn.Linear(self.in_channels, 128)
             self.coord_fc2 = nn.Linear(128, self.num_joints * 2)
@@ -270,39 +273,41 @@ class IntegralRegressionHead(BaseHead):
             pred_y = y_fea.mul(self.linspace_y)
         pred_x = pred_x.sum(dim=-1, keepdim=True)
         pred_y = pred_y.sum(dim=-1, keepdim=True)
-
+        B, N, H, W = feats.shape
         if self.debias:
-            B, N, H, W = feats.shape
             C = feats.reshape(B, N, H * W).exp().sum(dim=2).reshape(B, N, 1)
             pred_x = C / (C - 1) * (pred_x - 1 / (2 * C))
             pred_y = C / (C - 1) * (pred_y - 1 / (2 * C))
 
         coords = torch.cat([pred_x, pred_y], dim=-1)
+        if self.output_fuse_coord:
+            last_x = self.gap(last_feat).reshape(raw_feats.size(0), -1)
+            global_coords = self.coord_fc1(last_x)
+            global_coords = F.relu(global_coords)
+            global_coords = self.coord_fc2(global_coords)
+            coords = torch.cat(
+                [coords, global_coords.reshape(B, self.num_joints, 2)], dim=-1)
+            coords = self.coord_fc(coords.reshape(B, -1))
+            coords = coords.reshape(B, self.num_joints, 2)
         if self.output_sigma:
-            x = self.gap(raw_feats).reshape(raw_feats.size(0), -1)
-            pred_sigma = self.sigma_fc(x)
-            pred_sigma = pred_sigma.reshape(
+            x = self.gap(raw_feats)
+            pred_sigma = self.sigma_conv(x)
+            pred_sigma_reshape = pred_sigma.reshape(
                 pred_sigma.size(0), self.num_joints, 2)
-            if self.output_fuse_coord:
-                last_x = self.gap(last_feat).reshape(raw_feats.size(0), -1)
-                global_coords = self.coord_fc1(last_x)
-                global_coords = F.relu(global_coords)
-                global_coords = self.coord_fc2(global_coords)
-                coords = torch.cat([
-                    coords,
-                    global_coords.reshape(
-                        pred_sigma.size(0), self.num_joints, 2)
-                ],
-                                   dim=-1)
-                coords = self.coord_fc(coords.reshape(pred_sigma.size(0), -1))
-                coords = coords.reshape(pred_sigma.size(0), self.num_joints, 2)
-                if self.deploy:
-                    return coords
-            coords = torch.cat([coords, pred_sigma], dim=-1)
-        if self.deploy and self.output_heatmap:
-            return pred_x, pred_y, heatmaps
+            coords = torch.cat([coords, pred_sigma_reshape], dim=-1)
         if self.deploy:
-            return pred_x, pred_y
+            output_list = []
+            if 'feat' in self.deploy_output:
+                output_list.append(feats)
+            if 'kpt' in self.deploy_output:
+                output_list += [pred_x, pred_y]
+            if 'fused_kpt' in self.deploy_output:
+                output_list.append(coords[..., :2])
+            if 'score' in self.deploy_output:
+                output_list.append(1 - torch.sigmoid(pred_sigma))
+            if 'heatmap' in self.deploy_output:
+                output_list.append(heatmaps)
+            return tuple(output_list)
         return coords, heatmaps
 
     def predict(self,
@@ -362,13 +367,15 @@ class IntegralRegressionHead(BaseHead):
                 shift_heatmap=test_cfg.get('shift_heatmap', False))
 
             batch_coords = (_batch_coords + _batch_coords_flip) * 0.5
+            if self.output_sigma:
+                batch_coords[..., 2:] = batch_coords[..., 2:].sigmoid()
             batch_heatmaps = (_batch_heatmaps + _batch_heatmaps_flip) * 0.5
         else:
             batch_coords, batch_heatmaps = self.forward(feats)  # (B, K, D)
-
+        if self.output_sigma:
+            batch_coords[..., 2:] = batch_coords[..., 2:].sigmoid()
         batch_coords.unsqueeze_(dim=1)  # (B, N, K, D)
         preds = self.decode(batch_coords)
-
         if test_cfg.get('output_heatmaps', False):
             pred_fields = [
                 PixelData(heatmaps=hm) for hm in batch_heatmaps.detach()
@@ -433,6 +440,12 @@ class IntegralRegressionHead(BaseHead):
                 continue
             v = state_dict.pop(_k)
             k = _k.lstrip(prefix)
+            # convert fc to conv
+            if _k == 'head.sigma_fc.weight':
+                state_dict['head.sigma_conv.weight'] = torch.unsqueeze(
+                    torch.unsqueeze(v, -1), -1)
+            if _k == 'head.sigma_fc.bias':
+                state_dict['head.sigma_conv.bias'] = v
 
             k_new = _k
             k_parts = k.split('.')

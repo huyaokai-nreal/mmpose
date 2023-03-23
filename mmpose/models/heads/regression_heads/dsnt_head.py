@@ -105,8 +105,9 @@ class DSNTHead(IntegralRegressionHead):
                  decoder: OptConfigType = None,
                  init_cfg: OptConfigType = None,
                  deploy: bool = False,
-                 output_fuse_coord=False,
                  feat_norm_type='softmax',
+                 deploy_output: str = 'feat+score',
+                 output_fuse_coord: bool = False,
                  symmetry_ipr=False):
 
         super().__init__(
@@ -128,9 +129,10 @@ class DSNTHead(IntegralRegressionHead):
             decoder=decoder,
             init_cfg=init_cfg,
             deploy=deploy,
-            output_fuse_coord=output_fuse_coord,
+            deploy_output=deploy_output,
             feat_norm_type=feat_norm_type,
-            symmetry_ipr=symmetry_ipr)
+            symmetry_ipr=symmetry_ipr,
+            output_fuse_coord=output_fuse_coord)
 
         self.lambda_t = lambda_t
 
