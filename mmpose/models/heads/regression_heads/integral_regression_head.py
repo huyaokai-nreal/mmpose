@@ -157,10 +157,7 @@ class IntegralRegressionHead(BaseHead):
                 deconv_kernel_sizes=deconv_kernel_sizes,
                 conv_out_channels=conv_out_channels,
                 conv_kernel_sizes=conv_kernel_sizes,
-                has_final_layer=has_final_layer,
-                input_transform=input_transform,
-                input_index=input_index,
-                align_corners=align_corners)
+                has_final_layer=has_final_layer)
 
             if has_final_layer:
                 in_channels = num_joints
@@ -168,7 +165,6 @@ class IntegralRegressionHead(BaseHead):
                 in_channels = deconv_out_channels[-1]
 
         else:
-            in_channels = self._get_in_channels()
             self.simplebaseline_head = None
 
             if has_final_layer:
@@ -181,16 +177,7 @@ class IntegralRegressionHead(BaseHead):
             else:
                 self.final_layer = None
 
-            if self.input_transform == 'resize_concat':
-                if isinstance(in_featuremap_size, tuple):
-                    self.heatmap_size = in_featuremap_size
-                elif isinstance(in_featuremap_size, list):
-                    self.heatmap_size = in_featuremap_size[0]
-            elif self.input_transform == 'select':
-                if isinstance(in_featuremap_size, tuple):
-                    self.heatmap_size = in_featuremap_size
-                elif isinstance(in_featuremap_size, list):
-                    self.heatmap_size = in_featuremap_size[input_index]
+            self.heatmap_size = in_featuremap_size
 
         if isinstance(in_channels, list):
             raise ValueError(
