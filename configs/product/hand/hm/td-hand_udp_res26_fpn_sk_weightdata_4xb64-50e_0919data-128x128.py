@@ -7,7 +7,7 @@ train_cfg = dict(max_epochs=50, val_interval=5)
 optim_wrapper = dict(
     optimizer=dict(
         type='Adam',
-        lr=2e-3,
+        lr=5e-4,
         betas=(0.9, 0.999),
         weight_decay=1e-6,
     ))
@@ -24,7 +24,7 @@ param_scheduler = [
 ]
 
 # automatically scaling LR based on the actual training batch size
-auto_scale_lr = dict(base_batch_size=128)
+auto_scale_lr = dict(base_batch_size=512)
 
 # hooks
 default_hooks = dict(

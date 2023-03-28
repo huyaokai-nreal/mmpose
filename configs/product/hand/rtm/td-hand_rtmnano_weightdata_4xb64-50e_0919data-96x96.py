@@ -64,7 +64,7 @@ model = dict(
         act_cfg=dict(type='ReLU'),
     ),
     head=dict(
-        type='RTMHead',
+        type='RTMCCHead',
         in_channels=384,
         out_channels=21,
         input_size=codec['input_size'],

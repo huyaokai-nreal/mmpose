@@ -2,91 +2,92 @@
 _base_ = ['../../../_base_/default_runtime.py']
 # runtime
 train_cfg = dict(max_epochs=50, val_interval=5)
-max_epochs = 50
-base_lr = 4e-3
+
 # optimizer
 optim_wrapper = dict(
-    type='OptimWrapper',
-    optimizer=dict(type='AdamW', lr=base_lr, weight_decay=0.),
-    paramwise_cfg=dict(
-        norm_decay_mult=0, bias_decay_mult=0, bypass_duplicate=True))
-# learning rate
+    optimizer=dict(
+        type='Adam',
+        lr=2e-3,
+        betas=(0.9, 0.999),
+        weight_decay=1e-6,
+    ))
+# learning policy
 param_scheduler = [
+    dict(type='LinearLR', begin=0, end=2000, start_factor=0.1,
+         by_epoch=False),  # warm-up
     dict(
-        type='LinearLR',
-        start_factor=1.0e-5,
-        by_epoch=False,
-        begin=0,
-        end=1000),
-    dict(
-        # use cosine lr from 210 to 420 epoch
         type='CosineAnnealingLR',
-        eta_min=base_lr * 0.05,
-        begin=max_epochs // 2,
-        end=max_epochs,
-        T_max=max_epochs // 2,
         by_epoch=True,
-        convert_to_iter_based=True),
+        T_max=train_cfg['max_epochs'],
+        convert_to_iter_based=True,
+        eta_min=1e-7)
 ]
 
 # automatically scaling LR based on the actual training batch size
-auto_scale_lr = dict(base_batch_size=256)
+auto_scale_lr = dict(base_batch_size=512)
 
 # hooks
 default_hooks = dict(
     checkpoint=dict(interval=5, save_best='mAP', rule='greater'))
 
 # codec settings
-codec = dict(
-    type='SimCCLabel',
-    input_size=(128, 128),
-    sigma=4.0,
-    simcc_split_ratio=2.0,
-    normalize=False,
-    use_dark=False)
+# multiple kernel_sizes of heatmap gaussian for 'Megvii' approach.
+kernel_sizes = [9, 7, 5, 3]
+codec = [
+    dict(
+        type='NrealHeatmap',
+        input_size=(128, 128),
+        heatmap_size=(32, 32),
+        kernel_size=kernel_size) for kernel_size in kernel_sizes
+]
 
 # model settings
+backbone_out_channels = [64, 96, 128, 160]
 model = dict(
     type='TopdownPoseEstimator',
     data_preprocessor=dict(
         type='PoseDataPreprocessor', mean=[0.449 * 255], std=[0.226 * 255]),
     backbone=dict(
-        type='CSPNeXt',
-        arch='P5',
-        image_channel=1,
-        expand_ratio=0.5,
-        deepen_factor=0.167,
-        spp_kernel_sizes=(3, 5, 7),
-        widen_factor=0.25,
-        out_indices=(4, ),
-        channel_attention=True,
+        type='ResNet',
+        depth=18,
+        in_channels=1,
+        stem_channels=64,
+        base_channels=32,
+        expansion=1,
+        out_indices=(0, 1, 2, 3),
+        zero_init_residual=False,
+        bias_in_conv=False,
+        out_channels=backbone_out_channels),
+    neck=dict(
+        type='FPN',
+        in_channels=backbone_out_channels,
+        out_channels=192,
         norm_cfg=dict(type='BN'),
-        act_cfg=dict(type='SiLU'),
-    ),
+        num_outs=4,
+        upsample_cfg=dict(mode='bilinear', align_corners=True),
+        upsample_style='rsn',
+        reverse_output=True,
+        apply_fpn_conv=False,
+        output_as_seq_of_seq=True),
     head=dict(
-        type='RTMCCHead',
-        in_channels=256,
+        type='MSPNHead',
+        out_shape=(32, 32),
+        unit_channels=192,
         out_channels=21,
-        input_size=codec['input_size'],
-        in_featuremap_size=(4, 4),
-        simcc_split_ratio=codec['simcc_split_ratio'],
-        final_layer_kernel_size=3,
-        gau_cfg=dict(
-            hidden_dims=128,
-            s=128,
-            expansion_factor=2,
-            dropout_rate=0.,
-            drop_path=0.,
-            act_fn='SiLU',
-            use_rel_bias=False,
-            pos_enc=False),
-        loss=dict(
-            type='KLDiscretLoss',
-            use_target_weight=True,
-            beta=10.,
-            label_softmax=True),
-        decoder=codec),
-    test_cfg=dict(flip_test=False, ))
+        num_stages=1,
+        num_units=4,
+        norm_cfg=dict(type='BN'),
+        # each sub list is for a stage
+        # and each element in each list is for a unit
+        level_indices=[0, 1, 2, 3],
+        loss=[dict(type='JointsL2Loss', loss_weight=0.25)] * 3 +
+        [dict(type='JointsL2Loss', has_ohkm=True, topk=17, loss_weight=1.)],
+        decoder=codec[-1]),
+    test_cfg=dict(
+        flip_test=False,
+        flip_mode='heatmap',
+        shift_heatmap=False,
+    ))
 
 # base dataset settings
 dataset_type = 'HANDDataset'
@@ -107,15 +108,18 @@ train_pipeline = [
         rotate_prob=0.3,
         shift_prob=0.5,
         shift_factor=0.2),
-    dict(type='TopdownAffine', input_size=codec['input_size']),
+    dict(type='TopdownAffine', input_size=codec[0]['input_size']),
     dict(
-        type='GenerateTarget', target_type='keypoint_xy_label', encoder=codec),
+        type='GenerateTarget',
+        target_type='multilevel_heatmap',
+        multilevel=True,
+        encoder=codec),
     dict(type='PackPoseInputs')
 ]
 
 val_pipeline = [
     dict(type='GetBBoxCenterScale', padding=1),
-    dict(type='TopdownAffine', input_size=codec['input_size']),
+    dict(type='TopdownAffine', input_size=codec[0]['input_size']),
     dict(type='PackPoseInputs')
 ]
 import os
@@ -151,7 +155,7 @@ train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
-    'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_gesture_lmdb.json'
+    'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_lmdb.json'
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 
@@ -162,6 +166,7 @@ train_dataloader = dict(
     persistent_workers=True,
     pin_memory=False,
     prefetch_factor=2,
+    collate_fn=dict(type='default_collate', ),
     sampler=dict(type='DefaultSampler', shuffle=True),
     dataset=dict(
         type=dataset_type,
@@ -169,12 +174,14 @@ train_dataloader = dict(
         data_file_list=train_data_list,
         data_mode=data_mode,
         pipeline=train_pipeline,
+        serialize_data=True,
         dataset_weight_list=dataset_weight_list))
 val_dataloader = dict(
     batch_size=32,
     num_workers=4,
     persistent_workers=False,
     drop_last=False,
+    collate_fn=dict(type='default_collate', ),
     sampler=dict(type='DefaultSampler', shuffle=False, round_up=False),
     dataset=dict(
         type=dataset_type,

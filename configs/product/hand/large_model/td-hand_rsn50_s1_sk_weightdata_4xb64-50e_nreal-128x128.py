@@ -24,7 +24,7 @@ param_scheduler = [
 ]
 
 # automatically scaling LR based on the actual training batch size
-auto_scale_lr = dict(base_batch_size=128)
+auto_scale_lr = dict(base_batch_size=512)
 
 # hooks
 default_hooks = dict(
@@ -33,6 +33,7 @@ default_hooks = dict(
 # codec settings
 # multiple kernel_sizes of heatmap gaussian for 'Megvii' approach.
 kernel_sizes = [9, 7, 5, 3]
+compile = False
 codec = [
     dict(
         type='NrealHeatmap',
@@ -97,7 +98,9 @@ train_pipeline = [
         shift_factor=0.2),
     dict(type='TopdownAffine', input_size=codec[0]['input_size']),
     dict(
-        type='GenerateTarget', target_type='multilevel_heatmap',
+        type='GenerateTarget',
+        target_type='multilevel_heatmap',
+        multilevel=True,
         encoder=codec),
     dict(type='PackPoseInputs')
 ]
@@ -109,7 +112,7 @@ val_pipeline = [
 ]
 import os
 # lmdb root dir, maybe different between beijing and wuxi
-data_root = os.path.join(os.environ['HOME'], 'hand_group/data')
+data_root = '/data/hand_group/data'
 train_data_list = [
     'data_hand/hand_keypoint/annotations/train_nreal_baidu2_gesture_right_1014_lmdb.json',
     'data_hand/hand_keypoint/annotations/train_nreal_gesture_0318_1_14_bad_data_twohand_lmdb.json',
@@ -151,7 +154,7 @@ val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 
 # data loaders
 train_dataloader = dict(
-    batch_size=64,
+    batch_size=128,
     num_workers=8,
     persistent_workers=True,
     pin_memory=False,

@@ -7,7 +7,7 @@ base_lr = 4e-3
 # optimizer
 optim_wrapper = dict(
     type='OptimWrapper',
-    optimizer=dict(type='AdamW', lr=base_lr, weight_decay=0.),
+    optimizer=dict(type='AdamW', lr=base_lr, weight_decay=0.05),
     paramwise_cfg=dict(
         norm_decay_mult=0, bias_decay_mult=0, bypass_duplicate=True))
 # learning rate
@@ -31,7 +31,7 @@ param_scheduler = [
 
 # automatically scaling LR based on the actual training batch size
 auto_scale_lr = dict(base_batch_size=256)
-
+compile = True
 # hooks
 default_hooks = dict(
     checkpoint=dict(interval=5, save_best='mAP', rule='greater'))
@@ -55,9 +55,9 @@ model = dict(
         arch='P5',
         image_channel=1,
         expand_ratio=0.5,
-        deepen_factor=0.167,
+        deepen_factor=1.0,
         spp_kernel_sizes=(3, 5, 7),
-        widen_factor=0.25,
+        widen_factor=1.0,
         out_indices=(4, ),
         channel_attention=True,
         norm_cfg=dict(type='BN'),
@@ -65,14 +65,14 @@ model = dict(
     ),
     head=dict(
         type='RTMCCHead',
-        in_channels=256,
+        in_channels=1024,
         out_channels=21,
         input_size=codec['input_size'],
         in_featuremap_size=(4, 4),
         simcc_split_ratio=codec['simcc_split_ratio'],
         final_layer_kernel_size=3,
         gau_cfg=dict(
-            hidden_dims=128,
+            hidden_dims=256,
             s=128,
             expansion_factor=2,
             dropout_rate=0.,
@@ -193,4 +193,4 @@ test_evaluator = val_evaluator
 # fp16 settings
 fp16 = dict(loss_scale='dynamic')
 # model wrapper
-find_unused_parameters = True
+find_unused_parameters = False
