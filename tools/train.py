@@ -9,6 +9,7 @@ from mmengine.registry import init_default_scope
 from mmpose.utils import register_all_modules
 
 torch.multiprocessing.set_sharing_strategy('file_system')
+torch.set_float32_matmul_precision('high')
 
 
 def parse_args():
@@ -28,6 +29,11 @@ def parse_args():
         action='store_true',
         default=False,
         help='enable automatic-mixed-precision training')
+    parser.add_argument(
+        '--compile',
+        action='store_true',
+        default=False,
+        help='enable torch.compile in torch 2.0')
     parser.add_argument(
         '--no-validate',
         action='store_true',
@@ -69,7 +75,7 @@ def parse_args():
         choices=['none', 'pytorch', 'slurm', 'mpi'],
         default='none',
         help='job launcher')
-    parser.add_argument('--local_rank', type=int, default=0)
+    parser.add_argument('--local_rank', '--local-rank', type=int, default=0)
     args = parser.parse_args()
     if 'LOCAL_RANK' not in os.environ:
         os.environ['LOCAL_RANK'] = str(args.local_rank)
@@ -104,6 +110,9 @@ def merge_args(cfg, args):
         cfg.optim_wrapper.type = 'AmpOptimWrapper'
         cfg.optim_wrapper.setdefault('loss_scale', 'dynamic')
 
+    # torch compile
+    if args.compile:
+        cfg.compile = True
     # resume training
     if args.resume == 'auto':
         cfg.resume = True

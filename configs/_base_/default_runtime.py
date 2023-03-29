@@ -39,6 +39,7 @@ log_processor = dict(
 log_level = 'INFO'
 load_from = None
 resume = False
+compile = False
 
 # file I/O backend
 file_client_args = dict(backend='disk')
