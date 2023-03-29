@@ -120,7 +120,7 @@ class DSNTHead(IntegralRegressionHead):
             deconv_kernel_sizes=deconv_kernel_sizes,
             conv_out_channels=conv_out_channels,
             conv_kernel_sizes=conv_kernel_sizes,
-            has_final_layer=has_final_layer,
+            final_layer=final_layer,
             loss=loss,
             output_sigma=output_sigma,
             decoder=decoder,
