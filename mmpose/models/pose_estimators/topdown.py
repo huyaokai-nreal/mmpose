@@ -39,7 +39,6 @@ class TopdownPoseEstimator(BasePoseEstimator):
                  backbone: ConfigType,
                  neck: OptConfigType = None,
                  head: OptConfigType = None,
-                 pruning_loss: OptConfigType = None,
                  train_cfg: OptConfigType = None,
                  test_cfg: OptConfigType = None,
                  data_preprocessor: OptConfigType = None,
@@ -52,9 +51,6 @@ class TopdownPoseEstimator(BasePoseEstimator):
             test_cfg,
             data_preprocessor,
             init_cfg=init_cfg)
-        self.pruning_loss = None
-        if pruning_loss is not None:
-            self.pruning_loss = MODELS.build(pruning_loss)
         # Register the hook to automatically convert old version state dicts
         self._register_load_state_dict_pre_hook(self._load_state_dict_pre_hook)
 
@@ -110,9 +106,6 @@ class TopdownPoseEstimator(BasePoseEstimator):
         if self.with_head:
             losses.update(
                 self.head.loss(feats, data_samples, train_cfg=self.train_cfg))
-        if self.pruning_loss:
-            loss_pruning = self.pruning_loss(self)
-            losses['loss_pruning'] = loss_pruning
         return losses
 
     def predict(self, inputs: Tensor, data_samples: SampleList) -> SampleList:

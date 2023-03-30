@@ -8,7 +8,6 @@ from .heatmap_loss import (AdaptiveWingLoss, KeypointMSELoss,
 from .regression_loss import (BoneLoss, L1Loss, MPJPELoss, MSELoss, RLELoss,
                               SemiSupervisionLoss, SmoothL1Loss,
                               SoftWeightSmoothL1Loss, SoftWingLoss, WingLoss)
-from .pruning_loss import FilterL2Loss
 
 __all__ = [
     'KeypointMSELoss', 'KeypointOHKMMSELoss', 'SmoothL1Loss', 'WingLoss',
@@ -16,5 +15,5 @@ __all__ = [
     'SemiSupervisionLoss', 'SoftWingLoss', 'AdaptiveWingLoss', 'RLELoss',
     'KLDiscretLoss', 'MultipleLossWrapper', 'JSDiscretLoss', 'CombinedLoss',
     'AssociativeEmbeddingLoss', 'SoftWeightSmoothL1Loss', 'JointsL2Loss',
-    'FilterL2Loss', 'FocalHeatmapLoss', 'CombinedTargetMSELoss'
+    'FocalHeatmapLoss', 'CombinedTargetMSELoss'
 ]
