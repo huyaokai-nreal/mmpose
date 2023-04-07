@@ -51,8 +51,8 @@ class IntegralRegressionHead(BaseHead):
             Defaults to ``None``
         conv_kernel_sizes (sequence[int | tuple], optional): The kernel size
             of each intermediate conv layer. Defaults to ``None``
-        has_final_layer (bool): 1x1 conv layer to produce keypoint outputs.
-            Defaults to ``True``
+        final_layer (dict): Arguments of the final Conv2d layer.
+            Defaults to ``dict(kernel_size=1)``
         output_sigma (bool): generate sigma for coords, Defaults to ``False``
         input_transform (str): Transformation of input features which should
             be one of the following options:
@@ -96,11 +96,8 @@ class IntegralRegressionHead(BaseHead):
         deconv_kernel_sizes: OptIntSeq = (4, 4, 4),
         conv_out_channels: OptIntSeq = None,
         conv_kernel_sizes: OptIntSeq = None,
-        has_final_layer: bool = True,
+        final_layer: dict = dict(kernel_size=1),
         output_sigma: bool = False,
-        input_transform: str = 'select',
-        input_index: Union[int, Sequence[int]] = -1,
-        align_corners: bool = False,
         loss: ConfigType = dict(type='SmoothL1Loss', use_target_weight=True),
         decoder: OptConfigType = None,
         init_cfg: OptConfigType = None,
@@ -120,9 +117,6 @@ class IntegralRegressionHead(BaseHead):
         self.num_joints = num_joints
         self.debias = debias
         self.beta = beta
-        self.align_corners = align_corners
-        self.input_transform = input_transform
-        self.input_index = input_index
         self.output_sigma = output_sigma
         self.output_fuse_coord = output_fuse_coord
         self.deploy = deploy
@@ -238,7 +232,7 @@ class IntegralRegressionHead(BaseHead):
         """
         if self.simplebaseline_head is None:
             last_feat = feats[0]
-            feats = self._transform_inputs(feats)
+            feats = feats[-1]
             raw_feats = feats
             if self.final_layer is not None:
                 feats = self.final_layer(feats)

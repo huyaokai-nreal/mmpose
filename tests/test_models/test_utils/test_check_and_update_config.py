@@ -70,7 +70,6 @@ class TestCheckAndUpdateConfig(unittest.TestCase):
             in_channels=(64, 128, 320, 512),
             out_channels=17,
             input_index=3,
-            has_final_layer=False,
             loss=dict(type='KeypointMSELoss', use_target_weight=True))
         neck, head = check_and_update_config(neck, head)
 

@@ -43,8 +43,8 @@ class DSNTAttrHead(IntegralRegressionHead):
             Defaults to ``None``
         conv_kernel_sizes (sequence[int | tuple], optional): The kernel size
             of each intermediate conv layer. Defaults to ``None``
-        has_final_layer (bool): 1x1 conv layer to produce keypoint outputs.
-            Defaults to ``True``
+        final_layer (dict): Arguments of the final Conv2d layer.
+            Defaults to ``dict(kernel_size=1)``
         output_sigma (bool): generate sigma for coords, Defaults to ``False``
         input_transform (str): Transformation of input features which should
             be one of the following options:
@@ -87,7 +87,7 @@ class DSNTAttrHead(IntegralRegressionHead):
                  deconv_kernel_sizes: OptIntSeq = (4, 4, 4),
                  conv_out_channels: OptIntSeq = None,
                  conv_kernel_sizes: OptIntSeq = None,
-                 has_final_layer: bool = True,
+                 final_layer: dict = dict(kernel_size=1),
                  input_transform: str = 'select',
                  input_index: Union[int, Sequence[int]] = -1,
                  align_corners: bool = False,
@@ -114,7 +114,7 @@ class DSNTAttrHead(IntegralRegressionHead):
             deconv_kernel_sizes=deconv_kernel_sizes,
             conv_out_channels=conv_out_channels,
             conv_kernel_sizes=conv_kernel_sizes,
-            has_final_layer=has_final_layer,
+            final_layer=final_layer,
             input_transform=input_transform,
             input_index=input_index,
             align_corners=align_corners,
