@@ -97,7 +97,11 @@ def lmdb2coco(lmdb_root, lmdb_path, json_path):
         str_id = '{:0>8d}'.format(i * 2)
         str_value_id = '{:0>8d}'.format(i * 2 + 1)
         label_value = txn.get(str_value_id.encode())
-        label_value = bytes.decode(label_value)
+        try:
+            label_value = bytes.decode(label_value)
+        except:
+            print('decode label failed')
+            continue
         d = json.loads(label_value)
         keypoints = np.array(d['coord_uv'])
         keypoints = np.concatenate(
@@ -144,7 +148,7 @@ def lmdb2coco(lmdb_root, lmdb_path, json_path):
 
 
 if __name__ == '__main__':
-    root_dir = '/data/'
+    root_dir = '/data/hand_group/data'
     lmdb_path_list = [
         'data_hand/hand_keypoint/public_data/train_hanco_rgb_gesture_lmdb_refresh',  #84k
         'data_hand/hand_keypoint/baidu_data/train_nreal_baidu1_gesture_right_0930_lmdb',  #13.4k
@@ -183,8 +187,6 @@ if __name__ == '__main__':
         'data_hand/hand_keypoint/platform_data/test_nreal_gesture_3_1_221201_fisheye_vertical_binocular_lmdb',
         'data_hand/hand_keypoint/platform_data/test_nreal_gesture_3_2_221201_fisheye_horizontal_binocular_lmdb'
     ]
-    root_dir = os.path.join(os.environ['HOME'], 'hand_group/data')
-    json_dir = os.path.join(root_dir, 'data_hand/hand_keypoint/annotations')
     lmdb_path_list = [
         'data_hand/hand_keypoint/seq_data/test_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0000'
     ]
@@ -204,7 +206,9 @@ if __name__ == '__main__':
     lmdb_path_list = [
         'data_hand/hand_keypoint/platform_data/test_nreal_gesture_1111_1_1_binocular_twohand_lmdb'
     ]
-    root_dir = '/data/AI_DATA'
+    root_dir = '/data/hand_group/data'
+    #root_dir = '/data/AI_DATA'
+    json_dir = os.path.join(root_dir, 'data_hand/hand_keypoint/annotations')
     lmdb_path_list = [
         'data_hand/hand_keypoint/platform_data/test_nreal_gesture_1_1_221205_jpg_90_lmdb',
         'data_hand/hand_keypoint/platform_data/test_nreal_gesture_1_1_221205_jpg_80_lmdb',
@@ -214,6 +218,11 @@ if __name__ == '__main__':
     lmdb_path_list = [
         'data_hand/hand_keypoint/platform_data/test_nreal_gesture_3_3_230104_fisheye_edge_vertical_binocular_lmdb',
         'data_hand/hand_keypoint/platform_data/test_nreal_gesture_3_4_230104_fisheye_edge_horizontal_binocular_lmdb'
+    ]
+    lmdb_path_list = [
+        'data_hand/hand_keypoint/public_data/train_hanco_rgb_clean_1st_view_gesture_lmdb',
+        'data_hand/hand_keypoint/platform_data/train_nreal_gesture_0926_1_31_bad_case_binocular_twohand_lmdb',
+        'data_hand/hand_keypoint/platform_data/train_nreal_gesture_0926_1_31_bad_case_twohand_lmdb'
     ]
     tasks = [(root_dir, lmdb_path,
               os.path.join(json_dir,

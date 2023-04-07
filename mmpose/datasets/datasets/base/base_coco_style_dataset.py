@@ -188,7 +188,6 @@ class BaseCocoStyleDataset(BaseDataset):
                 data_list = self._get_bottomup_data_infos(
                     instance_list, image_list)
 
-        print(f'load data list {len(data_list)}')
         return data_list
 
     def _load_annotations(self) -> Tuple[List[dict], List[dict]]:
