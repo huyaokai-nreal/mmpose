@@ -61,6 +61,7 @@ class PoseVisualizationHook(Hook):
         self.interval = interval
         self.kpt_thr = kpt_thr
         self.show = show
+        self.file_client = None
         if self.show:
             # No need to think about vis backends.
             self._visualizer._vis_backends = {}
@@ -147,8 +148,8 @@ class PoseVisualizationHook(Hook):
             self._test_index += 1
 
             img_path = data_sample.get('img_path')
-            img_bytes = fileio.get(img_path, backend_args=self.backend_args)
-            img = mmcv.imfrombytes(img_bytes, channel_order='rgb')
+            img = self.file_client.get(img_path)
+            img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
             data_sample = merge_data_samples([data_sample])
             if data_sample.meta['flipped']:
                 img = img[:, ::-1]
