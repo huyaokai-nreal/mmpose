@@ -98,6 +98,7 @@ class PackPoseInputs(BaseTransform):
         'keypoint_labels': 'keypoint_labels',
         'keypoint_x_labels': 'keypoint_x_labels',
         'keypoint_y_labels': 'keypoint_y_labels',
+        'keypoint_z_labels': 'keypoint_z_labels',
         'keypoint_weights': 'keypoint_weights',
         'instance_coords': 'instance_coords',
         'attr_labels': 'attr_labels'

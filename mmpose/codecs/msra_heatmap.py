@@ -93,7 +93,7 @@ class MSRAHeatmap(BaseKeypointCodec):
         assert keypoints.shape[0] == 1, (
             f'{self.__class__.__name__} only support single-instance '
             'keypoint encoding')
-
+        keypoints = keypoints[..., :2]
         if keypoints_visible is None:
             keypoints_visible = np.ones(keypoints.shape[:2], dtype=np.float32)
 

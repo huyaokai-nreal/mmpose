@@ -6,6 +6,7 @@ from .megvii_heatmap import MegviiHeatmap
 from .msra_heatmap import MSRAHeatmap
 from .regression_label import RegressionLabel
 from .simcc_label import SimCCLabel
+from .simcc_label_3d import SimCCLabel3D
 from .spr import SPR
 from .udp_heatmap import UDPHeatmap
 from .nreal_heatmap import NrealHeatmap
@@ -13,5 +14,5 @@ from .nreal_heatmap import NrealHeatmap
 __all__ = [
     'MSRAHeatmap', 'MegviiHeatmap', 'UDPHeatmap', 'RegressionLabel',
     'SimCCLabel', 'IntegralRegressionLabel', 'AssociativeEmbedding', 'SPR',
-    'DecoupledHeatmap', 'NrealHeatmap'
+    'DecoupledHeatmap', 'NrealHeatmap', 'SimCCLabel3D'
 ]

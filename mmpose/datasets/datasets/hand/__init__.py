@@ -5,8 +5,10 @@ from .nreal_hand import HANDDataset
 from .onehand10k_dataset import OneHand10KDataset
 from .panoptic_hand2d_dataset import PanopticHand2DDataset
 from .rhd2d_dataset import Rhd2DDataset
+from .interhand3d_dataset import InterHand3DDataset
 
 __all__ = [
     'OneHand10KDataset', 'FreiHandDataset', 'PanopticHand2DDataset',
-    'Rhd2DDataset', 'CocoWholeBodyHandDataset', 'HANDDataset'
+    'Rhd2DDataset', 'CocoWholeBodyHandDataset', 'HANDDataset',
+    'InterHand3DDataset'
 ]

@@ -38,6 +38,66 @@ def get_simcc_normalized(batch_pred_simcc, sigma=None):
     return batch_pred_simcc
 
 
+def get_simcc_3d_maximum(simcc_x: np.ndarray, simcc_y: np.ndarray,
+                         simcc_z: np.ndarray
+                         ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Get maximum response location and value from simcc representations.
+
+    Note:
+        instance number: N
+        num_keypoints: K
+        heatmap height: H
+        heatmap width: W
+
+    Args:
+        simcc_x (np.ndarray): x-axis SimCC in shape (K, Wx) or (N, K, Wx)
+        simcc_y (np.ndarray): y-axis SimCC in shape (K, Wy) or (N, K, Wy)
+
+    Returns:
+        tuple:
+        - locs (np.ndarray): locations of maximum heatmap responses in shape
+            (K, 2) or (N, K, 2)
+        - vals (np.ndarray): values of maximum heatmap responses in shape
+            (K,) or (N, K)
+    """
+
+    assert isinstance(simcc_x, np.ndarray), ('simcc_x should be numpy.ndarray')
+    assert isinstance(simcc_y, np.ndarray), ('simcc_y should be numpy.ndarray')
+    assert isinstance(simcc_z, np.ndarray), ('simcc_z should be numpy.ndarray')
+    assert simcc_x.ndim == 2 or simcc_x.ndim == 3, (
+        f'Invalid shape {simcc_x.shape}')
+    assert simcc_y.ndim == 2 or simcc_y.ndim == 3, (
+        f'Invalid shape {simcc_y.shape}')
+    assert simcc_x.ndim == simcc_y.ndim, (
+        f'{simcc_x.shape} != {simcc_y.shape}')
+
+    if simcc_x.ndim == 3:
+        N, K, Wx = simcc_x.shape
+        simcc_x = simcc_x.reshape(N * K, -1)
+        simcc_y = simcc_y.reshape(N * K, -1)
+        simcc_z = simcc_z.reshape(N * K, -1)
+    else:
+        N = None
+
+    x_locs = np.argmax(simcc_x, axis=1)
+    y_locs = np.argmax(simcc_y, axis=1)
+    z_locs = np.argmax(simcc_z, axis=1)
+    locs = np.stack((x_locs, y_locs, z_locs), axis=-1).astype(np.float32)
+    max_val_x = np.amax(simcc_x, axis=1)
+    max_val_y = np.amax(simcc_y, axis=1)
+
+    mask = max_val_x > max_val_y
+    max_val_x[mask] = max_val_y[mask]
+    vals = max_val_x
+    locs[vals <= 0.] = -1
+
+    if N:
+        locs = locs.reshape(N, K, 3)
+        vals = vals.reshape(N, K)
+
+    return locs, vals
+
+
 def get_simcc_maximum(simcc_x: np.ndarray,
                       simcc_y: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """Get maximum response location and value from simcc representations.

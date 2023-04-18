@@ -184,8 +184,9 @@ class TopdownPoseEstimator(BasePoseEstimator):
             bbox_scales = gt_instances.bbox_scales
             input_size = data_sample.metainfo['input_size']
 
-            pred_instances.keypoints = pred_instances.keypoints / input_size \
-                * bbox_scales + bbox_centers - 0.5 * bbox_scales
+            pred_instances.keypoints[..., :2] = pred_instances.keypoints[
+                ..., :
+                2] / input_size * bbox_scales + bbox_centers - 0.5 * bbox_scales  # noqa
 
             if output_keypoint_indices is not None:
                 # select output keypoints with given indices

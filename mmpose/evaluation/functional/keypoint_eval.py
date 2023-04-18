@@ -3,7 +3,8 @@ from typing import Optional, Tuple
 
 import numpy as np
 
-from mmpose.codecs.utils import get_heatmap_maximum, get_simcc_maximum
+from mmpose.codecs.utils import get_heatmap_maximum, get_simcc_3d_maximum
+from mmpose.codecs.utils import get_simcc_maximum
 
 
 def _calc_distances(preds: np.ndarray, gts: np.ndarray, mask: np.ndarray,
@@ -234,8 +235,63 @@ def pose_pck_accuracy(output: np.ndarray,
     return keypoint_pck_accuracy(pred, gt, mask, thr, normalize)
 
 
-def simcc_pck_accuracy(output: Tuple[np.ndarray, np.ndarray],
-                       target: Tuple[np.ndarray, np.ndarray],
+def simcc3d_pck_accuracy(output: Tuple[np.ndarray],
+                         target: Tuple[np.ndarray],
+                         simcc_split_ratio: float,
+                         mask: np.ndarray,
+                         thr: float = 0.05,
+                         normalize: Optional[np.ndarray] = None) -> tuple:
+    """Calculate the pose accuracy of PCK for each individual keypoint and the
+    averaged accuracy across all keypoints from SimCC.
+
+    Note:
+        PCK metric measures accuracy of the localization of the body joints.
+        The distances between predicted positions and the ground-truth ones
+        are typically normalized by the bounding box size.
+        The threshold (thr) of the normalized distance is commonly set
+        as 0.05, 0.1 or 0.2 etc.
+
+        - instance number: N
+        - keypoint number: K
+
+    Args:
+        output (Tuple[np.ndarray, np.ndarray]): Model predicted SimCC.
+        target (Tuple[np.ndarray, np.ndarray]): Groundtruth SimCC.
+        mask (np.ndarray[N, K]): Visibility of the target. False for invisible
+            joints, and True for visible. Invisible joints will be ignored for
+            accuracy calculation.
+        thr (float): Threshold of PCK calculation. Default 0.05.
+        normalize (np.ndarray[N, 2]): Normalization factor for H&W.
+
+    Returns:
+        tuple: A tuple containing keypoint accuracy.
+
+        - np.ndarray[K]: Accuracy of each keypoint.
+        - float: Averaged accuracy across all keypoints.
+        - int: Number of valid keypoints.
+    """
+    pred_x, pred_y, pred_z = output
+    gt_x, gt_y, gt_z = target
+
+    N, _, Wx = pred_x.shape
+    _, _, Wy = pred_y.shape
+    _, _, Wz = pred_z.shape
+    W, H, D = int(Wx / simcc_split_ratio), int(Wy / simcc_split_ratio), int(
+        Wz / simcc_split_ratio)
+
+    if normalize is None:
+        normalize = np.tile(np.array([[H, W, D]]), (N, 1))
+
+    pred_coords, _ = get_simcc_3d_maximum(pred_x, pred_y, pred_z)
+    pred_coords /= simcc_split_ratio
+    gt_coords, _ = get_simcc_3d_maximum(gt_x, gt_y, gt_z)
+    gt_coords /= simcc_split_ratio
+
+    return keypoint_pck_accuracy(pred_coords, gt_coords, mask, thr, normalize)
+
+
+def simcc_pck_accuracy(output: Tuple[np.ndarray],
+                       target: Tuple[np.ndarray],
                        simcc_split_ratio: float,
                        mask: np.ndarray,
                        thr: float = 0.05,

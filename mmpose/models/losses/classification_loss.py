@@ -178,6 +178,47 @@ class KLDiscretLoss(nn.Module):
 
 
 @MODELS.register_module()
+class KLDiscretLoss3D(KLDiscretLoss):
+
+    def forward(self, pred_simcc, gt_simcc, target_weight):
+        """Forward function.
+
+        Args:
+            pred_simcc (Tuple[Tensor, Tensor]): Predicted SimCC vectors of
+                x-axis and y-axis.
+            gt_simcc (Tuple[Tensor, Tensor]): Target representations.
+            target_weight (torch.Tensor[N, K] or torch.Tensor[N]):
+                Weights across different labels.
+        """
+        output_x, output_y, output_z = pred_simcc
+        target_x, target_y, target_z = gt_simcc
+        num_joints = output_x.size(1)
+        loss = 0
+
+        for idx in range(num_joints):
+            coord_x_pred = output_x[:, idx].squeeze()
+            coord_y_pred = output_y[:, idx].squeeze()
+            coord_z_pred = output_z[:, idx].squeeze()
+            coord_x_gt = target_x[:, idx].squeeze()
+            coord_y_gt = target_y[:, idx].squeeze()
+            coord_z_gt = target_z[:, idx].squeeze()
+
+            if self.use_target_weight:
+                weight = target_weight[:, idx].squeeze()
+            else:
+                weight = 1.
+
+            loss += (
+                self.criterion(coord_x_pred, coord_x_gt).mul(weight).sum())
+            loss += (
+                self.criterion(coord_y_pred, coord_y_gt).mul(weight).sum())
+            loss += (
+                self.criterion(coord_z_pred, coord_z_gt).mul(weight).sum())
+
+        return loss / num_joints
+
+
+@MODELS.register_module()
 class InfoNCELoss(nn.Module):
     """InfoNCE loss for training a discriminative representation space with a
     contrastive manner.

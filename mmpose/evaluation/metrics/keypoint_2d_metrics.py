@@ -100,11 +100,11 @@ class PCKAccuracy(BaseMetric):
         """
         for data_sample in data_samples:
             # predicted keypoints coordinates, [1, K, D]
-            pred_coords = data_sample['pred_instances']['keypoints']
+            pred_coords = data_sample['pred_instances']['keypoints'][..., :2]
             # ground truth data_info
             gt = data_sample['gt_instances']
             # ground truth keypoints coordinates, [1, K, D]
-            gt_coords = gt['keypoints']
+            gt_coords = gt['keypoints'][..., :2]
             # ground truth keypoints_visible, [1, K, 1]
             mask = gt['keypoints_visible'].astype(bool).reshape(1, -1)
 
@@ -581,11 +581,11 @@ class AUC(BaseMetric):
         """
         for data_sample in data_samples:
             # predicted keypoints coordinates, [1, K, D]
-            pred_coords = data_sample['pred_instances']['keypoints']
+            pred_coords = data_sample['pred_instances']['keypoints'][..., :2]
             # ground truth data_info
             gt = data_sample['gt_instances']
             # ground truth keypoints coordinates, [1, K, D]
-            gt_coords = gt['keypoints']
+            gt_coords = gt['keypoints'][..., :2]
             # ground truth keypoints_visible, [1, K, 1]
             mask = gt['keypoints_visible'].astype(bool).reshape(1, -1)
 
@@ -663,11 +663,11 @@ class EPE(BaseMetric):
         """
         for data_sample in data_samples:
             # predicted keypoints coordinates, [1, K, D]
-            pred_coords = data_sample['pred_instances']['keypoints']
+            pred_coords = data_sample['pred_instances']['keypoints'][..., :2]
             # ground truth data_info
             gt = data_sample['gt_instances']
             # ground truth keypoints coordinates, [1, K, D]
-            gt_coords = gt['keypoints']
+            gt_coords = gt['keypoints'][..., :2]
             # ground truth keypoints_visible, [1, K, 1]
             mask = gt['keypoints_visible'].astype(bool).reshape(1, -1)
 
@@ -797,11 +797,11 @@ class NME(BaseMetric):
         """
         for data_sample in data_samples:
             # predicted keypoints coordinates, [1, K, D]
-            pred_coords = data_sample['pred_instances']['keypoints']
+            pred_coords = data_sample['pred_instances']['keypoints'][..., :2]
             # ground truth data_info
             gt = data_sample['gt_instances']
             # ground truth keypoints coordinates, [1, K, D]
-            gt_coords = gt['keypoints']
+            gt_coords = gt['keypoints'][..., :2]
             # ground truth keypoints_visible, [1, K, 1]
             mask = gt['keypoints_visible'].astype(bool).reshape(1, -1)
 
