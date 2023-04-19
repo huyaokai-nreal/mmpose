@@ -160,7 +160,7 @@ train_pipeline_stage2 = [
         scale_factor=[0.75, 1.25],
         rotate_factor=180),
     dict(type='RandomFlip', direction='horizontal'),
-    dict(type='TopdownAffine', input_size=codec['input_size']),
+    dict(type='TopdownAffine', input_size=(256, 256)),
     dict(type='mmdet.YOLOXHSVRandomAug'),
     dict(
         type='Albumentation',
