@@ -5,7 +5,10 @@ from xtcocotools.coco import COCO
 import json_tricks as json
 import numpy as np
 from mmpose.datasets.builder import DATASETS
+from nreal_data_tool.utils.camera import SimpleCamera
+from mmengine.logging import MMLogger
 from ..base import BaseCocoStyleDataset
+from collections import defaultdict
 
 
 @DATASETS.register_module()
@@ -145,53 +148,6 @@ class InterHand3DDataset(BaseCocoStyleDataset):
             max_refetch=max_refetch,
             pipeline=pipeline)
 
-        print(f'=> num_images: {self.num_images}')
-
-    @staticmethod
-    def _cam2pixel(cam_coord, f, c):
-        """Transform the joints from their camera coordinates to their pixel
-        coordinates.
-
-        Note:
-            N: number of joints
-
-        Args:
-            cam_coord (ndarray[N, 3]): 3D joints coordinates
-                in the camera coordinate system
-            f (ndarray[2]): focal length of x and y axis
-            c (ndarray[2]): principal point of x and y axis
-
-        Returns:
-            img_coord (ndarray[N, 3]): the coordinates (x, y, 0)
-                in the image plane.
-        """
-        x = cam_coord[:, 0] / (cam_coord[:, 2] + 1e-8) * f[0] + c[0]
-        y = cam_coord[:, 1] / (cam_coord[:, 2] + 1e-8) * f[1] + c[1]
-        z = np.zeros_like(x)
-        img_coord = np.concatenate((x[:, None], y[:, None], z[:, None]), 1)
-        return img_coord
-
-    @staticmethod
-    def _world2cam(world_coord, R, T):
-        """Transform the joints from their world coordinates to their camera
-        coordinates.
-
-        Note:
-            N: number of joints
-
-        Args:
-            world_coord (ndarray[3, N]): 3D joints coordinates
-                in the world coordinate system
-            R (ndarray[3, 3]): camera rotation matrix
-            T (ndarray[3, 1]): camera position (x, y, z)
-
-        Returns:
-            cam_coord (ndarray[3, N]): 3D joints coordinates
-                in the camera coordinate system
-        """
-        cam_coord = np.dot(R, world_coord - T)
-        return cam_coord
-
     @staticmethod
     def _get_mapping_id_name(imgs):
         """
@@ -213,6 +169,29 @@ class InterHand3DDataset(BaseCocoStyleDataset):
 
         return id2name, name2id
 
+    def load_cameras(self, cam_file_path):
+        with open(cam_file_path) as f:
+            cameras_data_json = json.load(f)
+        camera_dict = defaultdict(dict)
+        for campture_id, camera_data in cameras_data_json.items():
+            for camera_name in camera_data['camrot'].keys():
+                camera_param = dict(
+                    R=np.array(
+                        camera_data['camrot'][camera_name],
+                        dtype=np.float32).T,
+                    T=np.array(
+                        camera_data['campos'][camera_name],
+                        dtype=np.float32).reshape(3, 1),
+                    f=np.array(
+                        camera_data['focal'][camera_name],
+                        dtype=np.float32).reshape(2, 1),
+                    c=np.array(
+                        camera_data['princpt'][camera_name],
+                        dtype=np.float32).reshape(2, 1))
+                camera_dict[campture_id][camera_name] = SimpleCamera(
+                    camera_param)
+        return camera_dict
+
     def _load_annotations(self):
         """Load dataset.
 
@@ -220,11 +199,9 @@ class InterHand3DDataset(BaseCocoStyleDataset):
             'blob/master/data/InterHand2.6M/dataset.py'
         Copyright (c) FaceBook Research, under CC-BY-NC 4.0 license.
         """
-        with open(self.camera_file, 'r') as f:
-            cameras = json.load(f)
         with open(self.joint_file, 'r') as f:
             joints = json.load(f)
-
+        cameras_map = self.load_cameras(self.camera_file)
         if not self.use_gt_root_depth:
             rootnet_result = {}
             with open(self.rootnet_result_file, 'r') as f:
@@ -233,7 +210,7 @@ class InterHand3DDataset(BaseCocoStyleDataset):
                 rootnet_result[str(
                     rootnet_annot[i]['annot_id'])] = rootnet_annot[i]
 
-        gt_db = []
+        instance_list = []
         bbox_id = 0
         image_list = []
         for img_id in self.img_ids:
@@ -245,20 +222,11 @@ class InterHand3DDataset(BaseCocoStyleDataset):
             camera_name = img['camera']
             frame_idx = str(img['frame_idx'])
             image_file = osp.join(self.img_prefix, self.id2name[img_id])
-            camera_pos = np.array(
-                cameras[capture_id]['campos'][camera_name], dtype=np.float32)
-            camera_rot = np.array(
-                cameras[capture_id]['camrot'][camera_name], dtype=np.float32)
-            focal = np.array(
-                cameras[capture_id]['focal'][camera_name], dtype=np.float32)
-            principal_pt = np.array(
-                cameras[capture_id]['princpt'][camera_name], dtype=np.float32)
             joint_world = np.array(
                 joints[capture_id][frame_idx]['world_coord'], dtype=np.float32)
-            joint_cam = self._world2cam(
-                joint_world.transpose(1, 0), camera_rot,
-                camera_pos.reshape(3, 1)).transpose(1, 0)
-            joint_img = self._cam2pixel(joint_cam, focal, principal_pt)[:, :2]
+            camera: SimpleCamera = cameras_map[capture_id][camera_name]
+            joint_cam = camera.world_to_camera(joint_world)
+            joint_img = camera.camera_to_pixel(joint_cam)
             joint_valid = np.array(
                 ann['joint_valid'], dtype=np.float32).flatten()
             hand_type = ann['hand_type']
@@ -324,7 +292,7 @@ class InterHand3DDataset(BaseCocoStyleDataset):
                 keypoints = joint_img[np.newaxis, ...]
             else:
                 keypoints = joints_3d[np.newaxis, ...]
-            gt_db.append({
+            instance_list.append({
                 'img_path':
                 image_file,
                 'img_id':
@@ -353,9 +321,12 @@ class InterHand3DDataset(BaseCocoStyleDataset):
                 dict(
                     root_depth=abs_depth,
                     keypoints_cam=joint_cam,
-                    focal=focal,
-                    princpt=principal_pt)
+                    camera=camera)
             })
             bbox_id = bbox_id + 1
-        gt_db = sorted(gt_db, key=lambda x: x['id'])
-        return gt_db, image_list
+        instance_list = sorted(instance_list, key=lambda x: x['id'])
+        logger: MMLogger = MMLogger.get_current_instance()
+        logger.info(
+            f'InterhandDataset loaded {len(image_list)} images, {len(instance_list)} instances'  # noqa
+        )
+        return instance_list, image_list

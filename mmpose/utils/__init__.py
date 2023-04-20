@@ -1,5 +1,4 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-from .camera import SimpleCamera, SimpleCameraTorch
 from .collect_env import collect_env
 from .config_utils import adapt_mmdet_pipeline
 from .logger import get_root_logger
@@ -9,6 +8,5 @@ from .file import md5sum
 
 __all__ = [
     'get_root_logger', 'collect_env', 'StopWatch', 'setup_multi_processes',
-    'register_all_modules', 'SimpleCamera', 'SimpleCameraTorch', 'md5sum',
-    'adapt_mmdet_pipeline'
+    'register_all_modules', 'md5sum', 'adapt_mmdet_pipeline'
 ]

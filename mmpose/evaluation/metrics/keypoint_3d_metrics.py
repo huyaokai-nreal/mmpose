@@ -6,6 +6,7 @@ import numpy as np
 from mmengine.evaluator import BaseMetric
 from nreal_data_tool.metric import KeypointOKSMetric
 from mmpose.registry import METRICS
+from nreal_data_tool.utils.camera import SimpleCamera
 from typing import List
 from copy import deepcopy
 from ..functional.keypoint_eval import keypoint_epe
@@ -60,30 +61,6 @@ class MPJPEMetric(BaseMetric):
             # add converted result to the results list
             self.results.append(result)
 
-    @staticmethod
-    def image_to_cam(pixel_coord, f, c):
-        """Transform the joints from their pixel coordinates to their camera
-        coordinates.
-
-        Note:
-            N: number of joints
-
-        Args:
-            pixel_coord (ndarray[N, 3]): 3D joints coordinates
-                in the pixel coordinate system
-            f (ndarray[2]): focal length of x and y axis
-            c (ndarray[2]): principal point of x and y axis
-
-        Returns:
-            cam_coord (ndarray[N, 3]): 3D joints coordinates
-                in the camera coordinate system
-        """
-        x = (pixel_coord[:, 0] - c[0]) / f[0] * pixel_coord[:, 2]
-        y = (pixel_coord[:, 1] - c[1]) / f[1] * pixel_coord[:, 2]
-        z = pixel_coord[:, 2]
-        cam_coord = np.concatenate((x[:, None], y[:, None], z[:, None]), 1)
-        return cam_coord
-
     def compute_metrics(self, results: list) -> dict:
         gt_list = []
         dt_list = []
@@ -91,11 +68,10 @@ class MPJPEMetric(BaseMetric):
         for result in results:
             keypoints = result['keypoints'][0]
             # 2d keypoints to 2.5D keypoints
-            focal = result['meta']['focal']
-            princpt = result['meta']['princpt']
             root_depth = result['meta']['root_depth']
             keypoints[:, 2] += root_depth
-            pred_pt_cam = self.image_to_cam(keypoints, focal, princpt)
+            camera: SimpleCamera = result['meta']['camera']
+            pred_pt_cam = camera.pixel_to_camera(keypoints)
             pred_pt_cam = pred_pt_cam - pred_pt_cam[20]
             gt_pt_cam = result['meta']['keypoints_cam']
             gt_pt_cam = gt_pt_cam - gt_pt_cam[20]
@@ -105,5 +81,12 @@ class MPJPEMetric(BaseMetric):
         gt = np.concatenate(gt_list, axis=0)
         dt = np.concatenate(dt_list, axis=0)
         mask = np.concatenate(mask_list, axis=0)
-        mpjpe = keypoint_epe(dt, gt, mask)
-        return dict(mpjpe=mpjpe)
+        all_mpjpe = keypoint_epe(dt, gt, mask)
+        x_mpjpe = keypoint_epe(dt[..., :1], gt[..., :1], mask)
+        y_mpjpe = keypoint_epe(dt[..., 1:2], gt[..., 1:2], mask)
+        z_mpjpe = keypoint_epe(dt[..., 2:], gt[..., 2:], mask)
+        return dict(
+            all_mpjpe=all_mpjpe,
+            x_mpjpe=x_mpjpe,
+            y_mpjpe=y_mpjpe,
+            z_mpjpe=z_mpjpe)

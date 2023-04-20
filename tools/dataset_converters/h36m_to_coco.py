@@ -7,7 +7,7 @@ import mmengine
 import numpy as np
 from PIL import Image
 
-from mmpose.utils import SimpleCamera
+from nreal_data_tool.utils.camera import SimpleCamera
 
 
 def _keypoint_camera_to_world(keypoints,
