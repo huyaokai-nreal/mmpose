@@ -190,12 +190,11 @@ train_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         data_mode=data_mode,
-        ann_file=
-        f'{data_root}/annotations/human_annot/InterHand2.6M_train_data.json',
+        ann_file=f'{data_root}/annotations/all/InterHand2.6M_train_data.json',
         camera_file=
-        f'{data_root}/annotations/human_annot/InterHand2.6M_train_camera.json',
+        f'{data_root}/annotations/all/InterHand2.6M_train_camera.json',
         joint_file=
-        f'{data_root}/annotations/human_annot/InterHand2.6M_train_joint_3d.json',
+        f'{data_root}/annotations/all/InterHand2.6M_train_joint_3d.json',
         img_prefix=f'{data_root}/images/train',
         pipeline=train_pipeline,
     ))
@@ -209,16 +208,33 @@ val_dataloader = dict(
         type=dataset_type,
         data_mode=data_mode,
         ann_file=
-        f'{data_root}/annotations/human_annot/InterHand2.6M_test_data.json',
+        f'{data_root}/annotations/machine_annot/InterHand2.6M_val_data.json',
         camera_file=
-        f'{data_root}/annotations/human_annot/InterHand2.6M_test_camera.json',
+        f'{data_root}/annotations/machine_annot/InterHand2.6M_val_camera.json',
         joint_file=
-        f'{data_root}/annotations/human_annot/InterHand2.6M_test_joint_3d.json',
+        f'{data_root}/annotations/machine_annot/InterHand2.6M_val_joint_3d.json',
+        img_prefix=f'{data_root}/images/val',
+        test_mode=True,
+        pipeline=val_pipeline,
+    ))
+test_dataloader = dict(
+    batch_size=32,
+    num_workers=8,
+    persistent_workers=True,
+    drop_last=False,
+    sampler=dict(type='DefaultSampler', shuffle=False, round_up=False),
+    dataset=dict(
+        type=dataset_type,
+        data_mode=data_mode,
+        ann_file=f'{data_root}/annotations/all/InterHand2.6M_test_data.json',
+        camera_file=
+        f'{data_root}/annotations/all/InterHand2.6M_test_camera.json',
+        joint_file=
+        f'{data_root}/annotations/all/InterHand2.6M_test_joint_3d.json',
         img_prefix=f'{data_root}/images/test',
         test_mode=True,
         pipeline=val_pipeline,
     ))
-test_dataloader = val_dataloader
 # hooks
 default_hooks = dict(
     checkpoint=dict(save_best='AUC', rule='greater', max_keep_ckpts=1))
