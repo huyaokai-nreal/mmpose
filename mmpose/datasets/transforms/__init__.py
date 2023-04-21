@@ -8,7 +8,7 @@ from .common_transforms import (Albumentation, GenerateTarget,
                                 ChangeImageQuality)
 from .converting import KeypointConverter
 from .formatting import PackPoseInputs
-from .loading import LoadImage
+from .loading import LoadImage, LoadImageFromMultiLMDB
 from .topdown_transforms import TopdownAffine, RandomBackground
 
 __all__ = [
@@ -16,6 +16,6 @@ __all__ = [
     'RandomHalfBody', 'TopdownAffine', 'Albumentation',
     'PhotometricDistortion', 'PackPoseInputs', 'LoadImage',
     'BottomupGetHeatmapMask', 'BottomupRandomAffine', 'BottomupResize',
-    'GenerateTarget', 'KeypointConverter', 'GetNegtiveBBox','ChangeImageQuality',
-    'RandomBackground'
+    'GenerateTarget', 'KeypointConverter', 'GetNegtiveBBox',
+    'ChangeImageQuality', 'RandomBackground', 'LoadImageFromMultiLMDB'
 ]

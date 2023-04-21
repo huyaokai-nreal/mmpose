@@ -1,6 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import os.path as osp
-from typing import Optional, Sequence, Union
+from typing import List, Optional, Sequence, Union
 from xtcocotools.coco import COCO
 import json_tricks as json
 import numpy as np
@@ -98,10 +98,11 @@ class InterHand3DDataset(BaseCocoStyleDataset):
                  indices: Optional[Union[int, Sequence[int]]] = None,
                  serialize_data: bool = False,
                  lazy_init: bool = False,
-                 max_refetch: int = 100,
+                 max_refetch: int = 2,
                  use_gt_root_depth=True,
                  rootnet_result_file=None,
                  point_type='3D',
+                 hand_type_list: List[str] = ['left', 'right'],
                  test_mode=False):
         self.use_different_joint_weights = use_different_joint_weights
         self.img_prefix = img_prefix
@@ -109,6 +110,7 @@ class InterHand3DDataset(BaseCocoStyleDataset):
         self.img_ids = self.coco.getImgIds()
         self.point_type = point_type
         self.num_images = len(self.img_ids)
+        self.hand_type_list = hand_type_list
         self.id2name, self.name2id = self._get_mapping_id_name(self.coco.imgs)
 
         if 'categories' in self.coco.dataset:
@@ -221,7 +223,10 @@ class InterHand3DDataset(BaseCocoStyleDataset):
             capture_id = str(img['capture'])
             camera_name = img['camera']
             frame_idx = str(img['frame_idx'])
-            image_file = osp.join(self.img_prefix, self.id2name[img_id])
+            if self.img_prefix.endswith('lmdb'):
+                image_file = f'{self.img_prefix}:{self.id2name[img_id]}'
+            else:
+                image_file = osp.join(self.img_prefix, self.id2name[img_id])
             joint_world = np.array(
                 joints[capture_id][frame_idx]['world_coord'], dtype=np.float32)
             camera: SimpleCamera = cameras_map[capture_id][camera_name]
@@ -230,7 +235,7 @@ class InterHand3DDataset(BaseCocoStyleDataset):
             joint_valid = np.array(
                 ann['joint_valid'], dtype=np.float32).flatten()
             hand_type = ann['hand_type']
-            if hand_type not in ['left', 'right']:
+            if hand_type not in self.hand_type_list:
                 continue
             # only single hand supported now
             # hand_type_valid = ann['hand_type_valid']

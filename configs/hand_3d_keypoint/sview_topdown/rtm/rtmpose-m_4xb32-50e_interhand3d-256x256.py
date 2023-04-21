@@ -45,7 +45,7 @@ codec = dict(
     sigma=(5.66, 5.66, 5.66),
     simcc_split_ratio=2.0,
     normalize=False,
-    use_dark=False)
+    use_dark=True)
 
 # model settings
 model = dict(
@@ -111,7 +111,7 @@ backend_args = dict(backend='local')
 
 # pipelines
 train_pipeline = [
-    dict(type='LoadImage', backend_args=backend_args),
+    dict(type='LoadImageFromMultiLMDB', color_type='color'),
     dict(type='GetBBoxCenterScale'),
     # dict(type='RandomHalfBody'),
     dict(
@@ -143,7 +143,7 @@ train_pipeline = [
     dict(type='PackPoseInputs')
 ]
 val_pipeline = [
-    dict(type='LoadImage', backend_args=backend_args),
+    dict(type='LoadImageFromMultiLMDB', color_type='color'),
     dict(type='GetBBoxCenterScale'),
     dict(type='TopdownAffine', input_size=(256, 256)),
     dict(type='GenerateTarget', encoder=codec),
@@ -151,7 +151,7 @@ val_pipeline = [
 ]
 
 train_pipeline_stage2 = [
-    dict(type='LoadImage', backend_args=backend_args),
+    dict(type='LoadImageFromMultiLMDB', color_type='color'),
     dict(type='GetBBoxCenterScale'),
     # dict(type='RandomHalfBody'),
     dict(
@@ -195,7 +195,7 @@ train_dataloader = dict(
         f'{data_root}/annotations/all/InterHand2.6M_train_camera.json',
         joint_file=
         f'{data_root}/annotations/all/InterHand2.6M_train_joint_3d.json',
-        img_prefix=f'{data_root}/images/train',
+        img_prefix=f'{data_root}/lmdb_data/train_lmdb',
         pipeline=train_pipeline,
     ))
 val_dataloader = dict(
@@ -213,7 +213,7 @@ val_dataloader = dict(
         f'{data_root}/annotations/machine_annot/InterHand2.6M_val_camera.json',
         joint_file=
         f'{data_root}/annotations/machine_annot/InterHand2.6M_val_joint_3d.json',
-        img_prefix=f'{data_root}/images/val',
+        img_prefix=f'{data_root}/lmdb_data/val_lmdb',
         test_mode=True,
         pipeline=val_pipeline,
     ))
@@ -231,7 +231,7 @@ test_dataloader = dict(
         f'{data_root}/annotations/all/InterHand2.6M_test_camera.json',
         joint_file=
         f'{data_root}/annotations/all/InterHand2.6M_test_joint_3d.json',
-        img_prefix=f'{data_root}/images/test',
+        img_prefix=f'{data_root}/lmdb_data/test_lmdb',
         test_mode=True,
         pipeline=val_pipeline,
     ))

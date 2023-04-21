@@ -1,10 +1,32 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-from typing import Optional
+from typing import Optional, Dict
 
 import numpy as np
 from mmcv.transforms import LoadImageFromFile
-
+from mmcv.transforms import BaseTransform
 from mmpose.registry import TRANSFORMS
+from nreal_data_tool.file.lmdb_client import LmdbClient
+
+
+@TRANSFORMS.register_module()
+class LoadImageFromMultiLMDB(BaseTransform):
+
+    def __init__(self,
+                 color_type: str = 'grayscale',
+                 channel_order: str = 'bgr',
+                 path_spliter: str = ':',
+                 to_float32: bool = False) -> None:
+        self.lmdb_client = LmdbClient(color_type, channel_order, path_spliter)
+        self.to_float32 = to_float32
+
+    def transform(self, results: Dict) -> Dict:
+        img = self.lmdb_client.get(results['img_path'])
+        if self.to_float32:
+            img = img.astype(np.float32)
+        results['img'] = img
+        results['img_shape'] = results['img'].shape[:2]
+        results['ori_shape'] = results['img'].shape[:2]
+        return results
 
 
 @TRANSFORMS.register_module()
