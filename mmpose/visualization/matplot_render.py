@@ -1,20 +1,32 @@
+import cv2
+import io
 import matplotlib.pyplot as plt
 import numpy as np
-from mpl_toolkits.mplot3d import Axes3D  # noqa
+
+
+def get_cv2mat_from_buf(fig, dpi=180):
+    """Get numpy image from IO."""
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', dpi=dpi)
+    buf.seek(0)
+    img_arr = np.frombuffer(buf.getvalue(), dtype=np.uint8)
+    buf.close()
+    img = cv2.imdecode(img_arr, 1)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    return img
 
 
 def plot_3d_pose(ax,
-                 pose_3d_1,
+                 keypints3d,
                  bones,
                  linewidth=5,
                  alpha=0.95,
                  colormap='gist_rainbow',
-                 autoAxisRange=True,
+                 auto_axis_range=True,
                  flip_yz=True,
-                 change_view=True,
-                 isGT=False):
+                 is_gt=False):
     cmap = plt.get_cmap(colormap)
-    pose_3d = pose_3d_1.copy()
+    pose_3d = keypints3d.copy()
     pose_3d = np.reshape(pose_3d.transpose(), (3, -1))
     pose_3d[1, :] *= -1
 
@@ -25,14 +37,9 @@ def plot_3d_pose(ax,
         X, Y, Z = np.squeeze(np.array(pose_3d[0, :])), np.squeeze(
             np.array(pose_3d[1, :])), np.squeeze(np.array(pose_3d[2, :]))
     XYZ = np.vstack([X, Y, Z])
-
-    if change_view:
-        ax.view_init(elev=0, azim=-90)
     cmap = plt.get_cmap(colormap)
-
     maximum = len(bones)
-
-    if not isGT:
+    if not is_gt:
         for i, bone in enumerate(bones):
             colorIndex = cmap.N - cmap.N * i / float(
                 maximum)  # cmap.N - to start from back (nicer color)
@@ -57,6 +64,7 @@ def plot_3d_pose(ax,
             # otherwise bones with be ordered in the order of drawing
             # or something even more weird...
             zorder = -depth
+            ax.scatter3D(XYZ[0, :], XYZ[1, :], XYZ[2, :], c='red', s=50)
             ax.plot(
                 XYZ[0, bone],
                 XYZ[1, bone],
@@ -68,7 +76,7 @@ def plot_3d_pose(ax,
                 solid_capstyle='round')
 
     # maintain aspect ratio
-    if autoAxisRange:
+    if auto_axis_range:
         max_range = np.array(
             [X.max() - X.min(),
              Y.max() - Y.min(),

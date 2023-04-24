@@ -6,6 +6,8 @@ import cv2
 import mmcv
 import numpy as np
 import torch
+import os
+from mpl_toolkits.mplot3d import Axes3D  # noqa
 from mmengine.dist import master_only
 from mmengine.structures import InstanceData, PixelData
 from mmengine.visualization import Visualizer
@@ -14,7 +16,7 @@ from mmpose.datasets.datasets.utils import parse_pose_metainfo
 from mmpose.registry import VISUALIZERS
 from mmpose.structures import PoseDataSample
 from .simcc_vis import SimCCVisualizer
-from .matplot_render import plot_3d_pose
+from .matplot_render import plot_3d_pose, get_cv2mat_from_buf
 
 
 def _get_adaptive_scales(areas: np.ndarray,
@@ -220,15 +222,11 @@ class PoseLocalVisualizer(Visualizer):
 
         return self.get_image()
 
-    def _draw_instances_3dkpts(self, keypoints):
+    def _draw_instances_3dkpts(self, ax, keypoints, is_gt):
         for kpts in keypoints:
             kpts = np.array(kpts, copy=False)
-            fig = plt.figure(figsize=(10, 10))
-            ax = fig.add_subplot(111, projection='3d')
-            print(self.skeleton)
-            plot_3d_pose(ax, keypoints, self.skeleton)
-            fig.savefig('kpt3d.png')
-            exit()
+            plot_3d_pose(ax, keypoints, self.skeleton, is_gt=is_gt)
+        return ax
 
     def _draw_instances_kpts(self,
                              image: np.ndarray,
@@ -258,7 +256,7 @@ class PoseLocalVisualizer(Visualizer):
 
         if 'keypoints' in instances:
             keypoints = instances.get('transformed_keypoints',
-                                      instances.keypoints)
+                                      instances.keypoints)[..., :2]
 
             if 'keypoint_scores' in instances:
                 scores = instances.keypoint_scores
@@ -463,6 +461,7 @@ class PoseLocalVisualizer(Visualizer):
                        image: np.ndarray,
                        data_sample: PoseDataSample,
                        draw_gt: bool = True,
+                       draw_3d: bool = True,
                        draw_pred: bool = True,
                        draw_heatmap: bool = False,
                        draw_bbox: bool = False,
@@ -491,6 +490,8 @@ class PoseLocalVisualizer(Visualizer):
                 to visualize
             draw_gt (bool): Whether to draw GT PoseDataSample. Default to
                 ``True``
+            draw_gt (bool): Whether to draw 3d keypoints. Default to
+                ``False``
             draw_pred (bool): Whether to draw Prediction PoseDataSample.
                 Defaults to ``True``
             draw_bbox (bool): Whether to draw bounding boxes. Default to
@@ -513,6 +514,8 @@ class PoseLocalVisualizer(Visualizer):
         gt_img_data = None
         pred_img_data = None
         image = image.astype(np.uint8)
+        fig_kpt3d = plt.figure(figsize=(10, 10))
+        ax = fig_kpt3d.add_subplot(111, projection='3d')
 
         if draw_gt:
             gt_img_data = image.copy()
@@ -526,6 +529,12 @@ class PoseLocalVisualizer(Visualizer):
                 if draw_bbox:
                     gt_img_data = self._draw_instances_bbox(
                         gt_img_data, data_sample.gt_instances)
+                if draw_3d:
+                    if 'keypoints3d' in data_sample.gt_instances:
+                        ax = self._draw_instances_3dkpts(
+                            ax,
+                            data_sample.gt_instances.keypoints3d,
+                            is_gt=True)
 
             # draw heatmaps
             if 'gt_fields' in data_sample and draw_heatmap:
@@ -547,6 +556,12 @@ class PoseLocalVisualizer(Visualizer):
                 if draw_bbox:
                     pred_img_data = self._draw_instances_bbox(
                         pred_img_data, data_sample.pred_instances)
+                if draw_3d:
+                    if 'keypoints3d' in data_sample.gt_instances:
+                        ax = self._draw_instances_3dkpts(
+                            ax,
+                            data_sample.pred_instances.keypoints3d,
+                            is_gt=False)
 
             # draw heatmaps
             if 'pred_fields' in data_sample and draw_heatmap:
@@ -583,9 +598,14 @@ class PoseLocalVisualizer(Visualizer):
             self.show(drawn_img, win_name=name, wait_time=wait_time)
 
         if out_file is not None:
-            if not out_file.endswith('.png') or not out_file.endswith('.jpg'):
+            if not out_file.endswith('.png') and not out_file.endswith('.jpg'):
                 out_file = out_file + '.png'
             mmcv.imwrite(drawn_img[..., ::-1], out_file)
+            if draw_3d:
+                kpt3d_img = get_cv2mat_from_buf(fig_kpt3d)
+                out_file = out_file.replace(
+                    os.path.splitext(out_file)[1], '_kpt3d.png')
+                mmcv.imwrite(kpt3d_img, out_file)
         else:
             # save drawn_img to backends
             self.add_image(name, drawn_img, step)

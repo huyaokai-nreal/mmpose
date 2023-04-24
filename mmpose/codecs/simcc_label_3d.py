@@ -211,15 +211,17 @@ class SimCCLabel3D(BaseKeypointCodec):
         """
 
         N, K, _ = keypoints.shape
-        w, h = self.input_size
+        w, h, d = self.input_size
         W = np.around(w * self.simcc_split_ratio).astype(int)
         H = np.around(h * self.simcc_split_ratio).astype(int)
+        D = np.around(d * self.simcc_split_ratio).astype(int)
 
         keypoints_split, keypoint_weights = self._map_coordinates(
             keypoints, keypoints_visible)
 
         target_x = np.zeros((N, K, W), dtype=np.float32)
         target_y = np.zeros((N, K, H), dtype=np.float32)
+        target_z = np.zeros((N, K, D), dtype=np.float32)
 
         for n, k in product(range(N), range(K)):
             # skip unlabled keypoints
@@ -227,19 +229,21 @@ class SimCCLabel3D(BaseKeypointCodec):
                 continue
 
             # get center coordinates
-            mu_x, mu_y = keypoints_split[n, k].astype(np.int64)
+            mu_x, mu_y, mu_z = keypoints_split[n, k].astype(np.int64)
 
             # detect abnormal coords and assign the weight 0
-            if mu_x >= W or mu_y >= H or mu_x < 0 or mu_y < 0:
+            if mu_x >= W or mu_y >= H or mu_x < 0 or mu_y < 0 or \
+                    mu_z < 0 or mu_z >= D:
                 keypoint_weights[n, k] = 0
                 continue
-
             if self.label_smooth_weight > 0:
                 target_x[n, k] = self.label_smooth_weight / (W - 1)
                 target_y[n, k] = self.label_smooth_weight / (H - 1)
+                target_z[n, k] = self.label_smooth_weight / (D - 1)
 
             target_x[n, k, mu_x] = 1.0 - self.label_smooth_weight
             target_y[n, k, mu_y] = 1.0 - self.label_smooth_weight
+            target_y[n, k, mu_z] = 1.0 - self.label_smooth_weight
 
         return target_x, target_y, keypoint_weights
 
