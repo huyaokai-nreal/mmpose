@@ -6,7 +6,6 @@ import numpy as np
 from mmengine.evaluator import BaseMetric
 from nreal_data_tool.metric import KeypointOKSMetric
 from mmpose.registry import METRICS
-from nreal_data_tool.utils.camera import SimpleCamera
 from typing import List
 from copy import deepcopy
 from ..functional.keypoint_eval import keypoint_epe
@@ -20,9 +19,11 @@ class MPJPEMetric(BaseMetric):
                  gesture_list: List[str] = [],
                  collect_device: str = 'cpu',
                  prefix: Optional[str] = None,
-                 result_dir=None) -> None:
+                 result_dir=None,
+                 root_kpt_id=20) -> None:
         super().__init__(collect_device, prefix)
         self.result_dir = result_dir
+        self.root_kpt_id = root_kpt_id
         self.logger = MMLogger.get_current_instance()
         self.metric = KeypointOKSMetric(
             gesture_list=deepcopy(gesture_list), logger=self.logger)
@@ -33,7 +34,7 @@ class MPJPEMetric(BaseMetric):
                 raise ValueError(
                     '`pred_instances` are required to process the '
                     f'predictions results in {self.__class__.__name__}. ')
-            keypoints = data_sample['pred_instances']['keypoints']
+            keypoints = data_sample['pred_instances']['keypoints3d']
             gt = data_sample['gt_instances']
             gt_keypoints = gt['keypoints']
             # [N, K], the scores for all keypoints of all instances
@@ -66,15 +67,10 @@ class MPJPEMetric(BaseMetric):
         dt_list = []
         mask_list = []
         for result in results:
-            keypoints = result['keypoints'][0]
-            # 2d keypoints to 2.5D keypoints
-            root_depth = result['meta']['root_depth']
-            keypoints[:, 2] += root_depth
-            camera: SimpleCamera = result['meta']['camera']
-            pred_pt_cam = camera.pixel_to_camera(keypoints)
-            pred_pt_cam = pred_pt_cam - pred_pt_cam[20]
+            pred_pt_cam = result['keypoints'][0]
+            pred_pt_cam = pred_pt_cam - pred_pt_cam[self.root_kpt_id]
             gt_pt_cam = result['meta']['keypoints_cam']
-            gt_pt_cam = gt_pt_cam - gt_pt_cam[20]
+            gt_pt_cam = gt_pt_cam - gt_pt_cam[self.root_kpt_id]
             dt_list.append(pred_pt_cam[np.newaxis, ...])
             gt_list.append(gt_pt_cam[np.newaxis, ...])
             mask_list.append(result['mask'])

@@ -1,7 +1,7 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import math
 from typing import Dict, List, Optional, Tuple, Union
-
+import matplotlib.pyplot as plt
 import cv2
 import mmcv
 import numpy as np
@@ -14,6 +14,7 @@ from mmpose.datasets.datasets.utils import parse_pose_metainfo
 from mmpose.registry import VISUALIZERS
 from mmpose.structures import PoseDataSample
 from .simcc_vis import SimCCVisualizer
+from .matplot_render import plot_3d_pose
 
 
 def _get_adaptive_scales(areas: np.ndarray,
@@ -218,6 +219,16 @@ class PoseLocalVisualizer(Visualizer):
                     }])
 
         return self.get_image()
+
+    def _draw_instances_3dkpts(self, keypoints):
+        for kpts in keypoints:
+            kpts = np.array(kpts, copy=False)
+            fig = plt.figure(figsize=(10, 10))
+            ax = fig.add_subplot(111, projection='3d')
+            print(self.skeleton)
+            plot_3d_pose(ax, keypoints, self.skeleton)
+            fig.savefig('kpt3d.png')
+            exit()
 
     def _draw_instances_kpts(self,
                              image: np.ndarray,

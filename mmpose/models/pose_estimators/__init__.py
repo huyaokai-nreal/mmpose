@@ -2,4 +2,8 @@
 from .bottomup import BottomupPoseEstimator
 from .topdown import TopdownPoseEstimator
 
-__all__ = ['TopdownPoseEstimator', 'BottomupPoseEstimator']
+from .topdown3d import TopdownPose3DEstimator
+
+__all__ = [
+    'TopdownPoseEstimator', 'BottomupPoseEstimator', 'TopdownPose3DEstimator'
+]

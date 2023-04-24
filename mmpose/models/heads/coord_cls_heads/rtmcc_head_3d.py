@@ -1,13 +1,8 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-import warnings
 from typing import Optional, Sequence, Tuple, Union
 
 import torch
-from mmengine.dist import get_dist_info
-from mmengine.structures import PixelData
 from torch import Tensor, nn
-
-from mmpose.codecs.utils import get_simcc_normalized
 from mmpose.evaluation.functional import simcc3d_pck_accuracy
 from mmpose.registry import MODELS
 from mmpose.utils.tensor_utils import to_numpy
@@ -146,40 +141,7 @@ class RTMCCHead3D(RTMCCHead):
         """
         batch_pred_x, batch_pred_y, batch_pred_z = self.forward(feats)
         preds = self.decode((batch_pred_x, batch_pred_y, batch_pred_z))
-
-        if test_cfg.get('output_heatmaps', False):
-            rank, _ = get_dist_info()
-            if rank == 0:
-                warnings.warn('The predicted simcc values are normalized for '
-                              'visualization. This may cause discrepancy '
-                              'between the keypoint scores and the 1D heatmaps'
-                              '.')
-
-            # normalize the predicted 1d distribution
-            batch_pred_x = get_simcc_normalized(batch_pred_x)
-            batch_pred_y = get_simcc_normalized(batch_pred_y)
-
-            B, K, _ = batch_pred_x.shape
-            # B, K, Wx -> B, K, Wx, 1
-            x = batch_pred_x.reshape(B, K, 1, -1)
-            # B, K, Wy -> B, K, 1, Wy
-            y = batch_pred_y.reshape(B, K, -1, 1)
-            # B, K, Wx, Wy
-            batch_heatmaps = torch.matmul(y, x)
-            pred_fields = [
-                PixelData(heatmaps=hm) for hm in batch_heatmaps.detach()
-            ]
-
-            for pred_instances, pred_x, pred_y in zip(preds,
-                                                      to_numpy(batch_pred_x),
-                                                      to_numpy(batch_pred_y)):
-
-                pred_instances.keypoint_x_labels = pred_x[None]
-                pred_instances.keypoint_y_labels = pred_y[None]
-
-            return preds, pred_fields
-        else:
-            return preds
+        return preds
 
     def loss(
         self,
