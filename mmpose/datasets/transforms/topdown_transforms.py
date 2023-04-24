@@ -4,8 +4,10 @@ import cv2
 import numpy as np
 import json
 import os
+import copy
 from mmcv.transforms import BaseTransform
 from mmengine import is_seq_of
+from mmengine.dataset.utils import default_collate
 from mmengine.dist import get_world_size, get_rank
 from mmengine.logging import MMLogger
 from nreal_data_tool import LmdbClient
@@ -258,3 +260,25 @@ class RandomBackground(BaseTransform):
         repr_str = self.__class__.__name__
         repr_str += f'bg image number={len(self.data_list)})'
         return repr_str
+
+
+@TRANSFORMS.register_module()
+class AffineTransformConsistency(BaseTransform):
+
+    def __init__(self, trans_cfg_list) -> None:
+        super().__init__()
+        self.trans_list = []
+        for cfg in trans_cfg_list:
+            self.trans_list.append(TRANSFORMS.build(cfg))
+
+    def _transform(self, results):
+        for trans in self.trans_list:
+            results = trans(results)
+        return results
+
+    def transform(self, results: Dict) -> Dict:
+        results_copy = copy.deepcopy(results)
+        aug_results_1 = self._transform(results)
+        aug_results_2 = self._transform(results_copy)
+        all_results = default_collate([aug_results_1, aug_results_2])
+        return all_results

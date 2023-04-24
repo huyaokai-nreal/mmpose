@@ -1,4 +1,5 @@
 # Copyright (c) OpenMMLab. All rights reserved.
+import cv2
 from itertools import zip_longest
 from typing import Optional, Tuple
 from torch import Tensor
@@ -8,6 +9,7 @@ from mmpose.utils.typing import (ConfigType, InstanceList, OptConfigType,
                                  OptMultiConfig, PixelDataList, SampleList)
 from .base import BasePoseEstimator
 from mmpose.structures.bbox import bbox_cs2xyxy
+from mmpose.utils.data import format_data
 
 
 @MODELS.register_module()
@@ -88,6 +90,7 @@ class TopdownPoseEstimator(BasePoseEstimator):
                 x = x[-1]
         return x
 
+    @format_data
     def loss(self, inputs: Tensor, data_samples: SampleList) -> dict:
         """Calculate losses from a batch of inputs and data samples.
 
@@ -102,7 +105,6 @@ class TopdownPoseEstimator(BasePoseEstimator):
         feats = self.extract_feat(inputs)
 
         losses = dict()
-
         if self.with_head:
             losses.update(
                 self.head.loss(feats, data_samples, train_cfg=self.train_cfg))
@@ -182,11 +184,10 @@ class TopdownPoseEstimator(BasePoseEstimator):
             # convert keypoint coordinates from input space to image space
             bbox_centers = gt_instances.bbox_centers
             bbox_scales = gt_instances.bbox_scales
-            input_size = data_sample.metainfo['input_size']
-
-            pred_instances.keypoints[..., :2] = pred_instances.keypoints[
-                ..., :
-                2] / input_size * bbox_scales + bbox_centers - 0.5 * bbox_scales  # noqa
+            warp_mat = data_sample.metainfo['warp_mat']
+            inv_warp_mat = cv2.invertAffineTransform(warp_mat)
+            pred_instances.keypoints[..., :2] = cv2.transform(
+                pred_instances.keypoints[..., :2], inv_warp_mat)
 
             if output_keypoint_indices is not None:
                 # select output keypoints with given indices

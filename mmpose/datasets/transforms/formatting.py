@@ -122,7 +122,7 @@ class PackPoseInputs(BaseTransform):
                             'crowd_index', 'ori_shape', 'img_shape',
                             'input_size', 'input_center', 'input_scale',
                             'flip', 'flip_direction', 'flip_indices',
-                            'raw_ann_info', 'meta'),
+                            'raw_ann_info', 'meta', 'warp_mat'),
                  pack_transformed=False):
         self.meta_keys = meta_keys
         self.pack_transformed = pack_transformed

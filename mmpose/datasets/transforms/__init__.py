@@ -9,7 +9,8 @@ from .common_transforms import (Albumentation, GenerateTarget,
 from .converting import KeypointConverter
 from .formatting import PackPoseInputs
 from .loading import LoadImage, LoadImageFromMultiLMDB
-from .topdown_transforms import TopdownAffine, RandomBackground
+from .topdown_transforms import (TopdownAffine, RandomBackground,
+                                 AffineTransformConsistency)
 
 __all__ = [
     'GetBBoxCenterScale', 'RandomBBoxTransform', 'RandomFlip',
@@ -17,5 +18,6 @@ __all__ = [
     'PhotometricDistortion', 'PackPoseInputs', 'LoadImage',
     'BottomupGetHeatmapMask', 'BottomupRandomAffine', 'BottomupResize',
     'GenerateTarget', 'KeypointConverter', 'GetNegtiveBBox',
-    'ChangeImageQuality', 'RandomBackground', 'LoadImageFromMultiLMDB'
+    'ChangeImageQuality', 'RandomBackground', 'LoadImageFromMultiLMDB',
+    'AffineTransformConsistency'
 ]
