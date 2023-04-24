@@ -88,6 +88,7 @@ class PackPoseInputs(BaseTransform):
         'bbox_scale': 'bbox_scales',
         'bbox_score': 'bbox_scores',
         'keypoints': 'keypoints',
+        'keypoints3d': 'keypoints3d',
         'keypoints_visible': 'keypoints_visible',
     }
 

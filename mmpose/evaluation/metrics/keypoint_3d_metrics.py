@@ -34,18 +34,17 @@ class MPJPEMetric(BaseMetric):
                 raise ValueError(
                     '`pred_instances` are required to process the '
                     f'predictions results in {self.__class__.__name__}. ')
-            keypoints = data_sample['pred_instances']['keypoints3d']
+            keypoints3d = data_sample['pred_instances']['keypoints3d']
             gt = data_sample['gt_instances']
-            gt_keypoints = gt['keypoints']
             # [N, K], the scores for all keypoints of all instances
             keypoint_scores = data_sample['pred_instances']['keypoint_scores']
-            assert keypoint_scores.shape == keypoints.shape[:2]
+            assert keypoint_scores.shape == keypoints3d.shape[:2]
 
             result = dict()
             result['id'] = data_sample['id']
             result['img_id'] = data_sample['img_id']
-            result['gt_keypoints'] = gt_keypoints
-            result['keypoints'] = keypoints
+            result['gt_keypoints3d'] = gt['keypoints3d']
+            result['keypoints3d'] = keypoints3d
             mask = gt['keypoints_visible'].astype(bool).reshape(1, -1)
             result['mask'] = mask
             result['keypoint_scores'] = keypoint_scores
@@ -67,12 +66,12 @@ class MPJPEMetric(BaseMetric):
         dt_list = []
         mask_list = []
         for result in results:
-            pred_pt_cam = result['keypoints'][0]
-            pred_pt_cam = pred_pt_cam - pred_pt_cam[self.root_kpt_id]
-            gt_pt_cam = result['meta']['keypoints_cam']
-            gt_pt_cam = gt_pt_cam - gt_pt_cam[self.root_kpt_id]
-            dt_list.append(pred_pt_cam[np.newaxis, ...])
-            gt_list.append(gt_pt_cam[np.newaxis, ...])
+            pred_pt_cam = result['keypoints3d']
+            pred_pt_cam = pred_pt_cam - pred_pt_cam[:, self.root_kpt_id]
+            gt_pt_cam = result['gt_keypoints3d']
+            gt_pt_cam = gt_pt_cam - gt_pt_cam[:, self.root_kpt_id]
+            dt_list.append(pred_pt_cam)
+            gt_list.append(gt_pt_cam)
             mask_list.append(result['mask'])
         gt = np.concatenate(gt_list, axis=0)
         dt = np.concatenate(dt_list, axis=0)

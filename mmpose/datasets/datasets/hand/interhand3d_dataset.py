@@ -312,6 +312,8 @@ class InterHand3DDataset(BaseCocoStyleDataset):
                 keypoints,
                 'keypoints_visible':
                 joints_3d_visible,
+                'keypoints3d':
+                joint_cam[np.newaxis, ...],
                 'hand_type':
                 hand_type,
                 'joint_cam':
@@ -323,10 +325,7 @@ class InterHand3DDataset(BaseCocoStyleDataset):
                 'id':
                 bbox_id,
                 'meta':
-                dict(
-                    root_depth=abs_depth,
-                    keypoints_cam=joint_cam,
-                    camera=camera)
+                dict(root_depth=abs_depth, camera=camera)
             })
             bbox_id = bbox_id + 1
         instance_list = sorted(instance_list, key=lambda x: x['id'])
