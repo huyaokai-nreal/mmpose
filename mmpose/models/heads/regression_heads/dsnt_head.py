@@ -1,6 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from typing import Optional, Sequence, Tuple, Union
-
+import cv2
 import numpy as np
 import torch
 from mmengine.logging import MessageHub
@@ -105,7 +105,9 @@ class DSNTHead(IntegralRegressionHead):
                  feat_norm_type='softmax',
                  deploy_output: str = 'feat',
                  output_fuse_coord: bool = False,
-                 symmetry_ipr=False):
+                 symmetry_ipr=False,
+                 consistency_loss=False,
+                 input_size: Optional[Tuple] = None):
 
         super().__init__(
             in_channels=in_channels,
@@ -129,6 +131,8 @@ class DSNTHead(IntegralRegressionHead):
             output_fuse_coord=output_fuse_coord)
 
         self.lambda_t = lambda_t
+        self.consistency_loss = consistency_loss
+        self.input_size = input_size
 
     def loss(self,
              inputs: Tuple[Tensor],
@@ -147,6 +151,30 @@ class DSNTHead(IntegralRegressionHead):
 
         input_list = [pred_coords, pred_heatmaps]
         target_list = [keypoint_labels, gt_heatmaps]
+        if self.consistency_loss:
+            B, N, K = pred_coords[..., :2].shape
+            pred_coords_pos = torch.cat([
+                pred_coords[..., :2] * self.input_size,
+                torch.ones(B, N, 1, device='cuda')
+            ],
+                                        dim=-1)
+            global_pred_coords = torch.zeros((B, N, K)).cuda()
+            all_inv_warp_mat = torch.zeros(B, 3, 2).cuda()
+            all_inv_warp_mat.requires_grad = False
+            for i, d in enumerate(batch_data_samples):
+                warp_mat = d.metainfo['warp_mat']
+                inv_warp_mat = cv2.invertAffineTransform(warp_mat).astype(
+                    np.float32)
+                inv_warp_mat = torch.from_numpy(inv_warp_mat).cuda()
+                all_inv_warp_mat[i] = inv_warp_mat.transpose(0, 1)
+            global_pred_coords = torch.bmm(pred_coords_pos, all_inv_warp_mat)
+            pred_coords_1 = global_pred_coords.view(B // 2, 2, N, K)[:,
+                                                                     0, :, :]
+            pred_coords_2 = global_pred_coords.view(B // 2, 2, N, K)[:,
+                                                                     1, :, :]
+            input_list.append(pred_coords_1)
+            target_list.append(pred_coords_2)
+
         # calculate losses
         losses = dict()
 
@@ -161,6 +189,8 @@ class DSNTHead(IntegralRegressionHead):
             if cur_epoch >= self.lambda_t:
                 loss_ht = 0
         losses.update(loss_ht=loss_ht, loss_reg=loss_reg)
+        if self.consistency_loss:
+            losses.update(loss_const=loss_list[2])
         if pred_coords.size(-1) == 4:
             pred_coords = pred_coords[:, :, :2]
         # calculate accuracy

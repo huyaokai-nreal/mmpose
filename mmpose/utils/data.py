@@ -8,7 +8,7 @@ from nreal_data_tool.utils.misc import cross_merge_list
 def format_data(func: Callable):
 
     @wraps(func)
-    def wrapped_func(*args):
+    def wrapped_func(*args, **kwargs):
         args = list(args)
         for i, arg in enumerate(args):
             if isinstance(arg, dict):
@@ -23,6 +23,6 @@ def format_data(func: Callable):
             if is_seq_of(arg, tuple):
                 tmp_list = cross_merge_list(arg[0], arg[1])
                 args[i] = tmp_list
-        return func(*args)
+        return func(*args, **kwargs)
 
     return wrapped_func
