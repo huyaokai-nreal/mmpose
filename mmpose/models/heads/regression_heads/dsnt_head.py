@@ -103,7 +103,7 @@ class DSNTHead(IntegralRegressionHead):
                  init_cfg: OptConfigType = None,
                  deploy: bool = False,
                  feat_norm_type='softmax',
-                 deploy_output: str = 'feat',
+                 deploy_output: str = 'feat+score',
                  output_fuse_coord: bool = False,
                  symmetry_ipr=False,
                  consistency_loss=False,

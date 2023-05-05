@@ -6,6 +6,7 @@ from xtcocotools.coco import COCO
 import os.path as osp
 from mmpose.datasets.builder import DATASETS
 from ..base import BaseCocoStyleDataset
+from mmengine.dataset.base_dataset import force_full_init
 from nreal_data_tool import LmdbClient
 
 
@@ -30,8 +31,10 @@ class HANDDataset(BaseCocoStyleDataset):
                  dataset_weight_list: List = [],
                  with_mask: bool = False,
                  mask_ext: str = 'mask',
-                 sub_data_index=-1):
+                 sub_data_index=-1,
+                 data_ratio=-1):
         self.flip_left_to_right = flip_left_to_right
+        self.data_ratio = data_ratio
         self.data_file_list = data_file_list
         self.lmdb_client = LmdbClient()
         self.dataset_info_list = list()
@@ -54,6 +57,22 @@ class HANDDataset(BaseCocoStyleDataset):
             lazy_init=lazy_init,
             max_refetch=max_refetch,
             pipeline=pipeline)
+
+    @force_full_init
+    def __len__(self) -> int:
+        """Get the length of filtered dataset and automatically call
+        ``full_init`` if the  dataset has not been fully init.
+
+        Returns:
+            int: The length of filtered dataset.
+        """
+        if self.data_ratio <= 0:
+            return super().__len__()
+        else:
+            if self.serialize_data:
+                return int(len(self.data_address) * self.data_ratio)
+            else:
+                return int(len(self.data_list) * self.data_ratio)
 
     def parse_data_info(self, raw_data_info: dict) -> Optional[dict]:
         """Parse raw COCO annotation of an instance.
@@ -81,19 +100,32 @@ class HANDDataset(BaseCocoStyleDataset):
         img_path = osp.join(self.data_prefix['img'], img['file_name'])
         img_w, img_h = img['width'], img['height']
         # get bbox in shape [1, 4], formatted as xywh
-        x, y, w, h = ann['bbox']
-        x1 = np.clip(x, 0, img_w - 1)
-        y1 = np.clip(y, 0, img_h - 1)
-        x2 = np.clip(x + w, 0, img_w - 1)
-        y2 = np.clip(y + h, 0, img_h - 1)
-
-        bbox = np.array([x1, y1, x2, y2], dtype=np.float32).reshape(1, 4)
+        bbox_type = ann.get('bbox_type', 'xywh')
+        if bbox_type == 'xywh':
+            x, y, w, h = ann['bbox']
+            x1 = np.clip(x, 0, img_w - 1)
+            y1 = np.clip(y, 0, img_h - 1)
+            x2 = np.clip(x + w, 0, img_w - 1)
+            y2 = np.clip(y + h, 0, img_h - 1)
+            bbox = np.array([x1, y1, x2, y2], dtype=np.float32).reshape(1, 4)
+        elif bbox_type == 'xyxy':
+            x1, y1, x2, y2 = ann['bbox']
+            x, y, w, h = ann['bbox']
+            x1 = np.clip(x1, 0, img_w - 1)
+            y1 = np.clip(y1, 0, img_h - 1)
+            x2 = np.clip(x2, 0, img_w - 1)
+            y2 = np.clip(y2, 0, img_h - 1)
+            bbox = np.array([x1, y1, x2, y2], dtype=np.float32).reshape(1, 4)
+        else:
+            logger = MMLogger.get_current_instance()
+            logger.fatal(f'unsupported bbox type: {bbox_type}')
 
         # keypoints in shape [1, K, 2] and keypoints_visible in [1, K]
         _keypoints = np.array(
             ann['keypoints'], dtype=np.float32).reshape(1, -1, 3)
         keypoints = _keypoints[..., :2]
-        keypoints_visible = np.minimum(1, _keypoints[..., 2])
+        # keypoints_visible = np.minimum(1, _keypoints[..., 2])
+        keypoints_visible = np.ones((keypoints.shape[0], keypoints.shape[1]))
 
         if 'num_keypoints' in ann:
             num_keypoints = ann['num_keypoints']
