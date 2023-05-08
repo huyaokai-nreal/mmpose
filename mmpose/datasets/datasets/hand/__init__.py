@@ -6,9 +6,10 @@ from .onehand10k_dataset import OneHand10KDataset
 from .panoptic_hand2d_dataset import PanopticHand2DDataset
 from .rhd2d_dataset import Rhd2DDataset
 from .interhand3d_dataset import InterHand3DDataset
+from .pair_hand3d_dataset import PairHand3DDataset
 
 __all__ = [
     'OneHand10KDataset', 'FreiHandDataset', 'PanopticHand2DDataset',
     'Rhd2DDataset', 'CocoWholeBodyHandDataset', 'HANDDataset',
-    'InterHand3DDataset'
+    'InterHand3DDataset', 'PairHand3DDataset'
 ]

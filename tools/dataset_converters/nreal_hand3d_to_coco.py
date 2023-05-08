@@ -103,27 +103,32 @@ def lmdb2coco(lmdb_root, lmdb_path, json_path):
 
         anno = dict(
             keypoints=keypoints.tolist(),
-            num_keypoints=[keypoints_left.shape[0], keypoints_right.shape[0]],
+            num_keypoints=keypoints_left.shape[0],
             bbox=bbox.tolist(),
             area=[float(res_left['area']),
                   float(res_right['area'])],
-            image_id=[i * 2, i * 2 + 1],
-            category_id=[res_left['category_id'], res_right['category_id']],
-            iscrowd=[0,0],
+            # image_id=(i * 2, i * 2 + 1),  # tuple is hashable
+            image_id='_'.join([str(i*2), str(i*2+1)]),
+            category_id=res_left['category_id'],
+            iscrowd=0,
             id=i)
 
         image_left = res_left['image']
         image_right = res_right['image']
-        image = np.concatenate(
-            [image_left[np.newaxis, ...], image_right[np.newaxis, ...]],
-            axis=0)
-        img = dict(
-            file_name=[str_id_left, str_id_right],
-            height=[image_left.shape[0], image_right.shape[0]],
-            width=[image_left.shape[1], image_right.shape[1]],
-            id=[i * 2, i * 2 + 1])
+
+        img_left = dict(
+            file_name=str_id_left,
+            height=image_left.shape[0],
+            width=image_left.shape[1],
+            id=i * 2)
+        img_right = dict(
+            file_name=str_id_right,
+            height=image_right.shape[0],
+            width=image_right.shape[1],
+            id=i * 2 + 1)
         annos.append(anno)
-        imgs.append(img)
+        imgs.append(img_left)
+        imgs.append(img_right)
 
     data = dict(
         images=imgs,

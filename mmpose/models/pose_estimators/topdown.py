@@ -110,6 +110,7 @@ class TopdownPoseEstimator(BasePoseEstimator):
                 self.head.loss(feats, data_samples, train_cfg=self.train_cfg))
         return losses
 
+    @format_data
     def predict(self, inputs: Tensor, data_samples: SampleList) -> SampleList:
         """Predict results from a batch of inputs and data samples with post-
         processing.
