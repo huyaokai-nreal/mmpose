@@ -32,9 +32,11 @@ class HANDDataset(BaseCocoStyleDataset):
                  with_mask: bool = False,
                  mask_ext: str = 'mask',
                  sub_data_index=-1,
-                 data_ratio=-1):
+                 data_ratio=-1,
+                 clip_bbox=True):
         self.flip_left_to_right = flip_left_to_right
         self.data_ratio = data_ratio
+        self.clip_bbox = clip_bbox
         self.data_file_list = data_file_list
         self.lmdb_client = LmdbClient()
         self.dataset_info_list = list()
@@ -102,19 +104,22 @@ class HANDDataset(BaseCocoStyleDataset):
         # get bbox in shape [1, 4], formatted as xywh
         bbox_type = ann.get('bbox_type', 'xywh')
         if bbox_type == 'xywh':
-            x, y, w, h = ann['bbox']
-            x1 = np.clip(x, 0, img_w - 1)
-            y1 = np.clip(y, 0, img_h - 1)
-            x2 = np.clip(x + w, 0, img_w - 1)
-            y2 = np.clip(y + h, 0, img_h - 1)
+            x1, y1, w, h = ann['bbox']
+            x2 = x1 + w
+            y2 = y1 + h
+            if self.clip_bbox:
+                x1 = np.clip(x1, 0, img_w - 1)
+                y1 = np.clip(y1, 0, img_h - 1)
+                x2 = np.clip(x2, 0, img_w - 1)
+                y2 = np.clip(y2, 0, img_h - 1)
             bbox = np.array([x1, y1, x2, y2], dtype=np.float32).reshape(1, 4)
         elif bbox_type == 'xyxy':
             x1, y1, x2, y2 = ann['bbox']
-            x, y, w, h = ann['bbox']
-            x1 = np.clip(x1, 0, img_w - 1)
-            y1 = np.clip(y1, 0, img_h - 1)
-            x2 = np.clip(x2, 0, img_w - 1)
-            y2 = np.clip(y2, 0, img_h - 1)
+            if self.clip_bbox:
+                x1 = np.clip(x1, 0, img_w - 1)
+                y1 = np.clip(y1, 0, img_h - 1)
+                x2 = np.clip(x2, 0, img_w - 1)
+                y2 = np.clip(y2, 0, img_h - 1)
             bbox = np.array([x1, y1, x2, y2], dtype=np.float32).reshape(1, 4)
         else:
             logger = MMLogger.get_current_instance()
@@ -126,6 +131,10 @@ class HANDDataset(BaseCocoStyleDataset):
         keypoints = _keypoints[..., :2]
         # keypoints_visible = np.minimum(1, _keypoints[..., 2])
         keypoints_visible = np.ones((keypoints.shape[0], keypoints.shape[1]))
+        keypoints_visible[keypoints[..., 1] >= img_h] = 0
+        keypoints_visible[keypoints[..., 1] < 0] = 0
+        keypoints_visible[keypoints[..., 0] >= img_w] = 0
+        keypoints_visible[keypoints[..., 0] < 0] = 0
 
         if 'num_keypoints' in ann:
             num_keypoints = ann['num_keypoints']

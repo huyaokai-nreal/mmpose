@@ -461,7 +461,7 @@ class PoseLocalVisualizer(Visualizer):
                        image: np.ndarray,
                        data_sample: PoseDataSample,
                        draw_gt: bool = True,
-                       draw_3d: bool = True,
+                       draw_3d: bool = False,
                        draw_pred: bool = True,
                        draw_heatmap: bool = False,
                        draw_bbox: bool = False,

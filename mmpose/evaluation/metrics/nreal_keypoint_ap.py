@@ -38,14 +38,18 @@ class NrealKeypointAP(BaseMetric):
             keypoints = data_sample['pred_instances']['keypoints']
             # [N, K], the scores for all keypoints of all instances
             keypoint_scores = data_sample['pred_instances']['keypoint_scores']
+            keypoints_visible = data_sample['gt_instances'][
+                'keypoints_visible']
             assert keypoint_scores.shape == keypoints.shape[:2]
 
             result = dict()
             result['id'] = data_sample['id']
             result['img_id'] = data_sample['img_id']
-            result['gt_keypoints'] = data_sample['gt_instances']['keypoints']
-            result['keypoints'] = keypoints
+            result['gt_keypoints'] = data_sample['gt_instances']['keypoints'][
+                0]
+            result['keypoints'] = keypoints[0]
             result['keypoint_scores'] = keypoint_scores
+            result['keypoints_visible'] = keypoints_visible[0]
             result['bbox_scores'] = data_sample['gt_instances']['bbox_scores']
             result['meta'] = data_sample['meta']
             # get area information
@@ -67,18 +71,26 @@ class NrealKeypointAP(BaseMetric):
             res_file = osp.join(self.result_dir, 'result_keypoints.json')
         self.logger.info(f'result file path is {res_file}')
         kpt_result = list()
+        # from nreal_data_tool.metric.filter_metric import FilterMetric
+        # kpt_list = []
         for result in results:
             image_id = result['img_id']
-            keypoints = result['keypoints'][0]
+            keypoints = result['keypoints']
+            # kpt_list.append(result['keypoints'])
             item = KeypointEvaluationItem(
                 image_id=image_id,
                 score=float(np.mean(result['keypoint_scores'][0])),
                 area=float(result['area']),
                 keypoints=keypoints.tolist(),
-                gt_keypoints=result['gt_keypoints'][0].tolist(),
+                gt_keypoints=result['gt_keypoints'].tolist(),
+                keypoint_visible=result['keypoints_visible'].tolist(),
                 meta=result['meta'],
                 keypoint_scores=result['keypoint_scores'][0].tolist())
             kpt_result.append(item.to_dict())
+        # kpts = np.concatenate(kpt_list, axis=0)
+        # filter_result = FilterMetric()(kpts, kpts)
+        # print(filter_result)
+        # print(filter_result['filtered_acc_noise'].mean())
         with open(res_file, 'w') as f:
             json.dump(kpt_result, f, sort_keys=True, indent=4)
         return self.metric(res_file)
