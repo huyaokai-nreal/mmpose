@@ -144,8 +144,13 @@ def main():
 
                 item = next_item
         else:
-            img = item['inputs'].permute(1, 2, 0).numpy()
-            data_sample = item['data_samples']
+            if isinstance(item['data_samples'], list):
+                img = item['inputs'][0].permute(1, 2, 0).numpy()
+                data_sample = item['data_samples'][0]
+            else:
+                img = item['inputs'].permute(1, 2, 0).numpy()
+                data_sample = item['data_samples']
+        
             img_path = data_sample.img_path
             item = next_item
 
@@ -163,6 +168,7 @@ def main():
             draw_pred=False,
             draw_bbox=False,
             draw_heatmap=True,
+            draw_3d=False,
             show=not args.not_show,
             wait_time=args.show_interval,
             out_file=out_file)
