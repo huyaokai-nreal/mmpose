@@ -134,5 +134,6 @@ output/
 *.mp4
 *.DS_Store
 data
+work_dirs
 *.json
 configs/
