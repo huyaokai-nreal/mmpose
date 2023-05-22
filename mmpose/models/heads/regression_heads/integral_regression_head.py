@@ -1,7 +1,7 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 
-from typing import Optional, Sequence, Tuple, Union
-
+from typing import Optional, Sequence, Tuple, Union, List
+import copy
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -77,7 +77,7 @@ class IntegralRegressionHead(BaseHead):
         init_cfg (Config, optional): Config to control the initialization. See
             :attr:`default_init_cfg` for default settings
         deploy (bool, optional): inferece in deploy mode, Defaults to ``False``
-        deploy_output (str, optional): 'feat' or 'kpt'
+        deploy_output (List[str], optional): 'feat' or 'kpt'
 
     .. _`IPR`: https://arxiv.org/abs/1711.08229
     .. _`Debias`:
@@ -104,7 +104,7 @@ class IntegralRegressionHead(BaseHead):
         deploy: bool = False,
         feat_norm_type='softmax',
         symmetry_ipr=False,
-        deploy_output: str = 'feat+score',
+        deploy_output: List[str] = ['feat', 'score'],
         output_fuse_coord: bool = False,
     ):
 
@@ -120,7 +120,7 @@ class IntegralRegressionHead(BaseHead):
         self.output_sigma = output_sigma
         self.output_fuse_coord = output_fuse_coord
         self.deploy = deploy
-        self.deploy_output = deploy_output
+        self.deploy_output = copy.deepcopy(deploy_output)
         self.feat_norm_type = feat_norm_type
         self.symmetry_ipr = symmetry_ipr
         if self.output_sigma:

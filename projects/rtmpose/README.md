@@ -31,7 +31,9 @@ With the help of MMDeploy, our project supports various platforms like CPU, GPU,
 ![rtmpose_intro](https://user-images.githubusercontent.com/13503330/219269619-935499e5-bdd9-49ea-8104-3c7796dbd862.png)
 
 ______________________________________________________________________
+
 ## 📄 Table of Contents
+
 - [📊 Model Zoo](#-model-zoo-)
 - [👀 Visualization](#-visualization-)
 - [😎 Get Started](#-get-started-)

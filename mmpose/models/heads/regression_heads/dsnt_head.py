@@ -1,5 +1,5 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-from typing import Optional, Sequence, Tuple, Union
+from typing import Optional, Sequence, Tuple, Union, List
 import cv2
 import numpy as np
 import torch
@@ -103,7 +103,7 @@ class DSNTHead(IntegralRegressionHead):
                  init_cfg: OptConfigType = None,
                  deploy: bool = False,
                  feat_norm_type='softmax',
-                 deploy_output: str = 'feat+score',
+                 deploy_output: List[str] = ['feat', 'score'],
                  output_fuse_coord: bool = False,
                  symmetry_ipr=False,
                  consistency_loss=False,
