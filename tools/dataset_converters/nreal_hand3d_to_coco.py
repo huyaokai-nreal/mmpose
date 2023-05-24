@@ -108,7 +108,7 @@ def lmdb2coco(lmdb_root, lmdb_path, json_path):
             area=[float(res_left['area']),
                   float(res_right['area'])],
             # image_id=(i * 2, i * 2 + 1),  # tuple is hashable
-            image_id='_'.join([str(i*2), str(i*2+1)]),
+            image_id='_'.join([str(i * 2), str(i * 2 + 1)]),
             category_id=res_left['category_id'],
             iscrowd=0,
             id=i)

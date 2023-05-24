@@ -10,7 +10,7 @@ from .converting import KeypointConverter
 from .formatting import PackPoseInputs
 from .loading import LoadImage, LoadImageFromMultiLMDB
 from .topdown_transforms import (TopdownAffine, RandomBackground,
-                                 AffineTransformConsistency)
+                                 AffineTransformConsistency, TopdownPCL)
 
 __all__ = [
     'GetBBoxCenterScale', 'RandomBBoxTransform', 'RandomFlip',
@@ -19,5 +19,5 @@ __all__ = [
     'BottomupGetHeatmapMask', 'BottomupRandomAffine', 'BottomupResize',
     'GenerateTarget', 'KeypointConverter', 'GetNegtiveBBox',
     'ChangeImageQuality', 'RandomBackground', 'LoadImageFromMultiLMDB',
-    'AffineTransformConsistency'
+    'AffineTransformConsistency', 'TopdownPCL'
 ]

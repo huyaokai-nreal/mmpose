@@ -1,7 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from typing import Callable, List, Optional, Sequence, Tuple, Union, Any
 import numpy as np
-from mmengine.logging import MMLogger
 from xtcocotools.coco import COCO
 import os.path as osp
 from mmpose.datasets.builder import DATASETS
@@ -15,7 +14,7 @@ from nreal_data_tool import LmdbClient
 class PairHand3DDataset(BaseCocoStyleDataset):
 
     METAINFO: dict = dict(from_file='configs/_base_/datasets/nreal_hand.py')
-    
+
     def __init__(self,
                  data_file_list,
                  data_root: str = '/data',
@@ -82,32 +81,32 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         left_img_id = int(ann['image_id'].split('_')[0])
         right_img_id = int(ann['image_id'].split('_')[1])
 
-        left_img_path = osp.join(self.data_prefix['img'], left_img['file_name'])
-        right_img_path = osp.join(self.data_prefix['img'], right_img['file_name'])
-        
+        left_img_path = osp.join(self.data_prefix['img'],
+                                 left_img['file_name'])
+        right_img_path = osp.join(self.data_prefix['img'],
+                                  right_img['file_name'])
+
         left_img_w, left_img_h = left_img['width'], left_img['height']
         right_img_w, right_img_h = right_img['width'], right_img['height']
-        
+
         def convert_bbox(bbox, img_w, img_h):
             x, y, w, h = bbox
-            x1 = np.clip(x, 0, img_w-1)
-            y1 = np.clip(y, 0, img_h-1)
-            x2 = np.clip(x + w, 0, img_w-1)
-            y2 = np.clip(y + h, 0, img_h-1)
-            bbox = np.array([x1,y1,x2,y2],
-                            dtype=np.float32).reshape(1,4)
+            x1 = np.clip(x, 0, img_w - 1)
+            y1 = np.clip(y, 0, img_h - 1)
+            x2 = np.clip(x + w, 0, img_w - 1)
+            y2 = np.clip(y + h, 0, img_h - 1)
+            bbox = np.array([x1, y1, x2, y2], dtype=np.float32).reshape(1, 4)
             return bbox
 
         left_bbox = convert_bbox(ann['bbox'][0], left_img_w, left_img_h)
         right_bbox = convert_bbox(ann['bbox'][0], right_img_w, right_img_h)
-        
+
         num_keypoints = ann['num_keypoints']
 
         keypoints = np.array(ann['keypoints']).reshape(2, 1, -1, 3)
         left_keypoints = np.array(keypoints[0][..., :2])
         right_keypoints = np.array(keypoints[1][..., :2])
         left_keypoints_visible = np.array(keypoints[0][..., 2])
-        right_keypoints_visible = np.array(keypoints[0][..., 2])
 
         data_info = {
             'left_img_id': left_img_id,
@@ -140,7 +139,8 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             self.data_file_list = [self.data_file_list[self.sub_data_index]]
         for i, anno_file in enumerate(self.data_file_list):
             coco = COCO(anno_file)
-            lmdb_path = osp.join(self.lmdb_data_root, coco.dataset['lmdb_path'])
+            lmdb_path = osp.join(self.lmdb_data_root,
+                                 coco.dataset['lmdb_path'])
             # sub_dataset_num = 0
             ann_ids = coco.getAnnIds()
             for ann_id in ann_ids:
@@ -152,21 +152,24 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                 image_list.append(left_img)
                 image_list.append(right_img)
 
-                data_info = self.parse_data_info(dict(
-                    raw_ann_info=ann, raw_img_info=[left_img, right_img]
-                ))
-                data_info['left_img_path'] = f"{lmdb_path}:{data_info['left_img_path']}"
-                data_info['right_img_path'] = f"{lmdb_path}:{data_info['right_img_path']}"
+                data_info = self.parse_data_info(
+                    dict(raw_ann_info=ann, raw_img_info=[left_img, right_img]))
+                data_info[
+                    'left_img_path'] = f"{lmdb_path}:{data_info['left_img_path']}"  # noqa
+                data_info[
+                    'right_img_path'] = f"{lmdb_path}:{data_info['right_img_path']}"  # noqa
                 instance_list.append(data_info)
 
         return instance_list, image_list
-    
+
     def get_data_info(self, idx):
         data_info = super().get_data_info(idx)
-        data_info['left_img'] = self.lmdb_client.get(data_info['left_img_path'])
-        data_info['right_img'] = self.lmdb_client.get(data_info['right_img_path'])
+        data_info['left_img'] = self.lmdb_client.get(
+            data_info['left_img_path'])
+        data_info['right_img'] = self.lmdb_client.get(
+            data_info['right_img_path'])
         return data_info
-    
+
     @force_full_init
     def prepare_data(self, idx) -> Any:
         """Get data processed by ``self.pipeline``.
@@ -189,7 +192,6 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'keypoints': data_info['left_keypoints'],
             'img': data_info['left_img'],
             'bbox': data_info['left_bbox'],
-
             'bbox_score': np.ones(1, dtype=np.float32),
             'iscrowd': data_info['iscrowd'],
             'id': data_info['id'],
@@ -210,7 +212,6 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'keypoints': data_info['right_keypoints'],
             'img': data_info['right_img'],
             'bbox': data_info['right_bbox'],
-
             'bbox_score': np.ones(1, dtype=np.float32),
             'iscrowd': data_info['iscrowd'],
             'id': data_info['id'],
@@ -223,7 +224,6 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             # 'keypoint_weights': data_info['dataset_keypoint_weights'],
             'flip_indices': data_info['flip_indices'],
             'keypoints_visible': data_info['keypoints_visible']
-
         }
 
         ppl_left = self.pipeline(data_info_left)

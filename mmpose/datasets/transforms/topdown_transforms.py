@@ -5,14 +5,78 @@ import numpy as np
 import json
 import os
 import copy
+import torch
 from mmcv.transforms import BaseTransform
 from mmengine import is_seq_of
 from mmengine.dataset.utils import default_collate
 from mmengine.dist import get_world_size, get_rank
 from mmengine.logging import MMLogger
 from nreal_data_tool import LmdbClient
+from nreal_data_tool.utils.camera import SimpleCamera
 from mmpose.registry import TRANSFORMS
 from mmpose.structures.bbox import get_udp_warp_matrix, get_warp_matrix
+from .pcl import pcl_transforms, perspective_grid, pcl_transforms_2d
+import torch.nn.functional as F
+
+
+@TRANSFORMS.register_module()
+class TopdownPCL(BaseTransform):
+
+    def __init__(self, input_size: Tuple[int, int]):
+        self.input_size = input_size
+
+    def transform(self, results: Dict):
+        w, h = self.input_size
+        warp_size = [int(w), int(h)]
+        assert results['bbox_center'].shape[0] == 1, (
+            'Top-down heatmap only supports single instance. Got invalid '
+            f'shape of bbox_center {results["bbox_center"].shape}.')
+
+        center = torch.from_numpy(results['bbox_center'])
+        scale = torch.from_numpy(results['bbox_scale'])
+        image = torch.from_numpy(results['img']).permute(2, 0, 1).unsqueeze(
+            dim=0).float()
+        camera: SimpleCamera = results['meta']['camera']
+        Ks_px = np.concatenate([camera.param['K'].T,
+                                np.array([[0, 0, 1]])],
+                               axis=0)[np.newaxis, ...]
+        Ks_px = torch.from_numpy(Ks_px).float()
+        P_virt2orig, R_virt2orig, K_virt = pcl_transforms(center, scale, Ks_px)
+        R_orig2virt = torch.inverse(R_virt2orig)
+        image_shape = torch.from_numpy(
+            np.array([[results['ori_shape'][1], results['ori_shape'][0]]]))
+        grid_perspective = perspective_grid(
+            P_virt2orig, image_shape, warp_size, transform_to_pytorch=True)
+        PCL_cropped_img = F.grid_sample(image, grid_perspective)
+        image = (PCL_cropped_img.numpy().astype(np.uint8)[0]).transpose(
+            (1, 2, 0))
+        results['img'] = image
+        if results.get('keypoints', None) is not None:
+            results['transformed_keypoints'] = results['keypoints'].copy()
+            keypoints = torch.from_numpy(results['keypoints'][..., :2])
+            virt_2d_pose, R_virt2orig, P_virt2orig = pcl_transforms_2d(
+                keypoints, center, scale, Ks_px)
+            results['transformed_keypoints'][
+                ..., :2] = virt_2d_pose.numpy() * self.input_size[0]
+        results['input_size'] = (w, h)
+        # add virtual camera
+        virtual_cam_param = {
+            'K': K_virt[0][:2] * self.input_size[0],
+            'R': R_virt2orig[0],
+            'T': np.zeros((3, 1))
+        }
+        joint_cam = torch.from_numpy(copy.deepcopy(
+            results['joint_cam'])).unsqueeze(0).unsqueeze(-1)
+        keypint_num = results['num_keypoints']
+        new_joint_cam = torch.bmm(
+            R_orig2virt.reshape(-1, 3, 3).repeat(keypint_num, 1, 1),
+            joint_cam.reshape(-1, 3, 1)).squeeze().numpy()
+        results['meta']['root_depth'] = new_joint_cam[-1][2]
+        results['transformed_keypoints'][
+            ..., 2] = new_joint_cam[..., 2] - new_joint_cam[-1][2]
+        virtual_camera = SimpleCamera(param=virtual_cam_param)
+        results['meta']['virtual_camera'] = virtual_camera
+        return results
 
 
 @TRANSFORMS.register_module()

@@ -53,6 +53,10 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             pred_instances.keypoints3d[..., 2] += root_depth
             pred_instances.keypoints3d[0] = camera.pixel_to_camera(
                 pred_instances.keypoints3d[0])
+            if 'virtual_camera' in data_sample.meta:
+                virtual_camera = data_sample.meta['virtual_camera']
+                pred_instances.keypoints3d[0] = virtual_camera.camera_to_world(
+                    pred_instances.keypoints3d[0])
             if output_keypoint_indices is not None:
                 # select output keypoints with given indices
                 num_keypoints = pred_instances.keypoints.shape[1]

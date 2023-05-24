@@ -293,6 +293,7 @@ class InterHand3DDataset(BaseCocoStyleDataset):
                 joints_3d = joints_3d[21:]
                 abs_depth = abs_depth[1]
                 joints_3d_visible = joints_3d_visible[:, 21:]
+            num_joints = num_joints // 2
             if self.point_type == '2D':
                 keypoints = joint_img[np.newaxis, ...]
             else:
