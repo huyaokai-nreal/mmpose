@@ -58,6 +58,7 @@ class TopdownPCL(BaseTransform):
                 keypoints, center, scale, Ks_px)
             results['transformed_keypoints'][
                 ..., :2] = virt_2d_pose.numpy() * self.input_size[0]
+            results['meta']['P_virt2orig'] = P_virt2orig.numpy()
         results['input_size'] = (w, h)
         # add virtual camera
         virtual_cam_param = {
@@ -71,10 +72,10 @@ class TopdownPCL(BaseTransform):
         new_joint_cam = torch.bmm(
             R_orig2virt.reshape(-1, 3, 3).repeat(keypint_num, 1, 1),
             joint_cam.reshape(-1, 3, 1)).squeeze().numpy()
+        virtual_camera = SimpleCamera(param=virtual_cam_param)
         results['meta']['root_depth'] = new_joint_cam[-1][2]
         results['transformed_keypoints'][
             ..., 2] = new_joint_cam[..., 2] - new_joint_cam[-1][2]
-        virtual_camera = SimpleCamera(param=virtual_cam_param)
         results['meta']['virtual_camera'] = virtual_camera
         return results
 

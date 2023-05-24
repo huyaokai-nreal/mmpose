@@ -1,4 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
+import copy
+import numpy as np
 from itertools import zip_longest
 from typing import Optional
 from mmpose.registry import MODELS
@@ -41,21 +43,36 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             bbox_centers = gt_instances.bbox_centers
             bbox_scales = gt_instances.bbox_scales
             input_size = data_sample.metainfo['input_size']
-
-            pred_instances.keypoints[..., :2] = pred_instances.keypoints[
-                ..., :
-                2] / input_size * bbox_scales + bbox_centers - 0.5 * bbox_scales  # noqa
-
             # uv depth to camera coord pose
             root_depth = data_sample.meta['root_depth']
-            camera = data_sample.meta['camera']
-            pred_instances.keypoints3d = pred_instances.keypoints.copy()
+            if 'virtual_camera' in data_sample.meta:
+                camera = data_sample.meta['virtual_camera']
+                global_keypoints = copy.deepcopy(pred_instances.keypoints)
+                P_virt2orig = data_sample.meta['P_virt2orig'][0]
+                local_keypoints = pred_instances.keypoints[0][
+                    ..., :2] / input_size
+                local_keypoints = np.concatenate(
+                    [local_keypoints,
+                     np.ones((local_keypoints.shape[0], 1))],
+                    axis=-1)
+                origin_keypoints = (P_virt2orig @ local_keypoints.T).T
+                pred_instances.keypoints[..., :2] = origin_keypoints[
+                    ..., :2] / origin_keypoints[..., 2:]
+            else:
+                global_keypoints = pred_instances.keypoints[
+                    ..., :
+                    2] / input_size * bbox_scales + bbox_centers - 0.5 * bbox_scales  # noqa
+                camera = data_sample.meta['camera']
+                # for 2d keypoint evaluation
+                pred_instances.keypoints[..., :2] = pred_instances.keypoints[
+                    ..., :
+                    2] / input_size * bbox_scales + bbox_centers - 0.5 * bbox_scales  # noqa
+            pred_instances.keypoints3d = global_keypoints.copy()
             pred_instances.keypoints3d[..., 2] += root_depth
             pred_instances.keypoints3d[0] = camera.pixel_to_camera(
                 pred_instances.keypoints3d[0])
             if 'virtual_camera' in data_sample.meta:
-                virtual_camera = data_sample.meta['virtual_camera']
-                pred_instances.keypoints3d[0] = virtual_camera.camera_to_world(
+                pred_instances.keypoints3d[0] = camera.camera_to_world(
                     pred_instances.keypoints3d[0])
             if output_keypoint_indices is not None:
                 # select output keypoints with given indices
