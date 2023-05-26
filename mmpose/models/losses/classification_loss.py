@@ -14,13 +14,18 @@ class BCELoss(nn.Module):
         use_target_weight (bool): Option to use weighted loss.
             Different joint types may have different target weights.
         loss_weight (float): Weight of the loss. Default: 1.0.
+        ignore_label (int): label which will be ignored
     """
 
-    def __init__(self, use_target_weight=False, loss_weight=1.):
+    def __init__(self,
+                 use_target_weight=False,
+                 loss_weight=1.,
+                 ignore_label=-1):
         super().__init__()
-        self.criterion = F.binary_cross_entropy
+        self.criterion = F.binary_cross_entropy_with_logits
         self.use_target_weight = use_target_weight
         self.loss_weight = loss_weight
+        self.ignore_label = ignore_label
 
     def forward(self, output, target, target_weight=None):
         """Forward function.
@@ -36,15 +41,13 @@ class BCELoss(nn.Module):
                 Weights across different labels.
         """
 
+        loss = self.criterion(output, target, reduction='none')
         if self.use_target_weight:
             assert target_weight is not None
-            loss = self.criterion(output, target, reduction='none')
             if target_weight.dim() == 1:
                 target_weight = target_weight[:, None]
-            loss = (loss * target_weight).mean()
-        else:
-            loss = self.criterion(output, target)
-
+            loss = loss * target_weight
+        loss = (loss[target != self.ignore_label]).mean()
         return loss * self.loss_weight
 
 

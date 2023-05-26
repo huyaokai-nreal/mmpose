@@ -195,6 +195,7 @@ class RandomFlip(BaseTransform):
         - keypoints (optional)
         - keypoints_visible (optional)
         - img_mask (optional)
+        - cat_id (optional)
 
     Added Keys:
 
@@ -212,11 +213,13 @@ class RandomFlip(BaseTransform):
             is given, each data sample's flipping direction will be sampled
             from a distribution determined by the argument ``prob``. Defaults
             to ``'horizontal'``.
+        cat_id_map (Dict[int]): Change the cat_id if the image is flipped
     """
 
     def __init__(self,
                  prob: Union[float, List[float]] = 0.5,
-                 direction: Union[str, List[str]] = 'horizontal') -> None:
+                 direction: Union[str, List[str]] = 'horizontal',
+                 cat_id_map: Optional[Dict] = None) -> None:
         if isinstance(prob, list):
             assert is_list_of(prob, float)
             assert 0 <= sum(prob) <= 1
@@ -226,6 +229,7 @@ class RandomFlip(BaseTransform):
             raise ValueError(f'probs must be float or list of float, but \
                               got `{type(prob)}`.')
         self.prob = prob
+        self.cat_id_map = cat_id_map
 
         valid_directions = ['horizontal', 'vertical', 'diagonal']
         if isinstance(direction, str):
@@ -283,6 +287,8 @@ class RandomFlip(BaseTransform):
             results['flip'] = False
             results['flip_direction'] = None
         else:
+            if self.cat_id_map:
+                results['cat_id'] = self.cat_id_map[results['cat_id']]
             results['flip'] = True
             results['flip_direction'] = flip_dir
 
@@ -325,7 +331,6 @@ class RandomFlip(BaseTransform):
 
                 results['keypoints'] = keypoints
                 results['keypoints_visible'] = keypoints_visible
-
         return results
 
     def __repr__(self) -> str:

@@ -347,3 +347,26 @@ class AffineTransformConsistency(BaseTransform):
         aug_results_2 = self._transform(results_copy)
         all_results = default_collate([aug_results_1, aug_results_2])
         return all_results
+
+
+@TRANSFORMS.register_module()
+class GenerateAttrLabel(BaseTransform):
+
+    def __init__(self,
+                 attr_list: List[str],
+                 num_class: Optional[int] = None) -> None:
+        super().__init__()
+        self.attr_list = copy.deepcopy(attr_list)
+        self.num_class = num_class
+
+    def transform(self, results: Dict) -> Dict:
+        attr_labels = []
+        if 'keypoints_visible' in results:
+            attr_labels.append(results['keypoints_visible'])
+        if 'cat_id' in results:
+            attr_label = np.expand_dims(
+                np.eye(self.num_class)[results['cat_id']], axis=0)
+            attr_labels.append(attr_label)
+        attr_labels = np.concatenate(attr_labels, axis=1)
+        results['attr_labels'] = attr_labels
+        return results

@@ -6,9 +6,11 @@ from .keypoint_2d_metrics import AUC, EPE, NME, JhmdbPCKAccuracy, MpiiPCKAccurac
 from .nreal_keypoint_ap import NrealKeypointAP
 from .posetrack18_metric import PoseTrack18Metric
 from .keypoint_3d_metrics import MPJPEMetric
+from .attr_metric import AttrClsAccuracy
 
 __all__ = [
     'CocoMetric', 'PCKAccuracy', 'MpiiPCKAccuracy', 'JhmdbPCKAccuracy', 'AUC',
     'EPE', 'NME', 'PoseTrack18Metric', 'CocoWholeBodyMetric',
-    'KeypointPartitionMetric', 'NrealKeypointAP', 'MPJPEMetric'
+    'KeypointPartitionMetric', 'NrealKeypointAP', 'MPJPEMetric',
+    'AttrClsAccuracy'
 ]

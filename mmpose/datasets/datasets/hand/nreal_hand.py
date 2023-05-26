@@ -129,8 +129,12 @@ class HANDDataset(BaseCocoStyleDataset):
         _keypoints = np.array(
             ann['keypoints'], dtype=np.float32).reshape(1, -1, 3)
         keypoints = _keypoints[..., :2]
-        # keypoints_visible = np.minimum(1, _keypoints[..., 2])
-        keypoints_visible = np.ones((keypoints.shape[0], keypoints.shape[1]))
+        if not ann['keypoint_visible']:
+            keypoints_visible = -np.ones(
+                (keypoints.shape[0], keypoints.shape[1]))
+        else:
+            keypoints_visible = ann['keypoint_visible']
+            keypoints_visible = np.minimum(1, _keypoints[..., 2])
         keypoints_visible[keypoints[..., 1] >= img_h] = 0
         keypoints_visible[keypoints[..., 1] < 0] = 0
         keypoints_visible[keypoints[..., 0] >= img_w] = 0
@@ -166,7 +170,7 @@ class HANDDataset(BaseCocoStyleDataset):
         sub_dataset_start_id = 0
         if self.sub_data_index >= 0:
             self.data_file_list = [self.data_file_list[self.sub_data_index]]
-        for i, anno_file in enumerate(self.data_file_list):
+        for anno_file in self.data_file_list:
             coco = COCO(anno_file)
             lmdb_path = osp.join(self.lmdb_data_root,
                                  coco.dataset['lmdb_path'])
@@ -228,6 +232,7 @@ class HANDDataset(BaseCocoStyleDataset):
         if self.flip_left_to_right and data_info['cat_id'] == 1:
             self.__left_2_right_hand(data_info)
             data_info['meta']['flipped'] = True
+            data_info['cat_id'] = 2
         return data_info
 
     def __get_weighted_random_image_id(self):
