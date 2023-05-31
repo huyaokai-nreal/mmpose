@@ -1060,10 +1060,10 @@ class GenerateTarget(BaseTransform):
 
         if results.get('transformed_keypoints', None) is not None:
             # use keypoints transformed by TopdownAffine
-            keypoints = results['transformed_keypoints']
+            keypoints = results['transformed_keypoints'].copy()
         elif results.get('keypoints', None) is not None:
             # use original keypoints
-            keypoints = results['keypoints']
+            keypoints = results['keypoints'].copy()
         else:
             raise ValueError(
                 'GenerateTarget requires \'transformed_keypoints\' or'

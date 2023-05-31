@@ -90,6 +90,7 @@ class PackPoseInputs(BaseTransform):
         'keypoints': 'keypoints',
         'keypoints3d': 'keypoints3d',
         'keypoints_visible': 'keypoints_visible',
+        'transformed_keypoints': 'transformed_keypoints',
     }
 
     # items in `label_mapping_table` will be packed into

@@ -47,7 +47,8 @@ class TopdownPCL(BaseTransform):
             np.array([[results['ori_shape'][1], results['ori_shape'][0]]]))
         grid_perspective = perspective_grid(
             P_virt2orig, image_shape, warp_size, transform_to_pytorch=True)
-        PCL_cropped_img = F.grid_sample(image, grid_perspective)
+        PCL_cropped_img = F.grid_sample(
+            image, grid_perspective, align_corners=True)
         image = (PCL_cropped_img.numpy().astype(np.uint8)[0]).transpose(
             (1, 2, 0))
         results['img'] = image

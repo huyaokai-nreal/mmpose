@@ -45,9 +45,9 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             input_size = data_sample.metainfo['input_size']
             # uv depth to camera coord pose
             root_depth = data_sample.meta['root_depth']
+            global_keypoints = copy.deepcopy(pred_instances.keypoints)
             if 'virtual_camera' in data_sample.meta:
                 camera = data_sample.meta['virtual_camera']
-                global_keypoints = copy.deepcopy(pred_instances.keypoints)
                 P_virt2orig = data_sample.meta['P_virt2orig'][0]
                 local_keypoints = pred_instances.keypoints[0][
                     ..., :2] / input_size
@@ -59,7 +59,7 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                 pred_instances.keypoints[..., :2] = origin_keypoints[
                     ..., :2] / origin_keypoints[..., 2:]
             else:
-                global_keypoints = pred_instances.keypoints[
+                global_keypoints[..., :2] = global_keypoints[
                     ..., :
                     2] / input_size * bbox_scales + bbox_centers - 0.5 * bbox_scales  # noqa
                 camera = data_sample.meta['camera']
