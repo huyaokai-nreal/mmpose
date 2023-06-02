@@ -345,7 +345,7 @@ def simcc_pck_accuracy(output: Tuple[np.ndarray],
 
 def multilabel_classification_accuracy(pred: np.ndarray,
                                        gt: np.ndarray,
-                                       mask: np.ndarray,
+                                       mask: Optional[np.ndarray] = None,
                                        thr: float = 0.5) -> float:
     """Get multi-label classification accuracy.
 
@@ -364,8 +364,9 @@ def multilabel_classification_accuracy(pred: np.ndarray,
         float: multi-label classification accuracy.
     """
     # we only compute accuracy on the samples with ground-truth of all labels.
-    valid = (mask > 0).min(axis=1) if mask.ndim == 2 else (mask > 0)
-    pred, gt = pred[valid], gt[valid]
+    if mask is not None:
+        valid = (mask > 0).min(axis=1) if mask.ndim == 2 else (mask > 0)
+        pred, gt = pred[valid], gt[valid]
 
     if pred.shape[0] == 0:
         acc = 0.0  # when no sample is with gt labels, set acc to 0.

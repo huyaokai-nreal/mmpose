@@ -8,7 +8,8 @@ from torch import Tensor, nn
 import torch.nn.functional as F
 from mmengine.structures import PixelData
 from mmengine import is_seq_of
-from mmpose.evaluation.functional import keypoint_pck_accuracy
+from mmpose.evaluation.functional import (keypoint_pck_accuracy,
+                                          multilabel_classification_accuracy)
 from mmpose.registry import MODELS
 from mmpose.utils.tensor_utils import to_numpy
 from mmpose.utils.typing import ConfigType, OptConfigType, OptSampleList
@@ -286,10 +287,11 @@ class DSNTAttrHead(IntegralRegressionHead):
         if self.output_attr:
             losses.update(loss_attr=loss_list[loss_idx])
             loss_idx += 1
-            preds = torch.round(pred_attrs.sigmoid()).detach()
-            correct = torch.eq(preds[attr_labels != -1],
-                               attr_labels[attr_labels != -1]).float()
-            acc_attr = correct.mean()
+            preds = pred_attrs.sigmoid()
+            acc_attr = multilabel_classification_accuracy(
+                to_numpy(preds[attr_labels != -1].reshape(-1, 1)),
+                to_numpy(attr_labels[attr_labels != -1].reshape(-1, 1)))
+            acc_attr = torch.tensor(acc_attr, device=keypoint_labels.device)
             losses.update(acc_attr=acc_attr)
             attr_pos_rate = attr_labels[attr_labels != -1].mean()
             losses.update(attr_pos_rate=attr_pos_rate)
