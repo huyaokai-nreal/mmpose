@@ -27,8 +27,8 @@ env_cfg = dict(
 # visualizer
 vis_backends = [
     dict(type='LocalVisBackend'),
-    # this will slow the training process ???
-    # dict(type='TensorboardVisBackend')
+    # dict(type='TensorboardVisBackend'),
+    # dict(type='WandbVisBackend'),
 ]
 visualizer = dict(
     type='PoseLocalVisualizer', vis_backends=vis_backends, name='visualizer')

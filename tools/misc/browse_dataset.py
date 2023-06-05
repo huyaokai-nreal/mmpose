@@ -5,7 +5,6 @@ import os.path as osp
 from nreal_data_tool import LmdbClient
 import mmcv
 import mmengine
-import mmengine.fileio as fileio
 import numpy as np
 from mmengine import Config, DictAction
 from mmengine.registry import build_from_cfg, init_default_scope
@@ -150,7 +149,7 @@ def main():
             else:
                 img = item['inputs'].permute(1, 2, 0).numpy()
                 data_sample = item['data_samples']
-        
+
             img_path = data_sample.img_path
             item = next_item
 

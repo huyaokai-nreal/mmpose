@@ -54,22 +54,6 @@ class IntegralRegressionHead(BaseHead):
         final_layer (dict): Arguments of the final Conv2d layer.
             Defaults to ``dict(kernel_size=1)``
         output_sigma (bool): generate sigma for coords, Defaults to ``False``
-        input_transform (str): Transformation of input features which should
-            be one of the following options:
-
-                - ``'resize_concat'``: Resize multiple feature maps specified
-                    by ``input_index`` to the same size as the first one and
-                    concat these feature maps
-                - ``'select'``: Select feature map(s) specified by
-                    ``input_index``. Multiple selected features will be
-                    bundled into a tuple
-
-            Defaults to ``'select'``
-        input_index (int | sequence[int]): The feature map index used in the
-            input transformation. See also ``input_transform``. Defaults to -1
-        align_corners (bool): `align_corners` argument of
-            :func:`torch.nn.functional.interpolate` used in the input
-            transformation. Defaults to ``False``
         loss (Config): Config for keypoint loss. Defaults to use
             :class:`SmoothL1Loss`
         decoder (Config, optional): The decoder config that controls decoding

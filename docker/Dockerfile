@@ -22,9 +22,12 @@ RUN pip install xtcocotools
 
 # Install MMEngine and MMCV
 RUN pip install openmim
-RUN mim install mmengine "mmcv>=2.0.0rc1"
+RUN mim install mmengine "mmcv>=2.0.0"
 
 # Install MMPose
 RUN conda clean --all
+RUN git clone https://github.com/open-mmlab/mmpose.git /mmpose
+WORKDIR /mmpose
+RUN git checkout main
 ENV FORCE_CUDA="1"
 ENTRYPOINT ["/bin/bash"]

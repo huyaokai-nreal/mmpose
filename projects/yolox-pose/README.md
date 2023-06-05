@@ -16,7 +16,7 @@ This project implements a YOLOX-based human pose estimator, utilizing the approa
 - [MMYOLO](https://github.com/open-mmlab/mmyolo) v0.5.0 or higher
 - [MMPose](https://github.com/open-mmlab/mmpose) v1.0.0rc1 or higher
 
-All the commands below rely on the correct configuration of `PYTHONPATH`, which should point to the project's directory so that Python can locate the module files. In `yolox-pose/` root directory, run the following line to add the current directory to `PYTHONPATH`:
+All the commands below rely on the correct configuration of `PYTHONPATH`, which should point to the project's directory so that Python can locate the module files. **In `yolox-pose/` root directory**, run the following line to add the current directory to `PYTHONPATH`:
 
 ```shell
 export PYTHONPATH=`pwd`:$PYTHONPATH
@@ -91,16 +91,27 @@ Results on COCO val2017
 
 |                              Model                              | Input Size |  AP   | AP<sup>50</sup> | AP<sup>75</sup> |  AR   | AR<sup>50</sup> |                                 Download                                 |
 | :-------------------------------------------------------------: | :--------: | :---: | :-------------: | :-------------: | :---: | :-------------: | :----------------------------------------------------------------------: |
-| [YOLOX-tiny-Pose](./configs/yolox-pose_tiny_4xb64-300e_coco.py) |    640     | 0.518 |      0.799      |      0.545      | 0.566 |      0.841      | [model](https://download.openmmlab.com/mmpose/v1/projects/yolox-pose/yolox-pose_tiny_4xb64-300e_coco-c47dd83b_20230321.pth) \| [log](https://download.openmmlab.com/mmpose/v1/projects/yolox-pose/yolox-pose_tiny_4xb64-300e_coco_20230321.json) |
+| [YOLOX-tiny-Pose](./configs/yolox-pose_tiny_4xb64-300e_coco.py) |    416     | 0.518 |      0.799      |      0.545      | 0.566 |      0.841      | [model](https://download.openmmlab.com/mmpose/v1/projects/yolox-pose/yolox-pose_tiny_4xb64-300e_coco-c47dd83b_20230321.pth) \| [log](https://download.openmmlab.com/mmpose/v1/projects/yolox-pose/yolox-pose_tiny_4xb64-300e_coco_20230321.json) |
 |    [YOLOX-s-Pose](./configs/yolox-pose_s_8xb32-300e_coco.py)    |    640     | 0.632 |      0.875      |      0.692      | 0.676 |      0.907      | [model](https://download.openmmlab.com/mmpose/v1/projects/yolox-pose/yolox-pose_s_8xb32-300e_coco-9f5e3924_20230321.pth) \| [log](https://download.openmmlab.com/mmpose/v1/projects/yolox-pose/yolox-pose_s_8xb32-300e_coco_20230321.json) |
 |    [YOLOX-m-Pose](./configs/yolox-pose_m_4xb64-300e_coco.py)    |    640     | 0.685 |      0.897      |      0.753      | 0.727 |      0.925      | [model](https://download.openmmlab.com/mmpose/v1/projects/yolox-pose/yolox-pose_m_4xb64-300e_coco-cbd11d30_20230321.pth) \| [log](https://download.openmmlab.com/mmpose/v1/projects/yolox-pose/yolox-pose_m_4xb64-300e_coco_20230321.json) |
 |    [YOLOX-l-Pose](./configs/yolox-pose_l_4xb64-300e_coco.py)    |    640     | 0.706 |      0.907      |      0.775      | 0.747 |      0.934      | [model](https://download.openmmlab.com/mmpose/v1/projects/yolox-pose/yolox-pose_l_4xb64-300e_coco-122e4cf8_20230321.pth) \| [log](https://download.openmmlab.com/mmpose/v1/projects/yolox-pose/yolox-pose_l_4xb64-300e_coco_20230321.json) |
 
 We have only trained models with an input size of 640, as we couldn't replicate the performance enhancement mentioned in the paper when increasing the input size from 640 to 960. We warmly welcome any contributions if you can successfully reproduce the results from the paper!
 
+**NEW!**
+
+[MMYOLO](https://github.com/open-mmlab/mmyolo/blob/dev/configs/yolox/README.md#yolox-pose) also supports YOLOX-Pose and achieves better performance. Their models are fully compatible with this project. Here are their results on COCO val2017:
+
+|  Backbone  | Size | Batch Size | AMP | RTMDet-Hyp | Mem (GB) |  AP  |                                   Config                                   |                                   Download                                    |
+| :--------: | :--: | :--------: | :-: | :--------: | :------: | :--: | :------------------------------------------------------------------------: | :---------------------------------------------------------------------------: |
+| YOLOX-tiny | 416  |   8xb32    | Yes |    Yes     |   5.3    | 52.8 | [config](https://github.com/open-mmlab/mmyolo/blob/dev/configs/yolox/pose/yolox-pose_tiny_8xb32-300e-rtmdet-hyp_coco.py) | [model](https://download.openmmlab.com/mmyolo/v0/yolox/pose/yolox-pose_tiny_8xb32-300e-rtmdet-hyp_coco/yolox-pose_tiny_8xb32-300e-rtmdet-hyp_coco_20230427_080351-2117af67.pth) \| [log](https://download.openmmlab.com/mmyolo/v0/yolox/pose/yolox-pose_tiny_8xb32-300e-rtmdet-hyp_coco/yolox-pose_tiny_8xb32-300e-rtmdet-hyp_coco_20230427_080351.log.json) |
+|  YOLOX-s   | 640  |   8xb32    | Yes |    Yes     |   10.7   | 63.7 | [config](https://github.com/open-mmlab/mmyolo/blob/dev/configs/yolox/pose/yolox-pose_s_8xb32-300e-rtmdet-hyp_coco.py) | [model](https://download.openmmlab.com/mmyolo/v0/yolox/pose/yolox-pose_s_8xb32-300e-rtmdet-hyp_coco/yolox-pose_s_8xb32-300e-rtmdet-hyp_coco_20230427_005150-e87d843a.pth) \| [log](https://download.openmmlab.com/mmyolo/v0/yolox/pose/yolox-pose_s_8xb32-300e-rtmdet-hyp_coco/yolox-pose_s_8xb32-300e-rtmdet-hyp_coco_20230427_005150.log.json) |
+|  YOLOX-m   | 640  |   8xb32    | Yes |    Yes     |   19.2   | 69.3 | [config](https://github.com/open-mmlab/mmyolo/blob/dev/configs/yolox/pose/yolox-pose_m_8xb32-300e-rtmdet-hyp_coco.py) | [model](https://download.openmmlab.com/mmyolo/v0/yolox/pose/yolox-pose_m_8xb32-300e-rtmdet-hyp_coco/yolox-pose_m_8xb32-300e-rtmdet-hyp_coco_20230427_094024-bbeacc1c.pth) \| [log](https://download.openmmlab.com/mmyolo/v0/yolox/pose/yolox-pose_m_8xb32-300e-rtmdet-hyp_coco/yolox-pose_m_8xb32-300e-rtmdet-hyp_coco_20230427_094024.log.json) |
+|  YOLOX-l   | 640  |   8xb32    | Yes |    Yes     |   30.3   | 71.1 | [config](https://github.com/open-mmlab/mmyolo/blob/dev/configs/yolox/pose/yolox-pose_l_8xb32-300e-rtmdet-hyp_coco.py) | [model](https://download.openmmlab.com/mmyolo/v0/yolox/pose/yolox-pose_l_8xb32-300e-rtmdet-hyp_coco/yolox-pose_l_8xb32-300e-rtmdet-hyp_coco_20230427_041140-82d65ac8.pth) \| [log](https://download.openmmlab.com/mmyolo/v0/yolox/pose/yolox-pose_l_8xb32-300e-rtmdet-hyp_coco/yolox-pose_l_8xb32-300e-rtmdet-hyp_coco_20230427_041140.log.json) |
+
 ## Citation
 
-If this project benefits your work, please kindly consider citing the original paper:
+If this project benefits your work, please kindly consider citing the original papers:
 
 ```bibtex
 @inproceedings{maji2022yolo,
@@ -109,6 +120,15 @@ If this project benefits your work, please kindly consider citing the original p
   booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition},
   pages={2637--2646},
   year={2022}
+}
+```
+
+```bibtex
+@article{yolox2021,
+  title={{YOLOX}: Exceeding YOLO Series in 2021},
+  author={Ge, Zheng and Liu, Songtao and Wang, Feng and Li, Zeming and Sun, Jian},
+  journal={arXiv preprint arXiv:2107.08430},
+  year={2021}
 }
 ```
 

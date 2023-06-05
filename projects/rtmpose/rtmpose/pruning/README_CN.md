@@ -10,10 +10,10 @@
 
 # 实验结果
 
-| Arch                                                                  | Input Size |  AP   | AP<sup>50</sup> | AP<sup>75</sup> |  AR   | AR<sup>50</sup> | Flops | Params |                   ckpt                    |      log       |
-| :-------------------------------------------------------------------- | :--------: | :---: | :-------------: | :-------------: | :---: | :-------------: | :---: | :----: | :---------------------------------------: | :------------: |
-| [rtmpose-s-pruned](./group_fisher_finetune_rtmpose-s_8xb256-420e_coco-256x192.py) |  256x192   | 0.691 |      0.885      |      0.765      | 0.745 |      0.925      | 0.34  |  3.42  | [pruned][rp_sc_p] \| [finetuned][rp_sc_f] | [log][rp_sc_l] |
-| [rtmpose-s-aic-coco-pruned](./group_fisher_finetune_rtmpose-s_8xb256-420e_aic-coco-256x192.py) |  256x192   | 0.694 |      0.884      |      0.771      | 0.747 |      0.922      | 0.35  |  3.43  | [pruned][rp_sa_p] \| [finetuned][rp_sa_f] | [log][rp_sa_l] |
+| Arch                                                      | Input Size |  AP   | AP<sup>50</sup> | AP<sup>75</sup> |  AR   | AR<sup>50</sup> | Flops | Params |                       ckpt                        |        log         |
+| :-------------------------------------------------------- | :--------: | :---: | :-------------: | :-------------: | :---: | :-------------: | :---: | :----: | :-----------------------------------------------: | :----------------: |
+| [rtmpose-s-pruned](./group_fisher_finetune_rtmpose-s_8xb256-420e_coco-256x192.py) |  256x192   | 0.691 |      0.885      |      0.765      | 0.745 |      0.925      | 0.34  |  3.42  | \[pruned\]\[rp_sc_p\] \| \[finetuned\]\[rp_sc_f\] | \[log\]\[rp_sc_l\] |
+| [rtmpose-s-aic-coco-pruned](./group_fisher_finetune_rtmpose-s_8xb256-420e_aic-coco-256x192.py) |  256x192   | 0.694 |      0.884      |      0.771      | 0.747 |      0.922      | 0.35  |  3.43  | \[pruned\]\[rp_sa_p\] \| \[finetuned\]\[rp_sa_f\] | \[log\]\[rp_sa_l\] |
 
 ## Get Started
 
@@ -81,7 +81,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 PORT=29500 ./tools/dist_test.sh \
 
 ### Deploy
 
-对于剪枝模型，你只需要使用剪枝部署 config 来代替预训练 config 来部署模型的剪枝版本。如果你不熟悉 MMDeploy，请参看[MMDeploy document](https://mmdeploy.readthedocs.io/en/1.x/02-how-to-run/convert_model.html)。
+对于剪枝模型，你只需要使用剪枝部署 config 来代替预训练 config 来部署模型的剪枝版本。如果你不熟悉 MMDeploy，请参看[MMDeploy document](https://mmdeploy.readthedocs.io/en/latest/02-how-to-run/convert_model.html)。
 
 ```bash
 python {mmdeploy}/tools/deploy.py \
@@ -106,11 +106,8 @@ divisor 设置十分重要，我们建议你在尝试 \[1,2,4,8,16,32\]，以找
 
 ## Reference
 
-[GroupFisher in MMRazor](https://github.com/open-mmlab/mmrazor/tree/dev-1.x/configs/pruning/base/group_fisher)
-
-[rp_sa_f]: https://download.openmmlab.com/mmrazor/v1/pruning/group_fisher/rtmpose-s/group_fisher_finetune_rtmpose-s_8xb256-420e_aic-coco-256x192.pth
-[rp_sa_l]: https://download.openmmlab.com/mmrazor/v1/pruning/group_fisher/rtmpose-s/group_fisher_finetune_rtmpose-s_8xb256-420e_aic-coco-256x192.json
-[rp_sa_p]: https://download.openmmlab.com/mmrazor/v1/pruning/group_fisher/rtmpose-s/group_fisher_prune_rtmpose-s_8xb256-420e_aic-coco-256x192.pth
-[rp_sc_f]: https://download.openmmlab.com/mmrazor/v1/pruning/group_fisher/rtmpose-s/group_fisher_finetune_rtmpose-s_8xb256-420e_coco-256x192.pth
-[rp_sc_l]: https://download.openmmlab.com/mmrazor/v1/pruning/group_fisher/rtmpose-s/group_fisher_finetune_rtmpose-s_8xb256-420e_coco-256x192.json
-[rp_sc_p]: https://download.openmmlab.com/mmrazor/v1/pruning/group_fisher/rtmpose-s/group_fisher_prune_rtmpose-s_8xb256-420e_coco-256x192.pth
+[GroupFisher in MMRazor](https://github.com/open-mmlab/mmrazor/tree/main/configs/pruning/base/group_fisher)
+\[rp_sa_l\]: https://download.openmmlab.com/mmrazor/v1/pruning/group_fisher/rtmpose-s/group_fisher_finetune_rtmpose-s_8xb256-420e_aic-coco-256x192.json
+\[rp_sc_f\]: https://download.openmmlab.com/mmrazor/v1/pruning/group_fisher/rtmpose-s/group_fisher_finetune_rtmpose-s_8xb256-420e_coco-256x192.pth
+\[rp_sc_l\]: https://download.openmmlab.com/mmrazor/v1/pruning/group_fisher/rtmpose-s/group_fisher_finetune_rtmpose-s_8xb256-420e_coco-256x192.json
+\[rp_sc_p\]: https://download.openmmlab.com/mmrazor/v1/pruning/group_fisher/rtmpose-s/group_fisher_prune_rtmpose-s_8xb256-420e_coco-256x192.pth

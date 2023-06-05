@@ -12,6 +12,7 @@ from .loading import LoadImage, LoadImageFromMultiLMDB
 from .topdown_transforms import (TopdownAffine, RandomBackground,
                                  AffineTransformConsistency, TopdownPCL,
                                  GenerateAttrLabel)
+from .pose3d_transforms import RandomFlipAroundRoot
 
 __all__ = [
     'GetBBoxCenterScale', 'RandomBBoxTransform', 'RandomFlip',
@@ -20,5 +21,6 @@ __all__ = [
     'BottomupGetHeatmapMask', 'BottomupRandomAffine', 'BottomupResize',
     'GenerateTarget', 'KeypointConverter', 'GetNegtiveBBox',
     'ChangeImageQuality', 'RandomBackground', 'LoadImageFromMultiLMDB',
-    'AffineTransformConsistency', 'TopdownPCL', 'GenerateAttrLabel'
+    'AffineTransformConsistency', 'TopdownPCL', 'GenerateAttrLabel',
+    'RandomFlipAroundRoot'
 ]

@@ -1,4 +1,4 @@
-# 2D Fashion Landmark Dataset
+# 2D服装关键点数据集
 
 It is recommended to symlink the dataset root to `$MMPOSE/data`.
 If your folder structure is different, you may need to change the corresponding paths in config files.

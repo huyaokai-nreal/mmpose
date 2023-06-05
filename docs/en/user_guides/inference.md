@@ -75,6 +75,8 @@ inferencer = MMPoseInferencer(
 
 The complere list of model alias can be found in the [Model Alias](#model-alias) section.
 
+**Custom Object Detector for Top-down Pose Estimation Models**
+
 In addition, top-down pose estimators also require an object detection model. The inferencer is capable of inferring the instance type for models trained with datasets supported in MMPose, and subsequently constructing the necessary object detection model. Alternatively, users may also manually specify the detection model using the following methods:
 
 ```python
@@ -106,6 +108,8 @@ inferencer = MMPoseInferencer(
     det_cat_ids=[0],  # the category id of 'human' class
 )
 ```
+
+To perform top-down pose estimation on cropped images containing a single object, users can set `det_model='whole_image'`. This bypasses the object detector initialization, creating a bounding box that matches the input image size and directly sending the entire image to the top-down pose estimator.
 
 ### Dump Results
 
@@ -158,14 +162,32 @@ The input images or videos with predicted poses will be saved in the `vis_result
 
 As seen in the above image, the visualization of estimated poses consists of keypoints (depicted by solid circles) and skeletons (represented by lines). The default size of these visual elements might not produce satisfactory results. Users can adjust the circle size and line thickness using the `radius` and `thickness` arguments, as shown below:
 
-```python
+````python
 result_generator = inferencer(img_path, show=True, radius=4, thickness=2)
 result = next(result_generator)
-```
+| `pose2d_weights` | Specifies the URL or local path to the 2D pose estimation model's checkpoint file.                               |
+| `det_model`      | Specifies the model alias, configuration file name, or configuration file path for the object detection model.   |
+| `det_weights`    | Specifies the URL or local path to the object detection model's checkpoint file.                                 |
+| `det_cat_ids`    | Specifies the list of category IDs corresponding to the object classes to be detected.                           |
+| `device`         | The device to perform the inference. If left `None`, the Inferencer will select the most suitable one.           |
+| `scope`          | The namespace where the model modules are defined.                                                               |
 
-### Arguments of Inferencer
+The inferencer is designed to handle both visualization and saving of predictions. Here is a list of arguments available when performing inference with the `MMPoseInferencer`:
+| Argument            | Description                                                                                                                                        |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `show`              | Determines whether the image or video should be displayed in a pop-up window.                                                                      |
+| `radius`            | Sets the keypoint radius for visualization.                                                                                                        |
+| `thickness`         | Sets the link thickness for visualization.                                                                                                         |
+| `return_vis`        | Determines whether visualization images should be included in the results.                                                                         |
+| `vis_out_dir`       | Specifies the folder path for saving the visualization images. If not set, the visualization images will not be saved.                             |
+| `return_datasample` | Determines whether to return the prediction in the format of `PoseDataSample`.                                                                     |
+| `pred_out_dir`      | Specifies the folder path for saving the predictions. If not set, the predictions will not be saved.                                               |
+| `out_dir`           | If `vis_out_dir` or `pred_out_dir` is not set, the values will be set to `f'{out_dir}/visualization'` or `f'{out_dir}/predictions'`, respectively. |
 
-The `MMPoseInferencer` offers a variety of arguments for customizing pose estimation, visualization, and saving predictions. Below is a list of the arguments available when initializing the inferencer and their descriptions:
+### Model Alias
+
+MMPose provides a set of pre-defined aliases for commonly used models. These aliases can be used as shorthand when initializing the `MMPoseInferencer` instead of specifying the full model configuration name. Below is a list of the available model aliases and their corresponding configuration names:
+
 
 | Argument         | Description                                                                                                      |
 | ---------------- | ---------------------------------------------------------------------------------------------------------------- |
@@ -211,4 +233,4 @@ In addition, users can utilize the CLI tool to display all available aliases wit
 
 ```shell
 python demo/inferencer_demo.py --show-alias
-```
+````
