@@ -83,7 +83,7 @@ class NrealKeypointAP(BaseMetric):
                 area=float(result['area']),
                 keypoints=keypoints.tolist(),
                 gt_keypoints=result['gt_keypoints'].tolist(),
-                keypoint_visible=result['keypoints_visible'].tolist(),
+                keypoint_visible=np.abs(result['keypoints_visible']).tolist(),
                 meta=result['meta'],
                 keypoint_scores=result['keypoint_scores'][0].tolist())
             kpt_result.append(item.to_dict())

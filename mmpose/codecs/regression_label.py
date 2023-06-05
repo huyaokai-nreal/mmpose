@@ -56,12 +56,11 @@ class RegressionLabel(BaseKeypointCodec):
             keypoints_visible = np.ones(keypoints.shape[:2], dtype=np.float32)
 
         w, h = self.input_size
-        valid = ((keypoints >= 0) &
-                 (keypoints <= [w - 1, h - 1])).all(axis=-1) & (
-                     keypoints_visible > 0.5)
+        valid = ((keypoints >= 0) & (keypoints <= [w - 1, h - 1])).all(axis=-1)
 
         keypoint_labels = (keypoints / np.array([w, h])).astype(np.float32)
         keypoint_weights = np.where(valid, 1., 0.).astype(np.float32)
+        keypoint_weights = keypoint_weights * keypoints_visible
 
         encoded = dict(
             keypoint_labels=keypoint_labels, keypoint_weights=keypoint_weights)

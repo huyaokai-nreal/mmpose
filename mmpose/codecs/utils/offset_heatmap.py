@@ -47,7 +47,7 @@ def generate_offset_heatmap(
     radius = radius_factor * max(W, H)
 
     for n, k in product(range(N), range(K)):
-        if keypoints_visible[n, k] < 0.5:
+        if np.abs(keypoints_visible[n, k]) < 0.5:
             continue
 
         mu = keypoints[n, k]
@@ -115,7 +115,7 @@ def generate_displacement_heatmap(
         diagonal_length = diagonal_lengths[n]
 
         for k in range(K):
-            if keypoints_visible[n, k] < 1 or keypoints[n, k, 0] < 0 \
+            if np.abs(keypoints_visible[n, k]) < 1 or keypoints[n, k, 0] < 0 \
                 or keypoints[n, k, 1] < 0 or keypoints[n, k, 0] >= W \
                     or keypoints[n, k, 1] >= H:
                 continue

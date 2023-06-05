@@ -181,7 +181,7 @@ class DSNTHead(IntegralRegressionHead):
         _, avg_acc, _ = keypoint_pck_accuracy(
             pred=to_numpy(pred_coords),
             gt=to_numpy(keypoint_labels),
-            mask=to_numpy(keypoint_weights) > 0,
+            mask=np.abs(to_numpy(keypoint_weights)) > 0,
             thr=0.05,
             norm_factor=np.ones((pred_coords.size(0), 2), dtype=np.float32))
 

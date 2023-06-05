@@ -51,7 +51,7 @@ def generate_gaussian_heatmaps(
 
         for k in range(K):
             # skip unlabled keypoints
-            if keypoints_visible[n, k] < 0.5:
+            if np.abs(keypoints_visible[n, k]) < 0.5:
                 continue
 
             # get gaussian center coordinates
@@ -129,7 +129,7 @@ def generate_unbiased_gaussian_heatmaps(
 
     for n, k in product(range(N), range(K)):
         # skip unlabled keypoints
-        if keypoints_visible[n, k] < 0.5:
+        if np.abs(keypoints_visible[n, k]) < 0.5:
             continue
 
         mu = keypoints[n, k]
@@ -189,7 +189,7 @@ def generate_udp_gaussian_heatmaps(
 
     for n, k in product(range(N), range(K)):
         # skip unlabled keypoints
-        if keypoints_visible[n, k] < 0.5:
+        if np.abs(keypoints_visible[n, k]) < 0.5:
             continue
 
         mu = (keypoints[n, k] + 0.5).astype(np.int64)

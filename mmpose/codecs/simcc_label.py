@@ -212,7 +212,7 @@ class SimCCLabel(BaseKeypointCodec):
 
         for n, k in product(range(N), range(K)):
             # skip unlabled keypoints
-            if keypoints_visible[n, k] < 0.5:
+            if np.abs(keypoints_visible[n, k]) < 0.5:
                 continue
 
             # get center coordinates
@@ -260,7 +260,7 @@ class SimCCLabel(BaseKeypointCodec):
 
         for n, k in product(range(N), range(K)):
             # skip unlabled keypoints
-            if keypoints_visible[n, k] < 0.5:
+            if np.abs(keypoints_visible[n, k]) < 0.5:
                 continue
 
             mu = keypoints_split[n, k]

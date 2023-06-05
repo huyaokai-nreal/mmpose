@@ -107,7 +107,10 @@ class KeypointMSELoss(nn.Module):
             Tensor: The calculated loss.
         """
 
-        _mask = self._get_mask(target, target_weights, mask)
+        if self.use_target_weight:
+            _mask = self._get_mask(target, target_weights, mask)
+        else:
+            _mask = None
         if _mask is None:
             loss = F.mse_loss(output, target)
         else:

@@ -33,7 +33,8 @@ class HANDDataset(BaseCocoStyleDataset):
                  mask_ext: str = 'mask',
                  sub_data_index=-1,
                  data_ratio=-1,
-                 clip_bbox=True):
+                 clip_bbox=True,
+                 ignore_visible=True):
         self.flip_left_to_right = flip_left_to_right
         self.data_ratio = data_ratio
         self.clip_bbox = clip_bbox
@@ -46,6 +47,7 @@ class HANDDataset(BaseCocoStyleDataset):
         self.with_mask = with_mask
         self.mask_ext = mask_ext
         self.sub_data_index = int(sub_data_index)
+        self.ignore_visible = ignore_visible
         if dataset_weight_list:
             assert len(dataset_weight_list) == len(data_file_list)
         super().__init__(
@@ -129,12 +131,16 @@ class HANDDataset(BaseCocoStyleDataset):
         _keypoints = np.array(
             ann['keypoints'], dtype=np.float32).reshape(1, -1, 3)
         keypoints = _keypoints[..., :2]
-        if not ann['keypoint_visible']:
-            keypoints_visible = -np.ones(
+        if self.ignore_visible:
+            keypoints_visible = np.ones(
                 (keypoints.shape[0], keypoints.shape[1]))
         else:
-            keypoints_visible = ann['keypoint_visible']
-            keypoints_visible = np.minimum(1, _keypoints[..., 2])
+            if not ann['keypoint_visible']:
+                keypoints_visible = -np.ones(
+                    (keypoints.shape[0], keypoints.shape[1]))
+            else:
+                keypoints_visible = ann['keypoint_visible']
+                keypoints_visible = np.minimum(1, _keypoints[..., 2])
         keypoints_visible[keypoints[..., 1] >= img_h] = 0
         keypoints_visible[keypoints[..., 1] < 0] = 0
         keypoints_visible[keypoints[..., 0] >= img_w] = 0
@@ -143,7 +149,7 @@ class HANDDataset(BaseCocoStyleDataset):
         if 'num_keypoints' in ann:
             num_keypoints = ann['num_keypoints']
         else:
-            num_keypoints = np.count_nonzero(keypoints.max(axis=2))
+            num_keypoints = keypoints.shape[1]
 
         data_info = {
             'img_id': ann['image_id'],
