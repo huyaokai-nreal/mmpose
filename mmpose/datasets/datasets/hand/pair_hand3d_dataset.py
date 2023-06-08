@@ -1,13 +1,16 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-from typing import Callable, List, Optional, Sequence, Tuple, Union, Any
-import numpy as np
-from xtcocotools.coco import COCO
 import os.path as osp
-from mmpose.datasets.builder import DATASETS
-from ..base import BaseCocoStyleDataset
+from typing import Any, Callable, List, Optional, Sequence, Tuple, Union
+
+import numpy as np
 from mmengine.dataset.base_dataset import force_full_init
 from mmengine.dataset.utils import default_collate
 from nreal_data_tool import LmdbClient
+from xtcocotools.coco import COCO
+
+from mmpose.datasets.builder import DATASETS
+
+from ..base import BaseCocoStyleDataset
 
 
 @DATASETS.register_module()
@@ -98,15 +101,17 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             bbox = np.array([x1, y1, x2, y2], dtype=np.float32).reshape(1, 4)
             return bbox
 
-        left_bbox = convert_bbox(ann['bbox'][0], left_img_w, left_img_h)
-        right_bbox = convert_bbox(ann['bbox'][0], right_img_w, right_img_h)
+        left_bbox = convert_bbox(ann['bbox_left'], left_img_w, left_img_h)
+        right_bbox = convert_bbox(ann['bbox_right'], right_img_w, right_img_h)
+
+        left_keypoints = np.array(ann['keypoints_left'])[..., :2].reshape(
+            1, -1, 2)
+        right_keypoints = np.array(ann['keypoints_right'])[..., :2].reshape(
+            1, -1, 2)
 
         num_keypoints = ann['num_keypoints']
-
-        keypoints = np.array(ann['keypoints']).reshape(2, 1, -1, 3)
-        left_keypoints = np.array(keypoints[0][..., :2])
-        right_keypoints = np.array(keypoints[1][..., :2])
-        left_keypoints_visible = np.array(keypoints[0][..., 2])
+        keypoints_visible = np.array(ann['keypoints_left'])[...,
+                                                            2].reshape(1, -1)
 
         data_info = {
             'left_img_id': left_img_id,
@@ -121,7 +126,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'image_height': left_img_h,
             'bbox_score': np.ones(1, dtype=np.float32),
             'num_keypoints': num_keypoints,
-            'keypoints_visible': left_keypoints_visible,
+            'keypoints_visible': keypoints_visible,
             'iscrowd': ann.get('iscrowd', 0),
             'segmentation': ann.get('segmentation', None),
             'id': ann['id'],
@@ -154,13 +159,29 @@ class PairHand3DDataset(BaseCocoStyleDataset):
 
                 data_info = self.parse_data_info(
                     dict(raw_ann_info=ann, raw_img_info=[left_img, right_img]))
-                data_info[
-                    'left_img_path'] = f"{lmdb_path}:{data_info['left_img_path']}"  # noqa
-                data_info[
-                    'right_img_path'] = f"{lmdb_path}:{data_info['right_img_path']}"  # noqa
+                data_info['left_img_path'] = \
+                    f"{lmdb_path}:{data_info['left_img_path']}"
+                data_info['right_img_path'] = \
+                    f"{lmdb_path}:{data_info['right_img_path']}"
                 instance_list.append(data_info)
 
         return instance_list, image_list
+
+    def __left_2_right_hand(self, results):
+        img = results['img']
+        width = img.shape[1]
+        results['img'] = img[:, ::-1]
+        results['keypoints'][:, :,
+                             0] = width - 1 - results['keypoints'][:, :, 0]
+        bbox = results['bbox']
+        bbox[:, ::2] = width - 1 - bbox[:, ::2]
+        min_x = np.min(bbox[:, ::2])
+        max_x = np.max(bbox[:, ::2])
+        min_y = np.min(bbox[:, 1::2])
+        max_y = np.max(bbox[:, 1::2])
+        results['bbox'] = np.array([[min_x, min_y, max_x, max_y]], np.float32)
+
+        results['meta']['flipped'] = True
 
     def get_data_info(self, idx):
         data_info = super().get_data_info(idx)
@@ -186,12 +207,18 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         """
         data_info = self.get_data_info(idx)
         # print(f"data_info:{data_info['left_keypoints']}")
+
         data_info_left = {
             'img_id': data_info['left_img_id'],
             'img_path': data_info['left_img_path'],
             'keypoints': data_info['left_keypoints'],
             'img': data_info['left_img'],
             'bbox': data_info['left_bbox'],
+            'cam_matrix_left': data_info['meta']['cam_matrix_left'],
+            'cam_matrix_right': data_info['meta']['cam_matrix_right'],
+            'leftcam_p_rightcam': data_info['meta']['leftcam_p_rightcam'],
+            'leftcam_q_rightcam': data_info['meta']['leftcam_q_rightcam'],
+            # 'keypoints3d': data_info['meta']['kp3d_spline'],
             'bbox_score': np.ones(1, dtype=np.float32),
             'iscrowd': data_info['iscrowd'],
             'id': data_info['id'],
@@ -212,6 +239,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'keypoints': data_info['right_keypoints'],
             'img': data_info['right_img'],
             'bbox': data_info['right_bbox'],
+            # 'keypoints3d': data_info['meta']['kp3d_spline'],
             'bbox_score': np.ones(1, dtype=np.float32),
             'iscrowd': data_info['iscrowd'],
             'id': data_info['id'],
@@ -226,9 +254,12 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'keypoints_visible': data_info['keypoints_visible']
         }
 
+        if data_info['cat_id'] == 1:
+            self.__left_2_right_hand(data_info_left)
+            self.__left_2_right_hand(data_info_right)
+
         ppl_left = self.pipeline(data_info_left)
         ppl_right = self.pipeline(data_info_right)
         all_results = default_collate([ppl_left, ppl_right])
 
-        # from IPython import embed; embed()
         return all_results

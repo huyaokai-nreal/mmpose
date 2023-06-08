@@ -1,16 +1,18 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-import numpy as np
-from nreal_data_tool.metric import KeypointOKSMetric
-from mmpose.registry import METRICS
-from typing import List
-from copy import deepcopy
-from ..functional.keypoint_eval import keypoint_epe
 from collections import defaultdict
+from copy import deepcopy
 from os import path as osp
-from typing import Dict, Optional, Sequence
+from typing import Dict, List, Optional, Sequence
+
+import numpy as np
 from mmengine.evaluator import BaseMetric
 from mmengine.logging import MMLogger
+from nreal_data_tool.metric import KeypointOKSMetric
+
+from mmpose.registry import METRICS
+
 from ..functional import keypoint_mpjpe
+from ..functional.keypoint_eval import keypoint_epe
 
 
 @METRICS.register_module()
@@ -207,3 +209,78 @@ class MPJPE(BaseMetric):
                 pred_coords[indices], gt_coords[indices], mask[indices])
 
         return metrics
+
+
+@METRICS.register_module()
+class MPJPEMetricLifting(MPJPEMetric):
+    default_prefix: Optional[str] = ''
+
+    def __init__(self,
+                 gesture_list: List[str] = [],
+                 collect_device: str = 'cpu',
+                 prefix: Optional[str] = None,
+                 result_dir=None,
+                 root_kpt_id=0) -> None:
+        super().__init__(gesture_list, collect_device, prefix, result_dir,
+                         root_kpt_id)
+
+    def process(self, data_batch, data_samples: Sequence[dict]) -> None:
+        for data_sample in data_samples:
+
+            if 'pred_instances' not in data_sample:
+                raise ValueError(
+                    '`pred_instances` are required to process the '
+                    f'predictions results in {self.__class__.__name__}. ')
+            keypoints3d = data_sample['pred_instances']['keypoints3d']
+            gt = data_sample['gt_instances']
+            # [N, K], the scores for all keypoints of all instances
+            keypoint_scores = data_sample['pred_instances']['keypoint_scores']
+
+            # from IPython import embed; embed()
+
+            result = dict()
+
+            result['gt_keypoints3d'] = gt['keypoints3d'][0]
+            result['keypoints3d'] = keypoints3d
+            mask = gt['keypoints_visible'].astype(bool).reshape(1, -1)
+            result['mask'] = mask
+            result['keypoint_scores'] = keypoint_scores
+            result['bbox_scores'] = data_sample['gt_instances']['bbox_scores']
+            result['meta'] = data_sample['meta']
+            # get area information
+            if 'bbox_scales' in data_sample['gt_instances']:
+                result['meta']['bbox_scales'] = data_sample['gt_instances'][
+                    'bbox_scales'].tolist()
+                result['meta']['bbox_centers'] = data_sample['gt_instances'][
+                    'bbox_centers'].tolist()
+                result['area'] = np.prod(
+                    data_sample['gt_instances']['bbox_scales'], axis=1)
+            # add converted result to the results list
+            self.results.append(result)
+
+    def compute_metrics(self, results: list) -> dict:
+        gt_list = []
+        dt_list = []
+        mask_list = []
+        for result in results:
+            pred_pt_cam = [result['keypoints3d']]
+            # from IPython import embed; embed()
+            # pred_pt_cam = pred_pt_cam - pred_pt_cam[:, self.root_kpt_id]
+            gt_pt_cam = [result['gt_keypoints3d']]
+            # gt_pt_cam = gt_pt_cam - gt_pt_cam[:, self.root_kpt_id]
+            dt_list.append(pred_pt_cam)
+            gt_list.append(gt_pt_cam)
+            mask_list.append(result['mask'])
+        gt = np.concatenate(gt_list, axis=0)
+        dt = np.concatenate(dt_list, axis=0)
+        mask = np.concatenate(mask_list, axis=0)
+        # from IPython import embed; embed()
+        mpjpe_all = keypoint_epe(dt, gt, mask)
+        mpjpe_x = keypoint_epe(dt[..., :1], gt[..., :1], mask)
+        mpjpe_y = keypoint_epe(dt[..., 1:2], gt[..., 1:2], mask)
+        mpjpe_z = keypoint_epe(dt[..., 2:], gt[..., 2:], mask)
+        return dict(
+            mpjpe_all=mpjpe_all * 1000,
+            mpjpe_x=mpjpe_x * 1000,
+            mpjpe_y=mpjpe_y * 1000,
+            mpjpe_z=mpjpe_z * 1000)
