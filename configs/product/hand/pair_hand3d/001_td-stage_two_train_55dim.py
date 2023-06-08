@@ -3,8 +3,8 @@ _base_ = ['../../../_base_/default_runtime.py']
 
 train_cfg = dict(max_epochs=60, val_interval=5)
 
-# data_root = '/data/AI_DATA'
-data_root = '/data/AI_DATA_LOCAL'
+data_root = '/data/AI_DATA'
+# data_root = '/data/AI_DATA_LOCAL'
 
 # optimizer
 optim_wrapper = dict(
@@ -130,31 +130,32 @@ dataset_type = 'PairHand3DDataset'
 data_mode = 'topdown'
 
 import os
+
 # lmdb root dir, maybe different between beijing and wuxi
 
 # test only
 #data_root = '/data/hand_group/data/data_hand/lmdb_data/'
 train_data_list = [
     'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0000.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0001.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0002.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0003.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0004.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0005.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0006.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0007.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0008.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0009.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0000.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0001.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0002.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0003.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0004.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0005.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0006.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0007.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0008.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0009.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0001.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0002.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0003.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0004.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0005.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0006.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0007.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0008.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0009.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0000.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0001.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0002.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0003.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0004.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0005.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0006.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0007.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0008.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0009.json',
 ]
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)

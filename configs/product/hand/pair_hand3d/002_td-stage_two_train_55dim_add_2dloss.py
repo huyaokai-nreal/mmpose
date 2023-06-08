@@ -3,8 +3,8 @@ _base_ = ['../../../_base_/default_runtime.py']
 
 train_cfg = dict(max_epochs=100, val_interval=5)
 
-# data_root = '/data/AI_DATA'
-data_root = '/data/AI_DATA_LOCAL'
+data_root = '/data/AI_DATA'
+# data_root = '/data/AI_DATA_LOCAL'
 
 # optimizer
 optim_wrapper = dict(
@@ -130,6 +130,7 @@ dataset_type = 'PairHand3DDataset'
 data_mode = 'topdown'
 
 import os
+
 # lmdb root dir, maybe different between beijing and wuxi
 
 # test only

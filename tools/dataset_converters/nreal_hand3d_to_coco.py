@@ -2,11 +2,12 @@
 import json
 import os
 from functools import wraps
+from pprint import pprint
 
 import cv2
 import lmdb
-from mmengine import track_parallel_progress
 import numpy as np
+from mmengine import track_parallel_progress
 from tqdm import tqdm
 
 
@@ -27,6 +28,22 @@ def mmcv_track_func(func):
     return wrapped_func
 
 
+def _kps_to_bbox(kps):
+    min_x = kps[:, 0].min()
+    min_y = kps[:, 1].min()
+    max_x = kps[:, 0].max()
+    max_y = kps[:, 1].max()
+    cx = (min_x + max_x) * 0.5
+    cy = (min_y + max_y) * 0.5
+    min_x = (min_x - cx) * 1.5 + cx
+    min_y = (min_y - cy) * 1.4 + cy
+    max_x = (max_x - cx) * 1.5 + cx
+    max_y = (max_y - cy) * 1.4 + cy
+    bbox = np.array([min_x, min_y, max_x - min_x, max_y - min_y],
+                    dtype=np.float32)
+    return bbox
+
+
 def pasing_lmdb(txn, str_id, str_value_id):
     label_value = txn.get(str_value_id.encode())
     try:
@@ -35,25 +52,37 @@ def pasing_lmdb(txn, str_id, str_value_id):
         print('decode label failed')
         return
     d = json.loads(label_value)
+    # from IPython import embed; embed(d)
+
     keypoints = np.array(d['coord_uv'])
     keypoints = np.concatenate(
         [keypoints[:, :2], np.ones([keypoints.shape[0], 1])], axis=1)
-    bbox = np.array(d['bbox'], dtype=np.float32)
+
+    bbox = _kps_to_bbox(keypoints)
+    # bbox = np.array(d['bbox'], dtype=np.float32)
+
     area = bbox[2] * bbox[3]
     category_id = 1
     if 'hand_info' in d:
+        # print(d['hand_info'])
         if d['hand_info'] == 'right hand':
             category_id = 2
     if 'left_or_right' in d:
         if d['left_or_right'] == 'right':
             category_id = 2
     image = get_image_from_lmdb(txn, str_id)
+    cam_matrix = d['cam_matrix']
+    # print(category_id)
     res = {
         'keypoints': keypoints,
         'bbox': bbox,
         'area': area,
         'category_id': category_id,
-        'image': image
+        'image': image,
+        'cam_matrix': cam_matrix,
+        'leftcam_p_rightcam': d['leftcam_p_rightcam'],
+        'leftcam_q_rightcam': d['leftcam_q_rightcam'],
+        'kp3d_spline': d['kp3d_spline']
     }
     return res
 
@@ -82,53 +111,56 @@ def lmdb2coco(lmdb_root, lmdb_path, json_path):
     imgs = []
 
     for i in tqdm(range(data_num)):
-        str_id_left = '{:0>8d}'.format(i * 4 + 0)
-        str_value_id_left = '{:0>8d}'.format(i * 4 + 1)
-        res_left = pasing_lmdb(txn, str_id_left, str_value_id_left)
+        try:
+            str_id_left = '{:0>8d}'.format(i * 4 + 0)
+            str_value_id_left = '{:0>8d}'.format(i * 4 + 1)
+            res_left = pasing_lmdb(txn, str_id_left, str_value_id_left)
 
-        str_id_right = '{:0>8d}'.format(i * 4 + 2)
-        str_value_id_right = '{:0>8d}'.format(i * 4 + 3)
-        res_right = pasing_lmdb(txn, str_id_right, str_value_id_right)
+            str_id_right = '{:0>8d}'.format(i * 4 + 2)
+            str_value_id_right = '{:0>8d}'.format(i * 4 + 3)
+            res_right = pasing_lmdb(txn, str_id_right, str_value_id_right)
+            # from IPython import embed; embed()
 
-        keypoints_left = res_left['keypoints']
-        keypoints_right = res_right['keypoints']
-        keypoints = np.concatenate([
-            keypoints_left[np.newaxis, ...], keypoints_right[np.newaxis, ...]
-        ],
-                                   axis=0)
-        bbox_left = res_left['bbox']
-        bbox_right = res_right['bbox']
-        bbox = np.concatenate(
-            [bbox_left[np.newaxis, ...], bbox_right[np.newaxis, ...]], axis=0)
+            anno = dict(
+                keypoints_left=res_left['keypoints'].tolist(),
+                bbox_left=res_left['bbox'].tolist(),
+                area_left=float(res_left['area']),
+                keypoints_right=res_right['keypoints'].tolist(),
+                bbox_right=res_right['bbox'].tolist(),
+                area_right=float(res_right['area']),
+                meta=dict(
+                    cam_matrix_left=res_left['cam_matrix'],
+                    cam_matrix_right=res_right['cam_matrix'],
+                    leftcam_p_rightcam=res_left['leftcam_p_rightcam'],
+                    leftcam_q_rightcam=res_left['leftcam_q_rightcam'],
+                    kp3d_spline=res_left['kp3d_spline'],
+                    category_id=res_left['category_id'],
+                ),
+                category_id=res_left['category_id'],
+                num_keypoints=res_left['keypoints'].shape[0],
+                image_id='_'.join([str(i * 2), str(i * 2 + 1)]),
+                iscrowd=0,
+                id=i)
 
-        anno = dict(
-            keypoints=keypoints.tolist(),
-            num_keypoints=keypoints_left.shape[0],
-            bbox=bbox.tolist(),
-            area=[float(res_left['area']),
-                  float(res_right['area'])],
-            # image_id=(i * 2, i * 2 + 1),  # tuple is hashable
-            image_id='_'.join([str(i * 2), str(i * 2 + 1)]),
-            category_id=res_left['category_id'],
-            iscrowd=0,
-            id=i)
+            image_left = res_left['image']  # 只是为了获取图像的(w,h),不保存图片到json
+            image_right = res_right['image']
 
-        image_left = res_left['image']
-        image_right = res_right['image']
+            img_left = dict(
+                file_name=str_id_left,
+                height=image_left.shape[0],
+                width=image_left.shape[1],
+                id=i * 2)
+            img_right = dict(
+                file_name=str_id_right,
+                height=image_right.shape[0],
+                width=image_right.shape[1],
+                id=i * 2 + 1)
+            annos.append(anno)
+            imgs.append(img_left)
+            imgs.append(img_right)
 
-        img_left = dict(
-            file_name=str_id_left,
-            height=image_left.shape[0],
-            width=image_left.shape[1],
-            id=i * 2)
-        img_right = dict(
-            file_name=str_id_right,
-            height=image_right.shape[0],
-            width=image_right.shape[1],
-            id=i * 2 + 1)
-        annos.append(anno)
-        imgs.append(img_left)
-        imgs.append(img_right)
+        except:
+            continue
 
     data = dict(
         images=imgs,
@@ -144,38 +176,28 @@ def lmdb2coco(lmdb_root, lmdb_path, json_path):
 
 # change lmdb_path_list and json_dir, then run the code
 if __name__ == '__main__':
-    root_dir = '/data/AI_DATA'  # shared path
-    # root_dir = '/data/hand_group/data'  # local path
-    lmdb_path_list = [
-        'data_hand/hand_keypoint/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0000',
-        # 'data_hand/hand_keypoint/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0001',
-        # 'data_hand/hand_keypoint/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0002',
-        # 'data_hand/hand_keypoint/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0003',
-        # 'data_hand/hand_keypoint/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0004',
-        # 'data_hand/hand_keypoint/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0005',
-        # 'data_hand/hand_keypoint/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0006',
-        # 'data_hand/hand_keypoint/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0007',
-        # 'data_hand/hand_keypoint/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0008',
-        # 'data_hand/hand_keypoint/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0009',
+    # root_dir = '/data/AI_DATA'  # shared path
+    root_dir = '/data/AI_DATA_LOCAL'  # local path
 
-        # 'data_hand/hand_keypoint/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0000',
-        # 'data_hand/hand_keypoint/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0001',
-        # 'data_hand/hand_keypoint/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0002',
-        # 'data_hand/hand_keypoint/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0003',
-        # 'data_hand/hand_keypoint/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0004',
-        # 'data_hand/hand_keypoint/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0005',
-        # 'data_hand/hand_keypoint/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0006',
-        # 'data_hand/hand_keypoint/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0007',
-        # 'data_hand/hand_keypoint/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0008',
-        # 'data_hand/hand_keypoint/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0009',
-    ]
-    json_dir = os.path.join(root_dir,
-                            'data_hand/hand_keypoint/annotations3d/seq_data')
+    lmdb_path_list = []
+    dataset_path = 'data_hand/hand_keypoint/seq_data'
+
+    for dataset_part in os.listdir(os.path.join(root_dir, dataset_path)):
+        lmdb_path_list.append(os.path.join(dataset_path, dataset_part))
+    lmdb_path_list.sort()
+    # pprint(lmdb_path_list)
+
+    # lmdb_path_list = [
+    #     '',
+    # ]
+
+    json_dir = os.path.join(
+        root_dir, 'data_hand/hand_keypoint/annotations3d/seq_data_kpts2bbox')
 
     tasks = [(root_dir, lmdb_path,
               os.path.join(json_dir,
                            os.path.basename(lmdb_path) + '.json'))
              for lmdb_path in lmdb_path_list]
     # print(tasks)
-    lmdb2coco(tasks[0])
-    # track_parallel_progress(lmdb2coco, tasks, nproc=4)
+    # lmdb2coco(tasks[0])
+    track_parallel_progress(lmdb2coco, tasks, nproc=50)
