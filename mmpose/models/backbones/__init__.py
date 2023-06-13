@@ -1,6 +1,7 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from .alexnet import AlexNet
 from .cpm import CPM
+from .cspnext import CSPNeXt
 from .hourglass import HourglassNet
 from .hourglass_ae import HourglassAENet
 from .hrformer import HRFormer
@@ -8,6 +9,7 @@ from .hrnet import HRNet
 from .litehrnet import LiteHRNet
 from .mobilenet_v2 import MobileNetV2
 from .mobilenet_v3 import MobileNetV3
+from .mobileone import MobileOne
 from .mspn import MSPN
 from .pvt import PyramidVisionTransformer, PyramidVisionTransformerV2
 from .regnet import RegNet
@@ -15,6 +17,7 @@ from .resnest import ResNeSt
 from .resnet import ResNet, ResNetV1d
 from .resnext import ResNeXt
 from .rsn import RSN
+from .rsntiny import RSNTiny
 from .scnet import SCNet
 from .seresnet import SEResNet
 from .seresnext import SEResNeXt
@@ -26,9 +29,6 @@ from .v2v_net import V2VNet
 from .vgg import VGG
 from .vipnas_mbv3 import ViPNAS_MobileNetV3
 from .vipnas_resnet import ViPNAS_ResNet
-from .rsntiny import RSNTiny
-from .mobileone import MobileOne
-from .cspnext import CSPNeXt
 
 __all__ = [
     'AlexNet', 'HourglassNet', 'HourglassAENet', 'HRNet', 'MobileNetV2',

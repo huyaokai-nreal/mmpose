@@ -1,10 +1,10 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from .collect_env import collect_env
 from .config_utils import adapt_mmdet_pipeline
+from .file import md5sum
 from .logger import get_root_logger
 from .setup_env import register_all_modules, setup_multi_processes
 from .timer import StopWatch
-from .file import md5sum
 
 __all__ = [
     'get_root_logger', 'collect_env', 'StopWatch', 'setup_multi_processes',

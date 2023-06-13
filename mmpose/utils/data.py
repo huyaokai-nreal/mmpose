@@ -1,5 +1,7 @@
+# Copyright (c) OpenMMLab. All rights reserved.
 from functools import wraps
 from typing import Callable
+
 import torch
 from mmengine import is_seq_of
 from nreal_data_tool.utils.misc import cross_merge_list

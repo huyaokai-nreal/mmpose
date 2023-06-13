@@ -9,7 +9,6 @@ from nreal_data_tool import LmdbClient
 from xtcocotools.coco import COCO
 
 from mmpose.datasets.builder import DATASETS
-
 from ..base import BaseCocoStyleDataset
 
 

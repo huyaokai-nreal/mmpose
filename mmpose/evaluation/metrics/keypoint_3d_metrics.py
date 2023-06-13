@@ -10,7 +10,6 @@ from mmengine.logging import MMLogger
 from nreal_data_tool.metric import KeypointOKSMetric
 
 from mmpose.registry import METRICS
-
 from ..functional import keypoint_mpjpe
 from ..functional.keypoint_eval import keypoint_epe
 

@@ -14,7 +14,8 @@ def get_h36m_sample():
     def _parse_h36m_imgname(imgname):
         """Parse imgname to get information of subject, action and camera.
 
-        A typical h36m image filename is like: S1_Directions_1.54138969_000001.jpg # noqa
+        A typical h36m image filename is like:
+        S1_Directions_1.54138969_000001.jpg # noqa
         """
         subj, rest = osp.basename(imgname).split('_', 1)
         action, rest = rest.split('.', 1)

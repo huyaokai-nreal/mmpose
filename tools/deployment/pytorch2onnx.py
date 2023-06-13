@@ -1,12 +1,14 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import argparse
-from torch import nn
+
 import numpy as np
 import torch
+from torch import nn
 
 from mmpose.apis import init_model
 from mmpose.models.backbones.utils import repvgg_model_convert
 from mmpose.utils import md5sum
+
 try:
     import onnx
     import onnxruntime as rt

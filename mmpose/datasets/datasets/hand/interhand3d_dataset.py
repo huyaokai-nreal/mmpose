@@ -1,14 +1,16 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import os.path as osp
+from collections import defaultdict
 from typing import List, Optional, Sequence, Union
-from xtcocotools.coco import COCO
+
 import json_tricks as json
 import numpy as np
-from mmpose.datasets.builder import DATASETS
-from nreal_data_tool.utils.camera import SimpleCamera
 from mmengine.logging import MMLogger
+from nreal_data_tool.utils.camera import SimpleCamera
+from xtcocotools.coco import COCO
+
+from mmpose.datasets.builder import DATASETS
 from ..base import BaseCocoStyleDataset
-from collections import defaultdict
 
 
 @DATASETS.register_module()

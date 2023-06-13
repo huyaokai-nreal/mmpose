@@ -3,11 +3,12 @@ from typing import Optional, Sequence, Tuple, Union
 
 import numpy as np
 import torch
-from mmengine.logging import MessageHub
-from torch import Tensor, nn
 import torch.nn.functional as F
-from mmengine.structures import PixelData
 from mmengine import is_seq_of
+from mmengine.logging import MessageHub
+from mmengine.structures import PixelData
+from torch import Tensor, nn
+
 from mmpose.evaluation.functional import (keypoint_pck_accuracy,
                                           multilabel_classification_accuracy)
 from mmpose.registry import MODELS

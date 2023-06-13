@@ -6,7 +6,6 @@ from mmengine.model import BaseModule
 from torch import Tensor
 
 from mmpose.utils.typing import ConfigType, OptConfigType, OptMultiConfig
-
 from .se_layer import ChannelAttention
 
 

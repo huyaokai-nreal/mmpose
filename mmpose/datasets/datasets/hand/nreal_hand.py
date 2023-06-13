@@ -1,13 +1,15 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-from typing import Callable, List, Optional, Sequence, Union
-import numpy as np
-from mmengine.logging import MMLogger
-from xtcocotools.coco import COCO
 import os.path as osp
+from typing import Callable, List, Optional, Sequence, Union
+
+import numpy as np
+from mmengine.dataset.base_dataset import force_full_init
+from mmengine.logging import MMLogger
+from nreal_data_tool import LmdbClient
+from xtcocotools.coco import COCO
+
 from mmpose.datasets.builder import DATASETS
 from ..base import BaseCocoStyleDataset
-from mmengine.dataset.base_dataset import force_full_init
-from nreal_data_tool import LmdbClient
 
 
 @DATASETS.register_module()

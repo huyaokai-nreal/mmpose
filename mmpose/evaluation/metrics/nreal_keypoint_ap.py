@@ -2,16 +2,16 @@
 import json
 import os.path as osp
 import tempfile
-from typing import Optional, Sequence
+from copy import deepcopy
+from typing import List, Optional, Sequence
 
-from mmengine.logging import MMLogger
 import numpy as np
 from mmengine.evaluator import BaseMetric
-from nreal_data_tool.schema import KeypointEvaluationItem
+from mmengine.logging import MMLogger
 from nreal_data_tool.metric import KeypointOKSMetric
+from nreal_data_tool.schema import KeypointEvaluationItem
+
 from mmpose.registry import METRICS
-from typing import List
-from copy import deepcopy
 
 
 @METRICS.register_module()

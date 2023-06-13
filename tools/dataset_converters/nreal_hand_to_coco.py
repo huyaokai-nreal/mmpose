@@ -1,3 +1,4 @@
+# Copyright (c) OpenMMLab. All rights reserved.
 # flake8: noqa
 import json
 import os
@@ -5,8 +6,8 @@ from functools import wraps
 
 import cv2
 import lmdb
-from mmengine import track_parallel_progress
 import numpy as np
+from mmengine import track_parallel_progress
 from tqdm import tqdm
 
 

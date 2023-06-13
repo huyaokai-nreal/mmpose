@@ -3,8 +3,8 @@ from typing import Optional, Tuple
 
 import numpy as np
 
-from mmpose.codecs.utils import get_heatmap_maximum, get_simcc_3d_maximum
-from mmpose.codecs.utils import get_simcc_maximum
+from mmpose.codecs.utils import (get_heatmap_maximum, get_simcc_3d_maximum,
+                                 get_simcc_maximum)
 from .mesh_eval import compute_similarity_transform
 
 

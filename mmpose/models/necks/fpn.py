@@ -3,8 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from mmcv.cnn import ConvModule
 from mmengine.model import xavier_init
-from mmpose.registry import MODELS
+
 from mmpose.models.utils.upsample import UPSAMPLE_METHODS
+from mmpose.registry import MODELS
 
 
 @MODELS.register_module()

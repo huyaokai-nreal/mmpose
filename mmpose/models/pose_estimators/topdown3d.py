@@ -1,11 +1,13 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import copy
-import numpy as np
 from itertools import zip_longest
 from typing import Optional
+
+import numpy as np
+
 from mmpose.registry import MODELS
-from mmpose.utils.typing import (InstanceList, PixelDataList, SampleList)
 from mmpose.structures.bbox import bbox_cs2xyxy
+from mmpose.utils.typing import InstanceList, PixelDataList, SampleList
 from .topdown import TopdownPoseEstimator
 
 

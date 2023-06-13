@@ -1,11 +1,11 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-from typing import Optional, Dict
+from typing import Dict, Optional
 
 import numpy as np
-from mmcv.transforms import LoadImageFromFile
-from mmcv.transforms import BaseTransform
-from mmpose.registry import TRANSFORMS
+from mmcv.transforms import BaseTransform, LoadImageFromFile
 from nreal_data_tool.file.lmdb_client import LmdbClient
+
+from mmpose.registry import TRANSFORMS
 
 
 @TRANSFORMS.register_module()

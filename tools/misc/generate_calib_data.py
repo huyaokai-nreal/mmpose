@@ -1,15 +1,17 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import argparse
-import cv2
 import os
 import os.path as osp
 import random
+
+import cv2
+import numpy as np
 from mmengine import Config, DictAction, mkdir_or_exist
 from mmengine.registry import build_from_cfg
+from tqdm import tqdm
+
 from mmpose.registry import DATASETS
 from mmpose.utils import register_all_modules
-import numpy as np
-from tqdm import tqdm
 
 
 def parse_args():

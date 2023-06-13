@@ -1,9 +1,11 @@
+# Copyright (c) OpenMMLab. All rights reserved.
 import copy
 import warnings
 from typing import Dict, Union
 
 import numpy as np
 from mmengine import is_seq_of
+
 from mmpose.registry import FILTERS
 
 

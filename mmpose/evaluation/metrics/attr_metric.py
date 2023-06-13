@@ -1,8 +1,10 @@
+# Copyright (c) OpenMMLab. All rights reserved.
 from typing import Optional, Sequence
 
-from mmengine.logging import MMLogger
 import numpy as np
 from mmengine.evaluator import BaseMetric
+from mmengine.logging import MMLogger
+
 from mmpose.registry import METRICS
 from ..functional.keypoint_eval import multilabel_classification_accuracy
 

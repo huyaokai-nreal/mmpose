@@ -1,15 +1,16 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-import cv2
 from itertools import zip_longest
 from typing import Optional, Tuple
+
+import cv2
 from torch import Tensor
 
 from mmpose.registry import MODELS
+from mmpose.structures.bbox import bbox_cs2xyxy
+from mmpose.utils.data import format_data
 from mmpose.utils.typing import (ConfigType, InstanceList, OptConfigType,
                                  OptMultiConfig, PixelDataList, SampleList)
 from .base import BasePoseEstimator
-from mmpose.structures.bbox import bbox_cs2xyxy
-from mmpose.utils.data import format_data
 
 
 @MODELS.register_module()

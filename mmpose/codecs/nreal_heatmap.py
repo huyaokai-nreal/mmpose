@@ -1,8 +1,11 @@
+# Copyright (c) OpenMMLab. All rights reserved.
 from typing import Tuple
+
 import numpy as np
+
 from mmpose.registry import KEYPOINT_CODECS
-from .utils import gaussian_blur, get_heatmap_maximum
 from .megvii_heatmap import MegviiHeatmap
+from .utils import gaussian_blur, get_heatmap_maximum
 
 
 def taylor(hm, coord):

@@ -5,9 +5,8 @@ from functools import wraps
 
 import mmengine
 import numpy as np
-from PIL import Image
-
 from nreal_data_tool.utils.camera import SimpleCamera
+from PIL import Image
 
 
 def _keypoint_camera_to_world(keypoints,

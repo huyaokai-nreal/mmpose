@@ -1,6 +1,8 @@
+# Copyright (c) OpenMMLab. All rights reserved.
 # flake8: noqa
-import lmdb
 import os
+
+import lmdb
 
 lmdb_root = os.path.join(os.environ['HOME'], 'hand_group/data')
 lmdb_root = '/data'
@@ -19,6 +21,7 @@ for i in range(data_num):
     file_name = '{:0>8d}'.format(i * 2)
     file_name_list.append(file_name)
 import time
+
 import numpy as np
 
 start = time.time()

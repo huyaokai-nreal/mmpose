@@ -1,8 +1,11 @@
+# Copyright (c) OpenMMLab. All rights reserved.
+import copy
+
 import torch.nn as nn
 import torch.nn.functional as F
+
 from mmpose.registry import MODELS
 from .utils.repvgg import RepVGGBlock
-import copy
 
 
 class conv_bn_relu(nn.Module):

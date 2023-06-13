@@ -1,7 +1,8 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from mmengine.model import ImgDataPreprocessor
-from mmpose.utils.data import format_data
+
 from mmpose.registry import MODELS
+from mmpose.utils.data import format_data
 
 
 @MODELS.register_module()

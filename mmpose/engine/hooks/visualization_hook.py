@@ -2,6 +2,7 @@
 import os
 import warnings
 from typing import Optional, Sequence
+
 import cv2
 import mmcv
 import mmengine
@@ -9,10 +10,10 @@ import mmengine.fileio as fileio
 from mmengine.hooks import Hook
 from mmengine.runner import Runner
 from mmengine.visualization import Visualizer
+from nreal_data_tool import LmdbClient
 
 from mmpose.registry import HOOKS
 from mmpose.structures import PoseDataSample, merge_data_samples
-from nreal_data_tool import LmdbClient
 
 
 @HOOKS.register_module()

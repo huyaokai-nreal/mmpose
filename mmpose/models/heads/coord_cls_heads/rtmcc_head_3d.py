@@ -3,6 +3,7 @@ from typing import Optional, Sequence, Tuple, Union
 
 import torch
 from torch import Tensor, nn
+
 from mmpose.evaluation.functional import simcc3d_pck_accuracy
 from mmpose.registry import MODELS
 from mmpose.utils.tensor_utils import to_numpy

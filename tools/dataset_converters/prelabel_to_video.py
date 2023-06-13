@@ -1,15 +1,18 @@
+# Copyright (c) OpenMMLab. All rights reserved.
 import json
 import os
+from collections import OrderedDict
+
 import cv2
-from tqdm import tqdm
-from mmpose.datasets.datasets.hand.nreal_hand import HANDDataset
+import lmdb
+import numpy as np
+from mmengine import track_parallel_progress
 from mmengine.structures import InstanceData
+from tqdm import tqdm
+
+from mmpose.datasets.datasets.hand.nreal_hand import HANDDataset
 from mmpose.structures import PoseDataSample
 from mmpose.visualization.local_visualizer import PoseLocalVisualizer
-import numpy as np
-from collections import OrderedDict
-from mmengine import track_parallel_progress
-import lmdb
 
 
 def img_to_lmdb(json_path, lmdb_path):

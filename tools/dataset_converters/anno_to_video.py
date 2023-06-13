@@ -1,13 +1,16 @@
+# Copyright (c) OpenMMLab. All rights reserved.
 import json
-from nreal_data_tool import LmdbClient
 import os
+
 import cv2
-from tqdm import tqdm
-from mmpose.datasets.datasets.hand.nreal_hand import HANDDataset
+import numpy as np
 from mmengine.structures import InstanceData
+from nreal_data_tool import LmdbClient
+from tqdm import tqdm
+
+from mmpose.datasets.datasets.hand.nreal_hand import HANDDataset
 from mmpose.structures import PoseDataSample
 from mmpose.visualization.local_visualizer import PoseLocalVisualizer
-import numpy as np
 
 
 def anno_to_video(json_path, lmdb_root, output_dir='', fps=20):

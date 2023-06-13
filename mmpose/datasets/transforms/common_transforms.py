@@ -1,9 +1,10 @@
 # Copyright (c) OpenMMLab. All rights reserved.
+import random
 import warnings
 from copy import deepcopy
 from typing import Dict, List, Optional, Sequence, Tuple, Union
+
 import cv2
-import random
 import mmcv
 import mmengine
 import numpy as np
@@ -12,13 +13,15 @@ from mmcv.transforms import BaseTransform
 from mmcv.transforms.utils import avoid_cache_randomness, cache_randomness
 from mmengine import is_list_of
 from mmengine.dist import get_dist_info
-from scipy.stats import truncnorm
 from mmengine.logging import MessageHub
+from scipy.stats import truncnorm
+
 from mmpose.codecs import *  # noqa: F401, F403
 from mmpose.registry import KEYPOINT_CODECS, TRANSFORMS
 from mmpose.structures.bbox import bbox_xyxy2cs, flip_bbox, get_IoU
 from mmpose.structures.keypoint import flip_keypoints
 from mmpose.utils.typing import MultiConfig
+
 try:
     import albumentations
 except ImportError:

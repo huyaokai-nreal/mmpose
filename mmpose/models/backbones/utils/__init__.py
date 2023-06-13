@@ -2,9 +2,9 @@
 from .channel_shuffle import channel_shuffle
 from .inverted_residual import InvertedResidual
 from .make_divisible import make_divisible
+from .repvgg import RepVGGBlock, repvgg_model_convert
 from .se_layer import SELayer
 from .utils import get_state_dict, load_checkpoint
-from .repvgg import RepVGGBlock, repvgg_model_convert
 
 __all__ = [
     'channel_shuffle', 'make_divisible', 'InvertedResidual', 'SELayer',

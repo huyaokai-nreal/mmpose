@@ -101,6 +101,7 @@ dataset_type = 'HANDDataset'
 data_mode = 'topdown'
 
 import os
+
 # lmdb root dir, maybe different between beijing and wuxi
 # data_root = '/data/hand_group/data'
 # for beijin server

@@ -1,7 +1,8 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 
-from typing import Optional, Sequence, Tuple, Union, List
 import copy
+from typing import List, Optional, Sequence, Tuple, Union
+
 import numpy as np
 import torch
 import torch.nn.functional as F

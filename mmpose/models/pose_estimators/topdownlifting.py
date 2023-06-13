@@ -14,7 +14,6 @@ from mmpose.registry import MODELS
 from mmpose.utils.data import format_data
 from mmpose.utils.typing import (ConfigType, InstanceList, OptConfigType,
                                  OptMultiConfig, PixelDataList, SampleList)
-
 from .topdown import TopdownPoseEstimator
 
 # from IPython import embed
@@ -513,7 +512,7 @@ class TopdownPoseLiftingEstimator(TopdownPoseEstimator):
         assert len(batch_pred_instances) == len(batch_data_samples)
         if batch_pred_fields is None:
             batch_pred_fields = []
-        # output_keypoint_indices = self.test_cfg.get('output_keypoint_indices', None)
+        # output_keypoint_indices = self.test_cfg.get('output_keypoint_indices', None) # noqa
 
         for pred_instances, pred_fields, data_sample in zip_longest(
                 batch_pred_instances, batch_pred_fields, batch_data_samples):
@@ -530,6 +529,6 @@ class TopdownPoseLiftingEstimator(TopdownPoseEstimator):
                 (1, len(data_sample.meta['kp3d_spline'])))
             # data_sample.
 
-            # data_sample.gt_instances.keypoints3d = data_sample.meta['kp3d_spline']
+            # data_sample.gt_instances.keypoints3d = data_sample.meta['kp3d_spline']  # noqa
 
         return batch_data_samples

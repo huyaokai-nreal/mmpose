@@ -1,17 +1,20 @@
+# Copyright (c) OpenMMLab. All rights reserved.
 # flake8: noqa
+import argparse
 import json
 import os
-import numpy as np
-from tqdm import tqdm
-from nreal_data_tool.metric import KeypointOKSMetric
 import tempfile
-import argparse
+
+import numpy as np
+import torch
+import torch.nn.functional as F
 from mmengine import mkdir_or_exist
+from nreal_data_tool.metric import KeypointOKSMetric
+from tqdm import tqdm
+
+from mmpose.codecs.nreal_heatmap import NrealHeatmap
 from mmpose.codecs.utils import get_simcc_maximum
 from mmpose.models.utils.heatmap_to_kpt import HeatmapToKeypoint
-from mmpose.codecs.nreal_heatmap import NrealHeatmap
-import torch.nn.functional as F
-import torch
 
 
 def parse_args():
@@ -37,6 +40,7 @@ def parse_args():
 onnx_path = '/mmpose/data/rsntiny_attr_post_rename.onnx'
 
 import onnxruntime
+
 try:
     onnx_model = onnxruntime.InferenceSession(onnx_path)
 except:

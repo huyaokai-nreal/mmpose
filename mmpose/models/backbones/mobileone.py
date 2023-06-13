@@ -10,8 +10,8 @@ from mmengine.model import BaseModule, ModuleList, Sequential
 from torch.nn.modules.batchnorm import _BatchNorm
 
 from mmpose.registry import MODELS
-from .utils.se_layer import SELayer
 from .base_backbone import BaseBackbone
+from .utils.se_layer import SELayer
 
 
 class MobileOneBlock(BaseModule):

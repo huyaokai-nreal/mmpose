@@ -1,14 +1,14 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import math
+from collections import OrderedDict
 from functools import partial
 
-from collections import OrderedDict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from mmengine import MMLogger
 from mmengine.runner import CheckpointLoader, load_state_dict
+
 from mmpose.registry import MODELS
 from ..utils.realnvp import RealNVP
 

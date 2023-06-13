@@ -1,8 +1,8 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import mmengine
+import torch
 import torch.nn as nn
 from mmcv.cnn import ConvModule
-import torch
 from mmengine.model import BaseModule
 from mmengine.utils import digit_version
 from torch import Tensor

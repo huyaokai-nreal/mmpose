@@ -1,15 +1,17 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from typing import Optional, Sequence, Tuple, Union
-import torch.nn as nn
-from torch import Tensor
-import torch
-from mmengine.structures import PixelData
+
 import numpy as np
+import torch
+import torch.nn as nn
+from mmengine.structures import PixelData
+from torch import Tensor
+
 from mmpose.evaluation.functional import keypoint_pck_accuracy
 from mmpose.models.utils.tta import flip_coordinates, flip_heatmaps
 from mmpose.registry import MODELS
 from mmpose.utils.tensor_utils import to_numpy
-from mmpose.utils.typing import (ConfigType, OptConfigType, OptSampleList)
+from mmpose.utils.typing import ConfigType, OptConfigType, OptSampleList
 from ...utils.siamcc_to_kpt import SimCCToKeypoint
 from ..coord_cls_heads import RTMCCHead
 

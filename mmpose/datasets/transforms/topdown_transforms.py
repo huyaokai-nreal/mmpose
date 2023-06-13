@@ -1,22 +1,24 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-from typing import Dict, Optional, Tuple, Union, List
-import cv2
-import numpy as np
+import copy
 import json
 import os
-import copy
+from typing import Dict, List, Optional, Tuple, Union
+
+import cv2
+import numpy as np
 import torch
+import torch.nn.functional as F
 from mmcv.transforms import BaseTransform
 from mmengine import is_seq_of
 from mmengine.dataset.utils import default_collate
-from mmengine.dist import get_world_size, get_rank
+from mmengine.dist import get_rank, get_world_size
 from mmengine.logging import MMLogger
 from nreal_data_tool import LmdbClient
 from nreal_data_tool.utils.camera import SimpleCamera
+
 from mmpose.registry import TRANSFORMS
 from mmpose.structures.bbox import get_udp_warp_matrix, get_warp_matrix
-from .pcl import pcl_transforms, perspective_grid, pcl_transforms_2d
-import torch.nn.functional as F
+from .pcl import pcl_transforms, pcl_transforms_2d, perspective_grid
 
 
 @TRANSFORMS.register_module()

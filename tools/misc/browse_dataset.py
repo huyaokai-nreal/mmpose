@@ -2,13 +2,14 @@
 import argparse
 import os
 import os.path as osp
-from nreal_data_tool import LmdbClient
+
 import mmcv
 import mmengine
 import numpy as np
 from mmengine import Config, DictAction
 from mmengine.registry import build_from_cfg, init_default_scope
 from mmengine.structures import InstanceData
+from nreal_data_tool import LmdbClient
 
 from mmpose.registry import DATASETS, VISUALIZERS
 from mmpose.structures import PoseDataSample

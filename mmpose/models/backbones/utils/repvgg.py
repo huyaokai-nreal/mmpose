@@ -1,10 +1,12 @@
+# Copyright (c) OpenMMLab. All rights reserved.
 # flake8: noqa
+import copy
+
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
-import copy
-import torch.utils.checkpoint as checkpoint
 import torch.nn.functional as F
+import torch.utils.checkpoint as checkpoint
 from mmengine.logging import MMLogger
 
 

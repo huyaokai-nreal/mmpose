@@ -6,8 +6,8 @@ import numpy as np
 
 from mmpose.registry import KEYPOINT_CODECS
 from .base import BaseKeypointCodec
-from .msra_heatmap import MSRAHeatmap
 from .megvii_heatmap import MegviiHeatmap
+from .msra_heatmap import MSRAHeatmap
 from .regression_label import RegressionLabel
 
 

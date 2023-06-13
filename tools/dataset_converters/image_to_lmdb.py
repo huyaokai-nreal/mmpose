@@ -1,10 +1,12 @@
-import lmdb
-import os
+# Copyright (c) OpenMMLab. All rights reserved.
 import argparse
-from tqdm import tqdm
 import json
-import mmengine
+import os
 import warnings
+
+import lmdb
+import mmengine
+from tqdm import tqdm
 
 
 def parse_args():

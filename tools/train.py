@@ -2,10 +2,12 @@
 import argparse
 import os
 import os.path as osp
-from mmengine.config import Config, DictAction
-from mmengine.runner import Runner
+
 import torch
+from mmengine.config import Config, DictAction
 from mmengine.registry import init_default_scope
+from mmengine.runner import Runner
+
 from mmpose.utils import register_all_modules
 
 torch.multiprocessing.set_sharing_strategy('file_system')

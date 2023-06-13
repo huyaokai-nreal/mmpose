@@ -1,22 +1,23 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import math
+import os
 from typing import Dict, List, Optional, Tuple, Union
-import matplotlib.pyplot as plt
+
 import cv2
+import matplotlib.pyplot as plt
 import mmcv
 import numpy as np
 import torch
-import os
-from mpl_toolkits.mplot3d import Axes3D  # noqa
 from mmengine.dist import master_only
 from mmengine.structures import InstanceData, PixelData
+from mpl_toolkits.mplot3d import Axes3D  # noqa
 
 from mmpose.datasets.datasets.utils import parse_pose_metainfo
 from mmpose.registry import VISUALIZERS
 from mmpose.structures import PoseDataSample
+from .matplot_render import get_cv2mat_from_buf, plot_3d_pose
 from .opencv_backend_visualizer import OpencvBackendVisualizer
 from .simcc_vis import SimCCVisualizer
-from .matplot_render import plot_3d_pose, get_cv2mat_from_buf
 
 
 def _get_adaptive_scales(areas: np.ndarray,

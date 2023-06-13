@@ -1,9 +1,10 @@
-import torch.nn as nn
-import torch.nn.functional as F
-from mmcv.cnn import ConvModule
-from mmcv.cnn import build_upsample_layer
+# Copyright (c) OpenMMLab. All rights reserved.
 import copy
 from typing import Sequence
+
+import torch.nn as nn
+import torch.nn.functional as F
+from mmcv.cnn import ConvModule, build_upsample_layer
 
 
 class ResizeConvModule(nn.Module):

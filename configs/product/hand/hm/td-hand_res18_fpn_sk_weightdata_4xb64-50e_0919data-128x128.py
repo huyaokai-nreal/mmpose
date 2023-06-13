@@ -123,6 +123,7 @@ val_pipeline = [
     dict(type='PackPoseInputs')
 ]
 import os
+
 # lmdb root dir, maybe different between beijing and wuxi
 data_root = '/data/hand_group/data'
 train_data_list = [

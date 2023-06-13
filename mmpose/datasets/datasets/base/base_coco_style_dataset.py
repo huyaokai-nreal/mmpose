@@ -3,7 +3,9 @@ import copy
 import os.path as osp
 from copy import deepcopy
 from itertools import filterfalse, groupby
-from typing import Any, Callable, Dict, Tuple, List, Optional, Sequence, Union  # noqa
+from typing import Sequence  # noqa
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+
 import numpy as np
 from mmengine.dataset import BaseDataset, force_full_init
 from mmengine.fileio import exists, get_local_path, load

@@ -11,9 +11,9 @@ DATA_BATCH = Optional[Union[dict, tuple, list]]
 class RuntimeInfoHookV2(RuntimeInfoHook):
     """A hook that updates runtime information into message hub.
 
-    E.g. ``epoch``, ``iter``, ``max_epochs``, and ``max_iters`` for the training state.
-    Components that cannot access the runner can get runtime information through the
-    message hub.
+    E.g. ``epoch``, ``iter``, ``max_epochs``, and ``max_iters`` for the
+    training state. Components that cannot access the runner can get runtime
+    information through the message hub.
     """
 
     priority = 'VERY_HIGH'

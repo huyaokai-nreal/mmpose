@@ -1,5 +1,7 @@
-import cv2
+# Copyright (c) OpenMMLab. All rights reserved.
 import io
+
+import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 
