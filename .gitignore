@@ -115,7 +115,7 @@ mmpose/.mim
 *.pkl.json
 *.log.json
 *.npy
-work_dirs/
+/work_dirs
 docs/**/topics/
 docs/**/papers/*.md
 docs/**/datasets.md
@@ -130,10 +130,5 @@ output/
 
 # Pytorch
 *.pth
-*.onnx
-*.mp4
+# *.onnx
 *.DS_Store
-data
-work_dirs
-*.json
-configs/
