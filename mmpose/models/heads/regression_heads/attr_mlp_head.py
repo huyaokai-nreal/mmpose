@@ -23,17 +23,20 @@ class AttrMlpHead(BaseHead):
                  out_channels: int,
                  loss: ConfigType = dict(
                      type='BCELoss', use_target_weight=False),
-                 init_cfg: OptConfigType = None):
+                 init_cfg: OptConfigType = None,
+                 deploy: bool = False):
 
         if init_cfg is None:
             init_cfg = self.default_init_cfg
 
         super().__init__(init_cfg)
 
+        self.deploy = deploy
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.loss_module = MODELS.build(loss)
         # Define fully-connected layers
+        self.drop = nn.Dropout(p=0.5)
         self.fc = nn.Linear(in_channels, out_channels)
         # Register the hook to automatically convert old version state dicts
         self._register_load_state_dict_pre_hook(self._load_state_dict_pre_hook)
@@ -51,8 +54,10 @@ class AttrMlpHead(BaseHead):
         x = feats[-1]
         x = torch.nn.functional.adaptive_avg_pool2d(x, (1, 1))
         x = torch.flatten(x, 1)
-        x = torch.nn.functional.dropout(x, p=0.5)
+        x = self.drop(x)
         x = self.fc(x)
+        if self.deploy:
+            x = x.sigmoid()
         return x
 
     def predict(self,

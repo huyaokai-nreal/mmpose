@@ -1,10 +1,12 @@
-from mmengine.model import BaseModel
+# Copyright (c) OpenMMLab. All rights reserved.
 import torch
+from mmengine.model import BaseModel
+from mmengine.structures import InstanceData
+
+from mmpose.registry import MODELS
 from mmpose.utils.tensor_utils import to_numpy
 from mmpose.utils.typing import (ConfigType, ForwardResults, OptConfigType,
                                  Optional, OptSampleList)
-from mmpose.registry import MODELS
-from mmengine.structures import InstanceData
 
 
 @MODELS.register_module()
@@ -14,6 +16,7 @@ class PoseAttr(BaseModel):
                  backbone: ConfigType,
                  head: OptConfigType = None,
                  data_preprocessor: OptConfigType = None,
+                 train_cfg: OptConfigType = None,
                  init_cfg: Optional[dict] = None):
         super().__init__(data_preprocessor=None, init_cfg=None)
         self.backbone = MODELS.build(backbone)
@@ -24,7 +27,7 @@ class PoseAttr(BaseModel):
         feat = self.backbone(inputs)
         return feat
 
-    def _forward(self, inputs, data_samples):
+    def _forward(self, inputs, data_samples: OptSampleList = None):
         output = self.extract_feat(inputs)
         output = self.head(output)
         return output

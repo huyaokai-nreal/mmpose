@@ -1,14 +1,17 @@
-import numpy as np
-from typing import List
-from mmpose.datasets.builder import DATASETS
-from mmengine.logging import MMLogger
-from torch.utils.data import Dataset
-import torch
-from mmpose.structures import PoseDataSample
+# Copyright (c) OpenMMLab. All rights reserved.
 import pickle
-from mmengine.structures import InstanceData
 import random
+from typing import List
+
 import cv2
+import numpy as np
+import torch
+from mmengine.logging import MMLogger
+from mmengine.structures import InstanceData
+from torch.utils.data import Dataset
+
+from mmpose.datasets.builder import DATASETS
+from mmpose.structures import PoseDataSample
 
 
 @DATASETS.register_module()
