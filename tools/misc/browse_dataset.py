@@ -24,7 +24,7 @@ def parse_args():
         type=str,
         help='If there is no display interface, you can save it.')
     parser.add_argument('--not-show', default=False, action='store_true')
-    parser.add_argument('--lmdb', default=True, action='store_true')
+    parser.add_argument('--lmdb', default=False, action='store_true')
     parser.add_argument(
         '--phase',
         default='train',

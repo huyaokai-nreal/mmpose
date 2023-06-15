@@ -7,9 +7,10 @@ from .rle_head import RLEHead
 from .rtm_ipr_head import RTMIPRHead
 from .temporal_regression_head import TemporalRegressionHead
 from .trajectory_regression_head import TrajectoryRegressionHead
+from .attr_mlp_head import AttrMlpHead
 
 __all__ = [
     'RegressionHead', 'IntegralRegressionHead', 'DSNTHead', 'RLEHead',
     'TemporalRegressionHead', 'TrajectoryRegressionHead', 'DSNTAttrHead',
-    'RTMIPRHead'
+    'RTMIPRHead', 'AttrMlpHead'
 ]

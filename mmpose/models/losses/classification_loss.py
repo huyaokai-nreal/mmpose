@@ -52,6 +52,62 @@ class BCELoss(nn.Module):
 
 
 @MODELS.register_module()
+class FocalLoss(nn.Module):
+    """PyTorch version of `Focal Loss <https://arxiv.org/abs/1708.02002>`_.
+
+    Args:
+        pred (torch.Tensor): The prediction with shape (N, C), C is the
+            number of classes
+        target (torch.Tensor): The learning label of the prediction.
+        gamma (float, optional): The gamma for calculating the modulating
+            factor. Defaults to 2.0.
+        alpha (float, optional): A balanced form for Focal Loss.
+            Defaults to 0.25.
+    """
+
+    def __init__(self,
+                 use_target_weight=False,
+                 loss_weight=1.,
+                 ignore_label=-1,
+                 gamma=2.0,
+                 alpha=0.25):
+        super().__init__()
+        self.criterion = F.binary_cross_entropy_with_logits
+        self.use_target_weight = use_target_weight
+        self.loss_weight = loss_weight
+        self.ignore_label = ignore_label
+        self.gamma = gamma
+        self.alpha = alpha
+
+    def forward(self, output, target, target_weight=None):
+        """Forward function.
+
+        Note:
+            - batch_size: N
+            - num_labels: K
+
+        Args:
+            output (torch.Tensor[N, K]): Output classification.
+            target (torch.Tensor[N, K]): Target classification.
+            target_weight (torch.Tensor[N, K] or torch.Tensor[N]):
+                Weights across different labels.
+        """
+        pred_sigmoid = output.sigmoid()
+        target = target.type_as(pred_sigmoid)
+        pt = (1 - pred_sigmoid) * target + pred_sigmoid * (1 - target)
+        focal_weight = (self.alpha * target + (1 - self.alpha) *
+                        (1 - target)) * pt.pow(self.gamma)
+        loss = self.criterion(output, target, reduction='none') * focal_weight
+        if self.use_target_weight:
+            assert target_weight is not None
+            if target_weight.dim() == 1:
+                target_weight = target_weight[:, None]
+            loss = loss * target_weight
+        loss = (loss[target != self.ignore_label]).mean()
+        return loss * self.loss_weight
+
+
+@MODELS.register_module()
 class JSDiscretLoss(nn.Module):
     """Discrete JS Divergence loss for DSNT with Gaussian Heatmap.
 

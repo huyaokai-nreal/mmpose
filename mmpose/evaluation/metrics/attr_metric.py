@@ -28,8 +28,6 @@ class AttrClsAccuracy(BaseMetric):
                     '`pred_instances` are required to process the '
                     f'predictions results in {self.__class__.__name__}. ')
             result = dict()
-            result['id'] = data_sample['id']
-            result['img_id'] = data_sample['img_id']
             result['pred_attr'] = data_sample['pred_instances']['attr']
             result['gt_attr'] = data_sample['gt_instance_labels'][
                 'attr_labels']
@@ -45,8 +43,10 @@ class AttrClsAccuracy(BaseMetric):
         visiable_acc = multilabel_classification_accuracy(
             visible_pred, visible_gt, np.ones((visible_gt.shape[0])),
             self.score_th)
-        hand_cls_acc = multilabel_classification_accuracy(
-            preds[:, -2:], gts[:, -2:], np.ones((preds.shape[0])),
-            self.score_th)
-        metrics = dict(visiable_acc=visiable_acc, hand_cls_acc=hand_cls_acc)
+        metrics = dict(visiable_acc=visiable_acc)
+        if gts.shape[1] > 21:
+            hand_cls_acc = multilabel_classification_accuracy(
+                preds[:, -2:], gts[:, -2:], np.ones((preds.shape[0])),
+                self.score_th)
+            metrics['hand_cls_acc'] = hand_cls_acc
         return metrics
