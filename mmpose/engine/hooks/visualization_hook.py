@@ -54,6 +54,7 @@ class PoseVisualizationHook(Hook):
         interval: int = 50,
         kpt_thr: float = 0.3,
         show: bool = False,
+        draw_3d: bool = False,
         wait_time: float = 0.,
         out_dir: Optional[str] = None,
         backend_args: Optional[dict] = None,
@@ -76,6 +77,7 @@ class PoseVisualizationHook(Hook):
         self.out_dir = out_dir
         self._test_index = 0
         self.backend_args = backend_args
+        self.draw_3d = draw_3d
 
     def after_val_iter(self, runner: Runner, batch_idx: int, data_batch: dict,
                        outputs: Sequence[PoseDataSample]) -> None:
@@ -137,7 +139,6 @@ class PoseVisualizationHook(Hook):
             mmengine.mkdir_or_exist(self.out_dir)
 
         self._visualizer.set_dataset_meta(runner.test_evaluator.dataset_meta)
-
         for data_sample in outputs:
             img_path = data_sample.get('img_path')
             if self.file_client is None:
@@ -179,6 +180,7 @@ class PoseVisualizationHook(Hook):
                 draw_gt=True,
                 draw_bbox=True,
                 draw_heatmap=False,
+                draw_3d=self.draw_3d,
                 wait_time=self.wait_time,
                 kpt_thr=self.kpt_thr,
                 out_file=out_file,

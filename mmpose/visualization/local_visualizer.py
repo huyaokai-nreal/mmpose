@@ -1,6 +1,5 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import math
-import os
 from typing import Dict, List, Optional, Tuple, Union
 
 import cv2
@@ -15,7 +14,6 @@ from mpl_toolkits.mplot3d import Axes3D  # noqa
 from mmpose.datasets.datasets.utils import parse_pose_metainfo
 from mmpose.registry import VISUALIZERS
 from mmpose.structures import PoseDataSample
-from .matplot_render import get_cv2mat_from_buf, plot_3d_pose
 from .opencv_backend_visualizer import OpencvBackendVisualizer
 from .simcc_vis import SimCCVisualizer
 
@@ -230,11 +228,204 @@ class PoseLocalVisualizer(OpencvBackendVisualizer):
 
         return self.get_image()
 
-    def _draw_instances_3dkpts(self, ax, keypoints, is_gt):
-        for kpts in keypoints:
-            kpts = np.array(kpts, copy=False)
-            plot_3d_pose(ax, keypoints, self.skeleton, is_gt=is_gt)
-        return ax
+    def _draw_3d_data_samples(
+        self,
+        image: np.ndarray,
+        pose_samples: PoseDataSample,
+        draw_gt: bool = True,
+        kpt_thr: float = 0.3,
+        num_instances=-1,
+        axis_azimuth: float = 70,
+        axis_dist: float = 10.0,
+        axis_elev: float = 15.0,
+    ):
+        """Draw keypoints and skeletons (optional) of GT or prediction.
+
+        Args:
+            image (np.ndarray): The image to draw.
+            instances (:obj:`InstanceData`): Data structure for
+                instance-level annotations or predictions.
+            draw_gt (bool): Whether to draw GT PoseDataSample. Default to
+                ``True``
+            kpt_thr (float, optional): Minimum threshold of keypoints
+                to be shown. Default: 0.3.
+            num_instances (int): Number of instances to be shown in 3D. If
+                smaller than 0, all the instances in the pose_result will be
+                shown. Otherwise, pad or truncate the pose_result to a length
+                of num_instances.
+            axis_azimuth (float): axis azimuth angle for 3D visualizations.
+            axis_dist (float): axis distance for 3D visualizations.
+            axis_elev (float): axis elevation view angle for 3D visualizations.
+            axis_limit (float): The axis limit to visualize 3d pose. The xyz
+                range will be set as:
+                - x: [x_c - axis_limit/2, x_c + axis_limit/2]
+                - y: [y_c - axis_limit/2, y_c + axis_limit/2]
+                - z: [0, axis_limit]
+                Where x_c, y_c is the mean value of x and y coordinates
+
+        Returns:
+            Tuple(np.ndarray): the drawn image which channel is RGB.
+        """
+        vis_height, vis_width, _ = image.shape
+
+        if 'pred_instances' in pose_samples:
+            pred_instances = pose_samples.pred_instances
+        else:
+            pred_instances = InstanceData()
+        if num_instances < 0:
+            if 'keypoints' in pred_instances:
+                num_instances = len(pred_instances)
+            else:
+                num_instances = 0
+        else:
+            if len(pred_instances) > num_instances:
+                for k in pred_instances.keys():
+                    new_val = pred_instances.k[:num_instances]
+                    pose_samples.pred_instances.k = new_val
+            elif num_instances < len(pred_instances):
+                num_instances = len(pred_instances)
+
+        num_fig = num_instances
+        if draw_gt:
+            vis_width *= 2
+            num_fig *= 2
+
+        plt.ioff()
+        fig = plt.figure(
+            figsize=(vis_width * num_instances * 0.01, vis_height * 0.01))
+
+        def _draw_3d_instances_kpts(keypoints,
+                                    scores,
+                                    keypoints_visible,
+                                    fig_idx,
+                                    title=None):
+
+            for idx, (kpts, score, visible) in enumerate(
+                    zip(keypoints, scores, keypoints_visible)):
+
+                valid = np.logical_and(score >= kpt_thr,
+                                       np.any(~np.isnan(kpts), axis=-1))
+
+                ax = fig.add_subplot(
+                    1, num_fig, fig_idx * (idx + 1), projection='3d')
+                ax.view_init(elev=axis_elev, azim=axis_azimuth)
+                ax.set_aspect('auto')
+                ax.set_xticks([])
+                ax.set_yticks([])
+                ax.set_zticks([])
+                ax.set_xticklabels([])
+                ax.set_yticklabels([])
+                ax.set_zticklabels([])
+                ax.scatter([0], [0], [0], marker='o', color='red')
+                if title:
+                    ax.set_title(f'{title} ({idx})')
+                ax.dist = axis_dist
+                kpts = np.array(kpts, copy=False)
+                if self.kpt_color is None or isinstance(self.kpt_color, str):
+                    kpt_color = [self.kpt_color] * len(kpts)
+                elif len(self.kpt_color) == len(kpts):
+                    kpt_color = self.kpt_color
+                else:
+                    raise ValueError(
+                        f'the length of kpt_color '
+                        f'({len(self.kpt_color)}) does not matches '
+                        f'that of keypoints ({len(kpts)})')
+                x_3d, y_3d, z_3d = np.split(kpts[:, :3], [1, 2], axis=1)
+                max_range = np.array([
+                    x_3d.max() - x_3d.min(),
+                    y_3d.max() - y_3d.min(),
+                    z_3d.max() - z_3d.min()
+                ]).max() / 2.0
+
+                mid_x = (x_3d.max() + x_3d.min()) * 0.5
+                mid_y = (y_3d.max() + y_3d.min()) * 0.5
+                mid_z = (z_3d.max() + z_3d.min()) * 0.5
+                ax.set_xlim(mid_x - max_range, mid_x + max_range)
+                ax.set_ylim(mid_y - max_range, mid_y + max_range)
+                ax.set_zlim(mid_z - max_range, mid_z + max_range)
+
+                kpt_color = kpt_color[valid][..., ::-1] / 255.
+
+                ax.scatter(x_3d, y_3d, z_3d, marker='o', color=kpt_color)
+
+                for kpt_idx in range(len(x_3d)):
+                    ax.text(x_3d[kpt_idx][0], y_3d[kpt_idx][0],
+                            z_3d[kpt_idx][0], str(kpt_idx))
+
+                if self.skeleton is not None and self.link_color is not None:
+                    if self.link_color is None or isinstance(
+                            self.link_color, str):
+                        link_color = [self.link_color] * len(self.skeleton)
+                    elif len(self.link_color) == len(self.skeleton):
+                        link_color = self.link_color
+                    else:
+                        raise ValueError(
+                            f'the length of link_color '
+                            f'({len(self.link_color)}) does not matches '
+                            f'that of skeleton ({len(self.skeleton)})')
+
+                    for sk_id, sk in enumerate(self.skeleton):
+                        sk_indices = [_i for _i in sk]
+                        xs_3d = kpts[sk_indices, 0]
+                        ys_3d = kpts[sk_indices, 1]
+                        zs_3d = kpts[sk_indices, 2]
+                        kpt_score = score[sk_indices]
+                        if kpt_score.min() > kpt_thr:
+                            # matplotlib uses RGB color in [0, 1] value range
+                            _color = link_color[sk_id][::-1] / 255.
+                            ax.plot(
+                                xs_3d, ys_3d, zs_3d, color=_color, zdir='z')
+
+        if 'keypoints3d' in pred_instances:
+            keypoints = pred_instances.get('keypoints3d',
+                                           pred_instances.keypoints3d)
+
+            if 'keypoint_scores' in pred_instances:
+                scores = pred_instances.keypoint_scores
+            else:
+                scores = np.ones(keypoints.shape[:-1])
+
+            if 'keypoints_visible' in pred_instances:
+                keypoints_visible = pred_instances.keypoints_visible
+            else:
+                keypoints_visible = np.ones(keypoints.shape[:-1])
+
+            _draw_3d_instances_kpts(keypoints, scores, keypoints_visible, 1,
+                                    'Prediction')
+
+        if draw_gt and 'gt_instances' in pose_samples:
+            gt_instances = pose_samples.gt_instances
+            if 'keypoints3d' in gt_instances:
+                keypoints = gt_instances.get('keypoints3d',
+                                             gt_instances.keypoints3d)
+                scores = np.ones(keypoints.shape[:-1])
+
+                if 'lifting_target_visible' in gt_instances:
+                    keypoints_visible = gt_instances.lifting_target_visible
+                else:
+                    keypoints_visible = np.ones(keypoints.shape[:-1])
+
+                _draw_3d_instances_kpts(keypoints, scores, keypoints_visible,
+                                        2, 'Ground Truth')
+
+        # convert figure to numpy array
+        fig.tight_layout()
+        fig.canvas.draw()
+
+        pred_img_data = fig.canvas.tostring_rgb()
+        pred_img_data = np.frombuffer(
+            fig.canvas.tostring_rgb(), dtype=np.uint8)
+
+        if not pred_img_data.any():
+            pred_img_data = np.full((vis_height, vis_width, 3), 255)
+        else:
+            pred_img_data = pred_img_data.reshape(vis_height,
+                                                  vis_width * num_instances,
+                                                  -1)
+
+        plt.close(fig)
+
+        return pred_img_data
 
     def _draw_instances_kpts(self,
                              image: np.ndarray,
@@ -265,6 +456,7 @@ class PoseLocalVisualizer(OpencvBackendVisualizer):
         if 'keypoints' in instances:
             keypoints = instances.get('transformed_keypoints',
                                       instances.keypoints)[..., :2]
+            keypoints = instances.keypoints[..., :2]
 
             if 'keypoint_scores' in instances:
                 scores = instances.keypoint_scores
@@ -500,7 +692,7 @@ class PoseLocalVisualizer(OpencvBackendVisualizer):
                        image: np.ndarray,
                        data_sample: PoseDataSample,
                        draw_gt: bool = True,
-                       draw_3d: bool = False,
+                       draw_3d: bool = True,
                        draw_pred: bool = True,
                        draw_heatmap: bool = False,
                        draw_bbox: bool = False,
@@ -553,9 +745,6 @@ class PoseLocalVisualizer(OpencvBackendVisualizer):
         gt_img_data = None
         pred_img_data = None
         image = image.astype(np.uint8)
-        fig_kpt3d = plt.figure(figsize=(10, 10))
-        ax = fig_kpt3d.add_subplot(111, projection='3d')
-
         if draw_gt:
             gt_img_data = image.copy()
             gt_img_heatmap = None
@@ -568,12 +757,6 @@ class PoseLocalVisualizer(OpencvBackendVisualizer):
                 if draw_bbox:
                     gt_img_data = self._draw_instances_bbox(
                         gt_img_data, data_sample.gt_instances)
-                if draw_3d:
-                    if 'keypoints3d' in data_sample.gt_instances:
-                        ax = self._draw_instances_3dkpts(
-                            ax,
-                            data_sample.gt_instances.keypoints3d,
-                            is_gt=True)
 
             # draw heatmaps
             if 'gt_fields' in data_sample and draw_heatmap:
@@ -595,12 +778,6 @@ class PoseLocalVisualizer(OpencvBackendVisualizer):
                 if draw_bbox:
                     pred_img_data = self._draw_instances_bbox(
                         pred_img_data, data_sample.pred_instances)
-                if draw_3d:
-                    if 'keypoints3d' in data_sample.gt_instances:
-                        ax = self._draw_instances_3dkpts(
-                            ax,
-                            data_sample.pred_instances.keypoints3d,
-                            is_gt=False)
 
             # draw heatmaps
             if 'pred_fields' in data_sample and draw_heatmap:
@@ -628,6 +805,11 @@ class PoseLocalVisualizer(OpencvBackendVisualizer):
         else:
             drawn_img = pred_img_data
 
+        if draw_3d:
+            pred3d_img_data = self._draw_3d_data_samples(
+                image.copy(), data_sample, draw_gt=draw_gt)
+            drawn_img = np.concatenate((drawn_img, pred3d_img_data), axis=0)
+
         # It is convenient for users to obtain the drawn image.
         # For example, the user wants to obtain the drawn image and
         # save it as a video during video inference.
@@ -640,11 +822,6 @@ class PoseLocalVisualizer(OpencvBackendVisualizer):
             if not out_file.endswith('.png') and not out_file.endswith('.jpg'):
                 out_file = out_file + '.png'
             mmcv.imwrite(drawn_img[..., ::-1], out_file)
-            if draw_3d:
-                kpt3d_img = get_cv2mat_from_buf(fig_kpt3d)
-                out_file = out_file.replace(
-                    os.path.splitext(out_file)[1], '_kpt3d.png')
-                mmcv.imwrite(kpt3d_img, out_file)
         else:
             # save drawn_img to backends
             self.add_image(name, drawn_img, step)

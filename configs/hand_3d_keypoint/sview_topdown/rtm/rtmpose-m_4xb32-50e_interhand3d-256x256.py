@@ -97,6 +97,19 @@ model = dict(
         decoder=codec),
     test_cfg=dict(flip_test=False, ))
 
+# visualizer
+vis_backends = [
+    dict(type='LocalVisBackend'),
+    # dict(type='TensorboardVisBackend'),
+    # dict(type='WandbVisBackend'),
+]
+
+visualizer = dict(
+    type='PoseLocalVisualizer', vis_backends=vis_backends, name='visualizer')
+default_hooks = dict(
+    visualization=dict(
+        type='PoseVisualizationHook', enable=True, draw_3d=True),
+    checkpoint=dict(save_best='AUC', rule='greater', max_keep_ckpts=1))
 # base dataset settings
 dataset_type = 'InterHand3DDataset'
 data_mode = 'topdown'
@@ -235,9 +248,6 @@ test_dataloader = dict(
         test_mode=True,
         pipeline=val_pipeline,
     ))
-# hooks
-default_hooks = dict(
-    checkpoint=dict(save_best='AUC', rule='greater', max_keep_ckpts=1))
 
 custom_hooks = [
     dict(
