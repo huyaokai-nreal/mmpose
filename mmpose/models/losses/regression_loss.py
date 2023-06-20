@@ -39,14 +39,16 @@ class RLELoss(nn.Module):
                  residual=True,
                  q_distribution='laplace',
                  flow_model_pretrain_path='',
-                 freeze_flow=False):
+                 freeze_flow=False,
+                 dim=2):
         super(RLELoss, self).__init__()
         self.size_average = size_average
         self.use_target_weight = use_target_weight
         self.residual = residual
         self.q_distribution = q_distribution
+        self.dim = dim
 
-        self.flow_model = RealNVP()
+        self.flow_model = RealNVP(dim)
         if flow_model_pretrain_path:
             self.init_flow_model(flow_model_pretrain_path, freeze_flow)
 
@@ -85,15 +87,16 @@ class RLELoss(nn.Module):
             target_weight (Tensor[N, K, D]):
                 Weights across different joint types.
         """
-        pos_pred = pred[:, :, :2]
-        sigma = pred[:, :, 2:4]
+        dim = self.dim
+        pos_pred = pred[:, :, :dim]
+        sigma = pred[:, :, dim:dim * 2]
         sigma = sigma.sigmoid()
         error = (pos_pred - target) / (sigma + 1e-9)
         # (B, K, 2)
-        log_phi = self.flow_model.log_prob(error.reshape(-1, 2))
+        log_phi = self.flow_model.log_prob(error.reshape(-1, dim))
         log_phi = log_phi.reshape(target.shape[0], target.shape[1], 1)
         log_sigma = torch.log(sigma).reshape(target.shape[0], target.shape[1],
-                                             2)
+                                             dim)
         nf_loss = log_sigma - log_phi
 
         if self.residual:
