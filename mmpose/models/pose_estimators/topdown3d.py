@@ -3,8 +3,6 @@ import copy
 from itertools import zip_longest
 from typing import Optional
 
-import numpy as np
-
 from mmpose.registry import MODELS
 from mmpose.structures.bbox import bbox_cs2xyxy
 from mmpose.utils.typing import InstanceList, PixelDataList, SampleList
@@ -44,38 +42,36 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             # convert keypoint coordinates from input space to image space
             bbox_centers = gt_instances.bbox_centers
             bbox_scales = gt_instances.bbox_scales
-            input_size = data_sample.metainfo['input_size']
             # uv depth to camera coord pose
+            ori_cam = data_sample.meta['ori_camera']
             root_depth = data_sample.meta['root_depth']
-            global_keypoints = copy.deepcopy(pred_instances.keypoints)
             if 'virtual_camera' in data_sample.meta:
-                camera = data_sample.meta['virtual_camera']
-                P_virt2orig = data_sample.meta['P_virt2orig'][0]
-                local_keypoints = pred_instances.keypoints[0][
-                    ..., :2] / input_size
-                local_keypoints = np.concatenate(
-                    [local_keypoints,
-                     np.ones((local_keypoints.shape[0], 1))],
-                    axis=-1)
-                origin_keypoints = (P_virt2orig @ local_keypoints.T).T
-                pred_instances.keypoints[..., :2] = origin_keypoints[
-                    ..., :2] / origin_keypoints[..., 2:]
+                virtual_cam = data_sample.meta['virtual_camera']
+                virtual_keypoints = pred_instances.keypoints[0].copy()
+                virtual_keypoints[..., 2] += root_depth
+                virtual_keypoints3d = virtual_cam.window_to_eye(
+                    virtual_keypoints)
+                world_keypoints3d = virtual_cam.eye_to_world(
+                    virtual_keypoints3d)
+                ori_keypoints3d = ori_cam.world_to_eye(world_keypoints3d)
+                pred_instances.keypoints[0][..., :2] = ori_cam.eye_to_window(
+                    ori_keypoints3d)
+                pred_instances.keypoints3d = pred_instances.keypoints.copy()
+                pred_instances.keypoints3d[0] = ori_keypoints3d
             else:
+                input_size = data_sample.metainfo['input_size']
+                global_keypoints = copy.deepcopy(pred_instances.keypoints)
                 global_keypoints[..., :2] = global_keypoints[
                     ..., :
                     2] / input_size * bbox_scales + bbox_centers - 0.5 * bbox_scales  # noqa
-                camera = data_sample.meta['camera']
                 # for 2d keypoint evaluation
                 pred_instances.keypoints[..., :2] = pred_instances.keypoints[
                     ..., :
                     2] / input_size * bbox_scales + bbox_centers - 0.5 * bbox_scales  # noqa
-            pred_instances.keypoints3d = global_keypoints.copy()
-            pred_instances.keypoints3d[..., 2] += root_depth
-            pred_instances.keypoints3d[0] = camera.pixel_to_camera(
-                pred_instances.keypoints3d[0])
-            if 'virtual_camera' in data_sample.meta:
-                pred_instances.keypoints3d[0] = camera.camera_to_world(
-                    pred_instances.keypoints3d[0])
+                global_keypoints[..., 2] += root_depth
+                ori_keypoints3d = ori_cam.window_to_eye(global_keypoints[0])
+                pred_instances.keypoints3d = global_keypoints.copy()
+                pred_instances.keypoints3d[0] = ori_keypoints3d
             if output_keypoint_indices is not None:
                 # select output keypoints with given indices
                 num_keypoints = pred_instances.keypoints.shape[1]

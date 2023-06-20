@@ -302,10 +302,6 @@ class PoseLocalVisualizer(OpencvBackendVisualizer):
 
             for idx, (kpts, score, visible) in enumerate(
                     zip(keypoints, scores, keypoints_visible)):
-
-                valid = np.logical_and(score >= kpt_thr,
-                                       np.any(~np.isnan(kpts), axis=-1))
-
                 ax = fig.add_subplot(
                     1, num_fig, fig_idx * (idx + 1), projection='3d')
                 ax.view_init(elev=axis_elev, azim=axis_azimuth)
@@ -344,7 +340,7 @@ class PoseLocalVisualizer(OpencvBackendVisualizer):
                 ax.set_ylim(mid_y - max_range, mid_y + max_range)
                 ax.set_zlim(mid_z - max_range, mid_z + max_range)
 
-                kpt_color = kpt_color[valid][..., ::-1] / 255.
+                kpt_color = kpt_color[..., ::-1] / 255.
 
                 ax.scatter(x_3d, y_3d, z_3d, marker='o', color=kpt_color)
 
@@ -456,8 +452,6 @@ class PoseLocalVisualizer(OpencvBackendVisualizer):
         if 'keypoints' in instances:
             keypoints = instances.get('transformed_keypoints',
                                       instances.keypoints)[..., :2]
-            keypoints = instances.keypoints[..., :2]
-
             if 'keypoint_scores' in instances:
                 scores = instances.keypoint_scores
             else:

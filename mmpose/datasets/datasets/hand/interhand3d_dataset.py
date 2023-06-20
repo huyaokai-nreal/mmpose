@@ -1,4 +1,5 @@
 # Copyright (c) OpenMMLab. All rights reserved.
+import copy
 import os.path as osp
 from collections import defaultdict
 from typing import List, Optional, Sequence, Union
@@ -6,7 +7,7 @@ from typing import List, Optional, Sequence, Union
 import json_tricks as json
 import numpy as np
 from mmengine.logging import MMLogger
-from nreal_data_tool.utils.camera import SimpleCamera
+from nreal_data_tool.utils.camera import PinholePlaneCameraModel
 from xtcocotools.coco import COCO
 
 from mmpose.datasets.builder import DATASETS
@@ -179,21 +180,21 @@ class InterHand3DDataset(BaseCocoStyleDataset):
         camera_dict = defaultdict(dict)
         for campture_id, camera_data in cameras_data_json.items():
             for camera_name in camera_data['camrot'].keys():
-                camera_param = dict(
-                    R=np.array(
-                        camera_data['camrot'][camera_name],
-                        dtype=np.float32).T,
-                    T=np.array(
-                        camera_data['campos'][camera_name],
-                        dtype=np.float32).reshape(3, 1),
-                    f=np.array(
-                        camera_data['focal'][camera_name],
-                        dtype=np.float32).reshape(2, 1),
-                    c=np.array(
-                        camera_data['princpt'][camera_name],
-                        dtype=np.float32).reshape(2, 1))
-                camera_dict[campture_id][camera_name] = SimpleCamera(
-                    camera_param)
+                camera_to_world_xf = np.eye(4, 4, dtype=np.float32)
+                R = np.array(
+                    camera_data['camrot'][camera_name], dtype=np.float32).T
+                camera_to_world_xf[:3, :3] = R
+                camera_to_world_xf[:3, 3:] = np.array(
+                    camera_data['campos'][camera_name],
+                    dtype=np.float32).reshape(3, 1)
+                f = camera_data['focal'][camera_name]
+                c = camera_data['princpt'][camera_name]
+                camera_dict[campture_id][
+                    camera_name] = PinholePlaneCameraModel(
+                        f=f,
+                        c=c,
+                        camera_to_world_xf=camera_to_world_xf,
+                        distort_coeffs=[])
         return camera_dict
 
     def _load_annotations(self):
@@ -231,9 +232,10 @@ class InterHand3DDataset(BaseCocoStyleDataset):
                 image_file = osp.join(self.img_prefix, self.id2name[img_id])
             joint_world = np.array(
                 joints[capture_id][frame_idx]['world_coord'], dtype=np.float32)
-            camera: SimpleCamera = cameras_map[capture_id][camera_name]
-            joint_cam = camera.world_to_camera(joint_world)
-            joint_img = camera.camera_to_pixel(joint_cam)
+            camera: PinholePlaneCameraModel = cameras_map[capture_id][
+                camera_name]
+            joint_cam = camera.world_to_eye(joint_world)
+            joint_img = camera.eye_to_window(joint_cam)
             joint_valid = np.array(
                 ann['joint_valid'], dtype=np.float32).flatten()
             hand_type = ann['hand_type']
@@ -300,6 +302,9 @@ class InterHand3DDataset(BaseCocoStyleDataset):
                 keypoints = joint_img[np.newaxis, ...]
             else:
                 keypoints = joints_3d[np.newaxis, ...]
+            # set camera coord as world coord
+            ori_camera = copy.deepcopy(camera)
+            ori_camera.camera_to_world_xf = np.eye(4, 4, dtype=np.float32)
             instance_list.append({
                 'img_path':
                 image_file,
@@ -328,7 +333,7 @@ class InterHand3DDataset(BaseCocoStyleDataset):
                 'id':
                 bbox_id,
                 'meta':
-                dict(root_depth=abs_depth, camera=camera)
+                dict(root_depth=abs_depth, ori_camera=ori_camera)
             })
             bbox_id = bbox_id + 1
         instance_list = sorted(instance_list, key=lambda x: x['id'])
