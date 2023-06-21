@@ -115,7 +115,7 @@ model = dict(
                 dict(type='MSELoss', loss_weight=0),  # 2d reprojection right
             ]),
         channel_num=55,
-        output_num=63,
+        output_num=42,
     ),
     test_cfg=dict(
         flip_test=False,
@@ -127,6 +127,7 @@ model = dict(
         checkpoint=
         # '/home/zx_li/workspace/mmpose/work_dirs/td-hand_res26_fpn_sk_weightdata_4xb64-50e_0919data-128x128/epoch_50.pth'
         f'{data_root}/data_hand/model/mmpose/td-hand_res26_fpn_skpre_flow_wd_ipr_rle_weightdata_0919_4xb64-50e-128x128/epoch_50.pth'
+        # '/home/jrchen/git-project/mmpose/work_dirs/pair_hand3d/003_td-stage_two_train_55dim_l1/epoch_60_new.pth'
     ),
 )
 

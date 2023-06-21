@@ -43,7 +43,7 @@ class TopdownPoseLiftEstimator(BaseModel):
 
         if (kpt2d_head is not None) and (kpt3d_head is not None):
             self.head = MODELS.build(kpt2d_head)  # adapt 2d kpts model
-            self.kpt3d_head = MODELS.build(kpt3d_head)
+            self.kpt3d_lift = MODELS.build(kpt3d_head)
 
         self.train_cfg = train_cfg if train_cfg else {}
         self.test_cfg = test_cfg if test_cfg else {}
@@ -133,7 +133,7 @@ class TopdownPoseLiftEstimator(BaseModel):
         xy_sigma, heatmap = self.head.forward(feats_pyramid)
         xy_sigma = xy_sigma.detach()  # fix 2d model params
 
-        ret = self.kpt3d_head.forward(xy_sigma, data_samples)
+        ret = self.kpt3d_lift.forward(xy_sigma, data_samples)
 
         x = ret['hand3d_pred']
 
@@ -157,7 +157,7 @@ class TopdownPoseLiftEstimator(BaseModel):
 
         losses = dict()
 
-        losses.update(self.kpt3d_head.loss(xy_sigma, data_samples))
+        losses.update(self.kpt3d_lift.loss(xy_sigma, data_samples))
         return losses
 
     @format_data
@@ -195,7 +195,7 @@ class TopdownPoseLiftEstimator(BaseModel):
         xy_sigma, heatmap = self.head.forward(feats)
         xy_sigma = xy_sigma.detach()  # fix 2d model params
 
-        pred = self.kpt3d_head.predict(
+        pred = self.kpt3d_lift.predict(
             xy_sigma, data_samples, test_cfg=self.test_cfg)
 
         batch_pred_instances = []

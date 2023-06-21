@@ -92,8 +92,8 @@ class LiftHead(BaseModule):
 
     def __init__(self,
                  lift_loss: ConfigType,
-                 channel_num: int = 21,
-                 output_num: int = 63,
+                 channel_num: int = 55,
+                 output_num: int = 42,
                  init_cfg: Union[dict, List[dict], None] = None):
         super().__init__(init_cfg)
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
@@ -298,7 +298,7 @@ class LiftHead(BaseModule):
         # rle_gt = hand3d_gt[:, :, 2].view(B, 21, 1)
         # rle_gt = torch.concat([rle_gt, rle_gt], dim=-1)
 
-        hand3d_pred = output.view(B, -1, 3)
+        # hand3d_pred = output.view(B, -1, 3)
 
         ret = {
             'hand3d_pred': hand3d_pred,
