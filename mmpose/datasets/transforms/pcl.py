@@ -197,7 +197,9 @@ def gen_crop_parameters_from_points(
     fx_fy = [
         virtual_K[0][0] * focal_multiplier, virtual_K[1][1] * focal_multiplier
     ]
-    cx_cy = [virtual_K[0][2], virtual_K[1][2]]
+    # ensure same focal length
+    fx_fy = [min(fx_fy), min(fx_fy)]
+    cx_cy = [virtual_K[0][2] - 0.5, virtual_K[1][2] - 0.5]
     return PinholePlaneCameraModel(
         f=fx_fy,
         c=cx_cy,
