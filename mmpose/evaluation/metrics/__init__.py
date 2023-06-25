@@ -4,7 +4,7 @@ from .coco_metric import CocoMetric
 from .coco_wholebody_metric import CocoWholeBodyMetric
 from .keypoint_2d_metrics import (AUC, EPE, NME, JhmdbPCKAccuracy,
                                   MpiiPCKAccuracy, PCKAccuracy)
-from .keypoint_3d_metrics import MPJPE, MPJPEMetric, MPJPEMetricLifting
+from .keypoint_3d_metrics import MPJPE, MPJPEV2, MPJPEMetricLifting
 from .keypoint_partition_metric import KeypointPartitionMetric
 from .nreal_keypoint_ap import NrealKeypointAP
 from .posetrack18_metric import PoseTrack18Metric
@@ -12,6 +12,6 @@ from .posetrack18_metric import PoseTrack18Metric
 __all__ = [
     'CocoMetric', 'PCKAccuracy', 'MpiiPCKAccuracy', 'JhmdbPCKAccuracy', 'AUC',
     'EPE', 'NME', 'PoseTrack18Metric', 'CocoWholeBodyMetric',
-    'KeypointPartitionMetric', 'NrealKeypointAP', 'MPJPEMetric',
-    'AttrClsAccuracy', 'MPJPE', 'MPJPEMetricLifting'
+    'KeypointPartitionMetric', 'NrealKeypointAP', 'MPJPEV2', 'AttrClsAccuracy',
+    'MPJPE', 'MPJPEMetricLifting'
 ]

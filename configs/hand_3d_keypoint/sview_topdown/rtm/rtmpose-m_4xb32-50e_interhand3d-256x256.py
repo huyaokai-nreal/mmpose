@@ -264,7 +264,7 @@ custom_hooks = [
 
 # evaluators
 val_evaluator = [
-    dict(type='MPJPEMetric'),
+    dict(type='MPJPEV2'),
     dict(type='PCKAccuracy', thr=0.2),
     dict(type='AUC'),
     dict(type='EPE')
