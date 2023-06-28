@@ -167,7 +167,8 @@ train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
-    'data_hand/hand_keypoint/annotations3d/seq_data/test.json',
+    'data_hand/hand_keypoint/annotations3d/flora/test_undistort.json',
+    # 'data_hand/hand_keypoint/annotations3d/flora/test.json',
     # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0000.json',
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]

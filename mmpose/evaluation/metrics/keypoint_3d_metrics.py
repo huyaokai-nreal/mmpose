@@ -195,10 +195,11 @@ class MPJPEMetricLifting(MPJPEV2):
                  gesture_list: List[str] = [],
                  collect_device: str = 'cpu',
                  prefix: Optional[str] = None,
+                 mode: str = 'mpjpe',
                  result_dir=None,
                  root_kpt_id=0) -> None:
-        super().__init__(gesture_list, collect_device, prefix, result_dir,
-                         root_kpt_id)
+        super().__init__(gesture_list, collect_device, prefix, mode,
+                         result_dir, root_kpt_id)
 
     def process(self, data_batch, data_samples: Sequence[dict]) -> None:
         for data_sample in data_samples:

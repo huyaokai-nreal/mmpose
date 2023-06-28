@@ -114,12 +114,12 @@ class LiftHead(BaseModule):
         xy_coord = feats
         device = xy_coord.device
 
-        # from IPython import embed; embed()
-
         B = int(len(batch_data_samples) / 2)
         N = 2
         H, W = batch_data_samples[0].input_size
         K = xy_coord.shape[1]  # (B,21, 2)
+
+        # ori_img_W = batch_data_samples[0].meta['ori_img_W']
 
         # kpt2d output to crop wh
         uv_coord_im_pred_crop_right = xy_coord[..., :2] * torch.tensor(
@@ -190,8 +190,6 @@ class LiftHead(BaseModule):
         # uv_coord_im_pred_crop_leftright = recover_hand(
         #     uv_coord_im_pred_crop_right, left_hand, device, W)
 
-        # embed()
-
         uv_coord_im_pred_crop_leftright = uv_coord_im_pred_crop_leftright.view(
             B * N, K, 2)
 
@@ -204,13 +202,22 @@ class LiftHead(BaseModule):
         uv_coord_im_pred_global = torch.bmm(uv_coord_im_pred, all_inv_warp_mat)
         uv_coord_im_pred_global = uv_coord_im_pred_global.view(B, N, K, 2)
 
+        # use kp2d gt
+        uv_coord_im_pred_global = uv_coord_im_gt_global
+
+        # print kp2d l2 error
+        kp2d_l2 = torch.norm(
+            uv_coord_im_pred_global.view(-1, 2) -
+            uv_coord_im_gt_global.view(-1, 2),
+            p=2,
+            dim=1).mean()
+        # print('kp2d_l2', kp2d_l2)
+
         uv_coord_im_pred_global = recover_hand(uv_coord_im_pred_global,
                                                left_hand, device, 640)
 
         uv_coord_im_gt_global = recover_hand(uv_coord_im_gt_global, left_hand,
                                              device, 640)
-
-        # embed()
 
         # joint_seq = torch.zeros((B, 21, 3)).to(device)
 
@@ -300,6 +307,15 @@ class LiftHead(BaseModule):
 
         # hand3d_pred = output.view(B, -1, 3)
 
+        # from IPython import embed; embed()
+
+        # print kp3d l2 error
+        kp3d_l2 = torch.norm(
+            hand3d_pred.view(-1, 3) * 1000 - hand3d_gt.view(-1, 3) * 1000,
+            p=2,
+            dim=1).mean()
+        # print('kp3d_l2', kp3d_l2)
+
         ret = {
             'hand3d_pred': hand3d_pred,
             'hand3d_gt': hand3d_gt,
@@ -311,6 +327,8 @@ class LiftHead(BaseModule):
             'rightcam_uv_gt': rightcam_uv_gt,
             # 'rle_pred': rle_pred,
             # 'rle_gt': rle_gt
+            'kp2d_l2': kp2d_l2,
+            'kp3d_l2': kp3d_l2,
         }
         return ret
 
