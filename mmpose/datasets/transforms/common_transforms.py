@@ -630,7 +630,7 @@ class RandomBBoxTransform(BaseTransform):
         if self.enable_epoch_num > 0:
             mh = MessageHub.get_current_instance()
             cur_epoch = mh.get_info('epoch')
-            if cur_epoch >= self.enable_epoch_num:
+            if cur_epoch is None or cur_epoch >= self.enable_epoch_num:
                 return results
         # image with no hand will be ignored
         if 'attr_labels' in results:
