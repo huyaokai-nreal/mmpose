@@ -132,3 +132,4 @@ output/
 *.pth
 *.onnx
 *.DS_Store
+configs/product/hand

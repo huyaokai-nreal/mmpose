@@ -105,7 +105,7 @@ import os
 # lmdb root dir, maybe different between beijing and wuxi
 # data_root = '/data/hand_group/data'
 # for beijin server
-data_root = '/data/AI_DATA'
+data_root = '/data/AI_DATA_WX'
 # test only
 #data_root = '/data/hand_group/data/data_hand/lmdb_data/'
 train_data_list = [
@@ -138,7 +138,8 @@ train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
-    'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_lmdb.json'
+    #'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_lmdb.json'
+    'data_hand/hand_keypoint/annotations/hand_test_flora_static_benchmark_230627_10k_lmdb.json'  # flora test
     #'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_binocular_twohand_lmdb.json'
     #'data_hand/hand_keypoint/annotations/hand_test_0206_0207__new_camera_module_lmdb__by_agdxtcc_020616.json',
     #'data_hand/hand_keypoint/annotations/hand_test_0206_0207__new_camera_module_lmdb__by_agsw_020717.json',
@@ -271,7 +272,10 @@ gesture_list = [
     'Click', 'Grab', 'Pinch', 'OpenHand', 'Victory', 'Call', 'Home'
 ]
 val_evaluator = dict(
-    type='NrealKeypointAP', gesture_list=gesture_list, result_dir='./')
+    type='NrealKeypointAP',
+    gesture_list=gesture_list,
+    result_dir='./',
+    with_tag=True)
 test_evaluator = val_evaluator
 
 # fp16 settings
