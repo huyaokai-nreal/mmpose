@@ -22,7 +22,7 @@
 [![actions](https://github.com/open-mmlab/mmpose/workflows/build/badge.svg)](https://github.com/open-mmlab/mmpose/actions)
 [![codecov](https://codecov.io/gh/open-mmlab/mmpose/branch/latest/graph/badge.svg)](https://codecov.io/gh/open-mmlab/mmpose)
 [![PyPI](https://img.shields.io/pypi/v/mmpose)](https://pypi.org/project/mmpose/)
-[![LICENSE](https://img.shields.io/github/license/open-mmlab/mmpose.svg)](https://github.com/open-mmlab/mmpose/blob/master/LICENSE)
+[![LICENSE](https://img.shields.io/github/license/open-mmlab/mmpose.svg)](https://github.com/open-mmlab/mmpose/blob/main/LICENSE)
 [![Average time to resolve an issue](https://isitmaintained.com/badge/resolution/open-mmlab/mmpose.svg)](https://github.com/open-mmlab/mmpose/issues)
 [![Percentage of issues still open](https://isitmaintained.com/badge/open/open-mmlab/mmpose.svg)](https://github.com/open-mmlab/mmpose/issues)
 
@@ -106,7 +106,7 @@ https://user-images.githubusercontent.com/15977946/124654387-0fd3c500-ded1-11eb-
   - 通过独立项目的形式，利用 MMPose 的强大功能，同时不被代码框架所束缚
   - 最新添加的项目包括：
     - [RTMPose](/projects/rtmpose/)
-    - [YOLOX-Pose](/projects/yolox-pose/)
+    - [YOLOX-Pose](/projects/yolox_pose/)
     - [MMPose4AIGC](/projects/mmpose4aigc/)
   - 从简单的 [示例项目](/projects/example_project/) 开启您的 MMPose 代码贡献者之旅吧，让我们共同打造更好用的 MMPose！
 
@@ -114,7 +114,7 @@ https://user-images.githubusercontent.com/15977946/124654387-0fd3c500-ded1-11eb-
 
 - 2022-04-06：MMPose [v1.0.0](https://github.com/open-mmlab/mmpose/releases/tag/v1.0.0) 正式发布了，主要更新包括:
 
-  - 发布了 [YOLOX-Pose](/projects/yolox-pose/)，一个基于 YOLOX 的 One-Stage 多人姿态估计模型
+  - 发布了 [YOLOX-Pose](/projects/yolox_pose/)，一个基于 YOLOX 的 One-Stage 多人姿态估计模型
   - 基于 RTMPose 开发的 [MMPose for AIGC](/projects/mmpose4aigc/)，生成高质量骨架图片用于 Pose-guided AIGC 项目
   - 支持 OpenPose 风格的骨架可视化
   - 更加完善、友好的 [文档和教程](https://mmpose.readthedocs.io/zh_CN/latest/overview.html)
@@ -137,18 +137,18 @@ MMPose v1.0.0 是一个重大更新，包括了大量的 API 和配置文件的�
 | HigherHRNet (CVPR 2020)           |             |
 | DeepPose (CVPR 2014)              |    done     |
 | RLE (ICCV 2021)                   |    done     |
-| SoftWingloss (TIP 2021)           |             |
-| VideoPose3D (CVPR 2019)           | in progress |
+| SoftWingloss (TIP 2021)           |    done     |
+| VideoPose3D (CVPR 2019)           |    done     |
 | Hourglass (ECCV 2016)             |    done     |
 | LiteHRNet (CVPR 2021)             |    done     |
 | AdaptiveWingloss (ICCV 2019)      |    done     |
 | SimpleBaseline2D (ECCV 2018)      |    done     |
 | PoseWarper (NeurIPS 2019)         |             |
-| SimpleBaseline3D (ICCV 2017)      | in progress |
+| SimpleBaseline3D (ICCV 2017)      |    done     |
 | HMR (CVPR 2018)                   |             |
 | UDP (CVPR 2020)                   |    done     |
 | VIPNAS (CVPR 2021)                |    done     |
-| Wingloss (CVPR 2018)              |             |
+| Wingloss (CVPR 2018)              |    done     |
 | DarkPose (CVPR 2020)              |    done     |
 | Associative Embedding (NIPS 2017) | in progress |
 | VoxelPose (ECCV 2020)             |             |
@@ -212,13 +212,13 @@ MMPose v1.0.0 是一个重大更新，包括了大量的 API 和配置文件的�
 - [x] [DeepPose](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/algorithms.html#deeppose-cvpr-2014) (CVPR'2014)
 - [x] [CPM](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/backbones.html#cpm-cvpr-2016) (CVPR'2016)
 - [x] [Hourglass](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/backbones.html#hourglass-eccv-2016) (ECCV'2016)
-- [ ] [SimpleBaseline3D](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/algorithms.html#simplebaseline3d-iccv-2017) (ICCV'2017)
+- [x] [SimpleBaseline3D](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/algorithms.html#simplebaseline3d-iccv-2017) (ICCV'2017)
 - [ ] [Associative Embedding](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/algorithms.html#associative-embedding-nips-2017) (NeurIPS'2017)
 - [x] [SimpleBaseline2D](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/algorithms.html#simplebaseline2d-eccv-2018) (ECCV'2018)
 - [x] [DSNT](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/algorithms.html#dsnt-2018) (ArXiv'2021)
 - [x] [HRNet](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/backbones.html#hrnet-cvpr-2019) (CVPR'2019)
 - [x] [IPR](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/algorithms.html#ipr-eccv-2018) (ECCV'2018)
-- [ ] [VideoPose3D](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/algorithms.html#videopose3d-cvpr-2019) (CVPR'2019)
+- [x] [VideoPose3D](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/algorithms.html#videopose3d-cvpr-2019) (CVPR'2019)
 - [x] [HRNetv2](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/backbones.html#hrnetv2-tpami-2019) (TPAMI'2019)
 - [x] [MSPN](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/backbones.html#mspn-arxiv-2019) (ArXiv'2019)
 - [x] [SCNet](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/backbones.html#scnet-cvpr-2020) (CVPR'2020)
@@ -236,14 +236,14 @@ MMPose v1.0.0 是一个重大更新，包括了大量的 API 和配置文件的�
 <details close>
 <summary><b>支持的技术</b></summary>
 
-- [ ] [FPN](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/techniques.html#fpn-cvpr-2017) (CVPR'2017)
-- [ ] [FP16](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/techniques.html#fp16-arxiv-2017) (ArXiv'2017)
-- [ ] [Wingloss](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/techniques.html#wingloss-cvpr-2018) (CVPR'2018)
-- [ ] [AdaptiveWingloss](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/techniques.html#adaptivewingloss-iccv-2019) (ICCV'2019)
+- [x] [FPN](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/techniques.html#fpn-cvpr-2017) (CVPR'2017)
+- [x] [FP16](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/techniques.html#fp16-arxiv-2017) (ArXiv'2017)
+- [x] [Wingloss](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/techniques.html#wingloss-cvpr-2018) (CVPR'2018)
+- [x] [AdaptiveWingloss](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/techniques.html#adaptivewingloss-iccv-2019) (ICCV'2019)
 - [x] [DarkPose](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/techniques.html#darkpose-cvpr-2020) (CVPR'2020)
 - [x] [UDP](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/techniques.html#udp-cvpr-2020) (CVPR'2020)
-- [ ] [Albumentations](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/techniques.html#albumentations-information-2020) (Information'2020)
-- [ ] [SoftWingloss](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/techniques.html#softwingloss-tip-2021) (TIP'2021)
+- [x] [Albumentations](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/techniques.html#albumentations-information-2020) (Information'2020)
+- [x] [SoftWingloss](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/techniques.html#softwingloss-tip-2021) (TIP'2021)
 - [x] [RLE](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/techniques.html#rle-iccv-2021) (ICCV'2021)
 
 </details>
@@ -282,6 +282,8 @@ MMPose v1.0.0 是一个重大更新，包括了大量的 API 和配置文件的�
 - [x] [InterHand2.6M](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/datasets.html#interhand2-6m-eccv-2020) \[[主页](https://mks0601.github.io/InterHand2.6M/)\] (ECCV'2020)
 - [x] [AP-10K](https://mmpose.readthedocs.io/en/latest/model_zoo_papers/datasets.html#ap-10k-neurips-2021) \[[主页](https://github.com/AlexTheBad/AP-10K)\] (NeurIPS'2021)
 - [x] [Horse-10](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/datasets.html#horse-10-wacv-2021) \[[主页](http://www.mackenziemathislab.org/horse10)\] (WACV'2021)
+- [x] [Human-Art](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/datasets.html#human-art-cvpr-2023) \[[主页](https://idea-research.github.io/HumanArt/)\] (CVPR'2023)
+- [x] [LaPa](https://mmpose.readthedocs.io/zh_CN/latest/model_zoo_papers/datasets.html#lapa-aaai-2020) \[[主页](https://github.com/JDAI-CV/lapa-dataset)\] (AAAI'2020)
 
 </details>
 
@@ -307,7 +309,7 @@ MMPose v1.0.0 是一个重大更新，包括了大量的 API 和配置文件的�
 
 ### 模型需求
 
-我们将跟进学界的最新进展，并支持更多算法和框架。如果您对 MMPose 有任何功能需求，请随时在 [MMPose Roadmap](https://github.com/open-mmlab/mmpose/issues/9) 中留言。
+我们将跟进学界的最新进展，并支持更多算法和框架。如果您对 MMPose 有任何功能需求，请随时在 [MMPose Roadmap](https://github.com/open-mmlab/mmpose/issues/2258) 中留言。
 
 ## 参与贡献
 

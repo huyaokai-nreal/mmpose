@@ -10,10 +10,10 @@
 
 # 实验结果
 
-| Arch                                                      | Input Size |  AP   | AP<sup>50</sup> | AP<sup>75</sup> |  AR   | AR<sup>50</sup> | Flops | Params |                       ckpt                        |        log         |
-| :-------------------------------------------------------- | :--------: | :---: | :-------------: | :-------------: | :---: | :-------------: | :---: | :----: | :-----------------------------------------------: | :----------------: |
-| [rtmpose-s-pruned](./group_fisher_finetune_rtmpose-s_8xb256-420e_coco-256x192.py) |  256x192   | 0.691 |      0.885      |      0.765      | 0.745 |      0.925      | 0.34  |  3.42  | \[pruned\]\[rp_sc_p\] \| \[finetuned\]\[rp_sc_f\] | \[log\]\[rp_sc_l\] |
-| [rtmpose-s-aic-coco-pruned](./group_fisher_finetune_rtmpose-s_8xb256-420e_aic-coco-256x192.py) |  256x192   | 0.694 |      0.884      |      0.771      | 0.747 |      0.922      | 0.35  |  3.43  | \[pruned\]\[rp_sa_p\] \| \[finetuned\]\[rp_sa_f\] | \[log\]\[rp_sa_l\] |
+| Arch                                                                  | Input Size |  AP   | AP<sup>50</sup> | AP<sup>75</sup> |  AR   | AR<sup>50</sup> | Flops | Params |                   ckpt                    |      log       |
+| :-------------------------------------------------------------------- | :--------: | :---: | :-------------: | :-------------: | :---: | :-------------: | :---: | :----: | :---------------------------------------: | :------------: |
+| [rtmpose-s-pruned](./group_fisher_finetune_rtmpose-s_8xb256-420e_coco-256x192.py) |  256x192   | 0.691 |      0.885      |      0.765      | 0.745 |      0.925      | 0.34  |  3.42  | [pruned][rp_sc_p] \| [finetuned][rp_sc_f] | [log][rp_sc_l] |
+| [rtmpose-s-aic-coco-pruned](./group_fisher_finetune_rtmpose-s_8xb256-420e_aic-coco-256x192.py) |  256x192   | 0.694 |      0.884      |      0.771      | 0.747 |      0.922      | 0.35  |  3.43  | [pruned][rp_sa_p] \| [finetuned][rp_sa_f] | [log][rp_sa_l] |
 
 ## Get Started
 
@@ -107,7 +107,10 @@ divisor 设置十分重要，我们建议你在尝试 \[1,2,4,8,16,32\]，以找
 ## Reference
 
 [GroupFisher in MMRazor](https://github.com/open-mmlab/mmrazor/tree/main/configs/pruning/base/group_fisher)
-\[rp_sa_l\]: https://download.openmmlab.com/mmrazor/v1/pruning/group_fisher/rtmpose-s/group_fisher_finetune_rtmpose-s_8xb256-420e_aic-coco-256x192.json
-\[rp_sc_f\]: https://download.openmmlab.com/mmrazor/v1/pruning/group_fisher/rtmpose-s/group_fisher_finetune_rtmpose-s_8xb256-420e_coco-256x192.pth
-\[rp_sc_l\]: https://download.openmmlab.com/mmrazor/v1/pruning/group_fisher/rtmpose-s/group_fisher_finetune_rtmpose-s_8xb256-420e_coco-256x192.json
-\[rp_sc_p\]: https://download.openmmlab.com/mmrazor/v1/pruning/group_fisher/rtmpose-s/group_fisher_prune_rtmpose-s_8xb256-420e_coco-256x192.pth
+
+[rp_sa_f]: https://download.openmmlab.com/mmrazor/v1/pruning/group_fisher/rtmpose-s/group_fisher_finetune_rtmpose-s_8xb256-420e_aic-coco-256x192.pth
+[rp_sa_l]: https://download.openmmlab.com/mmrazor/v1/pruning/group_fisher/rtmpose-s/group_fisher_finetune_rtmpose-s_8xb256-420e_aic-coco-256x192.json
+[rp_sa_p]: https://download.openmmlab.com/mmrazor/v1/pruning/group_fisher/rtmpose-s/group_fisher_prune_rtmpose-s_8xb256-420e_aic-coco-256x192.pth
+[rp_sc_f]: https://download.openmmlab.com/mmrazor/v1/pruning/group_fisher/rtmpose-s/group_fisher_finetune_rtmpose-s_8xb256-420e_coco-256x192.pth
+[rp_sc_l]: https://download.openmmlab.com/mmrazor/v1/pruning/group_fisher/rtmpose-s/group_fisher_finetune_rtmpose-s_8xb256-420e_coco-256x192.json
+[rp_sc_p]: https://download.openmmlab.com/mmrazor/v1/pruning/group_fisher/rtmpose-s/group_fisher_prune_rtmpose-s_8xb256-420e_coco-256x192.pth

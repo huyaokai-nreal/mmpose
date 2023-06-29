@@ -9,7 +9,6 @@ import numpy as np
 import torch
 from mmengine.dist import master_only
 from mmengine.structures import InstanceData, PixelData
-from mpl_toolkits.mplot3d import Axes3D  # noqa
 
 from mmpose.datasets.datasets.utils import parse_pose_metainfo
 from mmpose.registry import VISUALIZERS
@@ -66,7 +65,7 @@ class PoseLocalVisualizer(OpencvBackendVisualizer):
         radius (int, float): The radius of keypoints. Defaults to 4
         show_keypoint_weight (bool): Whether to adjust the transparency
             of keypoints according to their score. Defaults to ``False``
-        alpha (int, float): The transparency of bboxes. Defaults to ``0.8``
+        alpha (int, float): The transparency of bboxes. Defaults to ``1.0``
 
     Examples:
         >>> import numpy as np
@@ -118,7 +117,7 @@ class PoseLocalVisualizer(OpencvBackendVisualizer):
                  radius: Union[int, float] = 3,
                  show_keypoint_weight: bool = False,
                  backend: str = 'opencv',
-                 alpha: float = 0.8):
+                 alpha: float = 1.0):
         super().__init__(
             name=name,
             image=image,
@@ -471,8 +470,8 @@ class PoseLocalVisualizer(OpencvBackendVisualizer):
                 neck = np.mean(keypoints_info[:, [5, 6]], axis=1)
                 # neck score when visualizing pred
                 neck[:, 2:4] = np.logical_and(
-                    keypoints_info[:, 5, 2:4] < kpt_thr,
-                    keypoints_info[:, 6, 2:4] < kpt_thr).astype(int)
+                    keypoints_info[:, 5, 2:4] > kpt_thr,
+                    keypoints_info[:, 6, 2:4] > kpt_thr).astype(int)
                 new_keypoints_info = np.insert(
                     keypoints_info, 17, neck, axis=1)
 
@@ -573,13 +572,13 @@ class PoseLocalVisualizer(OpencvBackendVisualizer):
                             mX = np.mean(X)
                             mY = np.mean(Y)
                             length = ((Y[0] - Y[1])**2 + (X[0] - X[1])**2)**0.5
+                            transparency = 0.6
                             angle = math.degrees(
                                 math.atan2(Y[0] - Y[1], X[0] - X[1]))
-                            stickwidth = 2
                             polygons = cv2.ellipse2Poly(
                                 (int(mX), int(mY)),
-                                (int(length / 2), int(stickwidth)), int(angle),
-                                0, 360, 1)
+                                (int(length / 2), int(self.line_width)),
+                                int(angle), 0, 360, 1)
 
                             self.draw_polygons(
                                 polygons,
