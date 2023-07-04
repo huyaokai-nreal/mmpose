@@ -84,7 +84,7 @@ model = dict(
         norm_cfg=dict(type='BN'),
         reverse_output=True,
         apply_fpn_conv=False),
-    kpt2d_head=dict(
+    head=dict(
         type='DSNTHead',
         in_channels=192,
         deconv_out_channels=(),
@@ -105,7 +105,7 @@ model = dict(
         decoder=codec,
         deploy=False,
         output_sigma=True),
-    kpt3d_head=dict(
+    kpt3d_lift=dict(
         type='LiftHead',
         lift_loss=dict(
             type='MultipleLossWrapper',
@@ -142,32 +142,35 @@ import os
 # test only
 #data_root = '/data/hand_group/data/data_hand/lmdb_data/'
 train_data_list = [
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0000.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0001.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0002.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0003.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0004.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0005.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0006.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0007.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0008.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0009.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0000.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0001.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0002.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0003.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0004.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0005.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0006.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0007.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0008.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0009.json',
+    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_0.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0000.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0001.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0002.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0003.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0004.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0005.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0006.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0007.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0008.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0009.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0000.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0001.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0002.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0003.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0004.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0005.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0006.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0007.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0008.json',
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0009.json',
 ]
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
-    'data_hand/hand_keypoint/annotations3d/flora/test_undistort.json',
+    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_0.json'
+    # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_4.json',    # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_2.json'
+    # 'data_hand/hand_keypoint/annotations3d/flora/test_undistort.json',
     # 'data_hand/hand_keypoint/annotations3d/flora/test.json',
     # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0000.json',
 ]

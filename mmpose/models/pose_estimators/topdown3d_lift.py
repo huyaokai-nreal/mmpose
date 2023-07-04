@@ -24,8 +24,8 @@ class TopdownPoseLiftEstimator(BaseModel):
     def __init__(self,
                  backbone: ConfigType,
                  neck: OptConfigType = None,
-                 kpt2d_head: OptConfigType = None,
-                 kpt3d_head: OptConfigType = None,
+                 head: OptConfigType = None,
+                 kpt3d_lift: OptConfigType = None,
                  train_cfg: OptConfigType = None,
                  test_cfg: OptConfigType = None,
                  data_preprocessor: OptConfigType = None,
@@ -35,15 +35,15 @@ class TopdownPoseLiftEstimator(BaseModel):
         self.metainfo = self._load_metainfo(metainfo)
         self.backbone = MODELS.build(backbone)
 
-        neck, kpt2d_head = check_and_update_config(neck, kpt2d_head)
-        neck, kpt3d_head = check_and_update_config(neck, kpt3d_head)
+        neck, head = check_and_update_config(neck, head)
+        neck, kpt3d_lift = check_and_update_config(neck, kpt3d_lift)
 
         if neck is not None:
             self.neck = MODELS.build(neck)
 
-        if (kpt2d_head is not None) and (kpt3d_head is not None):
-            self.head = MODELS.build(kpt2d_head)  # adapt 2d kpts model
-            self.kpt3d_lift = MODELS.build(kpt3d_head)
+        if (head is not None) and (kpt3d_lift is not None):
+            self.head = MODELS.build(head)  # adapt 2d kpts model
+            self.kpt3d_lift = MODELS.build(kpt3d_lift)
 
         self.train_cfg = train_cfg if train_cfg else {}
         self.test_cfg = test_cfg if test_cfg else {}

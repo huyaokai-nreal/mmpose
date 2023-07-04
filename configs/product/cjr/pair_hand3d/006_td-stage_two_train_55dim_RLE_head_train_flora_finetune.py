@@ -16,7 +16,9 @@ optim_wrapper = dict(
             'backbone': dict(lr_mult=0.0, decay_mult=0.0),
             'head': dict(lr_mult=0.0, decay_mult=0.0),
             'neck': dict(lr_mult=0.0, decay_mult=0.0),
-        }))
+        }),
+    # clip_grad=dict(max_norm=10, norm_type=2),
+)
 # learning policy
 param_scheduler = [
     dict(  # scheduler
@@ -84,7 +86,7 @@ model = dict(
         norm_cfg=dict(type='BN'),
         reverse_output=True,
         apply_fpn_conv=False),
-    kpt2d_head=dict(
+    head=dict(
         type='DSNTHead',
         in_channels=192,
         deconv_out_channels=(),
@@ -105,12 +107,14 @@ model = dict(
         decoder=codec,
         deploy=False,
         output_sigma=True),
-    kpt3d_head=dict(
+    kpt3d_lift=dict(
         type='LiftHead',
         lift_loss=dict(
             type='MultipleLossWrapper',
             losses=[
                 dict(type='L1Loss'),  # 3d kpts
+                dict(type='L1Loss'),  # 3d kpts leftcam
+                dict(type='L1Loss'),  # 3d kpts rightcam
                 dict(type='MSELoss', loss_weight=0),  # 2d reprojection left
                 dict(type='MSELoss', loss_weight=0),  # 2d reprojection right
             ]),
@@ -126,8 +130,9 @@ model = dict(
         type='Pretrained',
         checkpoint=
         # '/home/zx_li/workspace/mmpose/work_dirs/td-hand_res26_fpn_sk_weightdata_4xb64-50e_0919data-128x128/epoch_50.pth'
-        f'{data_root}/data_hand/model/mmpose/td-hand_res26_fpn_skpre_flow_wd_ipr_rle_weightdata_0919_4xb64-50e-128x128/epoch_50.pth'
+        # f'{data_root}/data_hand/model/mmpose/td-hand_res26_fpn_skpre_flow_wd_ipr_rle_weightdata_0919_4xb64-50e-128x128/epoch_50.pth'
         # '/home/jrchen/git-project/mmpose/work_dirs/pair_hand3d/003_td-stage_two_train_55dim_l1/epoch_60_new.pth'
+        '/home/jrchen/git-project/mmpose/work_dirs/pair_hand3d/004_td-stage_two_train_55dim_RLE_head/epoch_95.pth'
     ),
 )
 
@@ -142,7 +147,13 @@ import os
 # test only
 #data_root = '/data/hand_group/data/data_hand/lmdb_data/'
 train_data_list = [
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0000.json',
+    # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_0.json',
+    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_0_undistort2d.json',
+    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_1_undistort2d.json',
+    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_2_undistort2d.json',
+    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_3_undistort2d.json',
+
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0000.json',
     # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0001.json',
     # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0002.json',
     # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0003.json',
@@ -167,7 +178,14 @@ train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
-    'data_hand/hand_keypoint/annotations3d/seq_data/test_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0000.json'
+    # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_0.json'
+    # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_0_undistort2d.json',
+    # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_4.json'
+    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_4_undistort2d.json'
+    # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_3.json'
+    # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_0_undistort2d.json'
+    # 'data_hand/hand_keypoint/annotations3d/flora/test_undistort.json',
+    # 'data_hand/hand_keypoint/annotations3d/flora/test.json',
     # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0000.json',
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
