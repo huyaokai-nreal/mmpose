@@ -1,13 +1,15 @@
 # Copyright (c) OpenMMLab. All rights reserved.
+import json
+import tempfile
 from collections import defaultdict
-from copy import deepcopy
 from os import path as osp
 from typing import Dict, List, Optional, Sequence
 
 import numpy as np
 from mmengine.evaluator import BaseMetric
 from mmengine.logging import MMLogger
-from nreal_data_tool.metric import KeypointOKSMetric
+from nreal_data_tool.metric import MPJPEMetric
+from nreal_data_tool.schema import KeypointEvaluationItem
 
 from mmpose.registry import METRICS
 from ..functional import keypoint_mpjpe
@@ -87,7 +89,7 @@ class MPJPE(BaseMetric):
                 'pred_coords': pred_coords,
                 'gt_coords': gt_coords,
                 'mask': mask,
-                'action': action
+                'tag': action
             }
 
             self.results.append(result)
@@ -139,18 +141,14 @@ class MPJPEV2(MPJPE):
     default_prefix: Optional[str] = ''
 
     def __init__(self,
-                 gesture_list: List[str] = [],
                  collect_device: str = 'cpu',
                  prefix: Optional[str] = None,
                  mode: str = 'mpjpe',
-                 result_dir=None,
-                 root_kpt_id=20) -> None:
+                 result_dir=None) -> None:
         super().__init__(mode, collect_device, prefix)
         self.result_dir = result_dir
-        self.root_kpt_id = root_kpt_id
         self.logger = MMLogger.get_current_instance()
-        self.metric = KeypointOKSMetric(
-            gesture_list=deepcopy(gesture_list), logger=self.logger)
+        self.metric = MPJPEMetric(mode=mode)
 
     def process(self, data_batch, data_samples: Sequence[dict]) -> None:
         for data_sample in data_samples:
@@ -163,28 +161,31 @@ class MPJPEV2(MPJPE):
             # [N, K], the scores for all keypoints of all instances
             keypoint_scores = data_sample['pred_instances']['keypoint_scores']
             assert keypoint_scores.shape == keypoints3d.shape[:2]
-
-            result = dict()
-            result['id'] = data_sample['id']
-            result['img_id'] = data_sample['img_id']
-            result['gt_coords'] = gt['keypoints3d']
-            result['pred_coords'] = keypoints3d
-            result['mask'] = gt['keypoints_visible'].astype(bool).reshape(
-                1, -1)
-            result['keypoint_scores'] = keypoint_scores
-            result['bbox_scores'] = data_sample['gt_instances']['bbox_scores']
-            result['meta'] = data_sample['meta']
-            result['action'] = 'all'
+            result = KeypointEvaluationItem(image_id=data_sample['img_id'])
+            result.gt_keypoints3d = gt['keypoints3d'][0].tolist()
+            result.keypoints3d = keypoints3d[0].tolist()
+            result.keypoint_visible = gt['keypoints_visible'].reshape(
+                (-1)).tolist()
+            result.score = float(np.mean(keypoint_scores))
+            result.meta['tag'] = 'all'
             # get area information
             if 'bbox_scales' in data_sample['gt_instances']:
-                result['meta']['bbox_scales'] = data_sample['gt_instances'][
-                    'bbox_scales'].tolist()
-                result['meta']['bbox_centers'] = data_sample['gt_instances'][
-                    'bbox_centers'].tolist()
-                result['area'] = np.prod(
-                    data_sample['gt_instances']['bbox_scales'], axis=1)
+                result.area = float(
+                    np.prod(
+                        data_sample['gt_instances']['bbox_scales'], axis=1))
             # add converted result to the results list
-            self.results.append(result)
+            self.results.append(result.to_dict())
+
+    def compute_metrics(self, results: list) -> Dict[str, float]:
+        if self.result_dir is None:
+            tmp_folder = tempfile.TemporaryDirectory()
+            res_file = osp.join(tmp_folder.name, 'result_keypoints.json')
+        else:
+            res_file = osp.join(self.result_dir, 'result_keypoints.json')
+        self.logger.info(f'result file path is {res_file}')
+        with open(res_file, 'w') as f:
+            json.dump(self.results, f, sort_keys=True, indent=4)
+        return self.metric(res_file)
 
 
 @METRICS.register_module()
