@@ -94,6 +94,7 @@ class LiftHead(BaseModule):
                  lift_loss: ConfigType,
                  channel_num: int = 55,
                  output_num: int = 42,
+                 rm_distort: bool = False,
                  init_cfg: Union[dict, List[dict], None] = None):
         super().__init__(init_cfg)
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
@@ -108,6 +109,7 @@ class LiftHead(BaseModule):
             nn.SyncBatchNorm(2 * self.channel_num), nn.ReLU(),
             nn.Conv2d(self.channel_num * 2, output_num, kernel_size=1))
         self.lift_loss = MODELS.build(lift_loss)
+        self.rm_distort = rm_distort
 
     @staticmethod
     def check_cam_matrix(cam_matrix):
@@ -285,16 +287,17 @@ class LiftHead(BaseModule):
 
             return kp2d_undistort
 
-        uv_coord_im_pred_global[:, 0, :, :] = get_undistort_kp2d(
-            Flora8_cam0, uv_coord_im_pred_global[:, 0, :, :], B, K, device)
-        uv_coord_im_pred_global[:, 1, :, :] = get_undistort_kp2d(
-            Flora8_cam1, uv_coord_im_pred_global[:, 1, :, :], B, K, device)
+        if self.rm_distort:
+            uv_coord_im_pred_global[:, 0, :, :] = get_undistort_kp2d(
+                Flora8_cam0, uv_coord_im_pred_global[:, 0, :, :], B, K, device)
+            uv_coord_im_pred_global[:, 1, :, :] = get_undistort_kp2d(
+                Flora8_cam1, uv_coord_im_pred_global[:, 1, :, :], B, K, device)
         uv_coord_im_pred_global = uv_coord_im_pred_global.detach()
 
         # from IPython import embed
         # embed()
         # use kp2d gt
-        uv_coord_im_pred_global = uv_coord_im_gt_global
+        # uv_coord_im_pred_global = uv_coord_im_gt_global
 
         # print kp2d l2 error
         kp2d_l2 = torch.norm(

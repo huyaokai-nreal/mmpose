@@ -1,10 +1,7 @@
 # flake8: noqa
 _base_ = ['../../../_base_/default_runtime.py']
 
-train_cfg = dict(max_epochs=100, val_interval=5)
-
-data_root = '/data/AI_DATA'
-# data_root = '/data/AI_DATA_LOCAL'
+train_cfg = dict(max_epochs=50, val_interval=5)
 
 # optimizer
 optim_wrapper = dict(
@@ -12,37 +9,29 @@ optim_wrapper = dict(
     paramwise_cfg=dict(
         norm_decay_mult=0,
         bias_decay_mult=0,
-        custom_keys={
-            'backbone': dict(lr_mult=0.0, decay_mult=0.0),
-            'head': dict(lr_mult=0.0, decay_mult=0.0),
-            'neck': dict(lr_mult=0.0, decay_mult=0.0),
-        }))
+        custom_keys={'head.loss_module': dict(lr_mult=0.0, decay_mult=0.0)}))
 # learning policy
-param_scheduler = [
-    dict(  # scheduler
-        type='MultiStepLR',
-        begin=0,
-        end=100,
-        milestones=[20, 80],
-        gamma=0.1,
-        by_epoch=True)
-]
-
 # param_scheduler = [
 #     dict(
-#         type='LinearLR',
-#         begin=0,
-#         end=5,
-#         start_factor=0.001,
-#         end_factor=1.0,
-#         by_epoch=True,
-#         convert_to_iter_based=True),  # warm-up
+#         type='LinearLR', begin=0, end=2000, start_factor=0.001,
+#         by_epoch=False),  # warm-up
 #     dict(
 #         type='CosineAnnealingLR',
 #         by_epoch=True,
 #         T_max=train_cfg['max_epochs'],
-#         convert_to_iter_based=True)
+#         convert_to_iter_based=True,
+#         eta_min=1e-7)
 # ]
+
+param_scheduler = [
+    dict(  # scheduler
+        type='MultiStepLR',
+        begin=0,
+        end=50,
+        milestones=[20, 40],
+        gamma=0.1,
+        by_epoch=True)
+]
 
 # automatically scaling LR based on the actual training batch size
 auto_scale_lr = dict(base_batch_size=128)
@@ -60,7 +49,7 @@ codec = dict(
 # model settings
 backbone_out_channels = [64, 96, 128, 160]
 model = dict(
-    type='TopdownPoseLiftEstimator',
+    type='TopdownPoseEstimator',
     data_preprocessor=dict(
         type='PoseDataPreprocessor', mean=[0.449 * 255], std=[0.226 * 255]),
     backbone=dict(
@@ -98,27 +87,13 @@ model = dict(
                     type='RLELoss',
                     use_target_weight=False,
                     flow_model_pretrain_path=
-                    f'{data_root}/data_hand/model/mmpose/td-hand_rsn50_pre_ipr_rle_lscale_wholedata_4xb64-100e-128x128/epoch_100.pth'
+                    '/data/AI_DATA/data_hand/model/mmpose/td-hand_rsn50_pre_ipr_rle_lscale_wholedata_4xb64-100e-128x128/epoch_100.pth'
                 ),
                 dict(type='KeypointMSELoss', use_target_weight=True)
             ]),
         decoder=codec,
         deploy=False,
         output_sigma=True),
-    kpt3d_lift=dict(
-        type='LiftHead',
-        lift_loss=dict(
-            type='MultipleLossWrapper',
-            losses=[
-                dict(type='L1Loss'),  # 3d kpts
-                dict(type='L1Loss'),  # 3d kpts leftcam
-                dict(type='L1Loss'),  # 3d kpts rightcam
-                dict(type='MSELoss', loss_weight=0),  # 2d reprojection left
-                dict(type='MSELoss', loss_weight=0),  # 2d reprojection right
-            ]),
-        channel_num=55,
-        output_num=42,
-        rm_distort=False),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
@@ -127,50 +102,42 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        # '/home/zx_li/workspace/mmpose/work_dirs/td-hand_res26_fpn_sk_weightdata_4xb64-50e_0919data-128x128/epoch_50.pth'
-        f'{data_root}/data_hand/model/mmpose/td-hand_res26_fpn_skpre_flow_wd_ipr_rle_weightdata_0919_4xb64-50e-128x128/epoch_50.pth'
-        # '/home/jrchen/git-project/mmpose/work_dirs/pair_hand3d/003_td-stage_two_train_55dim_l1/epoch_60_new.pth'
+        '/home/jrchen/git-project/mmpose/work_dirs/hand_2d_keypoint/td-hand_res26_fpn_skpre_flow_wd_ipr_rle_weightdata_0919_4xb64-50e-128x128_pretrainmodel/epoch_50.pth'
     ),
 )
 
 # base dataset settings
 dataset_type = 'PairHand3DDataset'
+# dataset_type = 'HANDDataset'
 data_mode = 'topdown'
 
 import os
 
 # lmdb root dir, maybe different between beijing and wuxi
-
+# data_root = '/data/hand_group/data'
+# for beijin server
+# data_root = '/data/AI_DATA_WX'
+data_root = '/data/AI_DATA'
 # test only
 #data_root = '/data/hand_group/data/data_hand/lmdb_data/'
 train_data_list = [
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0000.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0001.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0002.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0003.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0004.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0005.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0006.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0007.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0008.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0009.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0000.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0001.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0002.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0003.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0004.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0005.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0006.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0007.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0008.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0009.json',
+    # 'data_hand/hand_keypoint/annotations/train_hanco_rgb_gesture_lmdb_refresh.json',  #84k
+    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_0.json',  # right
+    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0710_2_3.json',  # left
+    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0710_2_4.json',  # left
+    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0710_2_5.json',  # right
 ]
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
-    'data_hand/hand_keypoint/annotations3d/seq_data/test_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0000.json'
-    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0000.json',
+    #'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_lmdb.json'
+    # 'data_hand/hand_keypoint/annotations/hand_test_flora_static_benchmark_230627_10k_lmdb.json'  # flora test
+    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_4.json'  # right   flora
+    # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_0.json',                # right  train dataset
+    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0000.json'   # ella
+    # 'data_hand/hand_keypoint/annotations/hand_test_flora_static_benchmark_230627_10k_lmdb.json',
+    # 'data_hand/hand_keypoint/annotations/hand_test_flora_static_benchmark_230703_10k_lmdb.json'  # flora test
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # pipelines
@@ -215,10 +182,7 @@ train_dataloader = dict(
         data_mode=data_mode,
         pipeline=train_pipeline,
         dataset_weight_list=dataset_weight_list,
-        data_root=data_root,
-        # indices=1000,
-    ),
-)
+        data_root=data_root))
 val_dataloader = dict(
     batch_size=32,
     num_workers=2,
@@ -233,19 +197,24 @@ val_dataloader = dict(
         test_mode=True,
         pipeline=val_pipeline,
         flip_left_to_right=True,
-        data_root=data_root))
+        data_root=data_root,
+        # indices=1000
+    ))
 test_dataloader = val_dataloader
 
 # hooks
 default_hooks = dict(
-    checkpoint=dict(interval=5, save_best='mpjpe_all', rule='less'),
-    run_time_info=dict(type='RuntimeInfoHookV2'))
+    checkpoint=dict(interval=5, save_best='mAP', rule='greater'))
 
 # evaluators
 gesture_list = [
     'Click', 'Grab', 'Pinch', 'OpenHand', 'Victory', 'Call', 'Home'
 ]
-val_evaluator = dict(type='MPJPEMetricLifting')
+val_evaluator = dict(
+    type='NrealKeypointAP',
+    gesture_list=gesture_list,
+    result_dir='./',
+    with_tag=False)
 test_evaluator = val_evaluator
 
 # fp16 settings
