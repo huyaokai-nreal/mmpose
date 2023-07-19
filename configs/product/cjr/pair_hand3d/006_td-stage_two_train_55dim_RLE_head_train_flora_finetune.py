@@ -186,7 +186,7 @@ dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 val_data_list = [
     # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_0.json'
     # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_0_undistort2d.json',
-    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_4_right.json'  # right
+    'data_hand/hand_keypoint/annotations3d/flora_with_tag/flora8_1_binocular_0629_1_4_right_gesture.json'
     # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_4_undistort2d.json'
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
@@ -262,8 +262,9 @@ default_hooks = dict(
 gesture_list = [
     'Click', 'Grab', 'Pinch', 'OpenHand', 'Victory', 'Call', 'Home'
 ]
-val_evaluator = dict(type='MPJPEMetricLifting')
-# val_evaluator = dict(type='MPJPEV2')
+val_evaluator = dict(type='MPJPEV2',
+                    gesture_list=gesture_list,
+                    with_tag=True)
 test_evaluator = val_evaluator
 
 # fp16 settings

@@ -141,14 +141,16 @@ class MPJPEV2(MPJPE):
     default_prefix: Optional[str] = ''
 
     def __init__(self,
+                 gesture_list: list=[],
                  collect_device: str = 'cpu',
                  prefix: Optional[str] = None,
                  mode: str = 'mpjpe',
-                 result_dir=None) -> None:
+                 result_dir=None,
+                 with_tag=False) -> None:
         super().__init__(mode, collect_device, prefix)
         self.result_dir = result_dir
         self.logger = MMLogger.get_current_instance()
-        self.metric = MPJPEMetric(mode=mode)
+        self.metric = MPJPEMetric(gesture_list, mode=mode, with_tag=with_tag)
 
     def process(self, data_batch, data_samples: Sequence[dict]) -> None:
         for data_sample in data_samples:
@@ -160,14 +162,16 @@ class MPJPEV2(MPJPE):
             gt = data_sample['gt_instances']
             # [N, K], the scores for all keypoints of all instances
             keypoint_scores = data_sample['pred_instances']['keypoint_scores']
-            assert keypoint_scores.shape == keypoints3d.shape[:2]
+            # assert keypoint_scores.shape == keypoints3d.shape[:2]
             result = KeypointEvaluationItem(image_id=data_sample['img_id'])
             result.gt_keypoints3d = gt['keypoints3d'][0].tolist()
-            result.keypoints3d = keypoints3d[0].tolist()
+            # result.keypoints3d = keypoints3d[0].tolist()
+            result.keypoints3d = keypoints3d.tolist()
             result.keypoint_visible = gt['keypoints_visible'].reshape(
                 (-1)).tolist()
             result.score = float(np.mean(keypoint_scores))
-            result.meta['tag'] = 'all'
+            result.meta['tag'] = 'all_tag'
+            result.meta['gesture'] = data_sample['meta']['gesture']
             # get area information
             if 'bbox_scales' in data_sample['gt_instances']:
                 result.area = float(
@@ -257,6 +261,7 @@ class MPJPEMetricLifting(MPJPEV2):
         mpjpe_x = keypoint_epe(dt[..., :1], gt[..., :1], mask)
         mpjpe_y = keypoint_epe(dt[..., 1:2], gt[..., 1:2], mask)
         mpjpe_z = keypoint_epe(dt[..., 2:], gt[..., 2:], mask)
+
         return dict(
             mpjpe_all=mpjpe_all * 1000,
             mpjpe_x=mpjpe_x * 1000,
