@@ -141,7 +141,7 @@ class MPJPEV2(MPJPE):
     default_prefix: Optional[str] = ''
 
     def __init__(self,
-                 gesture_list: list=[],
+                 gesture_list: list = [],
                  collect_device: str = 'cpu',
                  prefix: Optional[str] = None,
                  mode: str = 'mpjpe',

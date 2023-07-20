@@ -120,7 +120,8 @@ model = dict(
             ]),
         channel_num=55,
         output_num=42,
-        rm_distort=True),
+        rm_distort=True,
+        loss_pinch=True),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
@@ -149,11 +150,12 @@ import os
 # test only
 #data_root = '/data/hand_group/data/data_hand/lmdb_data/'
 train_data_list = [
-    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_0_right.json',  # right
-    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0710_2_3_left.json',  # left
-    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0710_2_4_left.json',  # left
-    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0710_2_5_right.json',  # right
-    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0714_2_2_right.json'
+    'data_hand/hand_keypoint/annotations3d/flora_with_tag/flora8_1_binocular_0629_1_0_right_gesture.json',  # right
+    'data_hand/hand_keypoint/annotations3d/flora_with_tag/flora8_1_binocular_0710_2_3_left_gesture.json',  # left
+    'data_hand/hand_keypoint/annotations3d/flora_with_tag/flora8_1_binocular_0710_2_4_left_gesture.json',  # left
+    'data_hand/hand_keypoint/annotations3d/flora_with_tag/flora8_1_binocular_0710_2_5_right_gesture.json',  # right
+    'data_hand/hand_keypoint/annotations3d/flora_with_tag/flora8_1_binocular_0714_2_2_right_gesture.json'
+    #
     # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_0_undistort2d.json',
     # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_1_undistort2d.json',
     # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_2_undistort2d.json',
@@ -255,16 +257,15 @@ test_dataloader = val_dataloader
 
 # hooks
 default_hooks = dict(
-    checkpoint=dict(interval=5, save_best='all_mpjpe', rule='less'),
+    checkpoint=dict(
+        interval=5, save_best=['all_mpjpe', 'pinch_acc'], rule=['less', 'greater']),
     run_time_info=dict(type='RuntimeInfoHookV2'))
 
 # evaluators
 gesture_list = [
     'Click', 'Grab', 'Pinch', 'OpenHand', 'Victory', 'Call', 'Home'
 ]
-val_evaluator = dict(type='MPJPEV2',
-                    gesture_list=gesture_list,
-                    with_tag=True)
+val_evaluator = dict(type='MPJPEV2', gesture_list=gesture_list, with_tag=True)
 test_evaluator = val_evaluator
 
 # fp16 settings
