@@ -49,7 +49,8 @@ class NrealKeypointAP(BaseMetric):
             result.keypoint_visible = data_sample['gt_instances'][
                 'keypoints_visible'].reshape((-1)).tolist()
             result.score = float(np.mean(keypoint_scores))
-            result.meta['tag'] = data_sample['meta']['tag']
+            if 'tag' in data_sample['meta']:
+                result.meta['tag'] = data_sample['meta']['tag']
             if 'gesture' in data_sample['meta']:
                 result.meta['gesture'] = data_sample['meta']['gesture']
             # get area information
