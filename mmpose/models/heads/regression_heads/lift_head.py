@@ -450,7 +450,6 @@ class LiftHead(BaseModule):
         # hand3d_pred = leftcam_XYZ.view(B, 21, 3)
         # hand3d_pred = rightcam_XYZ.view(B, 21, 3)
 
-        # 加一个拇指、食指距离pred_dist, gt_dist
         # normalization_3d
         pred_root, gt_root = hand3d_pred[:, 9], hand3d_gt[:, 9]
         pred_hand_length = torch.norm(
@@ -521,36 +520,26 @@ class LiftHead(BaseModule):
         losses = self.lift_loss(pred_for_loss, targ_for_loss)
         (loss_mse_3d, loss_mse_3d_leftcam, loss_mse_3d_rightcam,
          loss_mse_2d_leftcam, loss_mse_2d_rightcam) = losses
-        loss_pinch = torch.tensor(0.0)
-        if self.loss_pinch:
-            low_thre, high_thre = 0.02, 0.04
-            gt_gesture = [
-                batch_data_samples[i].meta['gesture']
-                for i in range(len(batch_data_samples)) if i % 2 == 0
-            ]
-            pinch_index = [
-                i for i in range(len(gt_gesture))
-                if gt_gesture[i] == 'Pinch' and ret['gt_dist'][i] < low_thre
-            ]  # need add gesture tag in train json data
-            no_pinch_index = [
-                i for i in range(len(gt_gesture))
-                if gt_gesture[i] == 'Pinch' and ret['gt_dist'][i] > high_thre
-            ]
-            # from IPython import embed;embed()
-            loss_pinch = 0.7 * (
-                torch.sum(
-                    torch.minimum(ret['pred_dist'][pinch_index] - low_thre,
-                                  torch.tensor(0.0))) +
-                torch.sum(
-                    torch.minimum(high_thre - ret['pred_dist'][no_pinch_index],
-                                  torch.tensor(0.0))))  # 负值loss越小越好，即绝对值越大越好
 
         losses_dict = dict(
             loss_mse_3d=loss_mse_3d,
             loss_mse_3d_leftcam=loss_mse_3d_leftcam,
             loss_mse_3d_rightcam=loss_mse_3d_rightcam,
             loss_mse_2d_leftcam=loss_mse_2d_leftcam,
-            loss_mse_2d_rightcam=loss_mse_2d_rightcam,
-            loss_pinch=loss_pinch)
+            loss_mse_2d_rightcam=loss_mse_2d_rightcam)
 
+        if self.loss_pinch:
+            low_thre, high_thre = 0.02, 0.04
+            # 1. Skip transition interval
+            pinch_index = ret['gt_dist'] < low_thre
+            no_pinch_index = ret['gt_dist'] > high_thre
+            loss_pinch = 0.09 * (
+                torch.sum(
+                    torch.maximum(ret['pred_dist'][pinch_index] - low_thre,
+                                  torch.tensor(0.0))) +
+                torch.sum(
+                    torch.maximum(high_thre - ret['pred_dist'][no_pinch_index],
+                                  torch.tensor(0.0))))
+
+            losses_dict['loss_pinch'] = loss_pinch
         return losses_dict
