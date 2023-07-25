@@ -102,7 +102,8 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/home/jrchen/git-project/mmpose/work_dirs/hand_2d_keypoint/td-hand_res26_fpn_skpre_flow_wd_ipr_rle_weightdata_0919_4xb64-50e-128x128_pretrainmodel/epoch_50.pth'
+        # '/data/AI_DATA/data_hand/model/mmpose/td-hand_res26_fpn_sk_weightdata_4xb64-50e_0919data-128x128/epoch_50.pth'
+        '/data/AI_DATA/data_hand/model/mmpose/td-hand_res26_fpn_skpre_flow_wd_ipr_rle_weightdata_0919_4xb64-50e-128x128/epoch_50.pth'
     ),
 )
 
@@ -121,23 +122,22 @@ data_root = '/data/AI_DATA'
 # test only
 #data_root = '/data/hand_group/data/data_hand/lmdb_data/'
 train_data_list = [
-    # 'data_hand/hand_keypoint/annotations/train_hanco_rgb_gesture_lmdb_refresh.json',  #84k
-    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_0.json',  # right
-    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0710_2_3.json',  # left
-    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0710_2_4.json',  # left
-    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0710_2_5.json',  # right
+    # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_0.json',  # right
+    # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0710_2_3.json',  # left
+    # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0710_2_4.json',  # left
+    # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0710_2_5.json',  # right
+    'data_hand/hand_keypoint/annotations3d/flora_with_tag/flora8_1_binocular_0629_1_0_right_gesture.json',  # right
+    'data_hand/hand_keypoint/annotations3d/flora_with_tag/flora8_1_binocular_0710_2_3_left_gesture.json',  # left
+    'data_hand/hand_keypoint/annotations3d/flora_with_tag/flora8_1_binocular_0710_2_4_left_gesture.json',  # left
+    'data_hand/hand_keypoint/annotations3d/flora_with_tag/flora8_1_binocular_0710_2_5_right_gesture.json',  # right
+    'data_hand/hand_keypoint/annotations3d/flora_with_tag/flora8_1_binocular_0714_2_2_right_gesture.json'
 ]
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
-    #'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_lmdb.json'
-    # 'data_hand/hand_keypoint/annotations/hand_test_flora_static_benchmark_230627_10k_lmdb.json'  # flora test
-    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_4.json'  # right   flora
-    # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_0.json',                # right  train dataset
-    # 'data_hand/hand_keypoint/annotations3d/seq_data/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0000.json'   # ella
-    # 'data_hand/hand_keypoint/annotations/hand_test_flora_static_benchmark_230627_10k_lmdb.json',
-    # 'data_hand/hand_keypoint/annotations/hand_test_flora_static_benchmark_230703_10k_lmdb.json'  # flora test
+    'data_hand/hand_keypoint/annotations3d/flora_with_tag/flora8_1_binocular_0629_1_4_right_gesture.json'
+    # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_4.json'  # right   flora
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # pipelines

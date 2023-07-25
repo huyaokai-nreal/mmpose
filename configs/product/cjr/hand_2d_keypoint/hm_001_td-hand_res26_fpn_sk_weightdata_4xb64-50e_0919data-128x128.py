@@ -1,5 +1,5 @@
 # flake8: noqa
-_base_ = ['../../../../_base_/default_runtime.py']
+_base_ = ['../../../_base_/default_runtime.py']
 # runtime
 train_cfg = dict(max_epochs=50, val_interval=5)
 
