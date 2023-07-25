@@ -13,6 +13,7 @@ from .mobileone import MobileOne
 from .mspn import MSPN
 from .pvt import PyramidVisionTransformer, PyramidVisionTransformerV2
 from .regnet import RegNet
+from .repvit import RepViT
 from .resnest import ResNeSt
 from .resnet import ResNet, ResNetV1d
 from .resnext import ResNeXt
@@ -37,5 +38,5 @@ __all__ = [
     'MSPN', 'ResNeSt', 'VGG', 'TCN', 'ViPNAS_ResNet', 'ViPNAS_MobileNetV3',
     'LiteHRNet', 'V2VNet', 'HRFormer', 'PyramidVisionTransformer',
     'PyramidVisionTransformerV2', 'SwinTransformer', 'RSNTiny', 'MobileOne',
-    'CSPNeXt'
+    'CSPNeXt', 'RepViT'
 ]

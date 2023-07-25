@@ -65,6 +65,19 @@ def batch_constructor(flops_model, batch_size, input_shape):
     return batch
 
 
+def replace_batchnorm(net):
+    for child_name, child in net.named_children():
+        if hasattr(child, 'fuse'):
+            fused = child.fuse()
+            print(f'fused {child_name}')
+            setattr(net, child_name, fused)
+            replace_batchnorm(fused)
+        elif isinstance(child, torch.nn.BatchNorm2d):
+            setattr(net, child_name, torch.nn.Identity())
+        else:
+            replace_batchnorm(child)
+
+
 def inference(args, input_shape, logger):
     model = init_model(
         args.config,
@@ -116,6 +129,8 @@ def main():
         input_shape = (3, args.input_shape[0], args.input_shape[0])
     elif len(args.input_shape) == 2:
         input_shape = (3, ) + tuple(args.input_shape)
+    elif len(args.input_shape) == 3:
+        input_shape = tuple(args.input_shape)
     else:
         raise ValueError('invalid input shape')
 

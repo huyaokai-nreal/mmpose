@@ -6,7 +6,6 @@ import torch
 from torch import nn
 
 from mmpose.apis import init_model
-from mmpose.models.backbones.utils import repvgg_model_convert
 from mmpose.utils import md5sum
 
 try:
@@ -241,8 +240,6 @@ if __name__ == '__main__':
             print('enable fuse preprocess mean std to first conv')
             model = _fuse_preprocess(model)
         model = _convert_batchnorm(model)
-        model = repvgg_model_convert(model)
-
     # onnx.export does not support kwargs
     if hasattr(model, '_forward'):
         model.forward = model._forward

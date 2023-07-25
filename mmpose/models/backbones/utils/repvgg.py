@@ -228,6 +228,12 @@ class RepVGGBlock(nn.Module):
         logger.info(f'repvgg block switch to deploy {self._get_name()}')
 
 
+def repvgg_model_convert(model: torch.nn.Module):
+    for module in model.modules():
+        if hasattr(module, 'switch_to_deploy'):
+            module.switch_to_deploy()
+
+
 class RepVGG(nn.Module):
 
     def __init__(self,
@@ -298,6 +304,9 @@ class RepVGG(nn.Module):
         out = out.view(out.size(0), -1)
         out = self.linear(out)
         return out
+
+    def switch_to_deploy(self):
+        repvgg_model_convert(self)
 
 
 optional_groupwise_layers = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26]
@@ -462,18 +471,3 @@ func_dict = {
     'RepVGG-B3g4': create_RepVGG_B3g4,
     'RepVGG-D2se': create_RepVGG_D2se
 }
-
-
-def get_RepVGG_func_by_name(name):
-    return func_dict[name]
-
-
-def repvgg_model_convert(model: torch.nn.Module, save_path=None, do_copy=True):
-    if do_copy:
-        model = copy.deepcopy(model)
-    for module in model.modules():
-        if hasattr(module, 'switch_to_deploy'):
-            module.switch_to_deploy()
-    if save_path is not None:
-        torch.save(model.state_dict(), save_path)
-    return model
