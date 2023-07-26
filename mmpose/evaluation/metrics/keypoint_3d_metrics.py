@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Sequence
 import numpy as np
 from mmengine.evaluator import BaseMetric
 from mmengine.logging import MMLogger
-from nreal_data_tool.metric import MPJPEMetric
+from nreal_data_tool.metric import MPJPEMetric, SelfStabilityMetric
 from nreal_data_tool.schema import KeypointEvaluationItem
 
 from mmpose.registry import METRICS
@@ -150,7 +150,9 @@ class MPJPEV2(MPJPE):
         super().__init__(mode, collect_device, prefix)
         self.result_dir = result_dir
         self.logger = MMLogger.get_current_instance()
-        self.metric = MPJPEMetric(gesture_list, mode=mode, with_tag=with_tag)
+        self.mpjpe_metric = MPJPEMetric(
+            gesture_list, mode=mode, with_tag=with_tag)
+        self.self_stability_metric = SelfStabilityMetric(reduction='mean')
 
     def process(self, data_batch, data_samples: Sequence[dict]) -> None:
         for data_sample in data_samples:
@@ -164,14 +166,16 @@ class MPJPEV2(MPJPE):
             keypoint_scores = data_sample['pred_instances']['keypoint_scores']
             # assert keypoint_scores.shape == keypoints3d.shape[:2]
             result = KeypointEvaluationItem(image_id=data_sample['img_id'])
-            result.gt_keypoints3d = gt['keypoints3d'][0].tolist()
-            # result.keypoints3d = keypoints3d[0].tolist()
-            result.keypoints3d = keypoints3d.tolist()
+            result.gt_keypoints3d = (gt['keypoints3d'][0] *
+                                     1e3).tolist()  # m -> mm
+            result.keypoints3d = (keypoints3d * 1e3).tolist()  # m -> mm
             result.keypoint_visible = gt['keypoints_visible'].reshape(
                 (-1)).tolist()
             result.score = float(np.mean(keypoint_scores))
+            result.video_id = data_sample['img_path']
             result.meta['tag'] = 'all_tag'
             result.meta['gesture'] = data_sample['meta']['gesture']
+
             # get area information
             if 'bbox_scales' in data_sample['gt_instances']:
                 result.area = float(
@@ -189,7 +193,12 @@ class MPJPEV2(MPJPE):
         self.logger.info(f'result file path is {res_file}')
         with open(res_file, 'w') as f:
             json.dump(self.results, f, sort_keys=True, indent=4)
-        return self.metric(res_file)
+        mpjpe_res = self.mpjpe_metric(res_file)
+        stability_res = self.self_stability_metric(res_file)
+        res = {}
+        res.update(mpjpe_res)
+        res.update(stability_res)
+        return res
 
 
 @METRICS.register_module()
