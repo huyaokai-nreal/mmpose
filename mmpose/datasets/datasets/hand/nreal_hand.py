@@ -63,6 +63,7 @@ class HANDDataset(BaseCocoStyleDataset):
             lazy_init=lazy_init,
             max_refetch=max_refetch,
             pipeline=pipeline)
+        self.data_num = super().__len__()
 
     @force_full_init
     def __len__(self) -> int:
@@ -228,6 +229,7 @@ class HANDDataset(BaseCocoStyleDataset):
             results['mask'] = results['mask'][:, ::-1]
 
     def get_data_info(self, idx):
+        idx = idx % self.data_num
         if self.dataset_weight_list:
             idx = self.__get_weighted_random_image_id()
         data_info = super().get_data_info(idx)

@@ -1,10 +1,12 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import os.path as osp
+import random
 from typing import Any, Callable, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from mmengine.dataset.base_dataset import force_full_init
 from mmengine.dataset.utils import default_collate
+from mmengine.logging import MMLogger
 from nreal_data_tool import LmdbClient
 from xtcocotools.coco import COCO
 
@@ -34,11 +36,13 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                  with_mask: bool = False,
                  mask_ext: str = 'mask',
                  sub_data_index=-1,
-                 data_ratio=-1):
+                 data_ratio=-1,
+                 point_type='3D'):
         self.flip_left_to_right = flip_left_to_right
         self.data_ratio = data_ratio
         self.data_file_list = data_file_list
         self.lmdb_client = LmdbClient()
+        self.point_type = point_type
         self.dataset_info_list = list()
         self.dataset_weight_list = dataset_weight_list
         self.dataset_num = len(self.data_file_list)
@@ -59,6 +63,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             lazy_init=lazy_init,
             max_refetch=max_refetch,
             pipeline=pipeline)
+        self.data_num = super().__len__()
 
     @force_full_init
     def __len__(self) -> int:
@@ -164,6 +169,10 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                     f"{lmdb_path}:{data_info['right_img_path']}"
                 instance_list.append(data_info)
 
+        logger: MMLogger = MMLogger.get_current_instance()
+        logger.info(
+            f'HandDataset loaded {len(image_list)} images, {len(instance_list)} pair instances'  # noqa
+        )
         return instance_list, image_list
 
     def __left_2_right_hand(self, results):
@@ -183,6 +192,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         results['meta']['flipped'] = True
 
     def get_data_info(self, idx):
+        idx = idx % self.data_num
         data_info = super().get_data_info(idx)
         data_info['left_img'] = self.lmdb_client.get(
             data_info['left_img_path'])
@@ -258,9 +268,12 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         if data_info['cat_id'] == 1:
             self.__left_2_right_hand(data_info_left)
             self.__left_2_right_hand(data_info_right)
-
-        ppl_left = self.pipeline(data_info_left)
-        ppl_right = self.pipeline(data_info_right)
-        all_results = default_collate([ppl_left, ppl_right])
+        if self.point_type == '3D':
+            ppl_left = self.pipeline(data_info_left)
+            ppl_right = self.pipeline(data_info_right)
+            all_results = default_collate([ppl_left, ppl_right])
+        else:
+            all_results = self.pipeline(
+                random.choice([data_info_left, data_info_right]))
 
         return all_results
