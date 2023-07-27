@@ -66,6 +66,7 @@ class NrealKeypointAP(BaseMetric):
             self.results.append(result.to_dict())
 
     def compute_metrics(self, results: list) -> dict:
+
         if self.result_dir is None:
             tmp_folder = tempfile.TemporaryDirectory()
             res_file = osp.join(tmp_folder.name, 'result_keypoints.json')
@@ -79,5 +80,5 @@ class NrealKeypointAP(BaseMetric):
         # print(filter_result)
         # print(filter_result['filtered_acc_noise'].mean())
         with open(res_file, 'w') as f:
-            json.dump(self.results, f, sort_keys=True, indent=4)
+            json.dump(results, f, sort_keys=True, indent=4)
         return self.metric(res_file)
