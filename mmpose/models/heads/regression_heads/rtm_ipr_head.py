@@ -85,9 +85,6 @@ class RTMIPRHead(RTMCCHead):
                      act_fn='ReLU',
                      use_rel_bias=False,
                      pos_enc=False),
-                 input_transform: str = 'select',
-                 input_index: Union[int, Sequence[int]] = -1,
-                 align_corners: bool = False,
                  loss: ConfigType = dict(
                      type='KLDiscretLoss', use_target_weight=True),
                  decoder: OptConfigType = None,
@@ -97,8 +94,8 @@ class RTMIPRHead(RTMCCHead):
                  lambda_t: int = -1):
         super().__init__(in_channels, out_channels, input_size,
                          in_featuremap_size, simcc_split_ratio,
-                         final_layer_kernel_size, gau_cfg, input_transform,
-                         input_index, align_corners, loss, decoder, init_cfg)
+                         final_layer_kernel_size, gau_cfg, loss, decoder,
+                         init_cfg)
         W = int(self.input_size[0] * self.simcc_split_ratio)
         H = int(self.input_size[1] * self.simcc_split_ratio)
         self.ipr_module = SimCCToKeypoint(feat_w=W, feat_h=H)
@@ -125,7 +122,7 @@ class RTMIPRHead(RTMCCHead):
         """
         pred_x, pred_y = super().forward(feats)
         heatmaps = torch.cat([pred_x, pred_y], dim=1)
-        raw_feats = self._transform_inputs(feats)
+        raw_feats = feats[-1]
         pred_x, pred_y = self.ipr_module(pred_x, pred_y)
         if self.output_sigma:
             x = self.gap(raw_feats)

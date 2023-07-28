@@ -1,10 +1,12 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import torch
 import torch.nn as nn
+from mmcv.cnn.bricks import build_activation_layer
+from mmengine.model.weight_init import trunc_normal_
 from timm.models.layers import SqueezeExcite
 
-from mmpose.models.utils.weight_init import trunc_normal_
 from mmpose.registry import MODELS
+from .utils.se_layer import SELayer
 
 
 def _make_divisible(v, divisor, min_value=None):
@@ -165,7 +167,7 @@ class RepViTBlock(nn.Module):
     """
 
     def __init__(self, inp, hidden_dim, oup, kernel_size, stride, use_se,
-                 use_hs):
+                 use_hs, act_cfg):
         super(RepViTBlock, self).__init__()
         assert stride in [1, 2]
 
@@ -181,13 +183,13 @@ class RepViTBlock(nn.Module):
                     stride, (kernel_size - 1) // 2,
                     groups=inp),
                 SqueezeExcite(inp, 0.25) if use_se else nn.Identity(),
+                SELayer(inp, 4) if use_se else nn.Identity(),
                 Conv2d_BN(inp, oup, ks=1, stride=1, pad=0))
             self.channel_mixer = Residual(
                 nn.Sequential(
                     # pw
                     Conv2d_BN(oup, 2 * oup, 1, 1, 0),
-                    nn.GELU() if use_hs else nn.GELU(),
-                    # pw-linear
+                    build_activation_layer(act_cfg),
                     Conv2d_BN(2 * oup, oup, 1, 1, 0, bn_weight_init=0),
                 ))
         else:
@@ -200,7 +202,7 @@ class RepViTBlock(nn.Module):
                 nn.Sequential(
                     # pw
                     Conv2d_BN(inp, hidden_dim, 1, 1, 0),
-                    nn.GELU() if use_hs else nn.GELU(),
+                    build_activation_layer(act_cfg),
                     # pw-linear
                     Conv2d_BN(hidden_dim, oup, 1, 1, 0, bn_weight_init=0),
                 ))
@@ -241,18 +243,21 @@ class RepViT(nn.Module):
     arch_zoo = dict(
         m0=[
             # k, t, c, SE, HS, s
+            [3, 2, 32, 1, 0, 1],
             [3, 2, 32, 0, 0, 1],
             [3, 2, 32, 0, 0, 1],
-            [3, 2, 48, 0, 0, 2],
-            [3, 2, 48, 0, 0, 1],
-            [3, 2, 48, 0, 0, 1],
-            [3, 2, 96, 0, 1, 2],
-            [3, 2, 96, 0, 1, 1],
-            [3, 2, 96, 0, 1, 1],
-            [3, 2, 96, 0, 1, 1],
-            [3, 2, 192, 0, 1, 2],
-            [3, 2, 192, 0, 1, 1],
-            [3, 2, 192, 0, 1, 1]
+            [3, 2, 64, 0, 0, 2],
+            [3, 2, 64, 1, 0, 1],
+            [3, 2, 64, 0, 0, 1],
+            [3, 2, 128, 0, 1, 2],
+            [3, 2, 128, 1, 1, 1],
+            [3, 2, 128, 0, 1, 1],
+            [3, 2, 128, 1, 1, 1],
+            [3, 2, 128, 0, 1, 1],
+            [3, 2, 128, 1, 1, 1],
+            [3, 2, 384, 0, 1, 2],
+            [3, 2, 384, 1, 1, 1],
+            [3, 2, 384, 0, 1, 1]
         ],
         m1=[
             # k, t, c, SE, HS, s
@@ -348,7 +353,11 @@ class RepViT(nn.Module):
             [3, 2, 512, 0, 1, 1]
         ])
 
-    def __init__(self, arch, image_channel=1, out_indices=(3, )):
+    def __init__(self,
+                 arch,
+                 image_channel=1,
+                 act_cfg=dict(type='GELU'),
+                 out_indices=(3, )):
         super(RepViT, self).__init__()
         # setting of inverted residual blocks
         assert arch in self.arch_zoo, f'arch {arch} is not supported'
@@ -357,11 +366,10 @@ class RepViT(nn.Module):
         input_channel = self.cfgs[0][2]
         patch_embed = torch.nn.Sequential(
             Conv2d_BN(image_channel, input_channel // 2, 3, 2, 1),
-            torch.nn.GELU(),
+            build_activation_layer(act_cfg),
             Conv2d_BN(input_channel // 2, input_channel, 3, 2, 1))
         layers = [patch_embed]
         # building inverted residual blocks
-        block = RepViTBlock
         self.output_index = []
         stage_out_index = []
         for i, (k, t, c, use_se, use_hs, s) in enumerate(self.cfgs):
@@ -370,8 +378,15 @@ class RepViT(nn.Module):
             output_channel = _make_divisible(c, 8)
             exp_size = _make_divisible(input_channel * t, 8)
             layers.append(
-                block(input_channel, exp_size, output_channel, k, s, use_se,
-                      use_hs))
+                RepViTBlock(
+                    input_channel,
+                    exp_size,
+                    output_channel,
+                    k,
+                    s,
+                    use_se,
+                    use_hs,
+                    act_cfg=act_cfg))
             input_channel = output_channel
         stage_out_index.append(len(self.cfgs))
         for i, idx in enumerate(stage_out_index):
