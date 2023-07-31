@@ -139,8 +139,11 @@ train_2d_data_list = [
 ]
 
 val_data_list = [
-    #'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_gesture_lmdb.json'
-    'data_hand/hand_keypoint/annotations3d/flora_with_tag/flora8_1_binocular_0629_1_4_right_gesture.json'
+    #'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_gesture_lmdb.json' # ella 2d test
+    #'data_hand/hand_keypoint/annotations/hand_test_flora_static_benchmark_230627_10k_lmdb.json',  # flora 2d test
+    #'data_hand/hand_keypoint/annotations/hand_test_flora_static_benchmark_230703_10k_lmdb.json',  # flora 2d test
+    #'data_hand/hand_keypoint/annotations/hand_test_flora_static_benchmark_230712_8k_lmdb.json'  # flora 2d test
+    'data_hand/hand_keypoint/annotations3d/flora_with_tag/flora8_1_binocular_0629_1_4_right_gesture.json'  # flora 3d test,
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # pipelines
@@ -210,7 +213,8 @@ val_dataloader = dict(
     sampler=dict(type='DefaultSampler', shuffle=False, round_up=False),
     collate_fn=dict(type='default_collate'),
     dataset=dict(
-        type='PairHand3DDataset',
+        type='PairHand3DDataset',  # for 3d dataset
+        #type='HANDDataset', # for 2d dataset
         data_file_list=val_data_list,
         data_mode=data_mode,
         test_mode=True,
@@ -228,7 +232,10 @@ gesture_list = [
     'Click', 'Grab', 'Pinch', 'OpenHand', 'Victory', 'Call', 'Home'
 ]
 val_evaluator = dict(
-    type='NrealKeypointAP', gesture_list=gesture_list, result_dir='./')
+    type='NrealKeypointAP',
+    gesture_list=gesture_list,
+    result_dir='./',
+    with_tag=True)
 test_evaluator = val_evaluator
 
 # fp16 settings
