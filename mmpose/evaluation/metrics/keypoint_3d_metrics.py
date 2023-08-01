@@ -8,7 +8,8 @@ from typing import Dict, List, Optional, Sequence
 import numpy as np
 from mmengine.evaluator import BaseMetric
 from mmengine.logging import MMLogger
-from nreal_data_tool.metric import MPJPEMetric, SelfStabilityMetric
+from nreal_data_tool.metric import (MPJPEMetric, PinchMetric,
+                                    SelfStabilityMetric)
 from nreal_data_tool.schema import KeypointEvaluationItem
 
 from mmpose.registry import METRICS
@@ -147,13 +148,15 @@ class MPJPEV2(MPJPE):
                  mode: str = 'mpjpe',
                  result_dir=None,
                  with_tag=False,
-                 pinch_thre: list = [20, 40]) -> None:
+                 pinch_thre: list = [20, 40],
+                 seq: bool = False) -> None:
         super().__init__(mode, collect_device, prefix)
         self.result_dir = result_dir
         self.logger = MMLogger.get_current_instance()
         self.mpjpe_metric = MPJPEMetric(
-            gesture_list, mode=mode, with_tag=with_tag, pinch_thre=pinch_thre)
+            gesture_list, mode=mode, with_tag=with_tag)
         self.self_stability_metric = SelfStabilityMetric(reduction='mean')
+        self.pinch_metric = PinchMetric(pinch_thre=pinch_thre, seq=seq)
 
     def process(self, data_batch, data_samples: Sequence[dict]) -> None:
         for data_sample in data_samples:
@@ -196,9 +199,11 @@ class MPJPEV2(MPJPE):
             json.dump(self.results, f, sort_keys=True, indent=4)
         mpjpe_res = self.mpjpe_metric(res_file)
         stability_res = self.self_stability_metric(res_file)
+        pinch_res = self.pinch_metric(res_file)
         res = {}
         res.update(mpjpe_res)
         res.update(stability_res)
+        res.update(pinch_res)
         return res
 
 

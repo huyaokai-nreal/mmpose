@@ -111,16 +111,16 @@ model = dict(
             type='MultipleLossWrapper',
             losses=[
                 dict(type='L1Loss'),  # 3d kpts
-                # dict(type='MSELoss', loss_weight=0),  # 2d reprojection left
-                # dict(type='MSELoss', loss_weight=0),  # 2d reprojection right
-                # dict(type='MSELoss', loss_weight=0),  # 2d reprojection left
-                # dict(type='MSELoss', loss_weight=0),  # 2d reprojection right
+                dict(type='MSELoss', loss_weight=0),  # 2d reprojection left
+                dict(type='MSELoss', loss_weight=0),  # 2d reprojection right
+                dict(type='MSELoss', loss_weight=0),  # 2d reprojection left
+                dict(type='MSELoss', loss_weight=0),  # 2d reprojection right
                 dict(
                     type='PinchLoss',
                     enter_thre=pinch_thre[0] / 1000,
                     exit_thre=pinch_thre[1] / 1000,
                     loss_weight=0.09),
-                dict(type='L1Loss', loss_weight=1),  # major kpt
+                dict(type='L1Loss', loss_weight=2),  # major kpt
             ]),  # 预训练head finetune
         channel_num=55,
         output_num=42),
@@ -151,25 +151,25 @@ import os
 train_data_list = [
     # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_0.json',
     'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0000.json',
-    # 'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0001.json',
-    # 'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0002.json',
-    # 'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0003.json',
-    # 'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0004.json',
-    # 'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0005.json',
-    # 'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0006.json',
-    # 'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0007.json',
-    # 'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0008.json',
-    # 'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0009.json',
-    # 'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0000.json',
-    # 'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0001.json',
-    # 'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0002.json',
-    # 'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0003.json',
-    # 'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0004.json',
-    # 'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0005.json',
-    # 'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0006.json',
-    # 'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0007.json',
-    # 'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0008.json',
-    # 'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0009.json',
+    'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0001.json',
+    'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0002.json',
+    'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0003.json',
+    'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0004.json',
+    'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0005.json',
+    'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0006.json',
+    'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0007.json',
+    'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0008.json',
+    'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0009.json',
+    'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0000.json',
+    'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0001.json',
+    'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0002.json',
+    'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0003.json',
+    'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0004.json',
+    'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0005.json',
+    'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0006.json',
+    'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0007.json',
+    'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0008.json',
+    'data_hand/hand_keypoint/annotations3d/ella_with_tag/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0009.json',
 ]
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
@@ -261,7 +261,8 @@ val_evaluator = dict(
     type='MPJPEV2',
     gesture_list=gesture_list,
     with_tag=True,
-    pinch_thre=pinch_thre)
+    pinch_thre=pinch_thre,
+    seq=False)  # deal with sequential frame
 test_evaluator = val_evaluator
 
 # fp16 settings

@@ -453,31 +453,10 @@ class LiftHead(BaseModule):
             (hand3d_pred[:, 1:10, :], hand3d_pred[:, 13, :].unsqueeze(1)),
             dim=1)
 
-        # normalization_3d
-        # pred_root, gt_root = hand3d_pred[:, 9], hand3d_gt[:, 9]
-        # pred_hand_length = torch.norm(
-        #     hand3d_pred[:, 9] - hand3d_pred[:, 0], dim=-1)
-        # gt_hand_length = torch.norm(
-        #     hand3d_pred[:, 9] - hand3d_pred[:, 0], dim=-1)
-
-        # pred_hand_length = pred_hand_length.repeat_interleave(3).reshape(-1, 3)
-        # gt_hand_length = gt_hand_length.repeat_interleave(3).reshape(-1, 3)
-
-        # pred_norm = hand3d_pred - pred_root.unsqueeze(dim=1)
-        # gt_norm = hand3d_gt - gt_root.unsqueeze(dim=1)
-
-        # pred_norm = pred_norm * 0.08 / pred_hand_length.unsqueeze(dim=1)
-        # gt_norm = gt_norm * 0.08 / gt_hand_length.unsqueeze(dim=1)
-
-        # # thumb index distance
-        # dist_pred = torch.norm(pred_norm[:, 4, :] - pred_norm[:, 8, :], dim=-1)
-        # dist_gt = torch.norm(gt_norm[:, 4, :] - gt_norm[:, 8, :], dim=-1)
-
         # origin distance, no norm
         dist_pred = torch.norm(
             hand3d_pred[:, 4, :] - hand3d_pred[:, 8, :], dim=-1)
         dist_gt = torch.norm(hand3d_gt[:, 4, :] - hand3d_gt[:, 8, :], dim=-1)
-        # from IPython import embed;embed()
         ret = {
             'hand3d_pred': hand3d_pred,
             'leftcam_XYZ': leftcam_XYZ,
