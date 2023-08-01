@@ -146,12 +146,13 @@ class MPJPEV2(MPJPE):
                  prefix: Optional[str] = None,
                  mode: str = 'mpjpe',
                  result_dir=None,
-                 with_tag=False) -> None:
+                 with_tag=False,
+                 pinch_thre: list = [20, 40]) -> None:
         super().__init__(mode, collect_device, prefix)
         self.result_dir = result_dir
         self.logger = MMLogger.get_current_instance()
         self.mpjpe_metric = MPJPEMetric(
-            gesture_list, mode=mode, with_tag=with_tag)
+            gesture_list, mode=mode, with_tag=with_tag, pinch_thre=pinch_thre)
         self.self_stability_metric = SelfStabilityMetric(reduction='mean')
 
     def process(self, data_batch, data_samples: Sequence[dict]) -> None:

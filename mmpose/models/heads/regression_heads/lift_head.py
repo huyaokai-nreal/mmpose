@@ -95,8 +95,7 @@ class LiftHead(BaseModule):
                  channel_num: int = 55,
                  output_num: int = 42,
                  rm_distort: bool = False,
-                 init_cfg: Union[dict, List[dict], None] = None,
-                 loss_pinch: bool = False):
+                 init_cfg: Union[dict, List[dict], None] = None):
         super().__init__(init_cfg)
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.channel_num = channel_num
@@ -111,7 +110,6 @@ class LiftHead(BaseModule):
             nn.Conv2d(self.channel_num * 2, output_num, kernel_size=1))
         self.lift_loss = MODELS.build(lift_loss)
         self.rm_distort = rm_distort
-        self.loss_pinch = loss_pinch
 
     @staticmethod
     def check_cam_matrix(cam_matrix):
@@ -449,27 +447,37 @@ class LiftHead(BaseModule):
         # leftcam as predict
         # hand3d_pred = leftcam_XYZ.view(B, 21, 3)
         # hand3d_pred = rightcam_XYZ.view(B, 21, 3)
+        major_gt = torch.cat(
+            (hand3d_gt[:, 1:10, :], hand3d_gt[:, 13, :].unsqueeze(1)), dim=1)
+        major_pred = torch.cat(
+            (hand3d_pred[:, 1:10, :], hand3d_pred[:, 13, :].unsqueeze(1)),
+            dim=1)
 
         # normalization_3d
-        pred_root, gt_root = hand3d_pred[:, 9], hand3d_gt[:, 9]
-        pred_hand_length = torch.norm(
-            hand3d_pred[:, 9] - hand3d_pred[:, 0], dim=-1)
-        gt_hand_length = torch.norm(
-            hand3d_pred[:, 9] - hand3d_pred[:, 0], dim=-1)
+        # pred_root, gt_root = hand3d_pred[:, 9], hand3d_gt[:, 9]
+        # pred_hand_length = torch.norm(
+        #     hand3d_pred[:, 9] - hand3d_pred[:, 0], dim=-1)
+        # gt_hand_length = torch.norm(
+        #     hand3d_pred[:, 9] - hand3d_pred[:, 0], dim=-1)
 
-        pred_hand_length = pred_hand_length.repeat_interleave(3).reshape(-1, 3)
-        gt_hand_length = gt_hand_length.repeat_interleave(3).reshape(-1, 3)
+        # pred_hand_length = pred_hand_length.repeat_interleave(3).reshape(-1, 3)
+        # gt_hand_length = gt_hand_length.repeat_interleave(3).reshape(-1, 3)
 
-        pred_norm = hand3d_pred - pred_root.unsqueeze(dim=1)
-        gt_norm = hand3d_gt - gt_root.unsqueeze(dim=1)
+        # pred_norm = hand3d_pred - pred_root.unsqueeze(dim=1)
+        # gt_norm = hand3d_gt - gt_root.unsqueeze(dim=1)
 
-        pred_norm = pred_norm * 0.08 / pred_hand_length.unsqueeze(dim=1)
-        gt_norm = gt_norm * 0.08 / gt_hand_length.unsqueeze(dim=1)
+        # pred_norm = pred_norm * 0.08 / pred_hand_length.unsqueeze(dim=1)
+        # gt_norm = gt_norm * 0.08 / gt_hand_length.unsqueeze(dim=1)
 
-        # thumb index distance
-        pred_dist = torch.norm(pred_norm[:, 4, :] - pred_norm[:, 8, :], dim=-1)
-        gt_dist = torch.norm(gt_norm[:, 4, :] - gt_norm[:, 8, :], dim=-1)
+        # # thumb index distance
+        # dist_pred = torch.norm(pred_norm[:, 4, :] - pred_norm[:, 8, :], dim=-1)
+        # dist_gt = torch.norm(gt_norm[:, 4, :] - gt_norm[:, 8, :], dim=-1)
 
+        # origin distance, no norm
+        dist_pred = torch.norm(
+            hand3d_pred[:, 4, :] - hand3d_pred[:, 8, :], dim=-1)
+        dist_gt = torch.norm(hand3d_gt[:, 4, :] - hand3d_gt[:, 8, :], dim=-1)
+        # from IPython import embed;embed()
         ret = {
             'hand3d_pred': hand3d_pred,
             'leftcam_XYZ': leftcam_XYZ,
@@ -489,8 +497,10 @@ class LiftHead(BaseModule):
             'kp3d_l2_right': kp3d_l2_right,
             'kp2d_left_reproj_l2': kp2d_left_reproj_l2,
             'kp2d_right_reproj_l2': kp2d_right_reproj_l2,
-            'pred_dist': pred_dist,
-            'gt_dist': gt_dist
+            'dist_gt': dist_gt,
+            'dist_pred': dist_pred,
+            'major_gt': major_gt,
+            'major_pred': major_pred
         }
         return ret
 
@@ -510,36 +520,26 @@ class LiftHead(BaseModule):
 
         pred_for_loss = [
             ret['hand3d_pred'], ret['leftcam_XYZ'], ret['rightcam_XYZ'],
-            ret['leftcam_uv_reproj'], ret['rightcam_uv_reproj']
+            ret['leftcam_uv_reproj'], ret['rightcam_uv_reproj'],
+            ret['dist_pred'], ret['major_pred']
         ]
         targ_for_loss = [
             ret['hand3d_gt'], ret['hand3d_gt'], ret['hand3d_gt'],
-            ret['leftcam_uv_gt'], ret['rightcam_uv_gt']
+            ret['leftcam_uv_gt'], ret['rightcam_uv_gt'], ret['dist_gt'],
+            ret['major_gt']
         ]
-
         losses = self.lift_loss(pred_for_loss, targ_for_loss)
         (loss_mse_3d, loss_mse_3d_leftcam, loss_mse_3d_rightcam,
-         loss_mse_2d_leftcam, loss_mse_2d_rightcam) = losses
+         loss_mse_2d_leftcam, loss_mse_2d_rightcam, loss_pinch,
+         major_loss) = losses
 
         losses_dict = dict(
             loss_mse_3d=loss_mse_3d,
             loss_mse_3d_leftcam=loss_mse_3d_leftcam,
             loss_mse_3d_rightcam=loss_mse_3d_rightcam,
             loss_mse_2d_leftcam=loss_mse_2d_leftcam,
-            loss_mse_2d_rightcam=loss_mse_2d_rightcam)
+            loss_mse_2d_rightcam=loss_mse_2d_rightcam,
+            loss_pinch=loss_pinch,
+            major_loss=major_loss)
 
-        if self.loss_pinch:
-            low_thre, high_thre = 0.02, 0.04
-            # 1. Skip transition interval
-            pinch_index = ret['gt_dist'] < low_thre
-            no_pinch_index = ret['gt_dist'] > high_thre
-            loss_pinch = 0.09 * (
-                torch.sum(
-                    torch.maximum(ret['pred_dist'][pinch_index] - low_thre,
-                                  torch.tensor(0.0))) +
-                torch.sum(
-                    torch.maximum(high_thre - ret['pred_dist'][no_pinch_index],
-                                  torch.tensor(0.0))))
-
-            losses_dict['loss_pinch'] = loss_pinch
         return losses_dict

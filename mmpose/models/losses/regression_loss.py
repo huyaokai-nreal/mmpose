@@ -8,6 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from mmengine import MMLogger
 from mmengine.runner import CheckpointLoader, load_state_dict
+from torch import Tensor
 
 from mmpose.registry import MODELS
 from ..utils.realnvp import RealNVP
@@ -647,3 +648,54 @@ class SemiSupervisionLoss(nn.Module):
         losses['bone_loss'] = loss_bone
 
         return losses
+
+
+@MODELS.register_module()
+class PinchLoss(nn.Module):
+    """Pinch loss for keypoints3d.
+
+    Args:
+        enter_thre (float): The maximum distance between the thumb and index finger recognized as a pinch. Defaults to 0.02
+        exit_thre (float): Minimum distance between thumb and index finger recognized as non pinch. Defaults to 0.04
+        loss_weight (float): Weight of the loss. Defaults to 0.09
+    """
+
+    def __init__(self,
+                 enter_thre: float = 0.02,
+                 exit_thre: float = 0.04,
+                 loss_weight: float = 0.09):
+        super().__init__()
+        self.enter_thre = enter_thre
+        self.exit_thre = exit_thre
+        self.loss_weight = loss_weight
+
+    def forward(
+        self,
+        dist_pred: Tensor,
+        dist_gt: Tensor,
+        weight=None,
+    ) -> Tensor:
+        """Forward function of loss.
+
+        Args:
+            dist_pred (Tensor): Predicted distance between index finger and thumb.
+            dist_gt (Tensor): The learning target of the predicted distance.
+            weight (Tensor, optional): Weight of the loss for each
+                prediction. Defaults to None.
+
+        Returns:
+            Tensor: The calculated loss.
+        """
+        assert dist_gt.ndimension() == dist_pred.ndimension() == 1
+        pinch_index = torch.nonzero(dist_gt < self.enter_thre).squeeze()
+        no_pinch_index = torch.nonzero(dist_gt > self.exit_thre).squeeze()
+
+        loss_pinch = self.loss_weight * (
+            torch.sum(
+                torch.maximum(dist_pred[pinch_index] - self.enter_thre,
+                              torch.tensor(0.0))) +
+            torch.sum(
+                torch.maximum(self.exit_thre - dist_pred[no_pinch_index],
+                              torch.tensor(0.0))))
+        # from IPython import embed;embed()
+        return loss_pinch
