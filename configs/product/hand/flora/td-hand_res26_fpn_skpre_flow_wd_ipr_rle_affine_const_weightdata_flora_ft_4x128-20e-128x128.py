@@ -104,8 +104,8 @@ import os
 
 # lmdb root dir, maybe different between beijing and wuxi
 # for beijin server
-# data_root = '/data/AI_DATA'
-data_root = '/data/AI_DATA_WX'
+data_root = '/data/AI_DATA'
+# data_root = '/data/AI_DATA_WX'
 train_data_list = [
     'data_hand/hand_keypoint/annotations3d/flora_with_tag/flora8_1_binocular_0629_1_0_right_gesture.json',  # right
     'data_hand/hand_keypoint/annotations3d/flora_with_tag/flora8_1_binocular_0710_2_3_left_gesture.json',  # left
@@ -139,11 +139,8 @@ train_2d_data_list = [
 ]
 
 val_data_list = [
-    #'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_gesture_lmdb.json' # ella 2d test
-    #'data_hand/hand_keypoint/annotations/hand_test_flora_static_benchmark_230627_10k_lmdb.json',  # flora 2d test
-    #'data_hand/hand_keypoint/annotations/hand_test_flora_static_benchmark_230703_10k_lmdb.json',  # flora 2d test
-    #'data_hand/hand_keypoint/annotations/hand_test_flora_static_benchmark_230712_8k_lmdb.json'  # flora 2d test
-    'data_hand/hand_keypoint/annotations3d/flora_with_tag/flora8_1_binocular_0629_1_4_right_gesture.json'  # flora 3d test,
+    'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_gesture_lmdb.json'
+    # 'data_hand/hand_keypoint/annotations3d/flora_with_tag/flora8_1_binocular_0629_1_4_right_gesture.json'
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # pipelines
@@ -213,14 +210,16 @@ val_dataloader = dict(
     sampler=dict(type='DefaultSampler', shuffle=False, round_up=False),
     collate_fn=dict(type='default_collate'),
     dataset=dict(
-        type='PairHand3DDataset',  # for 3d dataset
-        #type='HANDDataset', # for 2d dataset
+        # type='PairHand3DDataset',
+        type='HANDDataset',
         data_file_list=val_data_list,
         data_mode=data_mode,
         test_mode=True,
         pipeline=val_pipeline,
         flip_left_to_right=True,
-        data_root=data_root))
+        data_root=data_root,
+        # point_type='leftcam',
+    ))
 test_dataloader = val_dataloader
 
 # hooks

@@ -1,5 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import argparse
+import os
 
 import numpy as np
 import torch
@@ -133,9 +134,9 @@ def pytorch2onnx(model,
             print('Failed to refine onnx model with onnxsim')
     md5 = md5sum(output_file)
     onnx_model = onnx.load(output_file)
-    output_file = output_file.replace('.onnx', f'_{md5[:6]}.onnx')
-    print(f'Successfully exported ONNX model: {output_file}')
-    onnx.save(onnx_model, output_file)
+    output_file_md5 = output_file.replace('.onnx', f'_{md5[:6]}.onnx')
+    print(f'Successfully exported ONNX model: {output_file_md5}')
+    onnx.save(onnx_model, output_file_md5)
     if verify:
         # check by onnx
         onnx_model = onnx.load(output_file)
@@ -167,6 +168,10 @@ def pytorch2onnx(model,
                 pt_result.detach().cpu().numpy(), onnx_result, atol=1.e-3
             ), 'The outputs are different between Pytorch and ONNX'
         print('The numerical values are same between Pytorch and ONNX')
+
+    cmd = f'rm {output_file}'
+    print(cmd)
+    os.system(cmd)
 
 
 def parse_args():

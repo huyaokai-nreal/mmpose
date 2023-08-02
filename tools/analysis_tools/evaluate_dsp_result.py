@@ -9,7 +9,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from mmengine import mkdir_or_exist
-from nreal_data_tool.metric import KeypointOKSMetric
+from nreal_data_tool.metric import KeypointOKSMetric, MPJPEMetric
 from tqdm import tqdm
 
 from mmpose.codecs.nreal_heatmap import NrealHeatmap

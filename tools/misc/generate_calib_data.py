@@ -51,6 +51,11 @@ def parse_args():
         'It also allows nested list/tuple values, e.g. key="[(a,b),(c,d)]" '
         'Note that the quotation marks are necessary and that no white space '
         'is allowed.')
+    parser.add_argument(
+        '--quantize_type',
+        default='snpe',
+        type=str,
+        help='choose data channel type, (n,h,w,c) for snpe, (n,c,h,w) for mnn')
     args = parser.parse_args()
     return args
 
@@ -90,10 +95,14 @@ def main():
         img_id = str(i).zfill(8)
         item = dataset[id]
         img = item['inputs'].unsqueeze(0).numpy().astype(np.float32)
+        # img = item['inputs'][[0], ...].numpy().astype(np.float32)  # flora data (N,C,H,W)  # noqa
         if args.type == 'npy':
             np.save(os.path.join(args.output_dir, f'{img_id}.npy'), img)
         if args.type == 'raw':
-            img = img.transpose((0, 2, 3, 1))
+            if args.quantize_type == 'snpe':
+                img = img.transpose((0, 2, 3, 1))  # (N,H,W,C)
+            elif args.quantize_type == 'mnn':
+                pass  # (N,C,H,W)
             img.tofile(os.path.join(args.output_dir, f'{img_id}.raw'))
         if args.type == 'png':
             img = img[0].transpose((1, 2, 0))
