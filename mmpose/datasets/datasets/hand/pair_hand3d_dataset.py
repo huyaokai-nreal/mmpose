@@ -163,10 +163,18 @@ class PairHand3DDataset(BaseCocoStyleDataset):
 
                 data_info = self.parse_data_info(
                     dict(raw_ann_info=ann, raw_img_info=[left_img, right_img]))
+                if self.with_mask:
+                    data_info[
+                            'left_mask_path'] = \
+                            f"{lmdb_path}_{self.mask_ext}:{data_info['left_img_path']}" # noqa
+                    data_info[
+                            'right_mask_path'] = \
+                            f"{lmdb_path}_{self.mask_ext}:{data_info['right_img_path']}" # noqa
                 data_info['left_img_path'] = \
                     f"{lmdb_path}:{data_info['left_img_path']}"
                 data_info['right_img_path'] = \
                     f"{lmdb_path}:{data_info['right_img_path']}"
+
                 instance_list.append(data_info)
 
         logger: MMLogger = MMLogger.get_current_instance()
@@ -221,6 +229,8 @@ class PairHand3DDataset(BaseCocoStyleDataset):
 
         data_info_left = {
             'img_id': data_info['left_img_id'],
+            'image_width': data_info['left_img'].shape[1],
+            'image_height': data_info['left_img'].shape[0],
             'img_path': data_info['left_img_path'],
             'keypoints': data_info['left_keypoints'],
             'img': data_info['left_img'],
@@ -246,7 +256,10 @@ class PairHand3DDataset(BaseCocoStyleDataset):
 
         data_info_right = {
             'img_id': data_info['right_img_id'],
+            'image_width': data_info['right_img'].shape[1],
+            'image_height': data_info['right_img'].shape[0],
             'img_path': data_info['right_img_path'],
+            'mask_path': data_info['left_mask_path'],
             'keypoints': data_info['right_keypoints'],
             'img': data_info['right_img'],
             'bbox': data_info['right_bbox'],
@@ -265,6 +278,12 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'keypoints_visible': data_info['keypoints_visible']
         }
 
+        if self.with_mask:
+            data_info_left.update(
+                dict(mask=self.lmdb_client.get(data_info['left_mask_path'])))
+            data_info_right.update(
+                dict(mask=self.lmdb_client.get(data_info['right_mask_path'])))
+
         if data_info['cat_id'] == 1:
             self.__left_2_right_hand(data_info_left)
             self.__left_2_right_hand(data_info_right)
@@ -277,5 +296,4 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         else:
             all_results = self.pipeline(
                 random.choice([data_info_left, data_info_right]))
-
         return all_results

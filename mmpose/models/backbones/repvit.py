@@ -3,7 +3,6 @@ import torch
 import torch.nn as nn
 from mmcv.cnn.bricks import build_activation_layer
 from mmengine.model.weight_init import trunc_normal_
-from timm.models.layers import SqueezeExcite
 
 from mmpose.registry import MODELS
 from .utils.se_layer import SELayer
@@ -182,7 +181,6 @@ class RepViTBlock(nn.Module):
                     kernel_size,
                     stride, (kernel_size - 1) // 2,
                     groups=inp),
-                SqueezeExcite(inp, 0.25) if use_se else nn.Identity(),
                 SELayer(inp, 4) if use_se else nn.Identity(),
                 Conv2d_BN(inp, oup, ks=1, stride=1, pad=0))
             self.channel_mixer = Residual(
@@ -196,7 +194,7 @@ class RepViTBlock(nn.Module):
             assert (self.identity)
             self.token_mixer = nn.Sequential(
                 RepVGGDW(inp),
-                SqueezeExcite(inp, 0.25) if use_se else nn.Identity(),
+                SELayer(inp, 4) if use_se else nn.Identity(),
             )
             self.channel_mixer = Residual(
                 nn.Sequential(

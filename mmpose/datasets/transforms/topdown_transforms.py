@@ -204,6 +204,8 @@ class RandomBackground(BaseTransform):
                   results: Dict) -> Optional[Union[Dict, Tuple[List, List]]]:
         bg_image_path = np.random.choice(self.data_list)
         bg_image = self.lmdb_client.get(bg_image_path)
+        bg_img_w = bg_image.shape[1]
+        bg_img_h = bg_image.shape[0]
         mask = results['mask']
         if self.align_mean:
             bg_mean = bg_image.mean()
@@ -223,8 +225,8 @@ class RandomBackground(BaseTransform):
             y2 = int(np.clip(y1 + h, 0, img_h - 1))
             w = x2 - x1
             h = y2 - y1
-        bg_x1 = np.random.randint(0, img_w - w)
-        bg_y1 = np.random.randint(0, img_h - h)
+        bg_x1 = np.random.randint(0, bg_img_w - w)
+        bg_y1 = np.random.randint(0, bg_img_h - h)
         bg_x2 = bg_x1 + w
         bg_y2 = bg_y1 + h
         offset_x = bg_x1 - x1
