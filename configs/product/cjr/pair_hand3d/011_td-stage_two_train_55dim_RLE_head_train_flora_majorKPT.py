@@ -59,6 +59,7 @@ codec = dict(
     blur_kernel_size=5,
 )
 
+pinch_thre = [20, 40]  # pinch双阈值，单位：mm
 # model settings
 backbone_out_channels = [64, 96, 128, 160]
 model = dict(
@@ -117,6 +118,12 @@ model = dict(
                 dict(type='L1Loss'),  # 3d kpts rightcam
                 dict(type='MSELoss', loss_weight=0),  # 2d reprojection left
                 dict(type='MSELoss', loss_weight=0),  # 2d reprojection right
+                dict(
+                    type='PinchLoss',
+                    enter_thre=pinch_thre[0] / 1000,
+                    exit_thre=pinch_thre[1] / 1000,
+                    loss_weight=0.09),
+                dict(type='L1Loss', loss_weight=0),  # major kpt
             ]),
         channel_num=55,
         output_num=42,
@@ -149,18 +156,20 @@ import os
 # test only
 #data_root = '/data/hand_group/data/data_hand/lmdb_data/'
 train_data_list = [
-    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_0_right.json',  # right
-    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0710_2_3_left.json',  # left
-    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0710_2_4_left.json',  # left
-    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0710_2_5_right.json',  # right
-    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0714_2_2_right.json'
+    # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_0_right.json',  # right
+    # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0710_2_3_left.json',  # left
+    # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0710_2_4_left.json',  # left
+    # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0710_2_5_right.json',  # right
+    # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0714_2_2_right.json'
+    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_0_20230801_1_binocular.json'
 ]
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
     # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_4_right.json'  # right
-    'data_hand/hand_keypoint/annotations3d/flora_with_tag/flora8_1_binocular_0629_1_4_right_gesture.json'  # right
+    # 'data_hand/hand_keypoint/annotations3d/flora_with_tag/flora8_1_binocular_0629_1_4_right_gesture.json'  # right
+    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_0_20230801_1_binocular.json'
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # pipelines
@@ -195,8 +204,8 @@ val_pipeline = [
 # data loaders
 train_dataloader = dict(
     batch_size=128,
-    num_workers=8,
-    persistent_workers=True,
+    num_workers=0,
+    persistent_workers=False,
     sampler=dict(type='DefaultSampler', shuffle=True),
     collate_fn=dict(type='default_collate'),
     dataset=dict(
@@ -206,14 +215,14 @@ train_dataloader = dict(
         pipeline=train_pipeline,
         dataset_weight_list=dataset_weight_list,
         data_root=data_root,
-        point_type='leftcam',
+        # point_type='leftcam',
         # indices=1000,
     ),
 )
 val_dataloader = dict(
     batch_size=32,
-    num_workers=2,
-    persistent_workers=True,
+    num_workers=0,
+    persistent_workers=False,
     drop_last=False,
     sampler=dict(type='DefaultSampler', shuffle=False, round_up=False),
     collate_fn=dict(type='default_collate'),
@@ -225,7 +234,8 @@ val_dataloader = dict(
         pipeline=val_pipeline,
         flip_left_to_right=True,
         data_root=data_root,
-        point_type='leftcam'),
+        # point_type='leftcam'
+    ),
 )
 test_dataloader = val_dataloader
 

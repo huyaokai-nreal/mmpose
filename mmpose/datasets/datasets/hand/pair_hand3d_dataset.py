@@ -114,6 +114,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         right_keypoints = np.array(ann['keypoints_right'])[..., :2].reshape(
             1, -1, 2)
 
+        keypoints3d = ann['keypoints3d']
         num_keypoints = ann['num_keypoints']
         keypoints_visible = np.array(ann['keypoints_left'])[...,
                                                             2].reshape(1, -1)
@@ -125,6 +126,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'right_img_path': right_img_path,
             'left_keypoints': left_keypoints,
             'right_keypoints': right_keypoints,
+            'keypoints3d': keypoints3d,
             'left_bbox': left_bbox,
             'right_bbox': right_bbox,
             'image_width': left_img_w,
@@ -241,7 +243,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'cam_matrix_right': data_info['meta']['cam_matrix_right'],
             'leftcam_p_rightcam': data_info['meta']['leftcam_p_rightcam'],
             'leftcam_q_rightcam': data_info['meta']['leftcam_q_rightcam'],
-            # 'keypoints3d': data_info['meta']['kp3d_spline'],
+            'keypoints3d': data_info['keypoints3d'],
             'bbox_score': np.ones(1, dtype=np.float32),
             'iscrowd': data_info['iscrowd'],
             'id': data_info['id'],
@@ -264,7 +266,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'keypoints': data_info['right_keypoints'],
             'img': data_info['right_img'],
             'bbox': data_info['right_bbox'],
-            # 'keypoints3d': data_info['meta']['kp3d_spline'],
+            'keypoints3d': data_info['keypoints3d'],
             'bbox_score': np.ones(1, dtype=np.float32),
             'iscrowd': data_info['iscrowd'],
             'id': data_info['id'],
