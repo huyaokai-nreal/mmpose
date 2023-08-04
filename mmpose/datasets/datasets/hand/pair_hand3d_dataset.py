@@ -261,7 +261,6 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'image_width': data_info['right_img'].shape[1],
             'image_height': data_info['right_img'].shape[0],
             'img_path': data_info['right_img_path'],
-            'mask_path': data_info['left_mask_path'],
             'keypoints': data_info['right_keypoints'],
             'img': data_info['right_img'],
             'bbox': data_info['right_bbox'],
