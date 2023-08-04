@@ -18,7 +18,6 @@ from ..base import BaseCocoStyleDataset
 class PairHand3DDataset(BaseCocoStyleDataset):
 
     METAINFO: dict = dict(from_file='configs/_base_/datasets/nreal_hand.py')
-    category_name_list = ['background', 'left_hand', 'right_hand']
 
     def __init__(self,
                  data_file_list,
@@ -155,6 +154,10 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                                  coco.dataset['lmdb_path'])
             # sub_dataset_num = 0
             ann_ids = coco.getAnnIds()
+            category_name_map = {
+                d['id']: d['name']
+                for d in coco.dataset['categories']
+            }
             for ann_id in ann_ids:
                 ann = coco.loadAnns(ann_id)[0]
                 left_img_id = int(ann['image_id'].split('_')[0])
@@ -167,8 +170,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                 data_info = self.parse_data_info(
                     dict(raw_ann_info=ann, raw_img_info=[left_img, right_img]))
                 if self.with_mask:
-                    category_name = self.category_name_list[int(
-                        data_info['cat_id'])]
+                    category_name = category_name_map[int(data_info['cat_id'])]
                     data_info[
                             'left_mask_path'] = \
                             f"{lmdb_path}_{self.mask_ext}:{data_info['left_img_path']}_{category_name}" # noqa
