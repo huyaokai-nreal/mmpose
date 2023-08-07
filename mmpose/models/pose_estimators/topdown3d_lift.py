@@ -4,6 +4,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 import torch
+from mmengine import MMLogger
 from mmengine.model import BaseModel
 from mmengine.structures import InstanceData
 from torch import Tensor
@@ -97,7 +98,10 @@ class TopdownPoseLiftEstimator(BaseModel):
                     data_sample.set_metainfo(self.metainfo)
             return self.predict(inputs, data_samples)
         elif mode == 'tensor':
-            return self._forward(inputs, data_samples)
+            logger: MMLogger = MMLogger.get_current_instance()
+            logger.warning(
+                'topdown3d lift only support output 2d kpt for tensor mode')
+            return self._forward(inputs)
         else:
             raise RuntimeError(f'Invalid mode "{mode}". '
                                'Only supports loss, predict and tensor mode.')
@@ -117,7 +121,7 @@ class TopdownPoseLiftEstimator(BaseModel):
             x = self.neck(x)
         return x
 
-    def _forward(self, inputs: Tensor, data_samples: SampleList):
+    def _forward(self, inputs: Tensor):
         """Network forward process. Usually includes backbone, neck and head
         forward without any post-processing.
 
@@ -128,16 +132,12 @@ class TopdownPoseLiftEstimator(BaseModel):
             tuple: A tuple of features from ``rpn_head`` and ``roi_head``
             forward.
         """
-
-        feats_pyramid = self.extract_feat(inputs)
-        xy_sigma, heatmap = self.head.forward(feats_pyramid)
-        xy_sigma = xy_sigma.detach()  # fix 2d model params
-
-        ret = self.kpt3d_lift.forward(xy_sigma, data_samples)
-
-        x = ret['hand3d_pred']
-
-        return x
+        # TODO: only support export 2d result
+        x = self.extract_feat(inputs)
+        if self.with_head:
+            x = self.head.forward(x)
+            if isinstance(x, list):
+                x = x[-1]
 
     @format_data
     def loss(self, inputs: Tensor, data_samples: SampleList) -> dict:

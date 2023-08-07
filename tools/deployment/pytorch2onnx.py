@@ -213,6 +213,11 @@ def parse_args():
         default='eval',
         help='train or eval graph to export')
     parser.add_argument(
+        '--deploy-module',
+        '-dm',
+        default='all',
+        help='only deploy a submodule of the model, ie. backbone, kpt3d_lift')
+    parser.add_argument(
         '--deploy-head',
         '-dh',
         action='store_true',
@@ -245,7 +250,10 @@ if __name__ == '__main__':
             print('enable fuse preprocess mean std to first conv')
             model = _fuse_preprocess(model)
         model = _convert_batchnorm(model)
+    if args.deploy_module != 'all':
+        model = getattr(model, args.deploy_module)
     # onnx.export does not support kwargs
+
     if hasattr(model, '_forward'):
         model.forward = model._forward
     if hasattr(model, 'backbone'):

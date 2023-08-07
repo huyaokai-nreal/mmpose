@@ -46,8 +46,13 @@ class LiftHead(BaseModule):
             cam_matrix = cam_matrix.T
         return cam_matrix
 
-    def forward(self, feats: Tuple[Tensor],
-                batch_data_samples: OptSampleList) -> Tensor:
+    def forward(self, feats: Tuple[Tensor]) -> Tensor:
+        output = self.liftnet(feats)
+        output = self.last_layer(output).view(
+            (feats.shape[0], -1, 1, 1))  # [64, 42, 1, 1]
+        return output
+
+    def preprocess(self, feats, batch_data_samples):
         xy_coord = feats
         B = int(len(batch_data_samples) / 2)
         N = 2
@@ -150,12 +155,6 @@ class LiftHead(BaseModule):
             uv_coord_im_pred_global = uv_coord_im_pred_global.view(B, N, K, 2)
 
         uv_coord_im_pred_global = uv_coord_im_pred_global.detach()
-        # print kp2d l2 error
-        kp2d_l2 = torch.norm(
-            uv_coord_im_pred_global.view(-1, 2) -
-            uv_coord_im_gt_global.view(-1, 2),
-            p=2,
-            dim=1).mean()
         leftcam_uv = uv_coord_im_pred_global[:, 0]  # (B, 21, 2)
         leftcam_x = (leftcam_uv[:, :, 0] - leftcam_cam_matrix[:, 0, 2].view(
             (B, 1))) / leftcam_cam_matrix[:, 0, 0].view((B, 1))
@@ -182,9 +181,14 @@ class LiftHead(BaseModule):
         feature2 = torch.cat((rightcam_xy.view((B, -1)), lr_p.view(
             (B, -1)), lr_rot_matrix.view((B, -1)), left_hand.view((B, -1))),
                              dim=1).view((B, self.channel_num, 1, 1))
-        output = self.liftnet(torch.cat((feature1, feature2), dim=1).float())
-        output = self.last_layer(output).view((B, -1, 1, 1))  # [64, 42, 1, 1]
+        feats = torch.torch.cat((feature1, feature2), dim=1).float()
+        return feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p, \
+            leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_gt_global, \
+            hand3d_gt
 
+    def postprocess(self, output, leftcam_xy, rightcam_xy, lr_rot_matrix,
+                    lr_p):
+        B = output.shape[0]
         leftcam_Z = output[:, :21].view((B, 21, 1))
         leftcam_XYZ = torch.cat((leftcam_xy * leftcam_Z, leftcam_Z),
                                 dim=2).view((B, 21, 3))
@@ -202,6 +206,30 @@ class LiftHead(BaseModule):
         hand3d_pred = (
             corruption_cam * leftcam_XYZ + (1 - corruption_cam) * rightcam_XYZ)
 
+        return hand3d_pred, leftcam_XYZ, rightcam_XYZ
+
+    def predict(self,
+                feats: Tuple[Tensor],
+                batch_data_samples: OptSampleList,
+                test_cfg: ConfigType = {}) -> Predictions:
+        feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p = self.preprocess(
+            feats, batch_data_samples)[:5]
+        output = self.forward(feats)
+        hand3d_pred = self.postprocess(output, leftcam_xy, rightcam_xy,
+                                       lr_rot_matrix, lr_p)[0]
+        return hand3d_pred
+
+    def loss(self,
+             feats: Tuple[Tensor],
+             batch_data_samples: OptSampleList,
+             train_cfg: ConfigType = {}) -> dict:
+        """Calculate losses from a batch of inputs and data samples."""
+        feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,\
+            leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_gt_global, \
+            hand3d_gt = self.preprocess(feats, batch_data_samples)
+        output = self.forward(feats)
+        hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
+            output, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p)
         leftcam_uv_reproj = torch.matmul(hand3d_pred,
                                          leftcam_cam_matrix.permute(0, 2, 1))
         leftcam_uv_reproj = leftcam_uv_reproj[..., :2] / leftcam_uv_reproj[...,
@@ -219,31 +247,6 @@ class LiftHead(BaseModule):
         leftcam_uv_gt = uv_coord_im_gt_global[:, 0]
         rightcam_uv_gt = uv_coord_im_gt_global[:, 1]
 
-        kp2d_left_reproj_l2 = torch.norm(
-            leftcam_uv_reproj.reshape(-1, 2) - leftcam_uv_gt.reshape(-1, 2),
-            p=2,
-            dim=1).mean()
-
-        kp2d_right_reproj_l2 = torch.norm(
-            rightcam_uv_reproj.reshape(-1, 2) - rightcam_uv_gt.reshape(-1, 2),
-            p=2,
-            dim=1).mean()
-        # print kp3d l2 error
-        kp3d_l2 = torch.norm(
-            hand3d_pred.reshape(-1, 3) * 1000 -
-            hand3d_gt.reshape(-1, 3) * 1000,
-            p=2,
-            dim=1).mean()
-        kp3d_l2_left = torch.norm(
-            leftcam_XYZ.reshape(-1, 3) * 1000 -
-            hand3d_gt.reshape(-1, 3) * 1000,
-            p=2,
-            dim=1).mean()
-        kp3d_l2_right = torch.norm(
-            rightcam_XYZ.reshape(-1, 3) * 1000 -
-            hand3d_gt.reshape(-1, 3) * 1000,
-            p=2,
-            dim=1).mean()
         major_gt = torch.cat(
             (hand3d_gt[:, 1:10, :], hand3d_gt[:, 13, :].unsqueeze(1)), dim=1)
         major_pred = torch.cat(
@@ -254,55 +257,13 @@ class LiftHead(BaseModule):
         dist_pred = torch.norm(
             hand3d_pred[:, 4, :] - hand3d_pred[:, 8, :], dim=-1)
         dist_gt = torch.norm(hand3d_gt[:, 4, :] - hand3d_gt[:, 8, :], dim=-1)
-        ret = {
-            'hand3d_pred': hand3d_pred,
-            'leftcam_XYZ': leftcam_XYZ,
-            'rightcam_XYZ': rightcam_XYZ,
-            'hand3d_gt': hand3d_gt,
-            'leftcam_uv_reproj': leftcam_uv_reproj,
-            'leftcam_uv_pred': leftcam_uv,
-            'leftcam_uv_gt': leftcam_uv_gt,
-            'rightcam_uv_reproj': rightcam_uv_reproj,
-            'rightcam_uv_pred': rightcam_uv,
-            'rightcam_uv_gt': rightcam_uv_gt,
-            # 'rle_pred': rle_pred,
-            # 'rle_gt': rle_gt
-            'kp2d_l2': kp2d_l2,
-            'kp3d_l2': kp3d_l2,
-            'kp3d_l2_left': kp3d_l2_left,
-            'kp3d_l2_right': kp3d_l2_right,
-            'kp2d_left_reproj_l2': kp2d_left_reproj_l2,
-            'kp2d_right_reproj_l2': kp2d_right_reproj_l2,
-            'dist_gt': dist_gt,
-            'dist_pred': dist_pred,
-            'major_gt': major_gt,
-            'major_pred': major_pred
-        }
-        return ret
-
-    def predict(self,
-                feats: Tuple[Tensor],
-                batch_data_samples: OptSampleList,
-                test_cfg: ConfigType = {}) -> Predictions:
-        ret = self.forward(feats, batch_data_samples)
-        return ret['hand3d_pred']
-
-    def loss(self,
-             feats: Tuple[Tensor],
-             batch_data_samples: OptSampleList,
-             train_cfg: ConfigType = {}) -> dict:
-        """Calculate losses from a batch of inputs and data samples."""
-        ret = self.forward(feats, batch_data_samples)
-
         pred_for_loss = [
-            ret['hand3d_pred'], ret['leftcam_XYZ'], ret['rightcam_XYZ'],
-            ret['leftcam_uv_reproj'], ret['rightcam_uv_reproj'],
-            ret['dist_pred'], ret['major_pred']
+            hand3d_pred, leftcam_XYZ, rightcam_XYZ, leftcam_uv_reproj,
+            rightcam_uv_reproj, dist_pred, major_pred
         ]
         targ_for_loss = [
-            ret['hand3d_gt'], ret['hand3d_gt'], ret['hand3d_gt'],
-            ret['leftcam_uv_gt'], ret['rightcam_uv_gt'], ret['dist_gt'],
-            ret['major_gt']
+            hand3d_gt, hand3d_gt, hand3d_gt, leftcam_uv_gt, rightcam_uv_gt,
+            dist_gt, major_gt
         ]
         losses = self.lift_loss(pred_for_loss, targ_for_loss)
         (loss_mse_3d, loss_mse_3d_leftcam, loss_mse_3d_rightcam,
