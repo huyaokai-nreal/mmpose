@@ -1,4 +1,5 @@
 # Copyright (c) OpenMMLab. All rights reserved.
+import copy
 import os.path as osp
 import random
 from typing import Any, Callable, List, Optional, Sequence, Tuple, Union
@@ -8,6 +9,8 @@ from mmengine.dataset.base_dataset import force_full_init
 from mmengine.dataset.utils import default_collate
 from mmengine.logging import MMLogger
 from nreal_data_tool import LmdbClient
+from nreal_data_tool.utils.camera import OpenCVFisheyeCameraModel
+from scipy.spatial.transform import Rotation as R
 from xtcocotools.coco import COCO
 
 from mmpose.datasets.builder import DATASETS
@@ -37,7 +40,8 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                  mask_ext: str = 'mask',
                  sub_data_index=-1,
                  data_ratio=-1,
-                 point_type='3D'):
+                 point_type='3D',
+                 camera_type='fisheye'):
         self.flip_left_to_right = flip_left_to_right
         self.data_ratio = data_ratio
         self.data_file_list = data_file_list
@@ -232,6 +236,32 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             Any: Depends on ``self.pipeline``.
         """
         data_info = self.get_data_info(idx)
+        left_camera_matrix = data_info['meta']['cam_matrix_left']
+        right_camera_matrix = data_info['meta']['cam_matrix_right']
+        # TODO: read from json file
+        left_D = [
+            0.012542161517124128, 0.04662863296034774, -0.04361866666639336,
+            0.009913181928564089
+        ]
+        right_D = [
+            0.01485201999344762, 0.03768701104219142, -0.034698759423003406,
+            0.007490907841159389
+        ]
+        left_camera_to_world = np.eye(4, 4, dtype=np.float32)
+        right_camera_to_world = np.eye(4, 4, dtype=np.float32)
+        right_camera_to_world[:3, :3] = R.from_quat(
+            data_info['meta']['leftcam_q_rightcam']).as_matrix()
+        right_camera_to_world[:3, 3] = data_info['meta']['leftcam_p_rightcam']
+        left_camera = OpenCVFisheyeCameraModel(
+            f=[left_camera_matrix[0][0], left_camera_matrix[1][1]],
+            c=[left_camera_matrix[0][2], left_camera_matrix[1][2]],
+            distort_coeffs=left_D,
+            camera_to_world_xf=left_camera_to_world)
+        right_camera = OpenCVFisheyeCameraModel(
+            f=[right_camera_matrix[0][0], right_camera_matrix[1][1]],
+            c=[right_camera_matrix[0][2], right_camera_matrix[1][2]],
+            distort_coeffs=right_D,
+            camera_to_world_xf=right_camera_to_world)
 
         data_info_left = {
             'img_id': data_info['left_img_id'],
@@ -250,7 +280,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'iscrowd': data_info['iscrowd'],
             'id': data_info['id'],
             'cat_id': data_info['cat_id'],
-            'meta': data_info['meta'],
+            'meta': copy.deepcopy(data_info['meta']),
             'sample_idx': data_info['sample_idx'],
             'upper_body_ids': data_info['upper_body_ids'],
             'lower_body_ids': data_info['lower_body_ids'],
@@ -259,6 +289,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'flip_indices': data_info['flip_indices'],
             'keypoints_visible': data_info['keypoints_visible']
         }
+        data_info_left['meta']['ori_camera'] = left_camera
 
         data_info_right = {
             'img_id': data_info['right_img_id'],
@@ -273,7 +304,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'iscrowd': data_info['iscrowd'],
             'id': data_info['id'],
             'cat_id': data_info['cat_id'],
-            'meta': data_info['meta'],
+            'meta': copy.deepcopy(data_info['meta']),
             'sample_idx': data_info['sample_idx'],
             'upper_body_ids': data_info['upper_body_ids'],
             'lower_body_ids': data_info['lower_body_ids'],
@@ -282,6 +313,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'flip_indices': data_info['flip_indices'],
             'keypoints_visible': data_info['keypoints_visible']
         }
+        data_info_right['meta']['ori_camera'] = right_camera
 
         if self.with_mask:
             data_info_left.update(

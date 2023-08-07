@@ -120,7 +120,7 @@ model = dict(
             ]),
         channel_num=55,
         output_num=42,
-        rm_distort=True),
+        undistort=True),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,

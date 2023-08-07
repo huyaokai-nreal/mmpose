@@ -120,7 +120,7 @@ model = dict(
             ]),
         channel_num=55,
         output_num=42,
-        rm_distort=True,
+        undistort=True,
         loss_pinch=True),
     test_cfg=dict(
         flip_test=False,
@@ -258,7 +258,9 @@ test_dataloader = val_dataloader
 # hooks
 default_hooks = dict(
     checkpoint=dict(
-        interval=5, save_best=['all_mpjpe', 'pinch_acc'], rule=['less', 'greater']),
+        interval=5,
+        save_best=['all_mpjpe', 'pinch_acc'],
+        rule=['less', 'greater']),
     run_time_info=dict(type='RuntimeInfoHookV2'))
 
 # evaluators
