@@ -9,7 +9,8 @@ from mmengine.dataset.base_dataset import force_full_init
 from mmengine.dataset.utils import default_collate
 from mmengine.logging import MMLogger
 from nreal_data_tool import LmdbClient
-from nreal_data_tool.utils.camera import OpenCVFisheyeCameraModel
+from nreal_data_tool.utils.camera import (OpenCVFisheyeCameraModel,
+                                          OpenCVPinholeCameraModel)
 from scipy.spatial.transform import Rotation as R
 from xtcocotools.coco import COCO
 
@@ -21,6 +22,8 @@ from ..base import BaseCocoStyleDataset
 class PairHand3DDataset(BaseCocoStyleDataset):
 
     METAINFO: dict = dict(from_file='configs/_base_/datasets/nreal_hand.py')
+    CAMERA_MODEL_MAP = dict(
+        fisheye=OpenCVFisheyeCameraModel, pinhole=OpenCVPinholeCameraModel)
 
     def __init__(self,
                  data_file_list,
@@ -44,6 +47,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                  camera_type='fisheye'):
         self.flip_left_to_right = flip_left_to_right
         self.data_ratio = data_ratio
+        self.camera_model = self.CAMERA_MODEL_MAP[camera_type]
         self.data_file_list = data_file_list
         self.lmdb_client = LmdbClient()
         self.point_type = point_type
