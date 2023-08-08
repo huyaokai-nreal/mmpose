@@ -196,7 +196,7 @@ class MPJPEV2(MPJPE):
             res_file = osp.join(self.result_dir, 'result_keypoints.json')
         self.logger.info(f'result file path is {res_file}')
         with open(res_file, 'w') as f:
-            json.dump(self.results, f, sort_keys=True, indent=4)
+            json.dump(results, f, sort_keys=True, indent=4)
         mpjpe_res = self.mpjpe_metric(res_file)
         stability_res = self.self_stability_metric(res_file)
         pinch_res = self.pinch_metric(res_file)
