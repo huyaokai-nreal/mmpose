@@ -9,9 +9,7 @@ from mmengine.dataset.base_dataset import force_full_init
 from mmengine.dataset.utils import default_collate
 from mmengine.logging import MMLogger
 from nreal_data_tool import LmdbClient
-from nreal_data_tool.utils.camera import (OpenCVFisheyeCameraModel,
-                                          OpenCVPinholeCameraModel)
-from scipy.spatial.transform import Rotation as R
+from nreal_data_tool.utils.camera import OpenCVFisheyeCameraModel
 from xtcocotools.coco import COCO
 
 from mmpose.datasets.builder import DATASETS
@@ -22,8 +20,7 @@ from ..base import BaseCocoStyleDataset
 class PairHand3DDataset(BaseCocoStyleDataset):
 
     METAINFO: dict = dict(from_file='configs/_base_/datasets/nreal_hand.py')
-    CAMERA_MODEL_MAP = dict(
-        fisheye=OpenCVFisheyeCameraModel, pinhole=OpenCVPinholeCameraModel)
+    category_name_list = ['background', 'left_hand', 'right_hand']
 
     def __init__(self,
                  data_file_list,
@@ -43,11 +40,9 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                  mask_ext: str = 'mask',
                  sub_data_index=-1,
                  data_ratio=-1,
-                 point_type='3D',
-                 camera_type='fisheye'):
+                 point_type='3D'):
         self.flip_left_to_right = flip_left_to_right
         self.data_ratio = data_ratio
-        self.camera_model = self.CAMERA_MODEL_MAP[camera_type]
         self.data_file_list = data_file_list
         self.lmdb_client = LmdbClient()
         self.point_type = point_type
@@ -58,6 +53,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         self.with_mask = with_mask
         self.mask_ext = mask_ext
         self.sub_data_index = int(sub_data_index)
+        self.cams_info = dict()
         if dataset_weight_list:
             assert len(dataset_weight_list) == len(data_file_list)
         super().__init__(
@@ -88,6 +84,23 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                 return int(len(self.data_address) * self.data_ratio)
             else:
                 return int(len(self.data_list) * self.data_ratio)
+
+    @staticmethod
+    def get_cam_model(cam_info):
+        if cam_info['camera_type'] == 'fisheye':
+            cam_model_left = OpenCVFisheyeCameraModel(
+                f=(cam_info['left_K'][0][0], cam_info['left_K'][1][1]),
+                c=(cam_info['left_K'][0][2], cam_info['left_K'][1][2]),
+                camera_to_world_xf=cam_info['left_T'],
+                distort_coeffs=cam_info['left_D'][0])  # k1,k2,k3,k4
+            cam_model_right = OpenCVFisheyeCameraModel(
+                f=(cam_info['right_K'][0][0], cam_info['right_K'][1][1]),
+                c=(cam_info['right_K'][0][2], cam_info['right_K'][1][2]),
+                camera_to_world_xf=cam_info['right_T'],
+                distort_coeffs=cam_info['right_D'][0])  # k1,k2,k3,k4
+        else:
+            raise NotImplementedError
+        return cam_model_left, cam_model_right
 
     def parse_data_info(self, raw_data_info: dict) -> Optional[dict]:
         ann = raw_data_info['raw_ann_info']
@@ -121,11 +134,18 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         right_keypoints = np.array(ann['keypoints_right'])[..., :2].reshape(
             1, -1, 2)
 
-        keypoints3d = ann['keypoints3d']
+        keypoints3d = np.array(ann['keypoints3d'])[np.newaxis]  # (1,21,3)
         num_keypoints = ann['num_keypoints']
         keypoints_visible = np.array(ann['keypoints_left'])[...,
                                                             2].reshape(1, -1)
-
+        cam_key = ann['camera_instance_id']
+        cam_info = self.cams_info[cam_key]
+        cam_model_left, cam_model_right = self.get_cam_model(cam_info)
+        meta = ann.get('meta', dict())
+        meta.update(cam_info)
+        meta['category_id'] = ann['category_id']
+        meta['gesture'] = ann['gesture']
+        meta['tag'] = ann['tag']
         data_info = {
             'left_img_id': left_img_id,
             'right_img_id': right_img_id,
@@ -134,6 +154,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'left_keypoints': left_keypoints,
             'right_keypoints': right_keypoints,
             'keypoints3d': keypoints3d,
+            'cam_info': cam_info,
             'left_bbox': left_bbox,
             'right_bbox': right_bbox,
             'image_width': left_img_w,
@@ -145,7 +166,9 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'segmentation': ann.get('segmentation', None),
             'id': ann['id'],
             'cat_id': ann['category_id'],
-            'meta': ann.get('meta', dict())
+            'cam_model_left': cam_model_left,
+            'cam_model_right': cam_model_right,
+            'meta': meta
         }
 
         return data_info
@@ -161,11 +184,8 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             lmdb_path = osp.join(self.lmdb_data_root,
                                  coco.dataset['lmdb_path'])
             # sub_dataset_num = 0
+            self.cams_info.update(coco.dataset['cameras_info'])
             ann_ids = coco.getAnnIds()
-            category_name_map = {
-                d['id']: d['name']
-                for d in coco.dataset['categories']
-            }
             for ann_id in ann_ids:
                 ann = coco.loadAnns(ann_id)[0]
                 left_img_id = int(ann['image_id'].split('_')[0])
@@ -178,7 +198,8 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                 data_info = self.parse_data_info(
                     dict(raw_ann_info=ann, raw_img_info=[left_img, right_img]))
                 if self.with_mask:
-                    category_name = category_name_map[int(data_info['cat_id'])]
+                    category_name = self.category_name_list[int(
+                        data_info['cat_id'])]
                     data_info[
                             'left_mask_path'] = \
                             f"{lmdb_path}_{self.mask_ext}:{data_info['left_img_path']}_{category_name}" # noqa
@@ -240,32 +261,11 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             Any: Depends on ``self.pipeline``.
         """
         data_info = self.get_data_info(idx)
-        left_camera_matrix = data_info['meta']['cam_matrix_left']
-        right_camera_matrix = data_info['meta']['cam_matrix_right']
-        # TODO: read from json file
-        left_D = [
-            0.012542161517124128, 0.04662863296034774, -0.04361866666639336,
-            0.009913181928564089
-        ]
-        right_D = [
-            0.01485201999344762, 0.03768701104219142, -0.034698759423003406,
-            0.007490907841159389
-        ]
-        left_camera_to_world = np.eye(4, 4, dtype=np.float32)
-        right_camera_to_world = np.eye(4, 4, dtype=np.float32)
-        right_camera_to_world[:3, :3] = R.from_quat(
-            data_info['meta']['leftcam_q_rightcam']).as_matrix()
-        right_camera_to_world[:3, 3] = data_info['meta']['leftcam_p_rightcam']
-        left_camera = OpenCVFisheyeCameraModel(
-            f=[left_camera_matrix[0][0], left_camera_matrix[1][1]],
-            c=[left_camera_matrix[0][2], left_camera_matrix[1][2]],
-            distort_coeffs=left_D,
-            camera_to_world_xf=left_camera_to_world)
-        right_camera = OpenCVFisheyeCameraModel(
-            f=[right_camera_matrix[0][0], right_camera_matrix[1][1]],
-            c=[right_camera_matrix[0][2], right_camera_matrix[1][2]],
-            distort_coeffs=right_D,
-            camera_to_world_xf=right_camera_to_world)
+        meta_left = copy.deepcopy(data_info['meta'])
+        meta_left['ori_camera'] = data_info['cam_model_left']
+
+        meta_right = copy.deepcopy(data_info['meta'])
+        meta_right['ori_camera'] = data_info['cam_model_right']
 
         data_info_left = {
             'img_id': data_info['left_img_id'],
@@ -275,16 +275,16 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'keypoints': data_info['left_keypoints'],
             'img': data_info['left_img'],
             'bbox': data_info['left_bbox'],
-            'cam_matrix_left': data_info['meta']['cam_matrix_left'],
-            'cam_matrix_right': data_info['meta']['cam_matrix_right'],
-            'leftcam_p_rightcam': data_info['meta']['leftcam_p_rightcam'],
-            'leftcam_q_rightcam': data_info['meta']['leftcam_q_rightcam'],
+            'cam_matrix_left': data_info['cam_info']['left_K'],
+            'cam_matrix_right': data_info['cam_info']['right_K'],
+            'leftcam_p_rightcam': data_info['cam_info']['leftcam_p_rightcam'],
+            'leftcam_q_rightcam': data_info['cam_info']['leftcam_q_rightcam'],
             'keypoints3d': data_info['keypoints3d'],
             'bbox_score': np.ones(1, dtype=np.float32),
             'iscrowd': data_info['iscrowd'],
             'id': data_info['id'],
             'cat_id': data_info['cat_id'],
-            'meta': copy.deepcopy(data_info['meta']),
+            'meta': meta_left,
             'sample_idx': data_info['sample_idx'],
             'upper_body_ids': data_info['upper_body_ids'],
             'lower_body_ids': data_info['lower_body_ids'],
@@ -293,7 +293,6 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'flip_indices': data_info['flip_indices'],
             'keypoints_visible': data_info['keypoints_visible']
         }
-        data_info_left['meta']['ori_camera'] = left_camera
 
         data_info_right = {
             'img_id': data_info['right_img_id'],
@@ -308,7 +307,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'iscrowd': data_info['iscrowd'],
             'id': data_info['id'],
             'cat_id': data_info['cat_id'],
-            'meta': copy.deepcopy(data_info['meta']),
+            'meta': meta_right,
             'sample_idx': data_info['sample_idx'],
             'upper_body_ids': data_info['upper_body_ids'],
             'lower_body_ids': data_info['lower_body_ids'],
@@ -317,7 +316,6 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'flip_indices': data_info['flip_indices'],
             'keypoints_visible': data_info['keypoints_visible']
         }
-        data_info_right['meta']['ori_camera'] = right_camera
 
         if self.with_mask:
             data_info_left.update(

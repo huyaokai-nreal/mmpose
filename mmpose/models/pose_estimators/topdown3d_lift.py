@@ -230,10 +230,10 @@ class TopdownPoseLiftEstimator(BaseModel):
 
             data_sample.pred_instances = pred_instances
 
-            data_sample.gt_instances.keypoints3d = np.array(
-                [data_sample.meta['kp3d_spline']])
-            data_sample.gt_instances.keypoints_visible = np.ones(
-                (1, len(data_sample.meta['kp3d_spline'])))
+            # data_sample.gt_instances.keypoints3d = np.array(
+            #     [data_sample.meta['kp3d_spline']])
+            # data_sample.gt_instances.keypoints_visible = np.ones(
+            #     (1, len(data_sample.meta['kp3d_spline'])))
             # data_sample.
 
             # data_sample.gt_instances.keypoints3d = data_sample.meta['kp3d_spline']  # noqa

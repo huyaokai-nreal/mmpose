@@ -86,7 +86,7 @@ class LiftHead(BaseModule):
                 lr_rot = R.from_quat(
                     data_sample.meta['leftcam_q_rightcam']).as_matrix()
                 lr_rot_matrix.append(lr_rot)
-                hand3d_gt.append(data_sample.meta['kp3d_spline'])
+                hand3d_gt.append(data_sample.gt_instances.keypoints3d[0])
                 if data_sample.meta['category_id'] == 1:  # 1: left, 2: right
                     is_left_hands.append(1)
                 else:

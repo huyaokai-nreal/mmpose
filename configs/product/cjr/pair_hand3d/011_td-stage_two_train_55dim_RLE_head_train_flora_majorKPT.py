@@ -118,16 +118,16 @@ model = dict(
                 dict(type='L1Loss'),  # 3d kpts rightcam
                 dict(type='MSELoss', loss_weight=0),  # 2d reprojection left
                 dict(type='MSELoss', loss_weight=0),  # 2d reprojection right
-                dict(
-                    type='PinchLoss',
-                    enter_thre=pinch_thre[0] / 1000,
-                    exit_thre=pinch_thre[1] / 1000,
-                    loss_weight=0.09),
-                dict(type='L1Loss', loss_weight=0),  # major kpt
+                # dict(
+                #     type='PinchLoss',
+                #     enter_thre=pinch_thre[0] / 1000,
+                #     exit_thre=pinch_thre[1] / 1000,
+                #     loss_weight=0.09),
+                # dict(type='L1Loss', loss_weight=0),  # major kpt
             ]),
         channel_num=55,
         output_num=42,
-        rm_distort=True),
+        undistort=True),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
@@ -156,19 +156,12 @@ import os
 # test only
 #data_root = '/data/hand_group/data/data_hand/lmdb_data/'
 train_data_list = [
-    # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_0_right.json',  # right
-    # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0710_2_3_left.json',  # left
-    # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0710_2_4_left.json',  # left
-    # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0710_2_5_right.json',  # right
-    # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0714_2_2_right.json'
     'data_hand/hand_keypoint/annotations3d/flora/flora8_1_0_20230801_1_binocular.json'
 ]
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
-    # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_4_right.json'  # right
-    # 'data_hand/hand_keypoint/annotations3d/flora_with_tag/flora8_1_binocular_0629_1_4_right_gesture.json'  # right
     'data_hand/hand_keypoint/annotations3d/flora/flora8_1_0_20230801_1_binocular.json'
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
