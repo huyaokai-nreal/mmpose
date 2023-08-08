@@ -5,7 +5,6 @@ import cv2
 import numpy as np
 import torch
 from mmengine.model import BaseModule
-from scipy.spatial.transform import Rotation as R
 from torch import Tensor, nn
 
 from mmpose.models.utils.gmlp import gMLP
@@ -76,32 +75,44 @@ class LiftHead(BaseModule):
 
         all_inv_warp_mat = torch.zeros(B * 2, 3, 2).cuda()
         all_inv_warp_mat.requires_grad = False
-
-        for i, data_sample in enumerate(batch_data_samples):
-            if i % 2 == 0:
-                cam_matrix = data_sample.meta[
-                    'ori_camera'].uv_to_window_matrix()
-                leftcam_cam_matrix.append(cam_matrix)
-                lr_p.append(data_sample.meta['leftcam_p_rightcam'])
-                lr_rot = R.from_quat(
-                    data_sample.meta['leftcam_q_rightcam']).as_matrix()
-                lr_rot_matrix.append(lr_rot)
-                hand3d_gt.append(data_sample.gt_instances.keypoints3d[0])
-                if data_sample.meta['category_id'] == 1:  # 1: left, 2: right
-                    is_left_hands.append(1)
-                else:
-                    is_left_hands.append(0)  # right hand
+        for i in range(B):
+            # left camera
+            left_data = batch_data_samples[2 * i]
+            left_camera = left_data.meta['ori_camera']
+            left_cam_matrix = left_camera.uv_to_window_matrix()
+            leftcam_cam_matrix.append(left_cam_matrix)
+            hand3d_gt.append(left_data.gt_instances.keypoints3d[0])
+            if left_data.meta['category_id'] == 1:  # 1: left, 2: right
+                is_left_hands.append(1)
             else:
-                cam_matrix = data_sample.meta[
-                    'ori_camera'].uv_to_window_matrix()
-                rightcam_cam_matrix.append(cam_matrix)
-            warp_mat = data_sample.metainfo['warp_mat']
-            inv_warp_mat = cv2.invertAffineTransform(warp_mat).astype(
-                np.float32)
-            inv_warp_mat = torch.from_numpy(inv_warp_mat).cuda()  # (2,3)
-            all_inv_warp_mat[i] = inv_warp_mat.transpose(0, 1)  # (3,2)
-            uv_coord_im_gt_global.append(data_sample.gt_instances.keypoints)
-
+                is_left_hands.append(0)  # right hand
+            left_warp_mat = left_data.metainfo['warp_mat']
+            left_inv_warp_mat = cv2.invertAffineTransform(
+                left_warp_mat).astype(np.float32)
+            left_inv_warp_mat = torch.from_numpy(
+                left_inv_warp_mat).cuda()  # (2,3)
+            all_inv_warp_mat[2 * i] = left_inv_warp_mat.transpose(0,
+                                                                  1)  # (3,2)
+            uv_coord_im_gt_global.append(left_data.gt_instances.keypoints)
+            # right camera
+            right_data = batch_data_samples[2 * i + 1]
+            right_camera = right_data.meta['ori_camera']
+            right_cam_matrix = right_camera.uv_to_window_matrix()
+            rightcam_cam_matrix.append(right_cam_matrix)
+            right_warp_mat = right_data.metainfo['warp_mat']
+            right_inv_warp_mat = cv2.invertAffineTransform(
+                right_warp_mat).astype(np.float32)
+            right_inv_warp_mat = torch.from_numpy(
+                right_inv_warp_mat).cuda()  # (2,3)
+            all_inv_warp_mat[2 * i +
+                             1] = right_inv_warp_mat.transpose(0, 1)  # (3,2)
+            uv_coord_im_gt_global.append(right_data.gt_instances.keypoints)
+            # left right  transform
+            left_cam_xf = left_camera.camera_to_world_xf
+            right_cam_xf = right_camera.camera_to_world_xf
+            lr_t = np.dot(np.linalg.inv(left_cam_xf), right_cam_xf)
+            lr_rot_matrix.append(lr_t[:3, :3])
+            lr_p.append(lr_t[:3, 3])
         leftcam_cam_matrix = torch.tensor(
             np.array(leftcam_cam_matrix)).cuda().float()
         rightcam_cam_matrix = torch.tensor(
