@@ -321,6 +321,7 @@ class TopdownPCL(BaseTransform):
 
     def transform(self, results: Dict) -> Dict:
         w, h = self.input_size
+        results['input_size'] = self.input_size
         results['bbox_scale'] = TopdownAffine._fix_aspect_ratio(
             results['bbox_scale'], aspect_ratio=w / h)
         ori_camera: PinholePlaneCameraModel = results['meta']['ori_camera']
@@ -336,13 +337,16 @@ class TopdownPCL(BaseTransform):
         image = results['img']
         crop_img = warp_image(ori_camera, virtual_camera, w, h, image)
         results['img'] = crop_img
-        results['meta']['virtual_camera'] = virtual_camera
+        results['meta']['ori_camera'] = virtual_camera
         kpt3d_in_virutal = virtual_camera.world_to_eye(cam_points)
         warp_keypoints = virtual_camera.eye_to_window(kpt3d_in_virutal)
         results['transformed_keypoints'] = results['keypoints'].copy()
         results['transformed_keypoints'][..., :2] = warp_keypoints
         virtual_cam_points = virtual_camera.world_to_eye(cam_points)
-        results['transformed_keypoints'][
-            ..., 2] = virtual_cam_points[..., 2] - virtual_cam_points[-1, 2]
+        results['keypoints3d'][0] = virtual_cam_points
+        # results['transformed_keypoints'][
+        #    ..., 2] = virtual_cam_points[..., 2] - virtual_cam_points[-1, 2]
         results['meta']['root_depth'] = virtual_cam_points[-1][2]
+        results['warp_mat'] = np.array([[1, 0, 0], [0, 1, 0]],
+                                       dtype=np.float32)
         return results

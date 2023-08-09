@@ -88,15 +88,19 @@ class PairHand3DDataset(BaseCocoStyleDataset):
     @staticmethod
     def get_cam_model(cam_info):
         if cam_info['camera_type'] == 'fisheye':
+            left_cam_xf = np.array(cam_info['left_T'])
+            right_cam_xf = np.array(cam_info['right_T'])
+            new_right_cam_xf = np.dot(np.linalg.inv(left_cam_xf), right_cam_xf)
             cam_model_left = OpenCVFisheyeCameraModel(
                 f=(cam_info['left_K'][0][0], cam_info['left_K'][1][1]),
                 c=(cam_info['left_K'][0][2], cam_info['left_K'][1][2]),
-                camera_to_world_xf=cam_info['left_T'],
-                distort_coeffs=cam_info['left_D'][0])  # k1,k2,k3,k4
+                camera_to_world_xf=np.eye(4, dtype=np.float32),
+                distort_coeffs=cam_info['left_D'][0]  # k1,k2,k3,k4
+            )
             cam_model_right = OpenCVFisheyeCameraModel(
                 f=(cam_info['right_K'][0][0], cam_info['right_K'][1][1]),
                 c=(cam_info['right_K'][0][2], cam_info['right_K'][1][2]),
-                camera_to_world_xf=cam_info['right_T'],
+                camera_to_world_xf=new_right_cam_xf,
                 distort_coeffs=cam_info['right_D'][0])  # k1,k2,k3,k4
         else:
             raise NotImplementedError
