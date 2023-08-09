@@ -262,10 +262,10 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         """
         data_info = self.get_data_info(idx)
         meta_left = copy.deepcopy(data_info['meta'])
-        meta_left['ori_camera'] = data_info['cam_model_left']
+        meta_left['ori_camera'] = copy.deepcopy(data_info['cam_model_left'])
 
         meta_right = copy.deepcopy(data_info['meta'])
-        meta_right['ori_camera'] = data_info['cam_model_right']
+        meta_right['ori_camera'] = copy.deepcopy(data_info['cam_model_right'])
 
         data_info_left = {
             'img_id': data_info['left_img_id'],

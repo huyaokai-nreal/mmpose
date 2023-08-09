@@ -151,13 +151,10 @@ class TopdownPoseLiftEstimator(BaseModel):
         Returns:
             dict: A dictionary of losses.
         """
-        feats_pyramid = self.extract_feat(inputs)
-        xy_sigma, heatmap = self.head.forward(feats_pyramid)
-        xy_sigma = xy_sigma.detach()  # fix 2d model params
-
-        losses = dict()
-
-        losses.update(self.kpt3d_lift.loss(xy_sigma, data_samples))
+        with torch.no_grad():
+            feats_pyramid = self.extract_feat(inputs)
+            xy_sigma, heatmap = self.head.forward(feats_pyramid)
+        losses = self.kpt3d_lift.loss(xy_sigma, data_samples)
         return losses
 
     @format_data
@@ -194,7 +191,6 @@ class TopdownPoseLiftEstimator(BaseModel):
 
         xy_sigma, heatmap = self.head.forward(feats)
         xy_sigma = xy_sigma.detach()  # fix 2d model params
-
         pred = self.kpt3d_lift.predict(
             xy_sigma, data_samples, test_cfg=self.test_cfg)
 
@@ -219,7 +215,6 @@ class TopdownPoseLiftEstimator(BaseModel):
         assert len(batch_pred_instances) == len(batch_data_samples)
         if batch_pred_fields is None:
             batch_pred_fields = []
-        # output_keypoint_indices = self.test_cfg.get('output_keypoint_indices', None) # noqa
 
         for pred_instances, pred_fields, data_sample in zip_longest(
                 batch_pred_instances, batch_pred_fields, batch_data_samples):
@@ -229,15 +224,6 @@ class TopdownPoseLiftEstimator(BaseModel):
                 pred_instances.keypoints.shape[0])
 
             data_sample.pred_instances = pred_instances
-
-            # data_sample.gt_instances.keypoints3d = np.array(
-            #     [data_sample.meta['kp3d_spline']])
-            # data_sample.gt_instances.keypoints_visible = np.ones(
-            #     (1, len(data_sample.meta['kp3d_spline'])))
-            # data_sample.
-
-            # data_sample.gt_instances.keypoints3d = data_sample.meta['kp3d_spline']  # noqa
-
         return batch_data_samples
 
     def _load_state_dict_pre_hook(self, state_dict, prefix, local_meta, *args,
@@ -259,3 +245,11 @@ class TopdownPoseLiftEstimator(BaseModel):
                 v = state_dict.pop(k)
                 k = k.replace('keypoint_head', 'head')
                 state_dict[k] = v
+
+    def train(self, mode=True):
+        """Convert the model into training mode."""
+        super().train(mode)
+        if mode:
+            self.backbone.eval()
+            self.neck.eval()
+            self.head.eval()

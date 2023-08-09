@@ -3,7 +3,7 @@ _base_ = ['../../../_base_/default_runtime.py']
 
 train_cfg = dict(max_epochs=100, val_interval=5)
 
-data_root = '/data/AI_DATA_WX'
+data_root = '/data/AI_DATA'
 # data_root = '/data/AI_DATA_LOCAL'
 
 # optimizer
@@ -20,31 +20,31 @@ optim_wrapper = dict(
     # clip_grad=dict(max_norm=10, norm_type=2),
 )
 # learning policy
-param_scheduler = [
-    dict(  # scheduler
-        type='MultiStepLR',
-        begin=0,
-        end=100,
-        milestones=[20, 80],
-        gamma=0.1,
-        by_epoch=True)
-]
+#param_scheduler = [
+#    dict(  # scheduler
+#        type='MultiStepLR',
+#        begin=0,
+#        end=100,
+#        milestones=[20, 80],
+#        gamma=0.1,
+#        by_epoch=True)
+#]
 
-# param_scheduler = [
-#     dict(
-#         type='LinearLR',
-#         begin=0,
-#         end=5,
-#         start_factor=0.001,
-#         end_factor=1.0,
-#         by_epoch=True,
-#         convert_to_iter_based=True),  # warm-up
-#     dict(
-#         type='CosineAnnealingLR',
-#         by_epoch=True,
-#         T_max=train_cfg['max_epochs'],
-#         convert_to_iter_based=True)
-# ]
+param_scheduler = [
+    dict(
+        type='LinearLR',
+        begin=0,
+        end=10,
+        start_factor=0.001,
+        end_factor=1.0,
+        by_epoch=True,
+        convert_to_iter_based=True),  # warm-up
+    dict(
+        type='CosineAnnealingLR',
+        by_epoch=True,
+        T_max=train_cfg['max_epochs'],
+        convert_to_iter_based=True)
+]
 
 # automatically scaling LR based on the actual training batch size
 auto_scale_lr = dict(base_batch_size=128)
@@ -149,11 +149,12 @@ import os
 # test only
 #data_root = '/data/hand_group/data/data_hand/lmdb_data/'
 train_data_list = [
-    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_0_right.json',  # right
-    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0710_2_3_left.json',  # left
-    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0710_2_4_left.json',  # left
-    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0710_2_5_right.json',  # right
-    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0714_2_2_right.json'
+    #'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_0_right.json',  # right
+    #'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0710_2_3_left.json',  # left
+    #'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0710_2_4_left.json',  # left
+    #'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0710_2_5_right.json',  # right
+    #'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0714_2_2_right.json'
+    '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/flora/flora8_1_0_20230801_1_binocular.json'
     # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_0_undistort2d.json',
     # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_1_undistort2d.json',
     # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_2_undistort2d.json',
@@ -185,7 +186,8 @@ dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
     # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_binocular_0629_1_4_right.json'  # right
-    'data_hand/hand_keypoint/annotations3d/flora_with_tag/flora8_1_binocular_0629_1_4_right_gesture.json'  # right
+    # 'data_hand/hand_keypoint/annotations3d/flora_with_tag/flora8_1_binocular_0629_1_4_right_gesture.json'  # right
+    '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/flora/flora8_1_0_20230801_1_binocular.json'
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # pipelines
