@@ -4,6 +4,7 @@ from typing import List, Tuple, Union
 import cv2
 import numpy as np
 import torch
+from mmengine.logging import MessageHub
 from mmengine.model import BaseModule
 from torch import Tensor, nn
 
@@ -21,10 +22,14 @@ class LiftHead(BaseModule):
                  channel_num: int = 55,
                  output_num: int = 42,
                  undistort: bool = False,
+                 lambda_t: int = -1,
+                 corruption_cam: float = 0.5,
                  init_cfg: Union[dict, List[dict], None] = None):
         super().__init__(init_cfg)
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.channel_num = channel_num
+        self.lambda_t = lambda_t
+        self.corruption_cam = corruption_cam
         self.liftnet = gMLP(
             d_model=2 * self.channel_num,
             d_ffn=4 * self.channel_num,
@@ -36,14 +41,6 @@ class LiftHead(BaseModule):
             nn.Conv2d(self.channel_num * 2, output_num, kernel_size=1))
         self.lift_loss = MODELS.build(lift_loss)
         self.undistort = undistort
-
-    @staticmethod
-    def check_cam_matrix(cam_matrix):
-        cam_matrix = np.array(cam_matrix)
-        assert cam_matrix.shape == (3, 3)
-        if cam_matrix[0, 2] * cam_matrix[1, 2] < 1e-2:
-            cam_matrix = cam_matrix.T
-        return cam_matrix
 
     def forward(self, feats: Tuple[Tensor]) -> Tensor:
         output = self.liftnet(feats)
@@ -165,7 +162,7 @@ class LiftHead(BaseModule):
                 uv_coord_im_pred_global[i] = torch.from_numpy(kpt2d_u).cuda()
             uv_coord_im_pred_global = uv_coord_im_pred_global.view(B, N, K, 2)
 
-        uv_coord_im_pred_global = uv_coord_im_pred_global.detach()
+        uv_coord_im_pred_global = uv_coord_im_pred_global
         leftcam_uv = uv_coord_im_pred_global[:, 0]  # (B, 21, 2)
         leftcam_x = (leftcam_uv[:, :, 0] - leftcam_cam_matrix[:, 0, 2].view(
             (B, 1))) / leftcam_cam_matrix[:, 0, 0].view((B, 1))
@@ -194,7 +191,7 @@ class LiftHead(BaseModule):
                              dim=1).view((B, self.channel_num, 1, 1))
         feats = torch.torch.cat((feature1, feature2), dim=1).float()
         return feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p, \
-            leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_gt_global, \
+            leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global, \
             hand3d_gt
 
     def postprocess(self, output, leftcam_xy, rightcam_xy, lr_rot_matrix,
@@ -213,9 +210,9 @@ class LiftHead(BaseModule):
                     (B, 1, 3, 1)).repeat(1, 21, 1, 1).view(
                         (B * 21, 3, 1))).view((B, 21, 3))
 
-        corruption_cam = torch.tensor(0.5).cuda()
         hand3d_pred = (
-            corruption_cam * leftcam_XYZ + (1 - corruption_cam) * rightcam_XYZ)
+            self.corruption_cam * leftcam_XYZ +
+            (1 - self.corruption_cam) * rightcam_XYZ)
 
         return hand3d_pred, leftcam_XYZ, rightcam_XYZ
 
@@ -223,8 +220,9 @@ class LiftHead(BaseModule):
                 feats: Tuple[Tensor],
                 batch_data_samples: OptSampleList,
                 test_cfg: ConfigType = {}) -> Predictions:
-        feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p = self.preprocess(
-            feats, batch_data_samples)[:5]
+        with torch.no_grad():
+            feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p = \
+                self.preprocess(feats, batch_data_samples)[:5]
         output = self.forward(feats)
         hand3d_pred = self.postprocess(output, leftcam_xy, rightcam_xy,
                                        lr_rot_matrix, lr_p)[0]
@@ -235,9 +233,11 @@ class LiftHead(BaseModule):
              batch_data_samples: OptSampleList,
              train_cfg: ConfigType = {}) -> dict:
         """Calculate losses from a batch of inputs and data samples."""
-        feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,\
-            leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_gt_global, \
-            hand3d_gt = self.preprocess(feats, batch_data_samples)
+        with torch.no_grad():
+            feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,\
+                leftcam_cam_matrix, rightcam_cam_matrix, \
+                uv_coord_im_pred_global, hand3d_gt = \
+                self.preprocess(feats, batch_data_samples)
         output = self.forward(feats)
         hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
             output, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p)
@@ -255,8 +255,8 @@ class LiftHead(BaseModule):
         rightcam_uv_reproj = rightcam_uv_reproj[..., :2] / rightcam_uv_reproj[
             ..., 2:]
 
-        leftcam_uv_gt = uv_coord_im_gt_global[:, 0]
-        rightcam_uv_gt = uv_coord_im_gt_global[:, 1]
+        leftcam_uv_gt = uv_coord_im_pred_global[:, 0]
+        rightcam_uv_gt = uv_coord_im_pred_global[:, 1]
 
         major_gt = torch.cat(
             (hand3d_gt[:, 1:10, :], hand3d_gt[:, 13, :].unsqueeze(1)), dim=1)
@@ -279,7 +279,12 @@ class LiftHead(BaseModule):
         losses = self.lift_loss(pred_for_loss, targ_for_loss)
         (loss_mse_3d, loss_mse_3d_leftcam, loss_mse_3d_rightcam,
          loss_mse_2d_leftcam, loss_mse_2d_rightcam) = losses
-
+        if self.lambda_t > 0:
+            mh = MessageHub.get_current_instance()
+            cur_epoch = mh.get_info('epoch')
+            if cur_epoch <= self.lambda_t:
+                loss_mse_2d_leftcam *= 0
+                loss_mse_2d_rightcam *= 0
         losses_dict = dict(
             loss_mse_3d=loss_mse_3d,
             loss_mse_3d_leftcam=loss_mse_3d_leftcam,
