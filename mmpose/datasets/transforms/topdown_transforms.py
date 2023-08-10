@@ -152,23 +152,61 @@ class TopdownAffine(BaseTransform):
 
 @TRANSFORMS.register_module()
 class RandomBackground(BaseTransform):
+    """replace the background with reandom images Required Keys:
+
+        - img
+        - bbox
+        - mask
+        - image_width
+        - image_height
+
+    Modified Keys:
+
+        - img
+        - bbox (optional)
+        - keypoints (optional)
+        - image_width (optional)
+        - image_height (optional)
+
+    Args:
+        bg_lmdb_path_list (List[str]): background image lmdb path list
+        prob (float): probability  to apply this transform
+        align_mean (bool): whether make the hand mean pixel same
+        with background
+        bbox_scale (float): scale to expand the bbox for mask,
+        same with mask generation parameters
+        edge_fuse (bool): whether fuse the edge between hand
+        and background
+        worker_slice (bool): whether load different background
+        images on different workers
+        keep_original_pos (bool): if True, the output image will
+        have the same shape with original
+        image and the bbox, keypoints will not be changed,
+        otherwise, the output image will have
+        the same shape with background image and keypoints,
+        bbox will be changed randomly.
+    """
 
     def __init__(self,
-                 bg_lmdb_path_list,
-                 align_mean=False,
-                 bbox_scale=1.0,
-                 edge_fuse=False,
-                 worker_slice=False) -> None:
+                 bg_lmdb_path_list: List[str],
+                 prob: float = 0.5,
+                 align_mean: bool = False,
+                 bbox_scale: float = 1.5,
+                 edge_fuse: bool = False,
+                 worker_slice: bool = False,
+                 keep_original_pos: bool = False) -> None:
         super().__init__()
         self.bg_lmdb_path_list = bg_lmdb_path_list
+        self.prob = prob
         self.worker_slice = worker_slice
         self.lmdb_client = LmdbClient()
         self.align_mean = align_mean
         self.bbox_scale = bbox_scale
         self.edge_fuse = edge_fuse
+        self.keep_original_pos = keep_original_pos
         self.data_list = self.load_data()
 
-    def load_data(self):
+    def load_data(self) -> List[str]:
         data_list = []
         for lmdb_path in self.bg_lmdb_path_list:
             with open(os.path.join(lmdb_path, 'meta.json'), 'r') as f:
@@ -189,7 +227,8 @@ class RandomBackground(BaseTransform):
                 f'load {len(data_list)} bg images on rank {local_rank}')
         return data_list
 
-    def _apply_gt_with_offset(self, results, offset_x, offset_y):
+    def _apply_gt_with_offset(self, results: Dict, offset_x: float,
+                              offset_y: float) -> Dict:
         kpt = results['keypoints']
         kpt[:, :, 0] = kpt[:, :, 0] + offset_x
         kpt[:, :, 1] = kpt[:, :, 1] + offset_y
@@ -202,6 +241,10 @@ class RandomBackground(BaseTransform):
 
     def transform(self,
                   results: Dict) -> Optional[Union[Dict, Tuple[List, List]]]:
+        if np.random.rand() > self.prob:
+            return results
+        if 'mask' not in results:
+            return results
         bg_image_path = np.random.choice(self.data_list)
         bg_image = self.lmdb_client.get(bg_image_path)
         bg_img_w = bg_image.shape[1]
@@ -258,13 +301,25 @@ class RandomBackground(BaseTransform):
             hand = bg_image[bg_y1:bg_y2, bg_x1:bg_x2, :][mask > 0]
             bg_image[bg_y1:bg_y2,
                      bg_x1:bg_x2, :][mask > 0] = hand - hand.mean() + bg_mean
-        results['img'] = bg_image
-        results = self._apply_gt_with_offset(results, offset_x, offset_y)
+        if self.keep_original_pos:
+            new_image = np.zeros_like(img)
+            new_image[y1:y2, x1:x2] = bg_image[bg_y1:bg_y2, bg_x1:bg_x2]
+            results['img'] = new_image
+        else:
+            results = self._apply_gt_with_offset(results, offset_x, offset_y)
+            results['img'] = bg_image
+            results['image_width'] = bg_image.shape[1]
+            results['image_height'] = bg_image.shape[0]
         return results
 
     def __repr__(self) -> str:
         repr_str = self.__class__.__name__
-        repr_str += f'bg image number={len(self.data_list)})'
+        repr_str += f'bg image number = {len(self.data_list)}\n'
+        repr_str += f'prob = {self.prob}\n'
+        repr_str += f'worker_slice={self.worker_slice}\n'
+        repr_str += f'aligen_mean={self.align_mean}\n'
+        repr_str += f'edge_fuse={self.edge_fuse}\n'
+        repr_str += f'keep original position={self.keep_original_pos}\n'
         return repr_str
 
 

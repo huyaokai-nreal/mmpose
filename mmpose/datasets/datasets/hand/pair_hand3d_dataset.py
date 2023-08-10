@@ -236,7 +236,8 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         min_y = np.min(bbox[:, 1::2])
         max_y = np.max(bbox[:, 1::2])
         results['bbox'] = np.array([[min_x, min_y, max_x, max_y]], np.float32)
-
+        if 'mask' in results:
+            results['mask'] = results['mask'][:, ::-1]
         results['meta']['flipped'] = True
 
     def get_data_info(self, idx):
