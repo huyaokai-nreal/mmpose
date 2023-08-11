@@ -9,7 +9,8 @@ from mmengine.dataset.base_dataset import force_full_init
 from mmengine.dataset.utils import default_collate
 from mmengine.logging import MMLogger
 from nreal_data_tool import LmdbClient
-from nreal_data_tool.utils.camera import OpenCVFisheyeCameraModel
+from nreal_data_tool.utils.camera import (OpenCVFisheyeCameraModel,
+                                          OpenCVPinholeCameraModel)
 from xtcocotools.coco import COCO
 
 from mmpose.datasets.builder import DATASETS
@@ -88,21 +89,24 @@ class PairHand3DDataset(BaseCocoStyleDataset):
     @staticmethod
     def get_cam_model(cam_info):
         if cam_info['camera_type'] == 'fisheye':
-            left_cam_xf = np.array(cam_info['left_T'])
-            right_cam_xf = np.array(cam_info['right_T'])
-            cam_model_left = OpenCVFisheyeCameraModel(
-                f=(cam_info['left_K'][0][0], cam_info['left_K'][1][1]),
-                c=(cam_info['left_K'][0][2], cam_info['left_K'][1][2]),
-                camera_to_world_xf=left_cam_xf,
-                distort_coeffs=cam_info['left_D'][0]  # k1,k2,k3,k4
-            )
-            cam_model_right = OpenCVFisheyeCameraModel(
-                f=(cam_info['right_K'][0][0], cam_info['right_K'][1][1]),
-                c=(cam_info['right_K'][0][2], cam_info['right_K'][1][2]),
-                camera_to_world_xf=right_cam_xf,
-                distort_coeffs=cam_info['right_D'][0])  # k1,k2,k3,k4
+            CMAERA_MODEL = OpenCVFisheyeCameraModel
+        elif cam_info['camera_type'] == 'pinhole':
+            CMAERA_MODEL = OpenCVPinholeCameraModel
         else:
             raise NotImplementedError
+        left_cam_xf = np.array(cam_info['left_T'])
+        right_cam_xf = np.array(cam_info['right_T'])
+        cam_model_left = CMAERA_MODEL(
+            f=(cam_info['left_K'][0][0], cam_info['left_K'][1][1]),
+            c=(cam_info['left_K'][0][2], cam_info['left_K'][1][2]),
+            camera_to_world_xf=left_cam_xf,
+            distort_coeffs=cam_info['left_D'][0]  # k1,k2,k3,k4
+        )
+        cam_model_right = CMAERA_MODEL(
+            f=(cam_info['right_K'][0][0], cam_info['right_K'][1][1]),
+            c=(cam_info['right_K'][0][2], cam_info['right_K'][1][2]),
+            camera_to_world_xf=right_cam_xf,
+            distort_coeffs=cam_info['right_D'][0])  # k1,k2,k3,k4
         return cam_model_left, cam_model_right
 
     def parse_data_info(self, raw_data_info: dict) -> Optional[dict]:
