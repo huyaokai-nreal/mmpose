@@ -1,10 +1,29 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-from typing import List, Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 import numpy as np
 from mmcv.transforms import BaseTransform
 
 from mmpose.registry import TRANSFORMS
+
+
+@TRANSFORMS.register_module()
+class KeypointTo25DLabel(BaseTransform):
+
+    def __init__(self, root_idx=0) -> None:
+        super().__init__()
+        self.root_idx = root_idx
+
+    def transform(self, results: Dict) -> Dict:
+        results['keypoints3d'][0] = results['meta']['ori_camera'].world_to_eye(
+            results['keypoints3d'][0]).copy()
+        root_depth = results['keypoints3d'][0][self.root_idx][2]
+        results['keypoints'] = np.concatenate([
+            results['keypoints'], results['keypoints3d'][..., 2:] - root_depth
+        ],
+                                              axis=-1)
+        results['meta']['root_depth'] = root_depth
+        return results
 
 
 @TRANSFORMS.register_module()

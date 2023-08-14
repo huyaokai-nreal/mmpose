@@ -6,7 +6,7 @@ from .common_transforms import (Albumentation, ChangeImageQuality,
                                 GetNegtiveBBox, PhotometricDistortion,
                                 RandomBBoxTransform, RandomFlip,
                                 RandomHalfBody)
-from .converting import KeypointConverter
+from .converting import KeypointConverter, KeypointTo25DLabel
 from .formatting import PackPoseInputs
 from .loading import LoadImage, LoadImageFromMultiLMDB
 from .pose3d_transforms import RandomFlipAroundRoot
@@ -21,5 +21,5 @@ __all__ = [
     'GenerateTarget', 'KeypointConverter', 'GetNegtiveBBox',
     'ChangeImageQuality', 'RandomBackground', 'LoadImageFromMultiLMDB',
     'AffineTransformConsistency', 'TopdownPCL', 'GenerateAttrLabel',
-    'RandomFlipAroundRoot'
+    'RandomFlipAroundRoot', 'KeypointTo25DLabel'
 ]

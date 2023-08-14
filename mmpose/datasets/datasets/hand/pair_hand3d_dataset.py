@@ -305,10 +305,10 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'image_width': data_info['left_img'].shape[1],
             'image_height': data_info['left_img'].shape[0],
             'img_path': data_info['left_img_path'],
-            'keypoints': data_info['left_keypoints'],
-            'img': data_info['left_img'],
-            'bbox': data_info['left_bbox'],
-            'keypoints3d': data_info['keypoints3d'],
+            'keypoints': data_info['left_keypoints'].copy(),
+            'img': data_info['left_img'].copy(),
+            'bbox': data_info['left_bbox'].copy(),
+            'keypoints3d': data_info['keypoints3d'].copy(),
             'bbox_score': np.ones(1, dtype=np.float32),
             'iscrowd': data_info['iscrowd'],
             'id': data_info['id'],
@@ -320,7 +320,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'flip_pairs': data_info['flip_pairs'],
             # 'keypoint_weights': data_info['dataset_keypoint_weights'],
             'flip_indices': data_info['flip_indices'],
-            'keypoints_visible': data_info['keypoints_visible']
+            'keypoints_visible': data_info['keypoints_visible'].copy()
         }
 
         data_info_right = {
@@ -328,10 +328,10 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'image_width': data_info['right_img'].shape[1],
             'image_height': data_info['right_img'].shape[0],
             'img_path': data_info['right_img_path'],
-            'keypoints': data_info['right_keypoints'],
-            'img': data_info['right_img'],
-            'bbox': data_info['right_bbox'],
-            'keypoints3d': data_info['keypoints3d'],
+            'keypoints': data_info['right_keypoints'].copy(),
+            'img': data_info['right_img'].copy(),
+            'bbox': data_info['right_bbox'].copy(),
+            'keypoints3d': data_info['keypoints3d'].copy(),
             'bbox_score': np.ones(1, dtype=np.float32),
             'iscrowd': data_info['iscrowd'],
             'id': data_info['id'],
@@ -343,7 +343,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'flip_pairs': data_info['flip_pairs'],
             # 'keypoint_weights': data_info['dataset_keypoint_weights'],
             'flip_indices': data_info['flip_indices'],
-            'keypoints_visible': data_info['keypoints_visible']
+            'keypoints_visible': data_info['keypoints_visible'].copy()
         }
 
         if self.with_mask:
@@ -351,17 +351,17 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                 dict(mask=self.lmdb_client.get(data_info['left_mask_path'])))
             data_info_right.update(
                 dict(mask=self.lmdb_client.get(data_info['right_mask_path'])))
-
-        if data_info['cat_id'] == 1:
-            self.__left_2_right_hand(data_info_left)
-            self.__left_2_right_hand(data_info_right)
-        if self.test_mode or self.point_type == '3D':  # default
+        if self.flip_left_to_right:
+            if data_info['cat_id'] == 1:
+                self.__left_2_right_hand(data_info_left)
+                self.__left_2_right_hand(data_info_right)
+        if self.point_type == 'leftcam':
+            all_results = self.pipeline(data_info_left)
+        elif self.test_mode or self.point_type == '3D':
             ppl_left = self.pipeline(data_info_left)
             ppl_right = self.pipeline(data_info_right)
             all_results = default_collate([ppl_left, ppl_right])
-        elif self.point_type == 'leftcam':
-            all_results = self.pipeline(data_info_left)
-        elif self.point_type == '2d':
+        else:
             all_results = self.pipeline(
                 random.choice([data_info_left, data_info_right]))
         return all_results

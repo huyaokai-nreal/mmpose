@@ -72,7 +72,7 @@ class SimCCLabel3D(BaseKeypointCodec):
         self.depth_bound = depth_bound
 
         if isinstance(sigma, (float, int)):
-            self.sigma = np.array([sigma, sigma])
+            self.sigma = np.array([sigma, sigma, sigma])
         else:
             self.sigma = np.array(sigma)
 
@@ -116,6 +116,7 @@ class SimCCLabel3D(BaseKeypointCodec):
                 (N, K)
         """
         # convert depth to 0-1
+        keypoints = keypoints.copy()
         keypoints[..., 2] = (keypoints[..., 2] / self.depth_bound +
                              0.5) * self.input_size[2]
         if keypoints_visible is None:
@@ -138,6 +139,7 @@ class SimCCLabel3D(BaseKeypointCodec):
             keypoint_y_labels=y_labels,
             keypoint_z_labels=z_labels,
             keypoint_weights=keypoint_weights)
+
         return encoded
 
     def decode(self, simcc_x: np.ndarray, simcc_y: np.ndarray,

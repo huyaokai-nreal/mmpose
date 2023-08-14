@@ -164,7 +164,6 @@ class MPJPEV2(MPJPE):
                 raise ValueError(
                     '`pred_instances` are required to process the '
                     f'predictions results in {self.__class__.__name__}. ')
-            keypoints3d = data_sample['pred_instances']['keypoints3d']
             gt = data_sample['gt_instances']
             # [N, K], the scores for all keypoints of all instances
             keypoint_scores = data_sample['pred_instances']['keypoint_scores']
@@ -172,7 +171,9 @@ class MPJPEV2(MPJPE):
             result = KeypointEvaluationItem(image_id=data_sample['img_id'])
             result.gt_keypoints3d = (gt['keypoints3d'][0] *
                                      1e3).tolist()  # m -> mm
-            result.keypoints3d = (keypoints3d * 1e3).tolist()  # m -> mm
+            result.keypoints3d = (
+                data_sample['pred_instances']['keypoints3d'][0] *
+                1e3).tolist()
             result.keypoint_visible = gt['keypoints_visible'].reshape(
                 (-1)).tolist()
             result.score = float(np.mean(keypoint_scores))
