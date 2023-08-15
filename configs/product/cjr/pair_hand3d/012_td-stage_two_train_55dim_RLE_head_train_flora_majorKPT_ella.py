@@ -20,31 +20,31 @@ optim_wrapper = dict(
     # clip_grad=dict(max_norm=10, norm_type=2),
 )
 # learning policy
-param_scheduler = [
-    dict(  # scheduler
-        type='MultiStepLR',
-        begin=0,
-        end=100,
-        milestones=[20, 80],
-        gamma=0.1,
-        by_epoch=True)
-]
-
 # param_scheduler = [
-#     dict(
-#         type='LinearLR',
+#     dict(  # scheduler
+#         type='MultiStepLR',
 #         begin=0,
-#         end=5,
-#         start_factor=0.001,
-#         end_factor=1.0,
-#         by_epoch=True,
-#         convert_to_iter_based=True),  # warm-up
-#     dict(
-#         type='CosineAnnealingLR',
-#         by_epoch=True,
-#         T_max=train_cfg['max_epochs'],
-#         convert_to_iter_based=True)
+#         end=100,
+#         milestones=[50, 90],
+#         gamma=0.1,
+#         by_epoch=True)
 # ]
+
+param_scheduler = [
+    dict(
+        type='LinearLR',
+        begin=0,
+        end=5,
+        start_factor=0.001,
+        end_factor=1.0,
+        by_epoch=True,
+        convert_to_iter_based=True),  # warm-up
+    dict(
+        type='CosineAnnealingLR',
+        by_epoch=True,
+        T_max=train_cfg['max_epochs'],
+        convert_to_iter_based=True)
+]
 
 # automatically scaling LR based on the actual training batch size
 auto_scale_lr = dict(base_batch_size=128)
@@ -137,11 +137,11 @@ model = dict(
         type='Pretrained',
         checkpoint=
         # '/home/zx_li/workspace/mmpose/work_dirs/td-hand_res26_fpn_sk_weightdata_4xb64-50e_0919data-128x128/epoch_50.pth'
-        # f'{data_root}/data_hand/model/mmpose/td-hand_res26_fpn_skpre_flow_wd_ipr_rle_weightdata_0919_4xb64-50e-128x128/epoch_50.pth'
+        f'{data_root}/data_hand/model/mmpose/td-hand_res26_fpn_skpre_flow_wd_ipr_rle_weightdata_0919_4xb64-50e-128x128/epoch_50.pth'
         # '/home/jrchen/git-project/mmpose/work_dirs/pair_hand3d/003_td-stage_two_train_55dim_l1/epoch_60_new.pth'
-        # '/home/jrchen/git-project/mmpose/work_dirs/pair_hand3d/004_td-stage_two_train_55dim_RLE_head/epoch_95.pth'
+        # '/home/jrchen/git-project/mmpose/work_dirs/pair_hand3d/004_td-stage_two_train_55dim_RLE_head/epoch_95.pth'  # ella sota model  all_mpjpe=9.2mm
         # '/home/jrchen/git-project/mmpose/work_dirs/hand_2d_keypoint/td-hand_res26_fpn_skpre_flow_wd_ipr_rle_weightdata_0919_4xb64-50e-128x128_pretrainmodel/epoch_30_FT.pth'
-        f'{data_root}/jrchen/git-project/mmpose/work_dirs/pair_hand3d/006_td-stage_two_train_55dim_RLE_head_train_flora_finetune/FT_kp2d_add_ella_pretrain_lift.pth'
+        # f'{data_root}/jrchen/git-project/mmpose/work_dirs/pair_hand3d/006_td-stage_two_train_55dim_RLE_head_train_flora_finetune/FT_kp2d_add_ella_pretrain_lift.pth'
     ),
 )
 
@@ -156,14 +156,32 @@ import os
 # test only
 #data_root = '/data/hand_group/data/data_hand/lmdb_data/'
 train_data_list = [
-    # 'data_hand/hand_keypoint/annotations3d/flora/flora8_1_0_20230801_1_binocular.json'
-    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/test_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0000.json'
+    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0000.json',
+    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0001.json',
+    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0002.json',
+    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0003.json',
+    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0004.json',
+    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0005.json',
+    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0006.json',
+    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0007.json',
+    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0008.json',
+    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0009.json',
+    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0000.json',
+    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0001.json',
+    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0002.json',
+    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0003.json',
+    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0004.json',
+    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0005.json',
+    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0006.json',
+    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0007.json',
+    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0008.json',
+    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0009.json',
 ]
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
-    'data_hand/hand_keypoint/annotations3d/flora/flora8_1_0_20230801_1_binocular.json'
+    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/test_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0000.json'
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # pipelines
@@ -198,8 +216,8 @@ val_pipeline = [
 # data loaders
 train_dataloader = dict(
     batch_size=128,
-    num_workers=0,
-    persistent_workers=False,
+    num_workers=8,
+    persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
     collate_fn=dict(type='default_collate'),
     dataset=dict(
@@ -215,8 +233,8 @@ train_dataloader = dict(
 )
 val_dataloader = dict(
     batch_size=32,
-    num_workers=0,
-    persistent_workers=False,
+    num_workers=2,
+    persistent_workers=True,
     drop_last=False,
     sampler=dict(type='DefaultSampler', shuffle=False, round_up=False),
     collate_fn=dict(type='default_collate'),

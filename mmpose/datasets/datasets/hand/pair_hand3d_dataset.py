@@ -330,13 +330,13 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         if data_info['cat_id'] == 1:
             self.__left_2_right_hand(data_info_left)
             self.__left_2_right_hand(data_info_right)
-        if self.test_mode or self.point_type == '3D':
+        if self.test_mode or self.point_type == '3D':  # default
             ppl_left = self.pipeline(data_info_left)
             ppl_right = self.pipeline(data_info_right)
             all_results = default_collate([ppl_left, ppl_right])
         elif self.point_type == 'leftcam':
             all_results = self.pipeline(data_info_left)
-        else:
+        elif self.point_type == '2d':
             all_results = self.pipeline(
                 random.choice([data_info_left, data_info_right]))
         return all_results
