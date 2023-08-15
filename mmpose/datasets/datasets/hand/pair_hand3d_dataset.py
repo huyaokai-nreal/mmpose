@@ -41,12 +41,14 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                  mask_ext: str = 'mask',
                  sub_data_index=-1,
                  data_ratio=-1,
-                 point_type='3D'):
+                 point_type='3D',
+                 pinch_random=False):
         self.flip_left_to_right = flip_left_to_right
         self.data_ratio = data_ratio
         self.data_file_list = data_file_list
         self.lmdb_client = LmdbClient()
         self.point_type = point_type
+        self.pinch_random = pinch_random
         self.dataset_info_list = list()
         self.dataset_weight_list = dataset_weight_list
         self.dataset_num = len(self.data_file_list)
@@ -55,6 +57,11 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         self.mask_ext = mask_ext
         self.sub_data_index = int(sub_data_index)
         self.cams_info = dict()
+        self.enter_thre = 0.02
+        self.exit_thre = 0.04
+        self.pinch_idx_list = []
+        self.no_pinch_idx_list = []
+        self.media_idx_list = []
         if dataset_weight_list:
             assert len(dataset_weight_list) == len(data_file_list)
         super().__init__(
@@ -224,6 +231,18 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         logger.info(
             f'HandDataset loaded {len(image_list)} images, {len(instance_list)} pair instances'  # noqa
         )
+        if self.pinch_random:
+            for i, instance in enumerate(instance_list):
+                kpt3d = instance['keypoints3d']
+                dist = np.linalg.norm(
+                    kpt3d[:, 4, :] - kpt3d[:, 8, :], axis=-1).item()
+                if dist < self.enter_thre:
+                    self.pinch_idx_list.append(i)
+                elif dist > self.exit_thre:
+                    self.no_pinch_idx_list.append(i)
+                else:
+                    self.media_idx_list.append(i)
+
         return instance_list, image_list
 
     def __left_2_right_hand(self, results):
@@ -245,6 +264,12 @@ class PairHand3DDataset(BaseCocoStyleDataset):
 
     def get_data_info(self, idx):
         idx = idx % self.data_num
+        if not self.test_mode and self.pinch_random:  # Uniformly allocate three types of pinch data during training
+            idx = random.choice(
+                random.choice([
+                    self.pinch_idx_list, self.no_pinch_idx_list,
+                    self.media_idx_list
+                ]))
         data_info = super().get_data_info(idx)
         data_info['left_img'] = self.lmdb_client.get(
             data_info['left_img_path'])
