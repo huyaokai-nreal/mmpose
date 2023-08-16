@@ -199,7 +199,8 @@ class TopdownPoseLiftEstimator(BaseModel):
         for b in range(pred.shape[0]):
             batch_pred_instances.append(
                 InstanceData(
-                    keypoints=pred[b], keypoint_scores=torch.ones((21))))
+                    keypoints=pred[b:b + 1],
+                    keypoint_scores=torch.ones((1, 21))))
 
         results = self.add_pred_to_datasample(batch_pred_instances, None,
                                               data_samples)
@@ -221,7 +222,7 @@ class TopdownPoseLiftEstimator(BaseModel):
 
             pred_instances.keypoints3d = pred_instances.keypoints.cpu().numpy()
             pred_instances.keypoint_scores = np.ones(
-                pred_instances.keypoints.shape[0])
+                (1, pred_instances.keypoints.shape[0]))
 
             data_sample.pred_instances = pred_instances
         return batch_data_samples

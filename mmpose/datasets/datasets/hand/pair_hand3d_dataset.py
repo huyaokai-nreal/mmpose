@@ -62,6 +62,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         self.pinch_idx_list = []
         self.no_pinch_idx_list = []
         self.media_idx_list = []
+        self.hand_bones_list = list()
         if dataset_weight_list:
             assert len(dataset_weight_list) == len(data_file_list)
         super().__init__(
@@ -187,6 +188,18 @@ class PairHand3DDataset(BaseCocoStyleDataset):
 
         return data_info
 
+    def _get_mean_hand_bones(self, keypoints3d_list):
+        N = keypoints3d_list.shape[0]
+        root_keypoints3d = keypoints3d_list[:, :1, :].reshape((N, 1, 1, 3))
+        root_keypoints3d = np.tile(root_keypoints3d, (1, 5, 1, 1))
+        other_keypoints3d = keypoints3d_list[:, 1:, :].reshape((N, 5, 4, 3))
+        keypoints3d = np.concatenate([root_keypoints3d, other_keypoints3d],
+                                     axis=2)
+        bones = np.linalg.norm(
+            keypoints3d[:, :, 1:, :] - keypoints3d[:, :, :-1, :], axis=-1)
+        mean_bones = bones.mean(axis=0)
+        return mean_bones
+
     def _load_annotations(self) -> Tuple[List[dict], List[dict]]:
         image_list = []
         instance_list = []
@@ -199,6 +212,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                                  coco.dataset['lmdb_path'])
             # sub_dataset_num = 0
             self.cams_info.update(coco.dataset['cameras_info'])
+            keypoints3d_list = []
             ann_ids = coco.getAnnIds()
             for ann_id in ann_ids:
                 ann = coco.loadAnns(ann_id)[0]
@@ -211,6 +225,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
 
                 data_info = self.parse_data_info(
                     dict(raw_ann_info=ann, raw_img_info=[left_img, right_img]))
+                keypoints3d_list.append(data_info['keypoints3d'])
                 if self.with_mask:
                     category_name = self.category_name_list[int(
                         data_info['cat_id'])]
@@ -225,8 +240,13 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                 data_info['right_img_path'] = \
                     f"{lmdb_path}:{data_info['right_img_path']}"
 
+                data_info['meta']['template_bones_id'] = len(
+                    self.hand_bones_list)
                 instance_list.append(data_info)
 
+            keypoints3d_list = np.concatenate(keypoints3d_list, axis=0)
+            mean_bones = self._get_mean_hand_bones(keypoints3d_list)
+            self.hand_bones_list.append(mean_bones)
         logger: MMLogger = MMLogger.get_current_instance()
         logger.info(
             f'HandDataset loaded {len(image_list)} images, {len(instance_list)} pair instances'  # noqa
@@ -296,9 +316,13 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         data_info = self.get_data_info(idx)
         meta_left = copy.deepcopy(data_info['meta'])
         meta_left['ori_camera'] = copy.deepcopy(data_info['cam_model_left'])
+        meta_left['template_bones'] = self.hand_bones_list[
+            data_info['meta']['template_bones_id']]
 
         meta_right = copy.deepcopy(data_info['meta'])
         meta_right['ori_camera'] = copy.deepcopy(data_info['cam_model_right'])
+        meta_right['template_bones'] = self.hand_bones_list[
+            data_info['meta']['template_bones_id']]
 
         data_info_left = {
             'img_id': data_info['left_img_id'],

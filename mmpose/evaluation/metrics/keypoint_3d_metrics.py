@@ -198,6 +198,7 @@ class MPJPEV2(MPJPE):
         self.logger.info(f'result file path is {res_file}')
         with open(res_file, 'w') as f:
             json.dump(results, f, sort_keys=True, indent=4)
+        self.logger.info(f'eval mpjpe with mode {self.mode}')
         mpjpe_res = self.mpjpe_metric(res_file)
         stability_res = self.self_stability_metric(res_file)
         pinch_res = self.pinch_metric(res_file)
