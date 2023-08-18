@@ -297,6 +297,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             data_info['right_img_path'])
         data_info['meta']['frame_height'] = data_info['left_img'].shape[0]
         data_info['meta']['frame_width'] = data_info['left_img'].shape[1]
+        data_info['meta']['flipped'] = False
         return data_info
 
     @force_full_init

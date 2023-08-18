@@ -12,14 +12,14 @@ from mmpose.models.utils.tta import flip_coordinates, flip_heatmaps
 from mmpose.registry import MODELS
 from mmpose.utils.tensor_utils import to_numpy
 from mmpose.utils.typing import ConfigType, OptConfigType, OptSampleList
-from ...utils.siamcc_to_kpt import SimCCToKeypoint
-from ..coord_cls_heads import RTMCCHead
+from ...utils.siamcc_to_kpt import SimCCToKeypoint3D
+from ..coord_cls_heads import RTMCCHead3D
 
 OptIntSeq = Optional[Sequence[int]]
 
 
 @MODELS.register_module()
-class RTMIPRHead(RTMCCHead):
+class RTMCCIPRHead3D(RTMCCHead3D):
     """Top-down head introduced in RTMPose (2023). The head is composed of a
     large-kernel convolutional layer, a fully-connected layer and a Gated
     Attention Unit to generate 1d representation from low-resolution feature
@@ -90,22 +90,21 @@ class RTMIPRHead(RTMCCHead):
                  decoder: OptConfigType = None,
                  init_cfg: OptConfigType = None,
                  output_sigma: bool = False,
-                 deploy: bool = False,
-                 lambda_t: int = -1):
+                 deploy: bool = False):
         super().__init__(in_channels, out_channels, input_size,
                          in_featuremap_size, simcc_split_ratio,
                          final_layer_kernel_size, gau_cfg, loss, decoder,
                          init_cfg)
         W = int(self.input_size[0] * self.simcc_split_ratio)
         H = int(self.input_size[1] * self.simcc_split_ratio)
-        self.ipr_module = SimCCToKeypoint(feat_w=W, feat_h=H)
+        D = int(self.input_size[2] * self.simcc_split_ratio)
+        self.ipr_module = SimCCToKeypoint3D(feat_w=W, feat_h=H, feat_d=D)
         self.output_sigma = output_sigma
         self.deploy = deploy
-        self.lambda_t = lambda_t
         if self.output_sigma:
             self.gap = nn.AdaptiveAvgPool2d((1, 1))
             self.sigma_conv = nn.Conv2d(
-                self.in_channels, self.out_channels * 2, kernel_size=1)
+                self.in_channels, self.out_channels * 3, kernel_size=1)
 
     def forward(self, feats: Tuple[Tensor]) -> Tuple[Tensor, Tensor]:
         """Forward the network.
@@ -120,19 +119,20 @@ class RTMIPRHead(RTMCCHead):
             pred_x (Tensor): 1d representation of x.
             pred_y (Tensor): 1d representation of y.
         """
-        pred_x, pred_y = super().forward(feats)
-        heatmaps = torch.cat([pred_x, pred_y], dim=1)
+        pred_x, pred_y, pred_z = super().forward(feats)
+        heatmaps = torch.cat([pred_x, pred_y, pred_z], dim=1)
         raw_feats = feats[-1]
-        pred_x, pred_y = self.ipr_module(pred_x, pred_y)
+        pred_x, pred_y, pred_z = self.ipr_module(pred_x, pred_y, pred_z)
+        output = torch.cat([pred_x, pred_y, pred_z], dim=-1)
         if self.output_sigma:
             x = self.gap(raw_feats)
             pred_sigma = self.sigma_conv(x)
             pred_sigma_reshape = pred_sigma.reshape(
-                pred_sigma.size(0), self.out_channels, 2)
+                pred_sigma.size(0), self.out_channels, 3)
+            output = torch.cat([output, pred_sigma_reshape], dim=-1)
         if self.deploy:
-            return torch.cat([pred_x, pred_y], dim=-1), pred_sigma
+            return torch.cat([pred_x, pred_y, pred_z], dim=-1), pred_sigma
         else:
-            output = torch.cat([pred_x, pred_y, pred_sigma_reshape], dim=-1)
             return output, heatmaps
 
     def predict(self,
@@ -231,13 +231,13 @@ class RTMIPRHead(RTMCCHead):
         losses.update(loss_kpt=loss)
 
         # calculate accuracy
-        pred_coords = pred_outputs[:, :, :2]
+        pred_coords = pred_outputs[:, :, :3]
         _, avg_acc, _ = keypoint_pck_accuracy(
             pred=to_numpy(pred_coords),
             gt=to_numpy(keypoint_labels),
             mask=to_numpy(keypoint_weights) > 0,
             thr=0.05,
-            norm_factor=np.ones((pred_coords.size(0), 2), dtype=np.float32))
+            norm_factor=np.ones((pred_coords.size(0), 3), dtype=np.float32))
 
         acc_pose = torch.tensor(avg_acc, device=keypoint_labels.device)
         losses.update(acc_pose=acc_pose)

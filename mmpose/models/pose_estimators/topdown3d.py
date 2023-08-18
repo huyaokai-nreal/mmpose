@@ -125,6 +125,11 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                 pred_instances.keypoints[..., :2] = pred_instances.keypoints[
                     ..., :
                     2] / input_size * bbox_scales + bbox_centers - 0.5 * bbox_scales  # noqa
+                if data_sample.meta['flipped']:
+                    pred_instances.keypoints[..., 0] = data_sample.meta[
+                        'frame_width'] - pred_instances.keypoints[..., 0]
+                    gt_instances.keypoints[..., 0] = data_sample.meta[
+                        'frame_width'] - gt_instances.keypoints[..., 0]
                 if self.root_mode == 'optimize':
                     root_depth = get_root_depth(
                         pred_instances.keypoints[0], ori_cam,

@@ -30,10 +30,20 @@ class RegressionLabel(BaseKeypointCodec):
 
     """
 
-    def __init__(self, input_size: Tuple[int, int]) -> None:
+    def __init__(self,
+                 input_size: Tuple[int, int],
+                 with_depth: bool = False,
+                 depth_bound: float = 0.4) -> None:
         super().__init__()
-
+        self.with_depth = with_depth
+        self.depth_bound = depth_bound
         self.input_size = input_size
+        if self.with_depth:
+            assert self.depth_bound > 0, \
+                f'depth bound should be positive vs {self.depth_bound}'
+            assert len(self.input_size) == 3, \
+                f'input size should be 3 param while having \
+                    {len(self.input_size)}'
 
     def encode(self,
                keypoints: np.ndarray,
@@ -55,13 +65,18 @@ class RegressionLabel(BaseKeypointCodec):
         if keypoints_visible is None:
             keypoints_visible = np.ones(keypoints.shape[:2], dtype=np.float32)
 
-        w, h = self.input_size
-        valid = ((keypoints >= 0) & (keypoints <= [w - 1, h - 1])).all(axis=-1)
-
-        keypoint_labels = (keypoints / np.array([w, h])).astype(np.float32)
+        w, h = self.input_size[:2]
+        valid = ((keypoints[..., :2] >= 0) &
+                 (keypoints[..., :2] <= [w - 1, h - 1])).all(axis=-1)
         keypoint_weights = np.where(valid, 1., 0.).astype(np.float32)
         keypoint_weights = keypoint_weights * keypoints_visible
-
+        if not self.with_depth:
+            keypoint_labels = (keypoints / np.array([w, h])).astype(np.float32)
+        else:
+            keypoint_labels = (keypoints /
+                               np.array([w, h, 1])).astype(np.float32)
+            keypoint_labels[..., 2] = (
+                keypoints[..., 2] / self.depth_bound + 0.5)
         encoded = dict(
             keypoint_labels=keypoint_labels, keypoint_weights=keypoint_weights)
 
@@ -81,22 +96,25 @@ class RegressionLabel(BaseKeypointCodec):
                 It usually represents the confidence of the keypoint prediction
         """
 
-        if encoded.shape[-1] == 2:
+        if encoded.shape[-1] in [2, 3]:
             N, K, _ = encoded.shape
             normalized_coords = encoded.copy()
             scores = np.ones((N, K), dtype=np.float32)
-        elif encoded.shape[-1] == 4:
+        elif encoded.shape[-1] in [4, 6]:
             # split coords and sigma if outputs contain output_sigma
-            normalized_coords = encoded[..., :2].copy()
-            output_sigma = encoded[..., 2:4].copy()
-
+            key_dim = encoded.shape[-1] // 2
+            normalized_coords = encoded[..., :key_dim].copy()
+            output_sigma = encoded[..., key_dim:key_dim * 2].copy()
             scores = (1 - output_sigma).mean(axis=-1)
         else:
             raise ValueError(
                 'Keypoint dimension should be 2 or 4 (with sigma), '
                 f'but got {encoded.shape[-1]}')
 
-        w, h = self.input_size
-        keypoints = normalized_coords * np.array([w, h])
-
+        w, h = self.input_size[:2]
+        if not self.with_depth:
+            keypoints = normalized_coords * np.array([w, h])
+        else:
+            keypoints = normalized_coords * np.array([w, h, 1])
+            keypoints[..., 2] = (keypoints[..., 2] - 0.5) * self.depth_bound
         return keypoints, scores

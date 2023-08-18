@@ -56,7 +56,7 @@ model = dict(
         act_cfg=dict(type='ReLU'),
     ),
     head=dict(
-        type='RTMIPRHead',
+        type='RTMCCIPRHead',
         in_channels=384,
         out_channels=21,
         input_size=codec['input_size'],
