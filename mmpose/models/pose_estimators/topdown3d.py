@@ -13,7 +13,7 @@ from mmpose.utils.typing import (ConfigType, InstanceList, OptConfigType,
 from .topdown import TopdownPoseEstimator
 
 
-def get_root_depth(keypoints, camera, template_bones):
+def get_root_depth(keypoints, camera, template_bones, weight):
     rel_depth = keypoints[..., 2:]
     kpt2d = keypoints[..., :2]
     kpt2d = camera.undistort(kpt2d)
@@ -34,12 +34,22 @@ def get_root_depth(keypoints, camera, template_bones):
         bones = get_bones_from_kpt3d(kpt3d)
         return bones
 
-    def error(p, x, y):
-        result = y - model(x, p).reshape(-1)
+    def error(p, x, y, w):
+        w0 = w[0].reshape((1, 1))
+        _w = w[1:].reshape((5, 4))
+        w0 = np.tile(w0, (5, 1))
+        new_w = np.concatenate([w0, _w], axis=-1)
+        mean_w = (new_w[:, :4] + new_w[:, 1:]) / 2.0
+        mean_w = mean_w.reshape(-1)
+        mean_w /= np.max(mean_w)
+        result = mean_w * ((y - model(x, p)).reshape(-1))
         return result
 
     p0 = [0.3]
-    param = leastsq(error, p0, args=(norm_kpt2d, template_bones.reshape(-1)))
+    param = leastsq(
+        error,
+        p0,
+        args=(norm_kpt2d, template_bones.reshape(-1), weight.reshape(-1)))
     return param[0]
 
 
@@ -118,7 +128,10 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                 if self.root_mode == 'optimize':
                     root_depth = get_root_depth(
                         pred_instances.keypoints[0], ori_cam,
-                        data_sample.meta['template_bones'])
+                        data_sample.meta['template_bones'],
+                        pred_instances.keypoint_scores)
+                elif self.root_mode == 'rootnet':
+                    root_depth = pred_instances.root_depth
                 global_keypoints[..., 2] += root_depth
                 ori_keypoints3d = ori_cam.window_to_eye(global_keypoints[0])
                 pred_instances.keypoints3d = global_keypoints.copy()

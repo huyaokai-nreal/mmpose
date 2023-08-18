@@ -1,7 +1,9 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from typing import Optional, Sequence, Tuple, Union
 
+import numpy as np
 import torch
+import torch.nn.functional as F
 from torch import Tensor, nn
 
 from mmpose.evaluation.functional import simcc3d_pck_accuracy
@@ -49,39 +51,43 @@ class RTMCCHead3D(RTMCCHead):
             :attr:`default_init_cfg` for default settings
     """
 
-    def __init__(
-        self,
-        in_channels: Union[int, Sequence[int]],
-        out_channels: int,
-        input_size: Tuple[int, int],
-        in_featuremap_size: Tuple[int, int],
-        simcc_split_ratio: float = 2.0,
-        final_layer_kernel_size: int = 1,
-        gau_cfg: ConfigType = dict(
-            hidden_dims=256,
-            s=128,
-            expansion_factor=2,
-            dropout_rate=0.,
-            drop_path=0.,
-            act_fn='ReLU',
-            use_rel_bias=False,
-            pos_enc=False),
-        loss: ConfigType = dict(type='KLDiscretLoss', use_target_weight=True),
-        decoder: OptConfigType = None,
-        init_cfg: OptConfigType = None,
-    ):
-
+    def __init__(self,
+                 in_channels: Union[int, Sequence[int]],
+                 out_channels: int,
+                 input_size: Tuple[int, int],
+                 in_featuremap_size: Tuple[int, int],
+                 simcc_split_ratio: float = 2.0,
+                 final_layer_kernel_size: int = 1,
+                 gau_cfg: ConfigType = dict(
+                     hidden_dims=256,
+                     s=128,
+                     expansion_factor=2,
+                     dropout_rate=0.,
+                     drop_path=0.,
+                     act_fn='ReLU',
+                     use_rel_bias=False,
+                     pos_enc=False),
+                 loss: ConfigType = dict(
+                     type='KLDiscretLoss', use_target_weight=True),
+                 decoder: OptConfigType = None,
+                 init_cfg: OptConfigType = None,
+                 with_root_net: bool = False):
         if init_cfg is None:
             init_cfg = self.default_init_cfg
-
         super().__init__(in_channels, out_channels, input_size,
                          in_featuremap_size, simcc_split_ratio,
                          final_layer_kernel_size, gau_cfg, loss, decoder,
                          init_cfg)
         D = int(self.input_size[2] * self.simcc_split_ratio)
         self.cls_z = nn.Linear(gau_cfg['hidden_dims'], D, bias=False)
+        self.with_root_net = with_root_net
+        if with_root_net:
+            self.depth_fc1 = nn.Linear(in_channels, 128)
+            self.depth_fc2 = nn.Linear(128, 1)
 
-    def forward(self, feats: Tuple[Tensor]) -> Tuple[Tensor, Tensor]:
+    def forward(self,
+                feats: Tuple[Tensor],
+                k_value: Optional[Tensor] = None) -> Tuple[Tensor, Tensor]:
         """Forward the network.
 
         The input is multi scale feature maps and the
@@ -94,9 +100,9 @@ class RTMCCHead3D(RTMCCHead):
             pred_x (Tensor): 1d representation of x.
             pred_y (Tensor): 1d representation of y.
         """
-        feats = feats[-1]
+        raw_feats = feats[-1]
 
-        feats = self.final_layer(feats)  # -> B, K, H, W
+        feats = self.final_layer(raw_feats)  # -> B, K, H, W
 
         # flatten the output heatmap
         feats = torch.flatten(feats, 2)
@@ -108,8 +114,16 @@ class RTMCCHead3D(RTMCCHead):
         pred_x = self.cls_x(feats)
         pred_y = self.cls_y(feats)
         pred_z = self.cls_z(feats)
-
-        return pred_x, pred_y, pred_z
+        output = [pred_x, pred_y, pred_z]
+        if self.with_root_net:
+            x = torch.nn.functional.adaptive_avg_pool2d(raw_feats, (1, 1))
+            x = torch.flatten(x, 1)
+            x = self.depth_fc1(x)
+            x = F.relu(x)
+            root_depth = self.depth_fc2(x).view(-1)
+            root_depth = root_depth * k_value
+            output.append(root_depth)
+        return tuple(output)
 
     def predict(
         self,
@@ -140,8 +154,26 @@ class RTMCCHead3D(RTMCCHead):
                 - keypoint_y_labels (np.ndarray, optional): The predicted 1-D
                     intensity distribution in the y direction
         """
-        batch_pred_x, batch_pred_y, batch_pred_z = self.forward(feats)
-        preds = self.decode((batch_pred_x, batch_pred_y, batch_pred_z))
+        if self.with_root_net:
+            k_value_list = []
+            for data_sample in batch_data_samples:
+                gt_instances = data_sample.gt_instances
+                bbox_scales = gt_instances.bbox_scales[0]
+                camera = data_sample.meta['ori_camera']
+                fx, fy = camera.f
+                real_hand_shape = [200, 200]
+                k_value_list.append(
+                    np.sqrt(fx * fy * real_hand_shape[0] * real_hand_shape[1] /
+                            (bbox_scales[0] * bbox_scales[1])))
+            k_values = torch.from_numpy(
+                np.array(k_value_list, dtype=np.float32)).cuda()
+            pred_x, pred_y, pred_z, root_depth = self.forward(feats, k_values)
+        else:
+            pred_x, pred_y, pred_z = self.forward(feats)
+        preds = self.decode((pred_x, pred_y, pred_z))
+        if self.with_root_net:
+            for i, pred in enumerate(preds):
+                pred.set_field(root_depth[i:i + 1].cpu().numpy(), 'root_depth')
         return preds
 
     def loss(
@@ -151,8 +183,26 @@ class RTMCCHead3D(RTMCCHead):
         train_cfg: OptConfigType = {},
     ) -> dict:
         """Calculate losses from a batch of inputs and data samples."""
-
-        pred_x, pred_y, pred_z = self.forward(feats)
+        if self.with_root_net:
+            k_value_list = []
+            root_depth_list = []
+            for data_sample in batch_data_samples:
+                gt_instances = data_sample.gt_instances
+                bbox_scales = gt_instances.bbox_scales[0]
+                camera = data_sample.meta['ori_camera']
+                fx, fy = camera.f
+                real_hand_shape = [200, 200]
+                k_value_list.append(
+                    np.sqrt(fx * fy * real_hand_shape[0] * real_hand_shape[1] /
+                            (bbox_scales[0] * bbox_scales[1])))
+                root_depth_list.append(data_sample.meta['root_depth'])
+            k_values = torch.from_numpy(
+                np.array(k_value_list, dtype=np.float32)).cuda()
+            root_depth_gt = torch.from_numpy(
+                np.array(root_depth_list, dtype=np.float32)).cuda()
+            pred_x, pred_y, pred_z, root_depth = self.forward(feats, k_values)
+        else:
+            pred_x, pred_y, pred_z = self.forward(feats)
 
         gt_x = torch.cat([
             d.gt_instance_labels.keypoint_x_labels for d in batch_data_samples
@@ -173,16 +223,12 @@ class RTMCCHead3D(RTMCCHead):
             ],
             dim=0,
         )
-
         pred_simcc = (pred_x, pred_y, pred_z)
         gt_simcc = (gt_x, gt_y, gt_z)
-
         # calculate losses
         losses = dict()
         loss = self.loss_module(pred_simcc, gt_simcc, keypoint_weights)
-
         losses.update(loss_kpt=loss)
-
         # calculate accuracy
         _, avg_acc, _ = simcc3d_pck_accuracy(
             output=to_numpy(pred_simcc),
@@ -193,6 +239,9 @@ class RTMCCHead3D(RTMCCHead):
 
         acc_pose = torch.tensor(avg_acc, device=gt_x.device)
         losses.update(acc_pose=acc_pose)
+        if self.with_root_net:
+            loss_root_depth = F.l1_loss(root_depth, root_depth_gt)
+            losses.update(loss_root_depth=loss_root_depth)
 
         return losses
 
