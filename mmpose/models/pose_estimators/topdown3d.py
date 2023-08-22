@@ -13,10 +13,15 @@ from mmpose.utils.typing import (ConfigType, InstanceList, OptConfigType,
 from .topdown import TopdownPoseEstimator
 
 
-def get_root_depth(keypoints, camera, template_bones, weight):
+def get_root_depth(keypoints,
+                   camera,
+                   template_bones,
+                   weight,
+                   undistort: bool = True):
     rel_depth = keypoints[..., 2:]
     kpt2d = keypoints[..., :2]
-    kpt2d = camera.undistort(kpt2d)
+    if undistort:
+        kpt2d = camera.undistort(kpt2d)
     f = np.array(camera.f, dtype=np.float32)
     c = np.array(camera.c, dtype=np.float32)
     norm_kpt2d = np.concatenate([(kpt2d - c) / f, np.ones((21, 1))], axis=-1)
@@ -105,6 +110,11 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             if 'virtual_camera' in data_sample.meta:
                 virtual_cam = data_sample.meta['virtual_camera']
                 virtual_keypoints = pred_instances.keypoints[0].copy()
+                if self.root_mode == 'optimize':
+                    root_depth = get_root_depth(
+                        pred_instances.keypoints[0], virtual_cam,
+                        data_sample.meta['template_bones'],
+                        pred_instances.keypoint_scores, False)
                 virtual_keypoints[..., 2] += root_depth
                 virtual_keypoints3d = virtual_cam.window_to_eye(
                     virtual_keypoints)
@@ -125,11 +135,6 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                 pred_instances.keypoints[..., :2] = pred_instances.keypoints[
                     ..., :
                     2] / input_size * bbox_scales + bbox_centers - 0.5 * bbox_scales  # noqa
-                if data_sample.meta['flipped']:
-                    pred_instances.keypoints[..., 0] = data_sample.meta[
-                        'frame_width'] - pred_instances.keypoints[..., 0]
-                    gt_instances.keypoints[..., 0] = data_sample.meta[
-                        'frame_width'] - gt_instances.keypoints[..., 0]
                 if self.root_mode == 'optimize':
                     root_depth = get_root_depth(
                         pred_instances.keypoints[0], ori_cam,

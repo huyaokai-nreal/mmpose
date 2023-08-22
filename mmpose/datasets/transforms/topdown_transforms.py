@@ -380,7 +380,7 @@ class TopdownPCL(BaseTransform):
         results['bbox_scale'] = TopdownAffine._fix_aspect_ratio(
             results['bbox_scale'], aspect_ratio=w / h)
         ori_camera: PinholePlaneCameraModel = results['meta']['ori_camera']
-        cam_points = results['keypoints3d'][0]
+        world_points = results['keypoints3d'][0]
         center = results['bbox_center'][0]
         scale = self.input_size[0] / results['bbox_scale'][0][0]
         virtual_camera = gen_crop_parameters_from_points(
@@ -392,15 +392,14 @@ class TopdownPCL(BaseTransform):
         image = results['img']
         crop_img = warp_image(ori_camera, virtual_camera, w, h, image)
         results['img'] = crop_img
-        results['meta']['ori_camera'] = virtual_camera
-        kpt3d_in_virutal = virtual_camera.world_to_eye(cam_points)
+        results['meta']['virtual_camera'] = virtual_camera
+        kpt3d_in_virutal = virtual_camera.world_to_eye(world_points)
         warp_keypoints = virtual_camera.eye_to_window(kpt3d_in_virutal)
         results['transformed_keypoints'] = results['keypoints'].copy()
         results['transformed_keypoints'][..., :2] = warp_keypoints
-        virtual_cam_points = virtual_camera.world_to_eye(cam_points)
-        results['keypoints3d'][0] = virtual_cam_points
-        # results['transformed_keypoints'][
-        #    ..., 2] = virtual_cam_points[..., 2] - virtual_cam_points[-1, 2]
+        virtual_cam_points = virtual_camera.world_to_eye(world_points)
+        results['transformed_keypoints'][
+            ..., 2] = virtual_cam_points[..., 2] - virtual_cam_points[-1, 2]
         results['meta']['root_depth'] = virtual_cam_points[-1][2]
         results['warp_mat'] = np.array([[1, 0, 0], [0, 1, 0]],
                                        dtype=np.float32)

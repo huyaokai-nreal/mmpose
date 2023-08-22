@@ -449,7 +449,7 @@ class PoseLocalVisualizer(OpencvBackendVisualizer):
         img_h, img_w, _ = image.shape
 
         if 'keypoints' in instances:
-            keypoints = instances.get('keypoints',
+            keypoints = instances.get('transformed_keypoints',
                                       instances.keypoints)[..., :2]
             if 'keypoint_scores' in instances:
                 scores = instances.keypoint_scores

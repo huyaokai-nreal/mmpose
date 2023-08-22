@@ -17,6 +17,9 @@ class KeypointTo25DLabel(BaseTransform):
     def transform(self, results: Dict) -> Dict:
         results['keypoints3d'][0] = results['meta']['ori_camera'].world_to_eye(
             results['keypoints3d'][0]).copy()
+        if results['meta']['flipped']:
+            results['keypoints3d'][..., 0] = -results['keypoints3d'][..., 0]
+        results['meta']['ori_camera'].camera_to_world_xf = np.eye(4)
         root_depth = results['keypoints3d'][0][self.root_idx][2]
         results['keypoints'] = np.concatenate([
             results['keypoints'], results['keypoints3d'][..., 2:] - root_depth
