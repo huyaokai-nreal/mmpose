@@ -137,10 +137,10 @@ model = dict(
         type='Pretrained',
         checkpoint=
         # '/home/zx_li/workspace/mmpose/work_dirs/td-hand_res26_fpn_sk_weightdata_4xb64-50e_0919data-128x128/epoch_50.pth'
-        f'{data_root}/data_hand/model/mmpose/td-hand_res26_fpn_skpre_flow_wd_ipr_rle_weightdata_0919_4xb64-50e-128x128/epoch_50.pth'  # ella kp2d
+        # f'{data_root}/data_hand/model/mmpose/td-hand_res26_fpn_skpre_flow_wd_ipr_rle_weightdata_0919_4xb64-50e-128x128/epoch_50.pth'  # ella kp2d
         # '/home/jrchen/git-project/mmpose/work_dirs/pair_hand3d/003_td-stage_two_train_55dim_l1/epoch_60_new.pth'
         # '/home/jrchen/git-project/mmpose/work_dirs/hand_2d_keypoint/td-hand_res26_fpn_skpre_flow_wd_ipr_rle_weightdata_0919_4xb64-50e-128x128_pretrainmodel/epoch_30_FT.pth'
-        # f'{data_root}/jrchen/git-project/mmpose/work_dirs/pair_hand3d/006_td-stage_two_train_55dim_RLE_head_train_flora_finetune/FT_kp2d_add_ella_pretrain_lift.pth'
+        f'{data_root}/jrchen/git-project/mmpose/work_dirs/pair_hand3d/006_td-stage_two_train_55dim_RLE_head_train_flora_finetune/FT_kp2d_add_ella_pretrain_lift.pth'  # flora kp2d + ella kp3d
     ),
 )
 
@@ -155,32 +155,27 @@ import os
 # test only
 #data_root = '/data/hand_group/data/data_hand/lmdb_data/'
 train_data_list = [
-    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0000.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0001.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0002.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0003.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0004.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0005.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0006.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0007.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0008.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0009.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0000.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0001.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0002.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0003.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0004.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0005.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0006.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0007.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0008.json',
-    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/train_nreal_gesture_220119_seq_2_spline3d_clean_lmdb_part0009.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__left__1000__0007__20230809_090503__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__left__1000__0006__20230809_055248__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__left__1000__0006__20230809_055716__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__left__1000__0007__20230809_101132__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__right__1000__0006__20230809_054849__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__right__1000__0006__20230809_060122__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__right__1000__0007__20230809_060812__undistort_tar__Flora301.json',
+
+    # 'data_hand/hand_keypoint/annotations3d/Flora8/XS__all__normal__left__1000__0006__20230810_081421__undistort_tar__Flora8.json',
+    # 'data_hand/hand_keypoint/annotations3d/Flora8/XS__all__normal__left__1000__0007__20230810_081633__undistort_tar__Flora8.json',
+    # 'data_hand/hand_keypoint/annotations3d/Flora8/XS__all__normal__right__1000__0006__20230810_081258__undistort_tar__Flora8.json',
+    # 'data_hand/hand_keypoint/annotations3d/Flora8/XS__all__normal__right__1000__0006__20230810_082257__undistort_tar__Flora8.json',
+    # 'data_hand/hand_keypoint/annotations3d/Flora8/XS__all__normal__right__1000__0010__20230810_080650__undistort_tar__Flora8.json',
 ]
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
-    'data_hand/hand_keypoint/annotations3d/seq_data_new_format/test_nreal_gesture_0111_seq_spline3d_clean_lmdb_part0000.json'
+    # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__right__1000__0007__20230809_100619__undistort_tar__Flora301.json',
+    # 'data_hand/hand_keypoint/annotations3d/Flora8/XS__all__normal__right__1000__0011__20230810_081042__undistort_tar__Flora8.json'
+    'data_hand/hand_keypoint/annotations3d/Flora301_simulation/XS__all__normal__right__1000__0007__20230809_060812__undistort_tar__Flora301.json'
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # pipelines
@@ -260,7 +255,10 @@ gesture_list = [
     'Click', 'Grab', 'Pinch', 'OpenHand', 'Victory', 'Call', 'Home'
 ]
 # val_evaluator = dict(type='MPJPEMetricLifting', gesture_list=gesture_list)
-val_evaluator = dict(type='MPJPEV2', gesture_list=gesture_list, result_dir='.')
+val_evaluator = [
+    dict(type='MPJPEV2', gesture_list=gesture_list, result_dir='.'),
+    dict(type='MPJPEV2', mode='p-mpjpe', prefix='1')
+]
 test_evaluator = val_evaluator
 
 # fp16 settings

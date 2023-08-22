@@ -17,3 +17,5 @@
 
 007: train flora (fine-tune style), with ndt metric for testing accuracy
 008: train ella with pinch loss, dump model for testing in real AR glass
+013: train flora in a brand new dataset style
+014: sequence based kp3d prediction method
