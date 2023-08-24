@@ -201,8 +201,8 @@ test_dataloader = val_dataloader
 
 # evaluators
 val_evaluator = [
-    dict(type='MPJPEV2', mode='mpjpe'),
-    dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
+    dict(type='MPJPEV2', mode='mpjpe', with_tag=True),
+    dict(type='MPJPEV2', mode='p-mpjpe', prefix='1', with_tag=True),
     dict(type='EPE'),
     dict(type='NrealKeypointAP')
 ]

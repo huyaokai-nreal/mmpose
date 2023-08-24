@@ -201,6 +201,14 @@ class HANDDataset(BaseCocoStyleDataset):
                             f"{lmdb_path}_{self.mask_ext}:{data_info['img_path']}" # noqa
                     data_info[
                         'img_path'] = f"{lmdb_path}:{data_info['img_path']}"
+                    if self.test_mode:
+                        if 'tag' not in data_info['meta']:
+                            data_info['meta']['tag'] = osp.basename(anno_file)
+                        elif data_info['meta']['tag'] is None:
+                            data_info['meta']['tag'] = osp.basename(anno_file)
+                        else:
+                            data_info['meta'][
+                                'tag'] += f',{osp.basename(anno_file)}'
                     instance_list.append(data_info)
                     sub_dataset_num += 1
             self.dataset_info_list.append(

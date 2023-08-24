@@ -178,8 +178,10 @@ class MPJPEV2(MPJPE):
                 (-1)).tolist()
             result.score = float(np.mean(keypoint_scores))
             result.video_id = data_sample['img_path']
-            result.meta['tag'] = 'all_tag'
-            result.meta['gesture'] = data_sample['meta']['gesture']
+            if 'tag' in data_sample['meta']:
+                result.meta['tag'] = data_sample['meta']['tag']
+            if 'gesture' in data_sample['meta']:
+                result.meta['gesture'] = data_sample['meta']['gesture']
 
             # get area information
             if 'bbox_scales' in data_sample['gt_instances']:

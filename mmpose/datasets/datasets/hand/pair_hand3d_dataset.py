@@ -225,6 +225,14 @@ class PairHand3DDataset(BaseCocoStyleDataset):
 
                 data_info = self.parse_data_info(
                     dict(raw_ann_info=ann, raw_img_info=[left_img, right_img]))
+                if self.test_mode:
+                    if 'tag' not in data_info['meta']:
+                        data_info['meta']['tag'] = osp.basename(anno_file)
+                    elif data_info['meta']['tag'] is None:
+                        data_info['meta']['tag'] = osp.basename(anno_file)
+                    else:
+                        data_info['meta'][
+                            'tag'] += f',{osp.basename(anno_file)}'
                 keypoints3d_list.append(data_info['keypoints3d'])
                 if self.with_mask:
                     category_name = self.category_name_list[int(
@@ -284,7 +292,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
 
     def get_data_info(self, idx):
         idx = idx % self.data_num
-        if not self.test_mode and self.pinch_random:  # Uniformly allocate three types of pinch data during training
+        if not self.test_mode and self.pinch_random:
             idx = random.choice(
                 random.choice([
                     self.pinch_idx_list, self.no_pinch_idx_list,
