@@ -42,7 +42,8 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                  sub_data_index=-1,
                  data_ratio=-1,
                  point_type='3D',
-                 pinch_random=False):
+                 pinch_random=False,
+                 mean_bone_template_path=''):
         self.flip_left_to_right = flip_left_to_right
         self.data_ratio = data_ratio
         self.data_file_list = data_file_list
@@ -63,6 +64,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         self.no_pinch_idx_list = []
         self.media_idx_list = []
         self.hand_bones_list = list()
+        self.mean_bone_template_path = mean_bone_template_path
         if dataset_weight_list:
             assert len(dataset_weight_list) == len(data_file_list)
         super().__init__(
@@ -77,6 +79,23 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             max_refetch=max_refetch,
             pipeline=pipeline)
         self.data_num = super().__len__()
+        if mean_bone_template_path:
+            logger: MMLogger = MMLogger.get_current_instance()
+            logger.info(
+                f'update bones from template {mean_bone_template_path}')
+            self.__update_bones_with_mean_template()
+
+    def __update_bones_with_mean_template(self):
+        mean_bones = np.load(self.mean_bone_template_path)
+        new_bones_list = []
+        self.hand_scale_list = []
+        for bones in self.hand_bones_list:
+            scale = np.mean(bones / mean_bones)
+            self.hand_scale_list.append(scale)
+            new_bone = scale * mean_bones
+            new_bones_list.append(new_bone)
+
+        self.hand_bones_list = new_bones_list
 
     @force_full_init
     def __len__(self) -> int:
@@ -327,11 +346,15 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         meta_left['ori_camera'] = copy.deepcopy(data_info['cam_model_left'])
         meta_left['template_bones'] = self.hand_bones_list[
             data_info['meta']['template_bones_id']]
+        meta_left['hand_scale'] = self.hand_scale_list[data_info['meta']
+                                                       ['template_bones_id']]
 
         meta_right = copy.deepcopy(data_info['meta'])
         meta_right['ori_camera'] = copy.deepcopy(data_info['cam_model_right'])
         meta_right['template_bones'] = self.hand_bones_list[
             data_info['meta']['template_bones_id']]
+        meta_right['hand_scale'] = self.hand_scale_list[data_info['meta']
+                                                        ['template_bones_id']]
 
         data_info_left = {
             'img_id': data_info['left_img_id'],

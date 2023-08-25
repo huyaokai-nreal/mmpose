@@ -90,7 +90,8 @@ class RTMCCIPRHead3D(RTMCCHead3D):
                  decoder: OptConfigType = None,
                  init_cfg: OptConfigType = None,
                  output_sigma: bool = False,
-                 deploy: bool = False):
+                 deploy: bool = False,
+                 with_hand_scale: bool = False):
         super().__init__(in_channels, out_channels, input_size,
                          in_featuremap_size, simcc_split_ratio,
                          final_layer_kernel_size, gau_cfg, loss, decoder,
@@ -101,12 +102,13 @@ class RTMCCIPRHead3D(RTMCCHead3D):
         self.ipr_module = SimCCToKeypoint3D(feat_w=W, feat_h=H, feat_d=D)
         self.output_sigma = output_sigma
         self.deploy = deploy
+        self.with_hand_scale = with_hand_scale
         if self.output_sigma:
             self.gap = nn.AdaptiveAvgPool2d((1, 1))
             self.sigma_conv = nn.Conv2d(
                 self.in_channels, self.out_channels * 3, kernel_size=1)
 
-    def forward(self, feats: Tuple[Tensor]) -> Tuple[Tensor, Tensor]:
+    def forward(self, feats: Tuple[Tensor], scale=1) -> Tuple[Tensor, Tensor]:
         """Forward the network.
 
         The input is multi scale feature maps and the
@@ -123,6 +125,7 @@ class RTMCCIPRHead3D(RTMCCHead3D):
         heatmaps = torch.cat([pred_x, pred_y, pred_z], dim=1)
         raw_feats = feats[-1]
         pred_x, pred_y, pred_z = self.ipr_module(pred_x, pred_y, pred_z)
+        pred_z = pred_z * scale
         output = torch.cat([pred_x, pred_y, pred_z], dim=-1)
         if self.output_sigma:
             x = self.gap(raw_feats)
@@ -131,7 +134,7 @@ class RTMCCIPRHead3D(RTMCCHead3D):
                 pred_sigma.size(0), self.out_channels, 3)
             output = torch.cat([output, pred_sigma_reshape], dim=-1)
         if self.deploy:
-            return torch.cat([pred_x, pred_y, pred_z], dim=-1), pred_sigma
+            return torch.cat([pred_x, pred_y, pred_z], dim=-1)
         else:
             return output, heatmaps
 
@@ -169,6 +172,13 @@ class RTMCCIPRHead3D(RTMCCHead3D):
                 - heatmaps (Tensor): The predicted heatmaps in shape (K, h, w)
         """
 
+        if self.with_hand_scale:
+            hand_scales = [
+                sample.meta['hand_scale'] for sample in batch_data_samples
+            ]
+            hand_scales = torch.from_numpy(
+                np.array(hand_scales,
+                         dtype=np.float32)).cuda().unsqueeze(1).unsqueeze(2)
         if test_cfg.get('flip_test', False):
             # TTA: flip test -> feats = [orig, flipped]
             assert isinstance(feats, list) and len(feats) == 2
@@ -194,7 +204,11 @@ class RTMCCIPRHead3D(RTMCCHead3D):
             batch_coords = (_batch_coords + _batch_coords_flip) * 0.5
             batch_heatmaps = (_batch_heatmaps + _batch_heatmaps_flip) * 0.5
         else:
-            batch_coords, batch_heatmaps = self.forward(feats)  # (B, K, D)
+            if self.with_hand_scale:
+                batch_coords, batch_heatmaps = self.forward(
+                    feats, hand_scales)  # (B, K, D)
+            else:
+                batch_coords, batch_heatmaps = self.forward(feats)  # (B, K, D)
 
         if self.output_sigma:
             batch_coords[..., 2:] = batch_coords[..., 2:].sigmoid()
@@ -214,8 +228,16 @@ class RTMCCIPRHead3D(RTMCCHead3D):
              batch_data_samples: OptSampleList,
              train_cfg: ConfigType = {}) -> dict:
         """Calculate losses from a batch of inputs and data samples."""
-
-        pred_outputs, _ = self.forward(inputs)
+        if self.with_hand_scale:
+            hand_scales = [
+                sample.meta['hand_scale'] for sample in batch_data_samples
+            ]
+            hand_scales = torch.from_numpy(
+                np.array(hand_scales,
+                         dtype=np.float32)).cuda().unsqueeze(1).unsqueeze(2)
+            pred_outputs, _ = self.forward(inputs, hand_scales)
+        else:
+            pred_outputs, _ = self.forward(inputs)
 
         keypoint_labels = torch.cat(
             [d.gt_instance_labels.keypoint_labels for d in batch_data_samples])
