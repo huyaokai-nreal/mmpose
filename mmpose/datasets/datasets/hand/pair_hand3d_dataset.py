@@ -346,15 +346,17 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         meta_left['ori_camera'] = copy.deepcopy(data_info['cam_model_left'])
         meta_left['template_bones'] = self.hand_bones_list[
             data_info['meta']['template_bones_id']]
-        meta_left['hand_scale'] = self.hand_scale_list[data_info['meta']
-                                                       ['template_bones_id']]
+        if self.mean_bone_template_path:
+            meta_left['hand_scale'] = self.hand_scale_list[
+                data_info['meta']['template_bones_id']]
 
         meta_right = copy.deepcopy(data_info['meta'])
         meta_right['ori_camera'] = copy.deepcopy(data_info['cam_model_right'])
         meta_right['template_bones'] = self.hand_bones_list[
             data_info['meta']['template_bones_id']]
-        meta_right['hand_scale'] = self.hand_scale_list[data_info['meta']
-                                                        ['template_bones_id']]
+        if self.mean_bone_template_path:
+            meta_right['hand_scale'] = self.hand_scale_list[
+                data_info['meta']['template_bones_id']]
 
         data_info_left = {
             'img_id': data_info['left_img_id'],
