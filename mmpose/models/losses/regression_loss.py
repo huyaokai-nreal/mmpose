@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from mmengine import MMLogger
+from mmengine.logging import MessageHub, MMLogger
 from mmengine.runner import CheckpointLoader, load_state_dict
 from torch import Tensor
 
@@ -687,15 +688,19 @@ class PinchLoss(nn.Module):
             Tensor: The calculated loss.
         """
         assert dist_gt.ndimension() == dist_pred.ndimension() == 1
-        pinch_index = torch.nonzero(dist_gt < self.enter_thre).squeeze()
+
+        pinch_index = torch.nonzero(dist_gt <= self.enter_thre).squeeze()
         no_pinch_index = torch.nonzero(dist_gt > self.exit_thre).squeeze()
 
-        loss_pinch = self.loss_weight * (
-            torch.sum(
-                torch.maximum(dist_pred[pinch_index] - self.enter_thre,
-                              torch.tensor(0.0))) +
-            torch.sum(
-                torch.maximum(self.exit_thre - dist_pred[no_pinch_index],
-                              torch.tensor(0.0))))
-        # from IPython import embed;embed()
+        pinch_loss = torch.mean(
+            torch.maximum(dist_pred[pinch_index] -
+                          self.enter_thre, torch.tensor(0.0))
+        ) if pinch_index.numel() else torch.tensor(0.0)
+
+        no_pinch_loss = torch.mean(
+            torch.maximum(self.exit_thre -
+                          dist_pred[no_pinch_index], torch.tensor(0.0))
+        ) if no_pinch_index.numel() else torch.tensor(0.0)
+        loss_pinch = self.loss_weight * (pinch_loss + no_pinch_loss)
+
         return loss_pinch
