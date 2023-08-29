@@ -78,7 +78,12 @@ model = dict(
         #    use_target_weight=False,
         #    dim=3,
         #),
-        loss=dict(type='L1Loss'),
+        loss=dict(
+            type='MultipleLossWrapper',
+            losses=[
+                dict(type='L1Loss', use_target_weight=False),
+                dict(type='L1Loss', use_target_weight=False)
+            ]),
         decoder=codec),
     test_cfg=dict(flip_test=False, ),
     init_cfg=dict(

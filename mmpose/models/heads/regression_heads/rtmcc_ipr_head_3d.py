@@ -239,29 +239,44 @@ class RTMCCIPRHead3D(RTMCCHead3D):
         else:
             pred_outputs, _ = self.forward(inputs)
 
-        keypoint_labels = torch.cat(
-            [d.gt_instance_labels.keypoint_labels for d in batch_data_samples])
         keypoint_weights = torch.cat([
             d.gt_instance_labels.keypoint_weights for d in batch_data_samples
         ])
-
+        label_2d_list = []
+        label_depth_list = []
+        label_depth_id_list = []
+        for i, data in enumerate(batch_data_samples):
+            keypoint_label = data.gt_instance_labels.keypoint_labels
+            label_2d_list.append(keypoint_label[..., :2])
+            if keypoint_label.shape[-1] == 3:
+                label_depth_list.append(keypoint_label[..., 2:3])
+                label_depth_id_list.append(i)
+        label_2d = torch.cat(label_2d_list)
+        label_depth = torch.cat(label_depth_list)
+        label_depth_id = torch.tensor(
+            label_depth_id_list, dtype=torch.int32).cuda()
+        valid_depth_pred = torch.index_select(pred_outputs, 0,
+                                              label_depth_id)[..., 2:3]
         # calculate losses
         losses = dict()
-        loss = self.loss_module(pred_outputs, keypoint_labels,
+        input_list = [pred_outputs[..., :2], valid_depth_pred]
+        target_list = [label_2d, label_depth]
+        loss = self.loss_module(input_list, target_list,
                                 keypoint_weights.unsqueeze(-1))
 
-        losses.update(loss_kpt=loss)
+        losses.update(loss_kpt2d=loss[0])
+        losses.update(loss_depth=loss[1])
 
         # calculate accuracy
         pred_coords = pred_outputs[:, :, :3]
         _, avg_acc, _ = keypoint_pck_accuracy(
-            pred=to_numpy(pred_coords),
-            gt=to_numpy(keypoint_labels),
+            pred=to_numpy(pred_outputs[..., :2]),
+            gt=to_numpy(label_2d),
             mask=to_numpy(keypoint_weights) > 0,
             thr=0.05,
-            norm_factor=np.ones((pred_coords.size(0), 3), dtype=np.float32))
+            norm_factor=np.ones((pred_coords.size(0), 2), dtype=np.float32))
 
-        acc_pose = torch.tensor(avg_acc, device=keypoint_labels.device)
+        acc_pose = torch.tensor(avg_acc).cuda()
         losses.update(acc_pose=acc_pose)
 
         return losses
