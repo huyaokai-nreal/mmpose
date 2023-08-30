@@ -184,22 +184,28 @@ train_dataloader = dict(
     sampler=dict(type='DefaultSampler', shuffle=True),
     collate_fn=dict(type='default_collate'),
     dataset=dict(
-        type='ConcatDataset',
+        type='CombinedDataset',
+        metainfo=dict(from_file='configs/_base_/datasets/nreal_hand.py'),
+        sample_ratio_factor=[2, 0.5],  #设置以下每个数据集原来数据的采样倍数
         datasets=[
             dict(
                 type='PairHand3DDataset',
+                data_ratio=1,
                 data_file_list=train_data_list,
                 data_mode=data_mode,
                 pipeline=train_pipeline,
                 dataset_weight_list=dataset_weight_list,
-                point_type='2D',
-                data_ratio=2,
-                data_root=data_root),
+                data_root=data_root,
+                flip_left_to_right=True,
+                point_type='2D'
+                # indices=1000,
+            ),
             dict(
                 type='HANDDataset',
                 data_file_list=train_2d_data_list,
                 data_mode=data_mode,
                 pipeline=train_pipeline,
+                flip_left_to_right=True,
                 data_root=data_root)
         ]))
 val_dataloader = dict(
