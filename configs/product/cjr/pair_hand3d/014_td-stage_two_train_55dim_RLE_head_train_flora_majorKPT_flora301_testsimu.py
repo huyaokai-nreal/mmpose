@@ -127,7 +127,8 @@ model = dict(
             ]),
         channel_num=55,
         output_num=42,
-        undistort=True),
+        undistort=True,
+        use_kp2d_gt=True),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
@@ -163,6 +164,8 @@ train_data_list = [
     'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__right__1000__0006__20230809_060122__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__right__1000__0007__20230809_060812__undistort_tar__Flora301.json',
 
+    # 'data_hand/hand_keypoint/annotations3d/Flora301_simulation/XS__all__normal__right__1000__0007__20230809_060812__undistort_tar__Flora301.json',
+
     # 'data_hand/hand_keypoint/annotations3d/Flora8/XS__all__normal__left__1000__0006__20230810_081421__undistort_tar__Flora8.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora8/XS__all__normal__left__1000__0007__20230810_081633__undistort_tar__Flora8.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora8/XS__all__normal__right__1000__0006__20230810_081258__undistort_tar__Flora8.json',
@@ -174,8 +177,7 @@ dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
     # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__right__1000__0007__20230809_100619__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora8/XS__all__normal__right__1000__0011__20230810_081042__undistort_tar__Flora8.json'
-    'data_hand/hand_keypoint/annotations3d/Flora301_simulation/XS__all__normal__right__1000__0007__20230809_060812__undistort_tar__Flora301.json'
+    'data_hand/hand_keypoint/annotations3d/Flora301_simulation/XS__all__normal__right__1000__0007__20230809_100619__undistort_tar__Flora301.json'
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # pipelines

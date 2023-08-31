@@ -1,7 +1,8 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import copy
 import os.path as osp
-import random
+# import random
+# from itertools import groupby
 from typing import Any, Callable, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -42,13 +43,13 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
                  sub_data_index=-1,
                  data_ratio=-1,
                  point_type='3D',
-                 pinch_random=False):
+                 seq_len=3):
         self.flip_left_to_right = flip_left_to_right
         self.data_ratio = data_ratio
         self.data_file_list = data_file_list
         self.lmdb_client = LmdbClient()
+        self.dataset_info_list = list()
         self.point_type = point_type
-        self.pinch_random = pinch_random
         self.dataset_info_list = list()
         self.dataset_weight_list = dataset_weight_list
         self.dataset_num = len(self.data_file_list)
@@ -57,11 +58,7 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         self.mask_ext = mask_ext
         self.sub_data_index = int(sub_data_index)
         self.cams_info = dict()
-        self.enter_thre = 0.02
-        self.exit_thre = 0.04
-        self.pinch_idx_list = []
-        self.no_pinch_idx_list = []
-        self.media_idx_list = []
+        self.seq_len = seq_len
         if dataset_weight_list:
             assert len(dataset_weight_list) == len(data_file_list)
         super().__init__(
@@ -193,11 +190,12 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         # sub_dataset_start_id = 0
         if self.sub_data_index >= 0:
             self.data_file_list = [self.data_file_list[self.sub_data_index]]
+        instance_idx = 0
         for i, anno_file in enumerate(self.data_file_list):
             coco = COCO(anno_file)
             lmdb_path = osp.join(self.lmdb_data_root,
                                  coco.dataset['lmdb_path'])
-            # sub_dataset_num = 0
+            seq_list = []
             self.cams_info.update(coco.dataset['cameras_info'])
             ann_ids = coco.getAnnIds()
             for ann_id in ann_ids:
@@ -226,22 +224,16 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
                     f"{lmdb_path}:{data_info['right_img_path']}"
 
                 instance_list.append(data_info)
+                seq_list.append(instance_idx)
+                instance_idx += 1
 
+            self.dataset_info_list.append(seq_list)
+
+        self.dataset_info_list = np.array(self.dataset_info_list)
         logger: MMLogger = MMLogger.get_current_instance()
         logger.info(
             f'HandDataset loaded {len(image_list)} images, {len(instance_list)} pair instances'  # noqa
         )
-        if self.pinch_random:
-            for i, instance in enumerate(instance_list):
-                kpt3d = instance['keypoints3d']
-                dist = np.linalg.norm(
-                    kpt3d[:, 4, :] - kpt3d[:, 8, :], axis=-1).item()
-                if dist < self.enter_thre:
-                    self.pinch_idx_list.append(i)
-                elif dist > self.exit_thre:
-                    self.no_pinch_idx_list.append(i)
-                else:
-                    self.media_idx_list.append(i)
 
         return instance_list, image_list
 
@@ -264,12 +256,6 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
 
     def get_data_info(self, idx):
         idx = idx % self.data_num
-        if not self.test_mode and self.pinch_random:  # Uniformly allocate three types of pinch data during training  # noqa
-            idx = random.choice(
-                random.choice([
-                    self.pinch_idx_list, self.no_pinch_idx_list,
-                    self.media_idx_list
-                ]))
         data_info = super().get_data_info(idx)
         data_info['left_img'] = self.lmdb_client.get(
             data_info['left_img_path'])
@@ -279,20 +265,7 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         data_info['meta']['frame_width'] = data_info['left_img'].shape[1]
         return data_info
 
-    @force_full_init
-    def prepare_data(self, idx) -> Any:
-        """Get data processed by ``self.pipeline``.
-
-        :class:`BaseCocoStyleDataset` overrides this method from
-        :class:`mmengine.dataset.BaseDataset` to add the metainfo into
-        the ``data_info`` before it is passed to the pipeline.
-
-        Args:
-            idx (int): The index of ``data_info``.
-
-        Returns:
-            Any: Depends on ``self.pipeline``.
-        """
+    def prepare_pair_data(self, idx) -> Any:
         data_info = self.get_data_info(idx)
         meta_left = copy.deepcopy(data_info['meta'])
         meta_left['ori_camera'] = copy.deepcopy(data_info['cam_model_left'])
@@ -355,13 +328,50 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         if data_info['cat_id'] == 1:
             self.__left_2_right_hand(data_info_left)
             self.__left_2_right_hand(data_info_right)
-        if self.test_mode or self.point_type == '3D':  # default
-            ppl_left = self.pipeline(data_info_left)
-            ppl_right = self.pipeline(data_info_right)
-            all_results = default_collate([ppl_left, ppl_right])
-        elif self.point_type == 'leftcam':
-            all_results = self.pipeline(data_info_left)
-        elif self.point_type == '2d':
-            all_results = self.pipeline(
-                random.choice([data_info_left, data_info_right]))
+
+        ppl_left = self.pipeline(data_info_left)
+        ppl_right = self.pipeline(data_info_right)
+
+        return ppl_left, ppl_right
+
+    def get_seq_idx(self, idx) -> list:
+        seq_idx = np.random.choice(range(len(self.dataset_info_list)))
+        seq_list = self.dataset_info_list[seq_idx]
+
+        seq_list_cur_idx = np.random.choice(range(len(seq_list)))
+        idx_list = []
+        for i in range(self.seq_len):
+            tmp = max(seq_list_cur_idx - i, 0)
+            idx_list.append(tmp)
+        idx_list.reverse()
+
+        final_list = []
+        for idx in idx_list:
+            tmp = seq_list[idx]
+            final_list.append(tmp)
+        return final_list
+
+    @force_full_init
+    def prepare_data(self, idx) -> Any:
+        """Get data processed by ``self.pipeline``.
+
+        :class:`BaseCocoStyleDataset` overrides this method from
+        :class:`mmengine.dataset.BaseDataset` to add the metainfo into
+        the ``data_info`` before it is passed to the pipeline.
+
+        Args:
+            idx (int): The index of ``data_info``.
+
+        Returns:
+            Any: Depends on ``self.pipeline``.
+        """
+        collate_list = []
+        seq_idx_list = self.get_seq_idx(idx)
+
+        for idx in seq_idx_list:
+            ppl_left, ppl_right = self.prepare_pair_data(idx)
+            collate_list.extend([ppl_left, ppl_right])
+
+        all_results = default_collate(collate_list)
+
         return all_results

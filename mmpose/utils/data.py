@@ -23,7 +23,7 @@ def format_data(func: Callable):
                                                     inputs.shape[4])
                         arg['inputs'] = inputs
             if is_seq_of(arg, tuple):
-                tmp_list = cross_merge_list(arg[0], arg[1])
+                tmp_list = cross_merge_list(arg)
                 args[i] = tmp_list
         return func(*args, **kwargs)
 

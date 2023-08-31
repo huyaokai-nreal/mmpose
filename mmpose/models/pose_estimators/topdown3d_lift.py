@@ -254,3 +254,45 @@ class TopdownPoseLiftEstimator(BaseModel):
             self.backbone.eval()
             self.neck.eval()
             self.head.eval()
+
+
+@MODELS.register_module()
+class TopdownPoseLiftEstimatorSeq(TopdownPoseLiftEstimator):
+
+    def __init__(self,
+                 backbone: ConfigType,
+                 neck: OptConfigType = None,
+                 head: OptConfigType = None,
+                 kpt3d_lift: OptConfigType = None,
+                 train_cfg: OptConfigType = None,
+                 test_cfg: OptConfigType = None,
+                 data_preprocessor: OptConfigType = None,
+                 init_cfg: OptMultiConfig = None,
+                 metainfo: Optional[dict] = None,
+                 seq_len: int = 3):
+        super().__init__(backbone, neck, head, kpt3d_lift, train_cfg, test_cfg,
+                         data_preprocessor, init_cfg, metainfo)
+        self.seq_len = seq_len
+
+    def add_pred_to_datasample(self, batch_pred_instances: InstanceList,
+                               batch_pred_fields: Optional[PixelDataList],
+                               batch_data_samples_seq: SampleList
+                               ) -> SampleList:
+
+        batch_data_samples = batch_data_samples_seq[self.seq_len * 2 -
+                                                    2::self.seq_len *
+                                                    2]  # 3d gt信息保存在左目
+
+        assert len(batch_pred_instances) == len(batch_data_samples)
+        if batch_pred_fields is None:
+            batch_pred_fields = []
+
+        for pred_instances, pred_fields, data_sample in zip_longest(
+                batch_pred_instances, batch_pred_fields, batch_data_samples):
+
+            pred_instances.keypoints3d = pred_instances.keypoints.cpu().numpy()
+            pred_instances.keypoint_scores = np.ones(
+                pred_instances.keypoints.shape[0])
+
+            data_sample.pred_instances = pred_instances
+        return batch_data_samples

@@ -14,11 +14,12 @@ from mmpose.utils.typing import ConfigType, OptSampleList, Predictions
 
 
 @MODELS.register_module()
-class LiftHead(BaseModule):
+class LiftHeadSeq(BaseModule):
     """liftHead for getting 3d keypoints from pair 2d keypoints."""
 
     def __init__(self,
                  lift_loss: ConfigType,
+                 seq_len: int = 3,
                  channel_num: int = 55,
                  output_num: int = 42,
                  undistort: bool = False,
@@ -28,7 +29,8 @@ class LiftHead(BaseModule):
                  init_cfg: Union[dict, List[dict], None] = None):
         super().__init__(init_cfg)
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
-        self.channel_num = channel_num
+        self.seq_len = seq_len
+        self.channel_num = (21 * 2) * seq_len + 9 + 3 + 1
         self.lambda_t = lambda_t
         self.corruption_cam = corruption_cam
         self.liftnet = gMLP(
@@ -50,10 +52,16 @@ class LiftHead(BaseModule):
             (feats.shape[0], -1, 1, 1))  # [64, 42, 1, 1]
         return output
 
+    def _sample(self, tensor):
+        seq = self.seq_len
+        res = tensor[seq - 1::seq, ...]
+        return res
+
     def preprocess(self, feats, batch_data_samples):
         xy_coord = feats
-        B = int(len(batch_data_samples) / 2)
+        S = self.seq_len
         N = 2
+        B = int(len(batch_data_samples) / S / N)
         H, W = batch_data_samples[0].input_size
         K = xy_coord.shape[1]  # (B,21, 2)
 
@@ -61,7 +69,7 @@ class LiftHead(BaseModule):
         uv_coord_im_pred_crop_right = xy_coord[..., :2] * torch.tensor(
             [W, H]).cuda()
         uv_coord_im_pred_crop_right = uv_coord_im_pred_crop_right.view(
-            B, N, K, 2)
+            B * S, N, K, 2)
 
         leftcam_cam_matrix = []
         rightcam_cam_matrix = []
@@ -72,7 +80,7 @@ class LiftHead(BaseModule):
 
         uv_coord_im_gt_global = []
 
-        all_inv_warp_mat = torch.zeros(B * 2, 3, 2).cuda()
+        all_inv_warp_mat = torch.zeros(B * S * N, 3, 2).cuda()
         all_inv_warp_mat.requires_grad = False
         for i, data_sample in enumerate(batch_data_samples):
             if i % 2 == 0:
@@ -112,7 +120,7 @@ class LiftHead(BaseModule):
         left_hand = torch.tensor(np.array(is_left_hands)).cuda().float()
         uv_coord_im_gt_global = torch.tensor(
             np.array(uv_coord_im_gt_global)).cuda().float()
-        uv_coord_im_gt_global = uv_coord_im_gt_global.view(B, N, K, 2)
+        uv_coord_im_gt_global = uv_coord_im_gt_global.view(B * S, N, K, 2)
 
         def recover_hand(uv_coord_im_pred, left_hand, w):
             recover_uv_coord_im_pred = (
@@ -128,15 +136,16 @@ class LiftHead(BaseModule):
         #     uv_coord_im_pred_crop_right, left_hand, device, W)
 
         uv_coord_im_pred_crop_leftright = uv_coord_im_pred_crop_leftright.view(
-            B * N, K, 2)
+            B * S * N, K, 2)
 
         # from crop uv to global uv
-        uv_coord_im_pred = torch.cat(
-            [uv_coord_im_pred_crop_leftright,
-             torch.ones(B * 2, K, 1).cuda()],
-            dim=-1)
+        uv_coord_im_pred = torch.cat([
+            uv_coord_im_pred_crop_leftright,
+            torch.ones(B * S * N, K, 1).cuda()
+        ],
+                                     dim=-1)
         uv_coord_im_pred_global = torch.bmm(uv_coord_im_pred, all_inv_warp_mat)
-        uv_coord_im_pred_global = uv_coord_im_pred_global.view(B, N, K, 2)
+        uv_coord_im_pred_global = uv_coord_im_pred_global.view(B * S, N, K, 2)
 
         frame_width = batch_data_samples[0].meta['frame_width']
         uv_coord_im_pred_global = recover_hand(uv_coord_im_pred_global,
@@ -155,38 +164,54 @@ class LiftHead(BaseModule):
                 kpt2d_u = camera_model.undistort(
                     uv_coord_im_pred_global[i].cpu().numpy())
                 uv_coord_im_pred_global[i] = torch.from_numpy(kpt2d_u).cuda()
-            uv_coord_im_pred_global = uv_coord_im_pred_global.view(B, N, K, 2)
+            uv_coord_im_pred_global = uv_coord_im_pred_global.view(
+                B * S, N, K, 2)
 
-        leftcam_uv = uv_coord_im_pred_global[:, 0]  # (B, 21, 2)
+        leftcam_uv = uv_coord_im_pred_global[:, 0]  # (B*S, 21, 2)
         leftcam_x = (leftcam_uv[:, :, 0] - leftcam_cam_matrix[:, 0, 2].view(
-            (B, 1))) / leftcam_cam_matrix[:, 0, 0].view((B, 1))
+            (B * S, 1))) / leftcam_cam_matrix[:, 0, 0].view((B * S, 1))
         leftcam_y = (leftcam_uv[:, :, 1] - leftcam_cam_matrix[:, 1, 2].view(
-            (B, 1))) / leftcam_cam_matrix[:, 1, 1].view((B, 1))
+            (B * S, 1))) / leftcam_cam_matrix[:, 1, 1].view((B * S, 1))
         leftcam_xy = torch.cat(
             (leftcam_x.unsqueeze(-1), leftcam_y.unsqueeze(-1)),
-            dim=2)  # (B, 21, 2)
+            dim=2)  # (B*S, 21, 2)
         rightcam_uv = uv_coord_im_pred_global[:, 1]  # (B, 21, 2)
         rightcam_x = (rightcam_uv[:, :, 0] - rightcam_cam_matrix[:, 0, 2].view(
-            (B, 1))) / rightcam_cam_matrix[:, 0, 0].view((B, 1))
+            (B * S, 1))) / rightcam_cam_matrix[:, 0, 0].view((B * S, 1))
         rightcam_y = (rightcam_uv[:, :, 1] - rightcam_cam_matrix[:, 1, 2].view(
-            (B, 1))) / rightcam_cam_matrix[:, 1, 1].view((B, 1))
+            (B * S, 1))) / rightcam_cam_matrix[:, 1, 1].view((B * S, 1))
         rightcam_xy = torch.cat(
             (rightcam_x.unsqueeze(-1), rightcam_y.unsqueeze(-1)),
-            dim=2)  # (B, 21, 2)
+            dim=2)  # (B*S, 21, 2)
 
         Tmatrix_leftcam = torch.tensor(
             (0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)).view((1, -1)).cuda()
 
+        left_hand_sample = self._sample(left_hand)
+        hand3d_gt_sample = self._sample(hand3d_gt)
+        leftcam_xy_sample = self._sample(leftcam_xy)
+        rightcam_xy_sample = self._sample(rightcam_xy)
+        lr_rot_matrix_sample = self._sample(lr_rot_matrix)
+        lr_p_sample = self._sample(lr_p)
+        leftcam_cam_matrix_sample = self._sample(leftcam_cam_matrix)
+        rightcam_cam_matrix_sample = self._sample(rightcam_cam_matrix)
+        uv_coord_im_pred_global_sample = self._sample(uv_coord_im_pred_global)
+        hand3d_gt_sample = self._sample(hand3d_gt)
+
         feature1 = torch.cat((leftcam_xy.view(
-            (B, -1)), Tmatrix_leftcam.repeat(B, 1), left_hand.view((B, -1))),
+            (B, -1)), Tmatrix_leftcam.repeat(
+                B, 1), left_hand_sample.view((B, -1))),
                              dim=1).view((B, self.channel_num, 1, 1))
-        feature2 = torch.cat((rightcam_xy.view((B, -1)), lr_p.view(
-            (B, -1)), lr_rot_matrix.view((B, -1)), left_hand.view((B, -1))),
+        feature2 = torch.cat((rightcam_xy.view(
+            (B, -1)), lr_p_sample.view(
+                (B, -1)), lr_rot_matrix_sample.view(
+                    (B, -1)), left_hand_sample.view((B, -1))),
                              dim=1).view((B, self.channel_num, 1, 1))
         feats = torch.torch.cat((feature1, feature2), dim=1).float()
-        return feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p, \
-            leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global, \
-            hand3d_gt
+        return (feats, leftcam_xy_sample, rightcam_xy_sample,
+                lr_rot_matrix_sample, lr_p_sample, leftcam_cam_matrix_sample,
+                rightcam_cam_matrix_sample, uv_coord_im_pred_global_sample,
+                hand3d_gt_sample)
 
     def postprocess(self, output, leftcam_xy, rightcam_xy, lr_rot_matrix,
                     lr_p):
