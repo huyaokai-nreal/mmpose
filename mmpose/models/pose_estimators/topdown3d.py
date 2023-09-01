@@ -4,6 +4,7 @@ from itertools import zip_longest
 from typing import Optional
 
 import numpy as np
+from nreal_data_tool.utils.camera import PinholePlaneCameraModel
 from scipy.optimize import leastsq
 
 from mmpose.registry import MODELS
@@ -17,7 +18,9 @@ def get_root_depth(keypoints,
                    camera,
                    template_bones,
                    weight,
-                   undistort: bool = True):
+                   gt: Optional[np.array] = None,
+                   undistort: bool = True,
+                   estimate_hand_scale: bool = False):
     rel_depth = keypoints[..., 2:]
     kpt2d = keypoints[..., :2]
     if undistort:
@@ -34,12 +37,7 @@ def get_root_depth(keypoints,
         bones = np.linalg.norm(kpt[:, 1:, :] - kpt[:, :-1, :], axis=-1)
         return bones.reshape(-1)
 
-    def model(x, p):
-        kpt3d = x * rel_depth + x * p[0]
-        bones = get_bones_from_kpt3d(kpt3d)
-        return bones
-
-    def error(p, x, y, w):
+    def error(p, x, y, w, gt):
         w0 = w[0].reshape((1, 1))
         _w = w[1:].reshape((5, 4))
         w0 = np.tile(w0, (5, 1))
@@ -47,15 +45,22 @@ def get_root_depth(keypoints,
         mean_w = (new_w[:, :4] + new_w[:, 1:]) / 2.0
         mean_w = mean_w.reshape(-1)
         mean_w /= np.max(mean_w)
-        result = mean_w * ((y - model(x, p)).reshape(-1))
+        kpt3d = x * rel_depth + x * p[0]
+        bones = get_bones_from_kpt3d(kpt3d)
+        if estimate_hand_scale:
+            kpt_error = kpt3d[8] - gt[8]
+            result = mean_w * ((y * p[1] - bones).reshape(-1))
+            result = np.concatenate([result, kpt_error * 10])
+        else:
+            result = mean_w * ((y - bones).reshape(-1))
         return result
 
-    p0 = [0.3]
+    p0 = [0.3, 1.0]
     param = leastsq(
         error,
         p0,
-        args=(norm_kpt2d, template_bones.reshape(-1), weight.reshape(-1)))
-    return param[0]
+        args=(norm_kpt2d, template_bones.reshape(-1), weight.reshape(-1), gt))
+    return param[0][0], param[0][1]
 
 
 @MODELS.register_module()
@@ -105,16 +110,24 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             bbox_centers = gt_instances.bbox_centers
             bbox_scales = gt_instances.bbox_scales
             # uv depth to camera coord pose
-            ori_cam = data_sample.meta['ori_camera']
-            root_depth = data_sample.meta['root_depth']
+            ori_cam = data_sample.meta.get(
+                'ori_camera',
+                PinholePlaneCameraModel(
+                    c=(240, 320),
+                    f=(200, 200),
+                    camera_to_world_xf=np.eye(4),
+                    distort_coeffs=[]))
+            root_depth = data_sample.meta.get('root_depth', 0.5)
             if 'virtual_camera' in data_sample.meta:
                 virtual_cam = data_sample.meta['virtual_camera']
                 virtual_keypoints = pred_instances.keypoints[0].copy()
+                gt_keypoints3d = gt_instances.keypoints3d[0]
                 if self.root_mode == 'optimize':
-                    root_depth = get_root_depth(
+                    root_depth, hand_scale = get_root_depth(
                         pred_instances.keypoints[0], virtual_cam,
                         data_sample.meta['template_bones'],
-                        pred_instances.keypoint_scores, False)
+                        pred_instances.keypoint_scores, gt_keypoints3d, False)
+                virtual_keypoints[..., 2] *= hand_scale
                 virtual_keypoints[..., 2] += root_depth
                 virtual_keypoints3d = virtual_cam.window_to_eye(
                     virtual_keypoints)
@@ -136,10 +149,11 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                     ..., :
                     2] / input_size * bbox_scales + bbox_centers - 0.5 * bbox_scales  # noqa
                 if self.root_mode == 'optimize':
-                    root_depth = get_root_depth(
+                    root_depth, hand_scale = get_root_depth(
                         pred_instances.keypoints[0], ori_cam,
                         data_sample.meta['template_bones'],
                         pred_instances.keypoint_scores)
+                    global_keypoints[..., 2] *= hand_scale
                 elif self.root_mode == 'rootnet':
                     root_depth = pred_instances.root_depth
                 global_keypoints[..., 2] += root_depth

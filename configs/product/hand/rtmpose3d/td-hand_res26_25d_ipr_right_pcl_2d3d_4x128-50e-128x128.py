@@ -5,7 +5,7 @@ train_cfg = dict(max_epochs=100, val_interval=5)
 
 data_root = '/data/AI_DATA_WX'
 # data_root = '/data/AI_DATA_LOCAL'
-
+test_type = '3d'
 base_lr = 1e-4
 # optimizer
 optim_wrapper = dict(
@@ -90,7 +90,7 @@ model = dict(
         type='Pretrained',
         checkpoint=
         'work_dirs/td-hand_res26_25d_4x128-50e_test-128x128/epoch_100.pth'),
-    root_mode='optimize',
+    root_mode='optimize' if test_type == '3d' else 'gt',
 )
 
 # visualizer
@@ -154,6 +154,12 @@ val_pipeline = [
     dict(type='GenerateTarget', encoder=codec),
     dict(type='PackPoseInputs')
 ]
+val_2d_pipeline = [
+    dict(type='GetBBoxCenterScale', padding=1.0),
+    dict(type='TopdownAffine', input_size=codec2d['input_size']),
+    dict(type='GenerateTarget', encoder=codec2d),
+    dict(type='PackPoseInputs')
+]
 
 dataset_type = 'PairHand3DDataset'
 data_mode = 'topdown'
@@ -198,7 +204,9 @@ train_2d_data_list = [
     'data_hand/hand_keypoint/annotations/train_nreal_gesture_0906_1_16~20_bad_data_twohand_lmdb.json',  #88k
     'data_hand/hand_keypoint/annotations/train_nreal_gesture_0906_1_21~22_bad_data_twohand_lmdb.json',  #70k
     'data_hand/hand_keypoint/annotations/train_nreal_gesture_0905_1_23~29_bad_data_twohand_lmdb.json',  #116k
-    'data_hand/hand_keypoint/annotations/hand_train_flora_10k_230327_1_cam0_lmdb__point_flora.json'  #10k
+    'data_hand/hand_keypoint/annotations/hand_train_flora_10k_230327_1_cam0_lmdb__point_flora.json',  #10k
+    'data_hand/hand_keypoint/annotations/hand_train_flora_20k_230822_1_cam0_lmdb.json',
+    'data_hand/hand_keypoint/annotations/hand_train_flora_20k_230829_1_cam0_lmdb.json'
 ]
 train_2d_data_list = [
     os.path.join(data_root, item) for item in train_2d_data_list
@@ -213,7 +221,7 @@ train_dataloader = dict(
     num_workers=8,
     persistent_workers=True,
     sampler=dict(
-        type='MultiSourceSampler', source_ratio=[0.5, 0.5], batch_size=128),
+        type='MultiSourceSampler', source_ratio=[0.7, 0.3], batch_size=128),
     collate_fn=dict(type='default_collate'),
     dataset=dict(
         type='CombinedDataset',
@@ -240,6 +248,29 @@ train_dataloader = dict(
                 data_root=data_root)
         ]),
 )
+val_2d_list = [
+    'data_hand/hand_keypoint/annotations/hand_test_flora_static_benchmark_230627_10k_lmdb.json',  # flora test
+    'data_hand/hand_keypoint/annotations/hand_test_flora_static_benchmark_230703_10k_lmdb.json',  # flora test
+    'data_hand/hand_keypoint/annotations/hand_test_flora_static_benchmark_230712_8k_lmdb.json'  # flora test
+]
+val_2d_list = [os.path.join(data_root, item) for item in val_2d_list]
+val_3d_dataset = dict(
+    type=dataset_type,
+    data_file_list=val_data_list,
+    data_mode=data_mode,
+    test_mode=True,
+    pipeline=val_pipeline,
+    flip_left_to_right=True,
+    point_type='2.5D',
+    data_root=data_root)
+val_2d_dataset = dict(
+    type='HANDDataset',
+    data_file_list=val_2d_list,
+    data_mode=data_mode,
+    test_mode=True,
+    pipeline=val_2d_pipeline,
+    flip_left_to_right=True,
+    data_root=data_root)
 val_dataloader = dict(
     batch_size=32,
     num_workers=1,
@@ -247,22 +278,15 @@ val_dataloader = dict(
     drop_last=False,
     sampler=dict(type='DefaultSampler', shuffle=False, round_up=False),
     collate_fn=dict(type='default_collate'),
-    dataset=dict(
-        type=dataset_type,
-        data_file_list=val_data_list,
-        data_mode=data_mode,
-        test_mode=True,
-        pipeline=val_pipeline,
-        flip_left_to_right=True,
-        point_type='2.5D',
-        data_root=data_root))
+    dataset=val_2d_dataset if test_type == '2d' else val_3d_dataset)
 test_dataloader = val_dataloader
 
 # evaluators
-val_evaluator = [
-    dict(type='MPJPEV2', mode='mpjpe'),
-    dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
-    dict(type='EPE'),
-    dict(type='NrealKeypointAP')
-]
+val_evaluator = [dict(type='EPE'), dict(type='NrealKeypointAP')]
+if test_type == '3d':
+    val_evaluator += [
+        dict(type='MPJPEV2', mode='mpjpe'),
+        dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
+    ]
+
 test_evaluator = val_evaluator
