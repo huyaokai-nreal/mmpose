@@ -258,6 +258,8 @@ val_3d_dataset = dict(
     type=dataset_type,
     data_file_list=val_data_list,
     data_mode=data_mode,
+    # hand template from outside algorithm, such binocular pipeline
+    #extern_hand_template_path = '/home/zx_li/workspace/mmpose/work_dirs/binocular_hand_template.npy',
     test_mode=True,
     pipeline=val_pipeline,
     flip_left_to_right=True,

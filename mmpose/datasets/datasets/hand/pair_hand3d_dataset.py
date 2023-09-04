@@ -43,7 +43,8 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                  data_ratio=-1,
                  point_type='3D',
                  pinch_random=False,
-                 mean_bone_template_path=''):
+                 mean_bone_template_path='',
+                 extern_hand_template_path=''):
         self.flip_left_to_right = flip_left_to_right
         self.data_ratio = data_ratio
         self.data_file_list = data_file_list
@@ -84,6 +85,12 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             logger.info(
                 f'update bones from template {mean_bone_template_path}')
             self.__update_bones_with_mean_template()
+        if extern_hand_template_path:
+            logger: MMLogger = MMLogger.get_current_instance()
+            logger.info(
+                f'load extern hand template from {extern_hand_template_path}')
+            mean_bones = np.load(extern_hand_template_path)
+            self.hand_bones_list = [mean_bones] * len(self.hand_bones_list)
 
     def __update_bones_with_mean_template(self):
         mean_bones = np.load(self.mean_bone_template_path)
