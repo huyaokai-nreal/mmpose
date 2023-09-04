@@ -239,7 +239,8 @@ class RTMCCHead3D(RTMCCHead):
         loss = self.loss_module([pred_simcc_2d, pred_simcc_depth],
                                 [gt_simcc_2d, gt_simcc_depth],
                                 keypoint_weights)
-        losses.update(loss_kpt=loss)
+        losses.update(loss_kpt2d=loss[0])
+        losses.update(loss_depth=loss[1])
         # calculate accuracy
         _, avg_acc, _ = simcc_pck_accuracy(
             output=to_numpy(pred_simcc_2d),
