@@ -5,7 +5,7 @@ train_cfg = dict(max_epochs=100, val_interval=5)
 
 data_root = '/data/AI_DATA_WX'
 # data_root = '/data/AI_DATA_LOCAL'
-
+test_type = '3d'
 # optimizer
 optim_wrapper = dict(
     optimizer=dict(type='Adam', lr=5e-4, weight_decay=1e-4),
@@ -45,6 +45,13 @@ codec = dict(
     sigma=4.0,
     simcc_split_ratio=2.0,
     depth_bound=0.4,
+    normalize=False,
+    use_dark=True)
+codec2d = dict(
+    type='SimCCLabel',
+    input_size=(128, 128),
+    sigma=4.0,
+    simcc_split_ratio=2.0,
     normalize=False,
     use_dark=True)
 
@@ -124,6 +131,25 @@ default_hooks = dict(
     checkpoint=dict(save_best='1/all_p-mpjpe', rule='less'))
 # base dataset settings
 backend_args = dict(backend='local')
+train_2d_pipeline = [
+    dict(
+        type='Albumentation',
+        transforms=[
+            dict(type='RandomBrightnessContrast', p=0.2),
+        ]),
+    dict(type='GetBBoxCenterScale', padding=1.0),
+    dict(
+        type='RandomBBoxTransform',
+        scale_factor=[0.75, 1.25],
+        rotate_factor=15,
+        rotate_prob=0.3,
+        shift_prob=0.5,
+        shift_factor=0.2,
+        enable_epoch_num=80),
+    dict(type='TopdownAffine', input_size=codec2d['input_size']),
+    dict(type='GenerateTarget', encoder=codec2d),
+    dict(type='PackPoseInputs')
+]
 train_pipeline = [
     dict(type='KeypointTo25DLabel'),
     dict(
@@ -149,6 +175,12 @@ val_pipeline = [
     dict(type='GetBBoxCenterScale', padding=1.0),
     dict(type='TopdownAffine', input_size=codec['input_size'][:2]),
     dict(type='GenerateTarget', encoder=codec),
+    dict(type='PackPoseInputs')
+]
+val_2d_pipeline = [
+    dict(type='GetBBoxCenterScale', padding=1.0),
+    dict(type='TopdownAffine', input_size=codec2d['input_size']),
+    dict(type='GenerateTarget', encoder=codec2d),
     dict(type='PackPoseInputs')
 ]
 
@@ -178,6 +210,30 @@ train_data_list = [
 ]
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
+train_2d_data_list = [
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_1111_1_1_twohand_lmdb.json',  #13.2k
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_1118_1_2_twohand_lmdb.json',  #24k
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_1125_1_3_twohand_lmdb.json',  #29.7k
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_1202_1_4_twohand_lmdb.json',  #31.8k
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_1209_1_5_twohand_lmdb.json',  #24.3k
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_1216_1_6_twohand_lmdb.json',  #25.1k
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_1223_1_7_twohand_lmdb.json',  #27.8k
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_1230_1_8_twohand_lmdb.json',  #17.2k
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_0113_1_9_twohand_lmdb.json',  #24k
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_0127_1_10_twohand_lmdb.json',  #25k
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_0218_1_11_twohand_lmdb.json',  #16k
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_0304_1_12_twohand_lmdb.json',  #22k
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_0905_1_13~15_bad_data_twohand_lmdb.json',  #26.5k
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_0906_1_16~20_bad_data_twohand_lmdb.json',  #88k
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_0906_1_21~22_bad_data_twohand_lmdb.json',  #70k
+    'data_hand/hand_keypoint/annotations/train_nreal_gesture_0905_1_23~29_bad_data_twohand_lmdb.json',  #116k
+    'data_hand/hand_keypoint/annotations/hand_train_flora_10k_230327_1_cam0_lmdb__point_flora.json',  #10k
+    'data_hand/hand_keypoint/annotations/hand_train_flora_20k_230822_1_cam0_lmdb.json',
+    'data_hand/hand_keypoint/annotations/hand_train_flora_20k_230829_1_cam0_lmdb.json'
+]
+train_2d_data_list = [
+    os.path.join(data_root, item) for item in train_2d_data_list
+]
 
 val_data_list = [
     'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__right__1000__0007__20230809_100619__undistort_tar__Flora301.json',
@@ -187,21 +243,59 @@ train_dataloader = dict(
     batch_size=128,
     num_workers=8,
     persistent_workers=True,
-    sampler=dict(type='DefaultSampler', shuffle=True),
+    sampler=dict(
+        type='MultiSourceSampler', source_ratio=[0.7, 0.3], batch_size=128),
     collate_fn=dict(type='default_collate'),
     dataset=dict(
-        type=dataset_type,
-        data_ratio=2,
-        data_file_list=train_data_list,
-        data_mode=data_mode,
-        pipeline=train_pipeline,
-        dataset_weight_list=dataset_weight_list,
-        data_root=data_root,
-        flip_left_to_right=False,
-        point_type='2.5D'
-        # indices=1000,
-    ),
+        type='CombinedDataset',
+        metainfo=dict(from_file='configs/_base_/datasets/nreal_hand.py'),
+        datasets=[
+            dict(
+                type=dataset_type,
+                data_ratio=1,
+                data_file_list=train_data_list,
+                data_mode=data_mode,
+                pipeline=train_pipeline,
+                dataset_weight_list=dataset_weight_list,
+                data_root=data_root,
+                flip_left_to_right=True,
+                point_type='2.5D'
+                # indices=1000,
+            ),
+            dict(
+                type='HANDDataset',
+                data_file_list=train_2d_data_list,
+                data_mode=data_mode,
+                pipeline=train_2d_pipeline,
+                flip_left_to_right=True,
+                data_root=data_root)
+        ]),
 )
+val_2d_list = [
+    'data_hand/hand_keypoint/annotations/hand_test_flora_static_benchmark_230627_10k_lmdb.json',  # flora test
+    'data_hand/hand_keypoint/annotations/hand_test_flora_static_benchmark_230703_10k_lmdb.json',  # flora test
+    'data_hand/hand_keypoint/annotations/hand_test_flora_static_benchmark_230712_8k_lmdb.json'  # flora test
+]
+val_2d_list = [os.path.join(data_root, item) for item in val_2d_list]
+val_3d_dataset = dict(
+    type=dataset_type,
+    data_file_list=val_data_list,
+    data_mode=data_mode,
+    # hand template from outside algorithm, such binocular pipeline
+    #extern_hand_template_path = '/home/zx_li/workspace/mmpose/work_dirs/binocular_hand_template.npy',
+    test_mode=True,
+    pipeline=val_pipeline,
+    flip_left_to_right=True,
+    point_type='2.5D',
+    data_root=data_root)
+val_2d_dataset = dict(
+    type='HANDDataset',
+    data_file_list=val_2d_list,
+    data_mode=data_mode,
+    test_mode=True,
+    pipeline=val_2d_pipeline,
+    flip_left_to_right=True,
+    data_root=data_root)
 val_dataloader = dict(
     batch_size=32,
     num_workers=1,
@@ -209,22 +303,14 @@ val_dataloader = dict(
     drop_last=False,
     sampler=dict(type='DefaultSampler', shuffle=False, round_up=False),
     collate_fn=dict(type='default_collate'),
-    dataset=dict(
-        type=dataset_type,
-        data_file_list=val_data_list,
-        data_mode=data_mode,
-        test_mode=True,
-        pipeline=val_pipeline,
-        flip_left_to_right=False,
-        point_type='2.5D',
-        data_root=data_root))
+    dataset=val_2d_dataset if test_type == '2d' else val_3d_dataset)
 test_dataloader = val_dataloader
 
 # evaluators
-val_evaluator = [
-    dict(type='MPJPEV2', mode='mpjpe'),
-    dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
-    dict(type='EPE'),
-    dict(type='NrealKeypointAP')
-]
+val_evaluator = [dict(type='EPE'), dict(type='NrealKeypointAP')]
+if test_type == '3d':
+    val_evaluator += [
+        dict(type='MPJPEV2', mode='mpjpe'),
+        dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
+    ]
 test_evaluator = val_evaluator

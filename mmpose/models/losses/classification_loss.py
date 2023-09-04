@@ -185,14 +185,19 @@ class KLDiscretLoss(nn.Module):
         label_softmax (bool): Whether to use Softmax on labels.
         use_target_weight (bool): Option to use weighted loss.
             Different joint types may have different target weights.
+        loss_weight (float): Weight of the loss. Default: 1.0.
     """
 
-    def __init__(self, beta=1.0, label_softmax=False, use_target_weight=True):
+    def __init__(self,
+                 beta=1.0,
+                 label_softmax=False,
+                 use_target_weight=False,
+                 loss_weight=1.0):
         super(KLDiscretLoss, self).__init__()
         self.beta = beta
         self.label_softmax = label_softmax
         self.use_target_weight = use_target_weight
-
+        self.loss_weight = loss_weight
         self.log_softmax = nn.LogSoftmax(dim=1)
         self.kl_loss = nn.KLDivLoss(reduction='none')
 
@@ -226,51 +231,9 @@ class KLDiscretLoss(nn.Module):
         for pred, target in zip(pred_simcc, gt_simcc):
             pred = pred.reshape(-1, pred.size(-1))
             target = target.reshape(-1, target.size(-1))
-
             loss += self.criterion(pred, target).mul(weight).sum()
 
-        return loss / num_joints
-
-
-@MODELS.register_module()
-class KLDiscretLoss3D(KLDiscretLoss):
-
-    def forward(self, pred_simcc, gt_simcc, target_weight):
-        """Forward function.
-
-        Args:
-            pred_simcc (Tuple[Tensor, Tensor]): Predicted SimCC vectors of
-                x-axis and y-axis.
-            gt_simcc (Tuple[Tensor, Tensor]): Target representations.
-            target_weight (torch.Tensor[N, K] or torch.Tensor[N]):
-                Weights across different labels.
-        """
-        output_x, output_y, output_z = pred_simcc
-        target_x, target_y, target_z = gt_simcc
-        num_joints = output_x.size(1)
-        loss = 0
-
-        for idx in range(num_joints):
-            coord_x_pred = output_x[:, idx].squeeze()
-            coord_y_pred = output_y[:, idx].squeeze()
-            coord_z_pred = output_z[:, idx].squeeze()
-            coord_x_gt = target_x[:, idx].squeeze()
-            coord_y_gt = target_y[:, idx].squeeze()
-            coord_z_gt = target_z[:, idx].squeeze()
-
-            if self.use_target_weight:
-                weight = target_weight[:, idx].squeeze()
-            else:
-                weight = 1.
-
-            loss += (
-                self.criterion(coord_x_pred, coord_x_gt).mul(weight).sum())
-            loss += (
-                self.criterion(coord_y_pred, coord_y_gt).mul(weight).sum())
-            loss += (
-                self.criterion(coord_z_pred, coord_z_gt).mul(weight).sum())
-
-        return loss / num_joints
+        return loss * self.loss_weight / num_joints
 
 
 @MODELS.register_module()

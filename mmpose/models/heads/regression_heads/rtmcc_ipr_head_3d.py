@@ -255,8 +255,6 @@ class RTMCCIPRHead3D(RTMCCHead3D):
         label_depth = torch.cat(label_depth_list)
         label_depth_id = torch.tensor(
             label_depth_id_list, dtype=torch.int32).cuda()
-        keypoint3d_ratio = len(label_depth_id_list) / float(
-            len(batch_data_samples))
         valid_depth_pred = torch.index_select(pred_outputs, 0,
                                               label_depth_id)[..., 2:3]
         # calculate losses
@@ -268,6 +266,8 @@ class RTMCCIPRHead3D(RTMCCHead3D):
 
         losses.update(loss_kpt2d=loss[0])
         losses.update(loss_depth=loss[1])
+        keypoint3d_ratio = len(label_depth_id_list) / float(
+            len(batch_data_samples))
         losses.update(kpt3d_ratio=torch.Tensor([keypoint3d_ratio]).cuda())
 
         # calculate accuracy

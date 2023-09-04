@@ -6,7 +6,7 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
 
-from mmpose.evaluation.functional import simcc3d_pck_accuracy
+from mmpose.evaluation.functional import simcc_pck_accuracy
 from mmpose.registry import MODELS
 from mmpose.utils.tensor_utils import to_numpy
 from mmpose.utils.typing import (ConfigType, InstanceList, OptConfigType,
@@ -212,10 +212,6 @@ class RTMCCHead3D(RTMCCHead):
             d.gt_instance_labels.keypoint_y_labels for d in batch_data_samples
         ],
                          dim=0)
-        gt_z = torch.cat([
-            d.gt_instance_labels.keypoint_z_labels for d in batch_data_samples
-        ],
-                         dim=0)
         keypoint_weights = torch.cat(
             [
                 d.gt_instance_labels.keypoint_weights
@@ -223,19 +219,37 @@ class RTMCCHead3D(RTMCCHead):
             ],
             dim=0,
         )
-        pred_simcc = (pred_x, pred_y, pred_z)
-        gt_simcc = (gt_x, gt_y, gt_z)
+        label_depth_list = []
+        label_depth_id_list = []
+        for i, data in enumerate(batch_data_samples):
+            if hasattr(data.gt_instance_labels, 'keypoint_z_labels'):
+                label_depth_list.append(
+                    data.gt_instance_labels.keypoint_z_labels)
+                label_depth_id_list.append(i)
+        gt_z = torch.cat(label_depth_list, dim=0)
+        label_depth_id = torch.tensor(
+            label_depth_id_list, dtype=torch.int32).cuda()
+        valid_depth_pred = torch.index_select(pred_z, 0, label_depth_id)
+        pred_simcc_2d = (pred_x, pred_y)
+        gt_simcc_2d = (gt_x, gt_y)
+        pred_simcc_depth = (valid_depth_pred)
+        gt_simcc_depth = (gt_z)
         # calculate losses
         losses = dict()
-        loss = self.loss_module(pred_simcc, gt_simcc, keypoint_weights)
+        loss = self.loss_module([pred_simcc_2d, pred_simcc_depth],
+                                [gt_simcc_2d, gt_simcc_depth],
+                                keypoint_weights)
         losses.update(loss_kpt=loss)
         # calculate accuracy
-        _, avg_acc, _ = simcc3d_pck_accuracy(
-            output=to_numpy(pred_simcc),
-            target=to_numpy(gt_simcc),
+        _, avg_acc, _ = simcc_pck_accuracy(
+            output=to_numpy(pred_simcc_2d),
+            target=to_numpy(gt_simcc_2d),
             simcc_split_ratio=self.simcc_split_ratio,
             mask=to_numpy(keypoint_weights) > 0,
         )
+        keypoint3d_ratio = len(label_depth_id_list) / float(
+            len(batch_data_samples))
+        losses.update(kpt3d_ratio=torch.Tensor([keypoint3d_ratio]).cuda())
 
         acc_pose = torch.tensor(avg_acc, device=gt_x.device)
         losses.update(acc_pose=acc_pose)
