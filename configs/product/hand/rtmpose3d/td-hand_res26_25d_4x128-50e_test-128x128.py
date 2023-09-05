@@ -90,13 +90,11 @@ model = dict(
                     type='KLDiscretLoss',
                     use_target_weight=False,
                     beta=10.,
-                    loss_weight=0.667,
                     label_softmax=True),
                 dict(
                     type='KLDiscretLoss',
                     use_target_weight=False,
                     beta=10.,
-                    loss_weight=0.333,
                     label_softmax=True),
             ]),
         decoder=codec),
@@ -197,7 +195,7 @@ train_dataloader = dict(
         pipeline=train_pipeline,
         dataset_weight_list=dataset_weight_list,
         data_root=data_root,
-        flip_left_to_right=False,
+        flip_left_to_right=True,
         point_type='2.5D'
         # indices=1000,
     ),
@@ -215,7 +213,7 @@ val_dataloader = dict(
         data_mode=data_mode,
         test_mode=True,
         pipeline=val_pipeline,
-        flip_left_to_right=False,
+        flip_left_to_right=True,
         point_type='2.5D',
         data_root=data_root))
 test_dataloader = val_dataloader
