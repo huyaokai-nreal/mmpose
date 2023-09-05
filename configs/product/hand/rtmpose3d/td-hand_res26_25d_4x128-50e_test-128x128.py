@@ -88,12 +88,12 @@ model = dict(
             losses=[
                 dict(
                     type='KLDiscretLoss',
-                    use_target_weight=False,
+                    use_target_weight=True,
                     beta=10.,
                     label_softmax=True),
                 dict(
                     type='KLDiscretLoss',
-                    use_target_weight=False,
+                    use_target_weight=True,
                     beta=10.,
                     label_softmax=True),
             ]),

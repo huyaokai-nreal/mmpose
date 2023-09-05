@@ -232,8 +232,8 @@ class RTMCCHead3D(RTMCCHead):
         valid_depth_pred = torch.index_select(pred_z, 0, label_depth_id)
         pred_simcc_2d = (pred_x, pred_y)
         gt_simcc_2d = (gt_x, gt_y)
-        pred_simcc_depth = (valid_depth_pred)
-        gt_simcc_depth = (gt_z)
+        pred_simcc_depth = (valid_depth_pred, )
+        gt_simcc_depth = (gt_z, )
         # calculate losses
         losses = dict()
         loss = self.loss_module([pred_simcc_2d, pred_simcc_depth],
