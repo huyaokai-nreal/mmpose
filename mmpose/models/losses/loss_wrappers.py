@@ -37,19 +37,25 @@ class MultipleLossWrapper(nn.Module):
         Args:
             input_list (List[Tensor]): List of inputs.
             target_list (List[Tensor]): List of targets.
-            keypoint_weights (Tensor[N, K, D]):
+            keypoint_weights (List[Tensor] | Tensor[N, K, D]):
                 Weights across different joint types.
         """
         assert isinstance(input_list, list), ''
         assert isinstance(target_list, list), ''
         assert len(input_list) == len(target_list), ''
+        if isinstance(keypoint_weights, list):
+            assert len(input_list) == len(
+                keypoint_weights
+            ), f'input {len(input_list)} vs weight {keypoint_weights}'
 
         losses = []
         for i in range(self.num_losses):
             input_i = input_list[i]
             target_i = target_list[i]
-
-            loss_i = self.loss_modules[i](input_i, target_i, keypoint_weights)
+            keypoint_weight = keypoint_weights
+            if isinstance(keypoint_weights, list):
+                keypoint_weight = keypoint_weights[i]
+            loss_i = self.loss_modules[i](input_i, target_i, keypoint_weight)
             losses.append(loss_i)
 
         return losses

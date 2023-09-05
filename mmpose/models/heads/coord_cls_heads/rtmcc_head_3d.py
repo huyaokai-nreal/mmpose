@@ -230,6 +230,8 @@ class RTMCCHead3D(RTMCCHead):
         label_depth_id = torch.tensor(
             label_depth_id_list, dtype=torch.int32).cuda()
         valid_depth_pred = torch.index_select(pred_z, 0, label_depth_id)
+        valid_depth_weights = torch.index_select(keypoint_weights, 0,
+                                                 label_depth_id)
         pred_simcc_2d = (pred_x, pred_y)
         gt_simcc_2d = (gt_x, gt_y)
         pred_simcc_depth = (valid_depth_pred, )
@@ -238,7 +240,7 @@ class RTMCCHead3D(RTMCCHead):
         losses = dict()
         loss = self.loss_module([pred_simcc_2d, pred_simcc_depth],
                                 [gt_simcc_2d, gt_simcc_depth],
-                                keypoint_weights)
+                                [keypoint_weights, valid_depth_weights])
         losses.update(loss_kpt2d=loss[0])
         losses.update(loss_depth=loss[1])
         # calculate accuracy

@@ -5,7 +5,7 @@ train_cfg = dict(max_epochs=100, val_interval=5)
 
 data_root = '/data/AI_DATA_WX'
 # data_root = '/data/AI_DATA_LOCAL'
-test_type = '2d'
+test_type = '3d'
 # optimizer
 optim_wrapper = dict(
     optimizer=dict(type='Adam', lr=5e-4, weight_decay=1e-4),
@@ -95,13 +95,13 @@ model = dict(
             losses=[
                 dict(
                     type='KLDiscretLoss',
-                    use_target_weight=False,
+                    use_target_weight=True,
                     beta=10.,
                     loss_weight=1.0,
                     label_softmax=True),
                 dict(
                     type='KLDiscretLoss',
-                    use_target_weight=False,
+                    use_target_weight=True,
                     beta=10.,
                     loss_weight=1.0,
                     label_softmax=True),
@@ -113,7 +113,7 @@ model = dict(
         checkpoint=
         '/data/AI_DATA/data_hand/model/mmpose/td-hand_res26_fpn_skpre_flow_wd_ipr_rle_weightdata_0919_4xb64-50e-128x128/epoch_50.pth'
     ),
-    root_mode='gt',
+    root_mode='optimize',
 )
 
 # visualizer

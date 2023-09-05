@@ -379,16 +379,17 @@ class TopdownPCL(BaseTransform):
         results['input_size'] = self.input_size
         results['bbox_scale'] = TopdownAffine._fix_aspect_ratio(
             results['bbox_scale'], aspect_ratio=w / h)
-        ori_camera: PinholePlaneCameraModel = results['meta']['ori_camera']
+        ori_camera = results['meta']['ori_camera']
         world_points = results['keypoints3d'][0]
         center = results['bbox_center'][0]
         scale = self.input_size[0] / results['bbox_scale'][0][0]
-        virtual_camera = gen_crop_parameters_from_points(
-            ori_camera,
-            center,
-            self.input_size,
-            mirror_img_x=False,
-            focal_multiplier=scale)
+        virtual_camera: PinholePlaneCameraModel = \
+            gen_crop_parameters_from_points(
+                ori_camera,
+                center,
+                self.input_size,
+                mirror_img_x=False,
+                focal_multiplier=scale)
         image = results['img']
         crop_img = warp_image(ori_camera, virtual_camera, w, h, image)
         results['img'] = crop_img
