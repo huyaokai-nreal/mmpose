@@ -113,7 +113,7 @@ model = dict(
         checkpoint=
         '/data/AI_DATA/data_hand/model/mmpose/td-hand_res26_fpn_skpre_flow_wd_ipr_rle_weightdata_0919_4xb64-50e-128x128/epoch_50.pth'
     ),
-    root_mode='optimize',
+    root_mode='optimize' if test_type == '3d' else 'gt',
 )
 
 # visualizer

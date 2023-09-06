@@ -1,7 +1,7 @@
 # flake8: noqa
 _base_ = ['../../../_base_/default_runtime.py']
 # runtime
-train_cfg = dict(max_epochs=100, val_interval=5)
+train_cfg = dict(max_epochs=50, val_interval=5)
 
 data_root = '/data/AI_DATA_WX'
 # data_root = '/data/AI_DATA_LOCAL'
@@ -17,7 +17,7 @@ param_scheduler = [
     dict(
         type='LinearLR',
         begin=0,
-        end=10,
+        end=5,
         start_factor=0.001,
         end_factor=1.0,
         by_epoch=True,
@@ -89,7 +89,8 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        'work_dirs/td-hand_res26_25d_4x128-50e_test-128x128/epoch_100.pth'),
+        '/data/AI_DATA/data_hand/model/mmpose/td-hand_res26_25d_right_pcl_2d3d_4x128-50e-128x128/epoch_100.pth'
+    ),
     root_mode='optimize' if test_type == '3d' else 'gt',
 )
 
@@ -214,6 +215,7 @@ train_2d_data_list = [
 
 val_data_list = [
     'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__right__1000__0007__20230809_100619__undistort_tar__Flora301.json',
+    #'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_080834__pinch__normal__left__1111__0008__undistort_tar__Flora301.json'
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 train_dataloader = dict(
@@ -221,7 +223,7 @@ train_dataloader = dict(
     num_workers=8,
     persistent_workers=True,
     sampler=dict(
-        type='MultiSourceSampler', source_ratio=[0.7, 0.3], batch_size=128),
+        type='MultiSourceSampler', source_ratio=[0.5, 0.5], batch_size=128),
     collate_fn=dict(type='default_collate'),
     dataset=dict(
         type='CombinedDataset',
