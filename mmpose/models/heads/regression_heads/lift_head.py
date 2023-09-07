@@ -24,6 +24,7 @@ class LiftHead(BaseModule):
                  undistort: bool = False,
                  use_kp2d_gt=False,
                  kpt2d_with_depth: bool = False,
+                 noRt=False,
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
                  init_cfg: Union[dict, List[dict], None] = None):
@@ -47,6 +48,7 @@ class LiftHead(BaseModule):
         self.lift_loss = MODELS.build(lift_loss)
         self.undistort = undistort
         self.use_kp2d_gt = use_kp2d_gt
+        self.noRt = noRt
 
     def forward(self, feats: Tuple[Tensor]) -> Tensor:
         output = self.liftnet(feats)
@@ -141,12 +143,14 @@ class LiftHead(BaseModule):
             [uv_coord_im_pred_crop_leftright,
              torch.ones(B * 2, K, 1).cuda()],
             dim=-1)
-        uv_coord_im_pred_global = torch.bmm(uv_coord_im_pred, all_inv_warp_mat)
-        uv_coord_im_pred_global = uv_coord_im_pred_global.view(B, N, K, 2)
+        uv_coord_im_pred_global_distort = torch.bmm(uv_coord_im_pred,
+                                                    all_inv_warp_mat)
+        uv_coord_im_pred_global_distort = uv_coord_im_pred_global_distort.view(
+            B, N, K, 2)
 
         frame_width = batch_data_samples[0].meta['frame_width']
-        uv_coord_im_pred_global = recover_hand(uv_coord_im_pred_global,
-                                               left_hand, frame_width)
+        uv_coord_im_pred_global_distort = recover_hand(
+            uv_coord_im_pred_global_distort, left_hand, frame_width)
 
         uv_coord_im_gt_global = recover_hand(uv_coord_im_gt_global, left_hand,
                                              frame_width)
@@ -156,13 +160,16 @@ class LiftHead(BaseModule):
             depth = left_rel_depth
 
         if self.undistort:
-            uv_coord_im_pred_global = uv_coord_im_pred_global.view(-1, K, 2)
+            uv_coord_im_pred_global = uv_coord_im_pred_global_distort.clone(
+            ).view(-1, K, 2)
             for i, data_sample in enumerate(batch_data_samples):
                 camera_model = data_sample.meta['ori_camera']
                 kpt2d_u = camera_model.undistort(
                     uv_coord_im_pred_global[i].cpu().numpy())
                 uv_coord_im_pred_global[i] = torch.from_numpy(kpt2d_u).cuda()
             uv_coord_im_pred_global = uv_coord_im_pred_global.view(B, N, K, 2)
+        else:
+            uv_coord_im_pred_global = uv_coord_im_pred_global_distort.clone()
 
         leftcam_uv = uv_coord_im_pred_global[:, 0]  # (B, 21, 2)
         leftcam_x = (leftcam_uv[:, :, 0] - leftcam_cam_matrix[:, 0, 2].view(
@@ -181,24 +188,44 @@ class LiftHead(BaseModule):
             (rightcam_x.unsqueeze(-1), rightcam_y.unsqueeze(-1)),
             dim=2)  # (B, 21, 2)
 
-        Tmatrix_leftcam = torch.tensor(
-            (0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)).view((1, -1)).cuda()
-
-        feature1 = torch.cat((leftcam_xy.view(
-            (B, -1)), Tmatrix_leftcam.repeat(B, 1), left_hand.view((B, -1))),
-                             dim=1).view((B, self.channel_num, 1, 1))
-        feature2 = torch.cat((rightcam_xy.view((B, -1)), lr_p.view(
-            (B, -1)), lr_rot_matrix.view((B, -1)), left_hand.view((B, -1))),
-                             dim=1).view((B, self.channel_num, 1, 1))
-        if self.kpt2d_with_depth:
-            feats = torch.torch.cat(
+        # 显式的使用Rt
+        if self.noRt:
+            rightcam_xy_normplane = torch.cat(
+                (rightcam_xy, torch.ones(B, K, 1).cuda()), dim=2)
+            rightcam_xyz1_inworld = (torch.bmm(
+                lr_rot_matrix.view((B, 1, 3, 3)).repeat(1, 21, 1, 1).view(
+                    (B * 21, 3, 3)), rightcam_xy_normplane.view(
+                        (B * K, 3, 1))) + lr_p.view(
+                            (B, 1, 3, 1)).repeat(1, 21, 1, 1).view(
+                                (B * 21, 3, 1))).view((B, 21, 3))
+            feats = torch.cat(
+                (leftcam_xy.view(B, -1), rightcam_xyz1_inworld.view(
+                    (B, -1)), left_hand.view((B, -1))),
+                dim=1).view(B, self.channel_num * 2, 1,
+                            1).float()  # 21*2+21*3+1
+        # 隐式的使用Rt
+        else:
+            Tmatrix_leftcam = torch.tensor(
+                (0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)).view((1, -1)).cuda()
+            feature1 = torch.cat((leftcam_xy.view(
+                (B, -1)), Tmatrix_leftcam.repeat(B, 1), left_hand.view(
+                    (B, -1))),
+                                 dim=1).view((B, self.channel_num, 1, 1))
+            feature2 = torch.cat((rightcam_xy.view((B, -1)), lr_p.view(
+                (B, -1)), lr_rot_matrix.view((B, -1)), left_hand.view(
+                    (B, -1))),
+                                 dim=1).view((B, self.channel_num, 1, 1))
+            if self.kpt2d_with_depth:
+                feats = torch.torch.cat(
                 (feature1, feature2, depth.reshape(
                     (B, 21, 1, 1))), dim=1).float()
-        else:
-            feats = torch.torch.cat((feature1, feature2), dim=1).float()
-        return feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p, \
-            leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global, \
-            hand3d_gt
+            else:
+                feats = torch.cat((feature1, feature2), dim=1).float()
+            
+        return (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,
+                leftcam_cam_matrix, rightcam_cam_matrix,
+                uv_coord_im_pred_global, uv_coord_im_pred_global_distort,
+                hand3d_gt)
 
     def postprocess(self, output, leftcam_xy, rightcam_xy, lr_rot_matrix,
                     lr_p):
@@ -227,12 +254,14 @@ class LiftHead(BaseModule):
                 batch_data_samples: OptSampleList,
                 test_cfg: ConfigType = {}) -> Predictions:
         with torch.no_grad():
-            feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p = \
-                self.preprocess(feats,  batch_data_samples)[:5]
+            (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,
+             leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global,
+             uv_coord_im_pred_global_distort,
+             hand3d_gt) = self.preprocess(feats, batch_data_samples)
         output = self.forward(feats)
         hand3d_pred = self.postprocess(output, leftcam_xy, rightcam_xy,
                                        lr_rot_matrix, lr_p)[0]
-        return hand3d_pred
+        return hand3d_pred, uv_coord_im_pred_global_distort
 
     def loss(self,
              feats: Tuple[Tensor],
@@ -240,10 +269,10 @@ class LiftHead(BaseModule):
              train_cfg: ConfigType = {}) -> dict:
         """Calculate losses from a batch of inputs and data samples."""
         with torch.no_grad():
-            feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,\
-                leftcam_cam_matrix, rightcam_cam_matrix, \
-                uv_coord_im_pred_global, hand3d_gt = \
-                self.preprocess(feats, batch_data_samples)
+            (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,
+             leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global,
+             uv_coord_im_pred_global_distort,
+             hand3d_gt) = self.preprocess(feats, batch_data_samples)
         output = self.forward(feats)
         hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
             output, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p)

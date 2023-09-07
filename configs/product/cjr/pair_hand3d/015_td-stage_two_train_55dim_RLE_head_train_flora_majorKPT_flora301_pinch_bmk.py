@@ -140,8 +140,8 @@ model = dict(
         # f'{data_root}/data_hand/model/mmpose/td-hand_res26_fpn_skpre_flow_wd_ipr_rle_weightdata_0919_4xb64-50e-128x128/epoch_50.pth'  # ella kp2d
         # '/home/jrchen/git-project/mmpose/work_dirs/pair_hand3d/003_td-stage_two_train_55dim_l1/epoch_60_new.pth'
         # '/home/jrchen/git-project/mmpose/work_dirs/hand_2d_keypoint/td-hand_res26_fpn_skpre_flow_wd_ipr_rle_weightdata_0919_4xb64-50e-128x128_pretrainmodel/epoch_30_FT.pth'
-        f'{data_root}/jrchen/git-project/mmpose/work_dirs/pair_hand3d/006_td-stage_two_train_55dim_RLE_head_train_flora_finetune/FT_kp2d_add_ella_pretrain_lift.pth'  # flora kp2d + ella kp3d
-    ),
+        # f'{data_root}/jrchen/git-project/mmpose/work_dirs/pair_hand3d/006_td-stage_two_train_55dim_RLE_head_train_flora_finetune/FT_kp2d_add_ella_pretrain_lift.pth'  # flora kp2d + ella kp3d
+        'work_dirs/jupyter/FT_kp2d_add_ella_pretrain_lift_0730.pth'),
 )
 
 # base dataset settings
@@ -368,53 +368,52 @@ train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
-    'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__right__1000__0007__20230809_100619__undistort_tar__Flora301.json',
+    # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__right__1000__0007__20230809_100619__undistort_tar__Flora301.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora8/XS__all__normal__right__1000__0011__20230810_081042__undistort_tar__Flora8.json'
-
-    # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_080834__pinch__normal__left__1111__0008__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_081340__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_081732__pinch__normal__left__1111__0008__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_083351__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_083727__pinch__normal__left__1111__0008__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_084129__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_085606__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_091548__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_094552__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_095319__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_095734__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora302/XS__20230815_080834__pinch__normal__left__1111__0008__undistort_tar__Flora302.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora302/XS__20230815_081340__pinch__normal__right__1111__0008__undistort_tar__Flora302.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora302/XS__20230815_081732__pinch__normal__left__1111__0008__undistort_tar__Flora302.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora302/XS__20230815_083351__pinch__normal__right__1111__0008__undistort_tar__Flora302.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora302/XS__20230815_083727__pinch__normal__left__1111__0008__undistort_tar__Flora302.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora302/XS__20230815_084129__pinch__normal__right__1111__0008__undistort_tar__Flora302.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora302/XS__20230815_085606__pinch__normal__right__1111__0008__undistort_tar__Flora302.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora302/XS__20230815_091548__pinch__normal__right__1111__0008__undistort_tar__Flora302.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora302/XS__20230815_094552__pinch__normal__right__1111__0008__undistort_tar__Flora302.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora302/XS__20230815_095319__pinch__normal__right__1111__0008__undistort_tar__Flora302.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora302/XS__20230815_095734__pinch__normal__right__1111__0008__undistort_tar__Flora302.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_080834__pinch__normal__left__1111__0008__undistort_tar__Flora303.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_081340__pinch__normal__right__1111__0008__undistort_tar__Flora303.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_081732__pinch__normal__left__1111__0008__undistort_tar__Flora303.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_083351__pinch__normal__right__1111__0008__undistort_tar__Flora303.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_083727__pinch__normal__left__1111__0008__undistort_tar__Flora303.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_084129__pinch__normal__right__1111__0008__undistort_tar__Flora303.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_085606__pinch__normal__right__1111__0008__undistort_tar__Flora303.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_091548__pinch__normal__right__1111__0008__undistort_tar__Flora303.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_094552__pinch__normal__right__1111__0008__undistort_tar__Flora303.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_095319__pinch__normal__right__1111__0008__undistort_tar__Flora303.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_095734__pinch__normal__right__1111__0008__undistort_tar__Flora303.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora304/XS__20230815_080834__pinch__normal__left__1111__0008__undistort_tar__Flora304.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora304/XS__20230815_081340__pinch__normal__right__1111__0008__undistort_tar__Flora304.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora304/XS__20230815_081732__pinch__normal__left__1111__0008__undistort_tar__Flora304.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora304/XS__20230815_083351__pinch__normal__right__1111__0008__undistort_tar__Flora304.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora304/XS__20230815_083727__pinch__normal__left__1111__0008__undistort_tar__Flora304.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora304/XS__20230815_084129__pinch__normal__right__1111__0008__undistort_tar__Flora304.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora304/XS__20230815_085606__pinch__normal__right__1111__0008__undistort_tar__Flora304.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora304/XS__20230815_091548__pinch__normal__right__1111__0008__undistort_tar__Flora304.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora304/XS__20230815_094552__pinch__normal__right__1111__0008__undistort_tar__Flora304.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora304/XS__20230815_095319__pinch__normal__right__1111__0008__undistort_tar__Flora304.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora304/XS__20230815_095734__pinch__normal__right__1111__0008__undistort_tar__Flora304.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_080834__pinch__normal__left__1111__0008__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_081340__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_081732__pinch__normal__left__1111__0008__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_083351__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_083727__pinch__normal__left__1111__0008__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_084129__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_085606__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_091548__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_094552__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_095319__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_095734__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora302/XS__20230815_080834__pinch__normal__left__1111__0008__undistort_tar__Flora302.json',
+    'data_hand/hand_keypoint/annotations3d/Flora302/XS__20230815_081340__pinch__normal__right__1111__0008__undistort_tar__Flora302.json',
+    'data_hand/hand_keypoint/annotations3d/Flora302/XS__20230815_081732__pinch__normal__left__1111__0008__undistort_tar__Flora302.json',
+    'data_hand/hand_keypoint/annotations3d/Flora302/XS__20230815_083351__pinch__normal__right__1111__0008__undistort_tar__Flora302.json',
+    'data_hand/hand_keypoint/annotations3d/Flora302/XS__20230815_083727__pinch__normal__left__1111__0008__undistort_tar__Flora302.json',
+    'data_hand/hand_keypoint/annotations3d/Flora302/XS__20230815_084129__pinch__normal__right__1111__0008__undistort_tar__Flora302.json',
+    'data_hand/hand_keypoint/annotations3d/Flora302/XS__20230815_085606__pinch__normal__right__1111__0008__undistort_tar__Flora302.json',
+    'data_hand/hand_keypoint/annotations3d/Flora302/XS__20230815_091548__pinch__normal__right__1111__0008__undistort_tar__Flora302.json',
+    'data_hand/hand_keypoint/annotations3d/Flora302/XS__20230815_094552__pinch__normal__right__1111__0008__undistort_tar__Flora302.json',
+    'data_hand/hand_keypoint/annotations3d/Flora302/XS__20230815_095319__pinch__normal__right__1111__0008__undistort_tar__Flora302.json',
+    'data_hand/hand_keypoint/annotations3d/Flora302/XS__20230815_095734__pinch__normal__right__1111__0008__undistort_tar__Flora302.json',
+    'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_080834__pinch__normal__left__1111__0008__undistort_tar__Flora303.json',
+    'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_081340__pinch__normal__right__1111__0008__undistort_tar__Flora303.json',
+    'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_081732__pinch__normal__left__1111__0008__undistort_tar__Flora303.json',
+    'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_083351__pinch__normal__right__1111__0008__undistort_tar__Flora303.json',
+    'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_083727__pinch__normal__left__1111__0008__undistort_tar__Flora303.json',
+    'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_084129__pinch__normal__right__1111__0008__undistort_tar__Flora303.json',
+    'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_085606__pinch__normal__right__1111__0008__undistort_tar__Flora303.json',
+    'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_091548__pinch__normal__right__1111__0008__undistort_tar__Flora303.json',
+    'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_094552__pinch__normal__right__1111__0008__undistort_tar__Flora303.json',
+    'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_095319__pinch__normal__right__1111__0008__undistort_tar__Flora303.json',
+    'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_095734__pinch__normal__right__1111__0008__undistort_tar__Flora303.json',
+    'data_hand/hand_keypoint/annotations3d/Flora304/XS__20230815_080834__pinch__normal__left__1111__0008__undistort_tar__Flora304.json',
+    'data_hand/hand_keypoint/annotations3d/Flora304/XS__20230815_081340__pinch__normal__right__1111__0008__undistort_tar__Flora304.json',
+    'data_hand/hand_keypoint/annotations3d/Flora304/XS__20230815_081732__pinch__normal__left__1111__0008__undistort_tar__Flora304.json',
+    'data_hand/hand_keypoint/annotations3d/Flora304/XS__20230815_083351__pinch__normal__right__1111__0008__undistort_tar__Flora304.json',
+    'data_hand/hand_keypoint/annotations3d/Flora304/XS__20230815_083727__pinch__normal__left__1111__0008__undistort_tar__Flora304.json',
+    'data_hand/hand_keypoint/annotations3d/Flora304/XS__20230815_084129__pinch__normal__right__1111__0008__undistort_tar__Flora304.json',
+    'data_hand/hand_keypoint/annotations3d/Flora304/XS__20230815_085606__pinch__normal__right__1111__0008__undistort_tar__Flora304.json',
+    'data_hand/hand_keypoint/annotations3d/Flora304/XS__20230815_091548__pinch__normal__right__1111__0008__undistort_tar__Flora304.json',
+    'data_hand/hand_keypoint/annotations3d/Flora304/XS__20230815_094552__pinch__normal__right__1111__0008__undistort_tar__Flora304.json',
+    'data_hand/hand_keypoint/annotations3d/Flora304/XS__20230815_095319__pinch__normal__right__1111__0008__undistort_tar__Flora304.json',
+    'data_hand/hand_keypoint/annotations3d/Flora304/XS__20230815_095734__pinch__normal__right__1111__0008__undistort_tar__Flora304.json',
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # pipelines
@@ -500,7 +499,7 @@ val_evaluator = [
     dict(type='MPJPEV2', gesture_list=gesture_list, result_dir='.'),
     dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
     dict(type='EPE'),
-    dict(type='NrealKeypointAP')
+    dict(type='NrealKeypointAP'),
 ]
 test_evaluator = val_evaluator
 

@@ -185,8 +185,8 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         meta = ann.get('meta', dict())
         meta.update(cam_info)
         meta['category_id'] = ann['category_id']
-        meta['gesture'] = ann['gesture']
-        meta['tag'] = ann['tag']
+        # meta['gesture'] = ann['gesture']
+        # meta['tag'] = ann['tag']
         data_info = {
             'left_img_id': left_img_id,
             'right_img_id': right_img_id,

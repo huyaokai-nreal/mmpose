@@ -173,7 +173,8 @@ train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
-    'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__right__1000__0007__20230809_100619__undistort_tar__Flora301.json',
+    # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__right__1000__0007__20230809_100619__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__right__1000__0007__20230809_100619__undistort_tar__Flora301_gesture.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora8/XS__all__normal__right__1000__0011__20230810_081042__undistort_tar__Flora8.json'
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
@@ -256,7 +257,9 @@ gesture_list = [
 # val_evaluator = dict(type='MPJPEMetricLifting', gesture_list=gesture_list)
 val_evaluator = [
     dict(type='MPJPEV2', gesture_list=gesture_list, result_dir='.'),
-    dict(type='MPJPEV2', mode='p-mpjpe', prefix='1')
+    dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
+    dict(type='EPE'),
+    dict(type='NrealKeypointAP')
 ]
 test_evaluator = val_evaluator
 

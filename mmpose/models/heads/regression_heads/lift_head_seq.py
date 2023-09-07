@@ -144,12 +144,14 @@ class LiftHeadSeq(BaseModule):
             torch.ones(B * S * N, K, 1).cuda()
         ],
                                      dim=-1)
-        uv_coord_im_pred_global = torch.bmm(uv_coord_im_pred, all_inv_warp_mat)
-        uv_coord_im_pred_global = uv_coord_im_pred_global.view(B * S, N, K, 2)
+        uv_coord_im_pred_global_distort = torch.bmm(uv_coord_im_pred,
+                                                    all_inv_warp_mat)
+        uv_coord_im_pred_global_distort = uv_coord_im_pred_global_distort.view(
+            B * S, N, K, 2)
 
         frame_width = batch_data_samples[0].meta['frame_width']
-        uv_coord_im_pred_global = recover_hand(uv_coord_im_pred_global,
-                                               left_hand, frame_width)
+        uv_coord_im_pred_global_distort = recover_hand(
+            uv_coord_im_pred_global_distort, left_hand, frame_width)
 
         uv_coord_im_gt_global = recover_hand(uv_coord_im_gt_global, left_hand,
                                              frame_width)
@@ -158,7 +160,8 @@ class LiftHeadSeq(BaseModule):
             uv_coord_im_pred_global = uv_coord_im_gt_global
 
         if self.undistort:
-            uv_coord_im_pred_global = uv_coord_im_pred_global.view(-1, K, 2)
+            uv_coord_im_pred_global = uv_coord_im_pred_global_distort.view(
+                -1, K, 2)
             for i, data_sample in enumerate(batch_data_samples):
                 camera_model = data_sample.meta['ori_camera']
                 kpt2d_u = camera_model.undistort(
@@ -166,6 +169,8 @@ class LiftHeadSeq(BaseModule):
                 uv_coord_im_pred_global[i] = torch.from_numpy(kpt2d_u).cuda()
             uv_coord_im_pred_global = uv_coord_im_pred_global.view(
                 B * S, N, K, 2)
+        else:
+            uv_coord_im_pred_global = uv_coord_im_pred_global_distort.clone()
 
         leftcam_uv = uv_coord_im_pred_global[:, 0]  # (B*S, 21, 2)
         leftcam_x = (leftcam_uv[:, :, 0] - leftcam_cam_matrix[:, 0, 2].view(
@@ -197,6 +202,8 @@ class LiftHeadSeq(BaseModule):
         rightcam_cam_matrix_sample = self._sample(rightcam_cam_matrix)
         uv_coord_im_pred_global_sample = self._sample(uv_coord_im_pred_global)
         hand3d_gt_sample = self._sample(hand3d_gt)
+        uv_coord_im_pred_global_distort_sample = self._sample(
+            uv_coord_im_pred_global_distort)
 
         feature1 = torch.cat((leftcam_xy.view(
             (B, -1)), Tmatrix_leftcam.repeat(
@@ -211,7 +218,7 @@ class LiftHeadSeq(BaseModule):
         return (feats, leftcam_xy_sample, rightcam_xy_sample,
                 lr_rot_matrix_sample, lr_p_sample, leftcam_cam_matrix_sample,
                 rightcam_cam_matrix_sample, uv_coord_im_pred_global_sample,
-                hand3d_gt_sample)
+                uv_coord_im_pred_global_distort_sample, hand3d_gt_sample)
 
     def postprocess(self, output, leftcam_xy, rightcam_xy, lr_rot_matrix,
                     lr_p):
@@ -240,12 +247,14 @@ class LiftHeadSeq(BaseModule):
                 batch_data_samples: OptSampleList,
                 test_cfg: ConfigType = {}) -> Predictions:
         with torch.no_grad():
-            feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p = \
-                self.preprocess(feats, batch_data_samples)[:5]
+            (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,
+             leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global,
+             uv_coord_im_pred_global_distort,
+             hand3d_gt) = self.preprocess(feats, batch_data_samples)
         output = self.forward(feats)
         hand3d_pred = self.postprocess(output, leftcam_xy, rightcam_xy,
                                        lr_rot_matrix, lr_p)[0]
-        return hand3d_pred
+        return hand3d_pred, uv_coord_im_pred_global_distort
 
     def loss(self,
              feats: Tuple[Tensor],
