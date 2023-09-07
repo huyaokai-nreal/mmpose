@@ -289,8 +289,7 @@ test_dataloader = val_dataloader
 val_evaluator = [dict(type='EPE'), dict(type='NrealKeypointAP')]
 if test_type == '3d':
     val_evaluator += [
-        dict(type='MPJPEV2', mode='mpjpe'),
-        dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
+        dict(type='MPJPEV2', mode=['mpjpe', 'p-mpjpe']),
     ]
 
 test_evaluator = val_evaluator

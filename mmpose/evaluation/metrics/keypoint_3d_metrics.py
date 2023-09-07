@@ -150,7 +150,7 @@ class MPJPEV2(MPJPE):
                  with_tag=False,
                  pinch_thre: list = [20, 40],
                  seq: bool = False) -> None:
-        super().__init__(mode, collect_device, prefix)
+        super().__init__(collect_device=collect_device, prefix=prefix)
         self.result_dir = result_dir
         self.logger = MMLogger.get_current_instance()
         self.mpjpe_metric = MPJPEMetric(
