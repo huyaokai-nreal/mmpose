@@ -193,6 +193,7 @@ def gen_crop_parameters_from_points(
     cam_center = np.linalg.inv(ori_K) @ homo_center
     virtual_K = gen_intrinsics_from_bounding_box(cam_center, new_image_size[0],
                                                  new_image_size[1], ori_K)
+    virtual_K = virtual_K.numpy()
     virtual_K = virtual_K[0] * new_image_size[0]
     fx_fy = [
         virtual_K[0][0] * focal_multiplier, virtual_K[1][1] * focal_multiplier

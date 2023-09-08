@@ -134,3 +134,5 @@ output/
 *.DS_Store
 configs/product/hand
 result_keypoints.json
+*.png
+*.json
