@@ -276,25 +276,26 @@ class IntegralRegressionHead(BaseHead):
                 pred_sigma.size(0), self.num_joints, 2)
             coords = torch.cat([coords, pred_sigma_reshape], dim=-1)
         if self.output_depth:
-            pred_depth = self.depth_conv(raw_feats).reshape(
-                B, self.num_joints, -1)  # 21, 256
-            pred_depth = F.softmax(pred_depth, dim=2)
+            pred_depth_hm = self.depth_conv(raw_feats)
+            pred_depth = F.softmax(
+                pred_depth_hm.reshape(B, self.num_joints, -1), dim=2)
             pred_depth = pred_depth.mul(self.linspace_z).sum(
                 dim=-1, keepdim=True)
         if self.deploy:
             output_list = []
+            print(self.deploy_output)
             if 'feat' in self.deploy_output:
                 output_list.append(feats)
             if 'kpt' in self.deploy_output:
                 output_list += [pred_x, pred_y]
             if 'fused_kpt' in self.deploy_output:
                 output_list.append(coords[..., :2])
+            if 'depth' in self.deploy_output:
+                output_list.append(pred_depth_hm)
             if 'score' in self.deploy_output:
                 output_list.append(1 - torch.sigmoid(pred_sigma))
             if 'heatmap' in self.deploy_output:
                 output_list.append(heatmaps)
-            if 'depth' in self.deploy_output:
-                output_list.append(pred_depth)
             return tuple(output_list)
         else:
             outputs = [coords, heatmaps]

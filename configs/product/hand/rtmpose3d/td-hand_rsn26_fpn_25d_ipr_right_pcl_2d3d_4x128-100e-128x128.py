@@ -80,6 +80,7 @@ model = dict(
         consistency_loss=False,
         heatmap_loss=False,
         output_depth=True,
+        deploy_output=['feat', 'depth'],
         input_size=128,
         loss=dict(
             type='MultipleLossWrapper',
