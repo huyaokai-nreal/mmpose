@@ -31,11 +31,12 @@ class TopdownPoseLiftEstimator(BaseModel):
                  test_cfg: OptConfigType = None,
                  data_preprocessor: OptConfigType = None,
                  init_cfg: OptMultiConfig = None,
+                 kpt2d_with_depth: bool = False,
                  metainfo: Optional[dict] = None):
         super().__init__(data_preprocessor, init_cfg=init_cfg)
         self.metainfo = self._load_metainfo(metainfo)
         self.backbone = MODELS.build(backbone)
-
+        self.kpt2d_with_depth = kpt2d_with_depth
         neck, head = check_and_update_config(neck, head)
         neck, kpt3d_lift = check_and_update_config(neck, kpt3d_lift)
 
@@ -153,7 +154,12 @@ class TopdownPoseLiftEstimator(BaseModel):
         """
         with torch.no_grad():
             feats_pyramid = self.extract_feat(inputs)
-            xy_sigma, heatmap = self.head.forward(feats_pyramid)
+            outputs = self.head.forward(feats_pyramid)
+            xy_sigma, heatmap = outputs[:2]
+            if self.kpt2d_with_depth:
+                depth = outputs[2]
+                depth = (depth - 0.5) * 0.4
+                xy_sigma = torch.cat([xy_sigma, depth], dim=-1)
         losses = self.kpt3d_lift.loss(xy_sigma, data_samples)
         return losses
 
@@ -188,9 +194,12 @@ class TopdownPoseLiftEstimator(BaseModel):
             feats = [_feats, _feats_flip]
         else:
             feats = self.extract_feat(inputs)
-
-        xy_sigma, heatmap = self.head.forward(feats)
-        xy_sigma = xy_sigma.detach()  # fix 2d model params
+            outputs = self.head.forward(feats)
+            xy_sigma, heatmap = outputs[:2]
+            if self.kpt2d_with_depth:
+                depth = outputs[2]
+                depth = (depth - 0.5) * 0.4  # 0.4 is the depth bound
+                xy_sigma = torch.cat([xy_sigma, depth], dim=-1)
         pred = self.kpt3d_lift.predict(
             xy_sigma, data_samples, test_cfg=self.test_cfg)
 

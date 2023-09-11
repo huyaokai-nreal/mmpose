@@ -5,7 +5,7 @@ train_cfg = dict(max_epochs=100, val_interval=10)
 
 data_root = '/data/AI_DATA_WX'
 # data_root = '/data/AI_DATA_LOCAL'
-test_type = '2d'
+test_type = '3d'
 base_lr = 1e-4
 # optimizer
 optim_wrapper = dict(

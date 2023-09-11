@@ -23,6 +23,7 @@ class LiftHead(BaseModule):
                  output_num: int = 42,
                  undistort: bool = False,
                  use_kp2d_gt=False,
+                 kpt2d_with_depth: bool = False,
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
                  init_cfg: Union[dict, List[dict], None] = None):
@@ -30,16 +31,19 @@ class LiftHead(BaseModule):
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.channel_num = channel_num
         self.lambda_t = lambda_t
+        self.kpt2d_with_depth = kpt2d_with_depth
+        feat_dim = 2 * self.channel_num
+        if self.kpt2d_with_depth:
+            feat_dim = feat_dim + 21
         self.corruption_cam = corruption_cam
         self.liftnet = gMLP(
-            d_model=2 * self.channel_num,
+            d_model=2 * self.channel_num + 21,
             d_ffn=4 * self.channel_num,
             num_layers=3)
         self.last_layer = nn.Sequential(
-            nn.Conv2d(
-                2 * self.channel_num, 2 * self.channel_num, kernel_size=1),
-            nn.SyncBatchNorm(2 * self.channel_num), nn.ReLU(),
-            nn.Conv2d(self.channel_num * 2, output_num, kernel_size=1))
+            nn.Conv2d(feat_dim, feat_dim, kernel_size=1),
+            nn.SyncBatchNorm(feat_dim), nn.ReLU(),
+            nn.Conv2d(feat_dim, output_num, kernel_size=1))
         self.lift_loss = MODELS.build(lift_loss)
         self.undistort = undistort
         self.use_kp2d_gt = use_kp2d_gt
@@ -51,15 +55,16 @@ class LiftHead(BaseModule):
         return output
 
     def preprocess(self, feats, batch_data_samples):
-        xy_coord = feats
+        xy_coord = feats[..., :2]
+        if self.kpt2d_with_depth:
+            depth = feats[..., -1:][::2]
         B = int(len(batch_data_samples) / 2)
         N = 2
         H, W = batch_data_samples[0].input_size
         K = xy_coord.shape[1]  # (B,21, 2)
 
         # kpt2d output to crop wh
-        uv_coord_im_pred_crop_right = xy_coord[..., :2] * torch.tensor(
-            [W, H]).cuda()
+        uv_coord_im_pred_crop_right = xy_coord * torch.tensor([W, H]).cuda()
         uv_coord_im_pred_crop_right = uv_coord_im_pred_crop_right.view(
             B, N, K, 2)
 
@@ -109,6 +114,7 @@ class LiftHead(BaseModule):
         lr_p = torch.tensor(np.array(lr_p)).cuda().float()
         lr_rot_matrix = torch.tensor(np.array(lr_rot_matrix)).cuda().float()
         hand3d_gt = torch.tensor(np.array(hand3d_gt)).cuda().float()
+        left_rel_depth = hand3d_gt[..., 2:3] - hand3d_gt[:, :1, 2:3]
         left_hand = torch.tensor(np.array(is_left_hands)).cuda().float()
         uv_coord_im_gt_global = torch.tensor(
             np.array(uv_coord_im_gt_global)).cuda().float()
@@ -147,6 +153,7 @@ class LiftHead(BaseModule):
 
         if self.use_kp2d_gt:
             uv_coord_im_pred_global = uv_coord_im_gt_global
+            depth = left_rel_depth
 
         if self.undistort:
             uv_coord_im_pred_global = uv_coord_im_pred_global.view(-1, K, 2)
@@ -183,7 +190,12 @@ class LiftHead(BaseModule):
         feature2 = torch.cat((rightcam_xy.view((B, -1)), lr_p.view(
             (B, -1)), lr_rot_matrix.view((B, -1)), left_hand.view((B, -1))),
                              dim=1).view((B, self.channel_num, 1, 1))
-        feats = torch.torch.cat((feature1, feature2), dim=1).float()
+        if self.kpt2d_with_depth:
+            feats = torch.torch.cat(
+                (feature1, feature2, depth.reshape(
+                    (B, 21, 1, 1))), dim=1).float()
+        else:
+            feats = torch.torch.cat((feature1, feature2), dim=1).float()
         return feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p, \
             leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global, \
             hand3d_gt
@@ -216,7 +228,7 @@ class LiftHead(BaseModule):
                 test_cfg: ConfigType = {}) -> Predictions:
         with torch.no_grad():
             feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p = \
-                self.preprocess(feats, batch_data_samples)[:5]
+                self.preprocess(feats,  batch_data_samples)[:5]
         output = self.forward(feats)
         hand3d_pred = self.postprocess(output, leftcam_xy, rightcam_xy,
                                        lr_rot_matrix, lr_p)[0]
