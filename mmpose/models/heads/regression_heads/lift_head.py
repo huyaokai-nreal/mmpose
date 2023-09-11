@@ -217,11 +217,11 @@ class LiftHead(BaseModule):
                                  dim=1).view((B, self.channel_num, 1, 1))
             if self.kpt2d_with_depth:
                 feats = torch.torch.cat(
-                (feature1, feature2, depth.reshape(
-                    (B, 21, 1, 1))), dim=1).float()
+                    (feature1, feature2, depth.reshape(
+                        (B, 21, 1, 1))), dim=1).float()
             else:
                 feats = torch.cat((feature1, feature2), dim=1).float()
-            
+
         return (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,
                 leftcam_cam_matrix, rightcam_cam_matrix,
                 uv_coord_im_pred_global, uv_coord_im_pred_global_distort,
