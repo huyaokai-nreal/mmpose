@@ -539,7 +539,7 @@ train_dataloader = dict(
         # indices=200,
         # data_ratio=0.3,
         # pinch_random=True,
-        rt_aug_prob=0.2,
+        # rt_aug_prob=0.2,
     ),
 )
 val_dataloader = dict(
@@ -558,7 +558,6 @@ val_dataloader = dict(
         flip_left_to_right=True,
         data_root=data_root,
         # point_type='leftcam'
-        # rt_aug_prob=1,
     ),
 )
 test_dataloader = val_dataloader

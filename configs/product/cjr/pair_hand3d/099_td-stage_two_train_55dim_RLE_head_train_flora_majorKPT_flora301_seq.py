@@ -253,7 +253,9 @@ gesture_list = [
 # val_evaluator = dict(type='MPJPEMetricLifting', gesture_list=gesture_list)
 val_evaluator = [
     dict(type='MPJPEV2', gesture_list=gesture_list, result_dir='.'),
-    dict(type='MPJPEV2', mode='p-mpjpe', prefix='1')
+    dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
+    dict(type='EPE'),
+    dict(type='NrealKeypointAP'),
 ]
 test_evaluator = val_evaluator
 

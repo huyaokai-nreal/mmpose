@@ -306,9 +306,13 @@ class TopdownPoseLiftEstimatorSeq(TopdownPoseLiftEstimator):
         for pred_instances, pred_fields, data_sample in zip_longest(
                 batch_pred_instances, batch_pred_fields, batch_data_samples):
 
-            pred_instances.keypoints3d = pred_instances.keypoints.cpu().numpy()
+            pred_instances.keypoints3d = pred_instances.keypoints3d.cpu(
+            ).numpy()
+            pred_instances.keypoint3d_scores = np.ones(
+                (1, pred_instances.keypoints3d.shape[1]))
+            pred_instances.keypoints = pred_instances.keypoints.cpu().numpy()
             pred_instances.keypoint_scores = np.ones(
-                pred_instances.keypoints.shape[0])
+                (1, pred_instances.keypoints.shape[1]))
 
             data_sample.pred_instances = pred_instances
         return batch_data_samples
