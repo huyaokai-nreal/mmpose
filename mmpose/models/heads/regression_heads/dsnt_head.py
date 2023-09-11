@@ -92,6 +92,9 @@ class DSNTHead(IntegralRegressionHead):
                  output_fuse_coord: bool = False,
                  symmetry_ipr=False,
                  consistency_loss=False,
+                 heatmap_loss=True,
+                 output_depth=False,
+                 depth_channel=256,
                  input_size: Optional[Tuple] = None):
 
         super().__init__(
@@ -113,11 +116,15 @@ class DSNTHead(IntegralRegressionHead):
             deploy_output=deploy_output,
             feat_norm_type=feat_norm_type,
             symmetry_ipr=symmetry_ipr,
-            output_fuse_coord=output_fuse_coord)
+            output_fuse_coord=output_fuse_coord,
+            output_depth=output_depth,
+            depth_channel=depth_channel)
 
         self.lambda_t = lambda_t
         self.consistency_loss = consistency_loss
         self.input_size = input_size
+        self.heatmap_loss = heatmap_loss
+        self.output_depth = output_depth
 
     def loss(self,
              inputs: Tuple[Tensor],
@@ -125,17 +132,37 @@ class DSNTHead(IntegralRegressionHead):
              train_cfg: ConfigType = {}) -> dict:
         """Calculate losses from a batch of inputs and data samples."""
 
-        pred_coords, pred_heatmaps = self.forward(inputs)
-        keypoint_labels = torch.cat(
-            [d.gt_instance_labels.keypoint_labels for d in batch_data_samples])
+        label_2d_list = []
+        label_depth_list = []
+        label_depth_id_list = []
+        for i, data in enumerate(batch_data_samples):
+            keypoint_label = data.gt_instance_labels.keypoint_labels
+            label_2d_list.append(keypoint_label[..., :2])
+            if keypoint_label.shape[-1] == 3:
+                label_depth_list.append(keypoint_label[..., 2:3])
+                label_depth_id_list.append(i)
+        label_2d = torch.cat(label_2d_list)
         keypoint_weights = torch.cat([
             d.gt_instance_labels.keypoint_weights for d in batch_data_samples
         ])
-        gt_heatmaps = torch.stack(
-            [d.gt_fields.heatmaps for d in batch_data_samples])
-
-        input_list = [pred_coords, pred_heatmaps]
-        target_list = [keypoint_labels, gt_heatmaps]
+        outputs = self.forward(inputs)
+        pred_coords, pred_heatmaps = outputs[:2]
+        input_list = [pred_coords]
+        target_list = [label_2d]
+        if self.output_depth:
+            label_depth = torch.cat(label_depth_list)
+            label_depth_id = torch.tensor(
+                label_depth_id_list, dtype=torch.int32).cuda()
+            pred_depth = outputs[2]
+            valid_depth_pred = torch.index_select(pred_depth, 0,
+                                                  label_depth_id)
+            input_list.append(valid_depth_pred)
+            target_list.append(label_depth)
+        if self.heatmap_loss:
+            gt_heatmaps = torch.stack(
+                [d.gt_fields.heatmaps for d in batch_data_samples])
+            input_list.append(pred_heatmaps)
+            target_list.append(gt_heatmaps)
         if self.consistency_loss:
             B, N, K = pred_coords[..., :2].shape
             pred_coords_pos = torch.cat([
@@ -165,15 +192,18 @@ class DSNTHead(IntegralRegressionHead):
 
         loss_list = self.loss_module(input_list, target_list, keypoint_weights)
 
-        loss_reg = loss_list[0]
-        loss_ht = loss_list[1]
-
-        if self.lambda_t > 0:
-            mh = MessageHub.get_current_instance()
-            cur_epoch = mh.get_info('epoch')
-            if cur_epoch >= self.lambda_t:
-                loss_ht = 0
-        losses.update(loss_ht=loss_ht, loss_reg=loss_reg)
+        loss_kpt2d = loss_list[0]
+        losses.update(loss_reg=loss_kpt2d)
+        if self.output_depth:
+            losses.update(loss_depth=loss_list[1])
+        if self.heatmap_loss:
+            loss_ht = loss_list[1]
+            if self.lambda_t > 0:
+                mh = MessageHub.get_current_instance()
+                cur_epoch = mh.get_info('epoch')
+                if cur_epoch >= self.lambda_t:
+                    loss_ht = 0
+            losses.update(loss_ht=loss_ht)
         if self.consistency_loss:
             losses.update(loss_const=loss_list[2])
         if pred_coords.size(-1) == 4:
@@ -181,12 +211,12 @@ class DSNTHead(IntegralRegressionHead):
         # calculate accuracy
         _, avg_acc, _ = keypoint_pck_accuracy(
             pred=to_numpy(pred_coords),
-            gt=to_numpy(keypoint_labels),
+            gt=to_numpy(label_2d),
             mask=np.abs(to_numpy(keypoint_weights)) > 0,
             thr=0.05,
             norm_factor=np.ones((pred_coords.size(0), 2), dtype=np.float32))
 
-        acc_pose = torch.tensor(avg_acc, device=keypoint_labels.device)
+        acc_pose = torch.tensor(avg_acc).cuda()
         losses.update(acc_pose=acc_pose)
 
         return losses

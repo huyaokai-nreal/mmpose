@@ -70,28 +70,29 @@ class IntegralRegressionHead(BaseHead):
 
     _version = 2
 
-    def __init__(
-        self,
-        in_channels: Union[int, Sequence[int]],
-        in_featuremap_size: Tuple[int, int],
-        num_joints: int,
-        debias: bool = False,
-        beta: float = 1.0,
-        deconv_out_channels: OptIntSeq = (256, 256, 256),
-        deconv_kernel_sizes: OptIntSeq = (4, 4, 4),
-        conv_out_channels: OptIntSeq = None,
-        conv_kernel_sizes: OptIntSeq = None,
-        final_layer: dict = dict(kernel_size=1),
-        output_sigma: bool = False,
-        loss: ConfigType = dict(type='SmoothL1Loss', use_target_weight=True),
-        decoder: OptConfigType = None,
-        init_cfg: OptConfigType = None,
-        deploy: bool = False,
-        feat_norm_type='softmax',
-        symmetry_ipr=False,
-        deploy_output: List[str] = ['feat', 'score'],
-        output_fuse_coord: bool = False,
-    ):
+    def __init__(self,
+                 in_channels: Union[int, Sequence[int]],
+                 in_featuremap_size: Tuple[int, int],
+                 num_joints: int,
+                 debias: bool = False,
+                 beta: float = 1.0,
+                 deconv_out_channels: OptIntSeq = (256, 256, 256),
+                 deconv_kernel_sizes: OptIntSeq = (4, 4, 4),
+                 conv_out_channels: OptIntSeq = None,
+                 conv_kernel_sizes: OptIntSeq = None,
+                 final_layer: dict = dict(kernel_size=1),
+                 output_sigma: bool = False,
+                 loss: ConfigType = dict(
+                     type='SmoothL1Loss', use_target_weight=True),
+                 decoder: OptConfigType = None,
+                 init_cfg: OptConfigType = None,
+                 deploy: bool = False,
+                 feat_norm_type='softmax',
+                 symmetry_ipr=False,
+                 deploy_output: List[str] = ['feat', 'score'],
+                 output_fuse_coord: bool = False,
+                 output_depth: bool = False,
+                 depth_channel: int = 256):
 
         if init_cfg is None:
             init_cfg = self.default_init_cfg
@@ -108,6 +109,14 @@ class IntegralRegressionHead(BaseHead):
         self.deploy_output = copy.deepcopy(deploy_output)
         self.feat_norm_type = feat_norm_type
         self.symmetry_ipr = symmetry_ipr
+        self.output_depth = output_depth
+        if self.output_depth:
+            self.depth_conv = nn.Conv2d(
+                self.in_channels,
+                self.num_joints,
+                kernel_size=3,
+                stride=2,
+                padding=1)
         if self.output_sigma:
             self.gap = nn.AdaptiveAvgPool2d((1, 1))
             self.sigma_conv = nn.Conv2d(
@@ -171,11 +180,15 @@ class IntegralRegressionHead(BaseHead):
             W, H = self.heatmap_size
             self.linspace_x = torch.arange(0.0, 1.0 * W, 1) / W
             self.linspace_y = torch.arange(0.0, 1.0 * H, 1) / H
-
+            self.linspace_z = torch.arange(0.0, 1.0 * depth_channel,
+                                           1) / depth_channel
             self.linspace_x = nn.Parameter(
                 self.linspace_x, requires_grad=False)
             self.linspace_y = nn.Parameter(
                 self.linspace_y, requires_grad=False)
+            if self.output_depth:
+                self.linspace_z = nn.Parameter(
+                    self.linspace_z, requires_grad=False)
 
         self._register_load_state_dict_pre_hook(self._load_state_dict_pre_hook)
 
@@ -262,6 +275,12 @@ class IntegralRegressionHead(BaseHead):
             pred_sigma_reshape = pred_sigma.reshape(
                 pred_sigma.size(0), self.num_joints, 2)
             coords = torch.cat([coords, pred_sigma_reshape], dim=-1)
+        if self.output_depth:
+            pred_depth = self.depth_conv(raw_feats).reshape(
+                B, self.num_joints, -1)  # 21, 256
+            pred_depth = F.softmax(pred_depth, dim=2)
+            pred_depth = pred_depth.mul(self.linspace_z).sum(
+                dim=-1, keepdim=True)
         if self.deploy:
             output_list = []
             if 'feat' in self.deploy_output:
@@ -274,8 +293,14 @@ class IntegralRegressionHead(BaseHead):
                 output_list.append(1 - torch.sigmoid(pred_sigma))
             if 'heatmap' in self.deploy_output:
                 output_list.append(heatmaps)
+            if 'depth' in self.deploy_output:
+                output_list.append(pred_depth)
             return tuple(output_list)
-        return coords, heatmaps
+        else:
+            outputs = [coords, heatmaps]
+            if self.output_depth:
+                outputs.append(pred_depth)
+            return tuple(outputs)
 
     def predict(self,
                 feats: Tuple[Tensor],
@@ -338,7 +363,12 @@ class IntegralRegressionHead(BaseHead):
                 batch_coords[..., 2:] = batch_coords[..., 2:].sigmoid()
             batch_heatmaps = (_batch_heatmaps + _batch_heatmaps_flip) * 0.5
         else:
-            batch_coords, batch_heatmaps = self.forward(feats)  # (B, K, D)
+            outputs = self.forward(feats)  # (B, K, D)
+            batch_coords, batch_heatmaps = outputs[:2]
+            if self.output_depth:
+                batch_depth = outputs[2]
+                batch_coords = torch.cat([batch_coords[..., :2], batch_depth],
+                                         dim=-1)
         if self.output_sigma:
             batch_coords[..., 2:] = batch_coords[..., 2:].sigmoid()
         batch_coords.unsqueeze_(dim=1)  # (B, N, K, D)
