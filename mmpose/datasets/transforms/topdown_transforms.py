@@ -377,20 +377,10 @@ class TopdownPCL(BaseTransform):
 
     def transform(self, results: Dict) -> Dict:
         w, h = self.input_size
-        # tmp_result = dict()
-        # tmp_result['bbox'] = results['bbox'].tolist()
-        # tmp_result['bbox_scale'] = results['bbox_scale'].tolist()
         results['input_size'] = self.input_size
         results['bbox_scale'] = TopdownAffine._fix_aspect_ratio(
             results['bbox_scale'], aspect_ratio=w / h)
-        # tmp_result['fix_bbox_scale'] = results['bbox_scale'].tolist()
         ori_camera = results['meta']['ori_camera']
-        #  tmp_result['ori_camera'] = dict(
-        #      fxfy = ori_camera.f,
-        #      cxcy = ori_camera.c,
-        #      d = ori_camera.distort._asdict(),
-        #      camera_to_world_xf = np.eye(4).tolist()
-        #  )
         world_points = results['keypoints3d'][0]
         center = results['bbox_center'][0]
         scale = self.input_size[0] / results['bbox_scale'][0][0]
@@ -401,15 +391,8 @@ class TopdownPCL(BaseTransform):
                 self.input_size,
                 mirror_img_x=False,
                 focal_multiplier=scale)
-        # tmp_result['virtual_camera'] = dict(
-        #     fxfy = virtual_camera.f,
-        #     cxcy = virtual_camera.c,
-        #     camera_to_world_xf = virtual_camera.camera_to_world_xf.tolist()
-        # )
         image = results['img']
-        # cv2.imwrite('raw_image.png', image)
         crop_img = warp_image(ori_camera, virtual_camera, w, h, image)
-        # cv2.imwrite('crop_image.png', crop_img)
         results['img'] = crop_img
         results['meta']['virtual_camera'] = virtual_camera
         kpt3d_in_virutal = virtual_camera.world_to_eye(world_points)
@@ -422,8 +405,4 @@ class TopdownPCL(BaseTransform):
         results['meta']['root_depth'] = virtual_cam_points[self.root_id][2]
         results['warp_mat'] = np.array([[1, 0, 0], [0, 1, 0]],
                                        dtype=np.float32)
-        # print(tmp_result)
-        # with open('test_data.json', 'w') as f:
-        #     json.dump(tmp_result, f)
-        # exit()
         return results

@@ -95,6 +95,7 @@ class DSNTHead(IntegralRegressionHead):
                  heatmap_loss=True,
                  output_depth=False,
                  depth_channel=256,
+                 with_hand_scale=False,
                  input_size: Optional[Tuple] = None):
 
         super().__init__(
@@ -102,6 +103,7 @@ class DSNTHead(IntegralRegressionHead):
             in_featuremap_size=in_featuremap_size,
             num_joints=num_joints,
             debias=debias,
+            with_hand_scale=with_hand_scale,
             beta=beta,
             deconv_out_channels=deconv_out_channels,
             deconv_kernel_sizes=deconv_kernel_sizes,
@@ -135,6 +137,14 @@ class DSNTHead(IntegralRegressionHead):
         label_2d_list = []
         label_depth_list = []
         label_depth_id_list = []
+        if self.with_hand_scale:
+            hand_scales = [
+                sample.meta.get('hand_scale', 1)
+                for sample in batch_data_samples
+            ]
+            hand_scales = torch.from_numpy(
+                np.array(hand_scales,
+                         dtype=np.float32)).cuda().unsqueeze(1).unsqueeze(2)
         for i, data in enumerate(batch_data_samples):
             keypoint_label = data.gt_instance_labels.keypoint_labels
             label_2d_list.append(keypoint_label[..., :2])
@@ -154,6 +164,8 @@ class DSNTHead(IntegralRegressionHead):
             label_depth_id = torch.tensor(
                 label_depth_id_list, dtype=torch.int32).cuda()
             pred_depth = outputs[2]
+            if self.with_hand_scale:
+                pred_depth *= hand_scales
             valid_depth_pred = torch.index_select(pred_depth, 0,
                                                   label_depth_id)
             input_list.append(valid_depth_pred)

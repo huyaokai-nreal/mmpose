@@ -98,15 +98,10 @@ class PairHand3DDataset(BaseCocoStyleDataset):
 
     def __update_bones_with_mean_template(self):
         mean_bones = np.load(self.mean_bone_template_path)
-        new_bones_list = []
         self.hand_scale_list = []
         for bones in self.hand_bones_list:
             scale = np.mean(bones / mean_bones)
             self.hand_scale_list.append(scale)
-            new_bone = scale * mean_bones
-            new_bones_list.append(new_bone)
-
-        self.hand_bones_list = new_bones_list
 
     @force_full_init
     def __len__(self) -> int:
