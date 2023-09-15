@@ -5,6 +5,7 @@ from typing import Optional
 
 import cv2
 import numpy as np
+from mmengine import MMLogger
 from nreal_data_tool.utils.camera import PinholePlaneCameraModel
 from scipy.optimize import leastsq
 
@@ -15,6 +16,7 @@ from mmpose.utils.typing import (ConfigType, InstanceList, OptConfigType,
 from .topdown import TopdownPoseEstimator
 
 
+# 通过闭式解求解根节点深度
 def get_root_depthv2(keypoints, camera, template_bones, undistort):
     if undistort:
         keypoints[..., :2] = camera.undistort(keypoints[..., :2])
@@ -49,6 +51,7 @@ def get_root_depthv2(keypoints, camera, template_bones, undistort):
     return np.mean(root_list)
 
 
+# 通过最小二乘迭代优化求解根节点深度
 def get_root_depth(keypoints,
                    camera,
                    template_bones,
@@ -128,7 +131,11 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
         elif self.camera_layout == 'virtual_binocular':
             return self.add_pred_to_datasample_binocular_virtual(
                 batch_pred_instances, batch_pred_fields, batch_data_samples)
+        else:
+            logger = MMLogger.get_current_instance()
+            logger.error(f'layout { self.camera_layout} is not supported')
 
+    # warpaffine抠图时进行三角化
     def add_pred_to_datasample_binocular(
             self, batch_pred_instances: InstanceList,
             batch_pred_fields: Optional[PixelDataList],
@@ -177,10 +184,11 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             T2 = np.linalg.inv(T)[:3]
             left_f, left_c = left_camera.f, left_camera.c
             right_f, right_c = right_camera.f, right_camera.c
+            left_pred_instance.keypoints = left_kpt[None, ...].copy()
             if left_data_sample.meta['flipped']:
                 image_width = left_data_sample.meta['frame_width']
-                left_kpt[..., 0] = image_width - left_kpt[..., 0]
-                right_kpt[..., 0] = image_width - right_kpt[..., 0]
+                left_kpt[..., 0] = image_width - 1 - left_kpt[..., 0]
+                right_kpt[..., 0] = image_width - 1 - right_kpt[..., 0]
                 left_gt_instances.keypoints3d[..., 0] *= -1
             left_kpt_u = left_kpt.copy()
             right_kpt_u = right_kpt.copy()
@@ -195,11 +203,11 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             new_pred_kpt3d = X[:3] / X[3:]
             new_pred_kpt3d = new_pred_kpt3d.T
             left_pred_instance.keypoints3d = new_pred_kpt3d[None, ...]
-            left_pred_instance.keypoints = left_kpt[None, ...]
             left_data_sample.pred_instances = left_pred_instance
             new_batch_data_samples.append(left_data_sample)
         return new_batch_data_samples
 
+    # pcl处理后利用虚拟相机进行三角化
     def add_pred_to_datasample_binocular_virtual(
             self, batch_pred_instances: InstanceList,
             batch_pred_fields: Optional[PixelDataList],
@@ -227,17 +235,29 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             right_data_sample = batch_data_samples[2 * i + 1]
             left_virtual_camera = left_data_sample.meta['virtual_camera']
             left_kpt = left_pred_instance.keypoints[0].copy()[..., :2]
-            left_gt_instances = left_data_sample.gt_instances
-            left_kpt = left_gt_instances.transformed_keypoints[0, ..., :2]
             right_virtual_camera = right_data_sample.meta['virtual_camera']
             right_kpt = right_pred_instance.keypoints[0].copy()[..., :2]
-            right_gt_instances = right_data_sample.gt_instances
-            right_kpt = right_gt_instances.transformed_keypoints[0, ..., :2]
-            T1 = np.linalg.inv(
-                left_data_sample.meta['virtual_camera'].camera_to_world_xf)[:3]
-            T = right_data_sample.meta['ori_xf'] @ right_data_sample.meta[
-                'ori_camera'].camera_to_world_xf
-            T2 = np.linalg.inv(T)[:3]
+            if left_data_sample.meta['flipped']:
+                mirror_x_matrix = np.eye(4)
+                mirror_x_matrix[0][0] = -1
+                T1 = np.linalg.inv(
+                    mirror_x_matrix @ left_data_sample.meta['virtual_camera'].
+                    camera_to_world_xf)[:3]
+                T = right_data_sample.meta[
+                    'ori_xf'] @ mirror_x_matrix @ right_data_sample.meta[
+                        'virtual_camera'].camera_to_world_xf
+                T2 = np.linalg.inv(T)[:3]
+                left_data_sample.gt_instances.keypoints3d[..., 0] *= -1
+                image_width = left_data_sample.meta['frame_width']
+                gt_kpt2d = left_data_sample.gt_instances.keypoints
+                gt_kpt2d[..., 0] = image_width - 1 - gt_kpt2d[..., 0]
+            else:
+                T1 = np.linalg.inv(left_data_sample.meta['virtual_camera'].
+                                   camera_to_world_xf)[:3]
+                T = right_data_sample.meta['ori_xf'] @ right_data_sample.meta[
+                    'virtual_camera'].camera_to_world_xf
+                right_virtual_camera.camera_to_world_xf = T
+                T2 = np.linalg.inv(T)[:3]
             left_f, left_c = left_virtual_camera.f, left_virtual_camera.c
             right_f, right_c = right_virtual_camera.f, right_virtual_camera.c
             left_kpt_u = left_kpt.copy()
@@ -249,7 +269,7 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             X = cv2.triangulatePoints(T1, T2, left_kpt_u.transpose(),
                                       right_kpt_u.transpose())
             pred_kpt3d = X[:3] / X[3:]
-            pred_kpt3d = -pred_kpt3d.T
+            pred_kpt3d = pred_kpt3d.T
             left_pred_instance.keypoints3d = pred_kpt3d[None, ...]
             left_camera = left_data_sample.meta['ori_camera']
             kpt2d = left_camera.eye_to_window(pred_kpt3d)
@@ -258,6 +278,7 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             new_batch_data_samples.append(left_data_sample)
         return new_batch_data_samples
 
+    # 单目使用模版进行kpt3d求解
     def add_pred_to_datasample_monocular(
             self, batch_pred_instances: InstanceList,
             batch_pred_fields: Optional[PixelDataList],
