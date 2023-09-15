@@ -3,6 +3,7 @@ import copy
 from itertools import zip_longest
 from typing import Optional
 
+import cv2
 import numpy as np
 from nreal_data_tool.utils.camera import PinholePlaneCameraModel
 from scipy.optimize import leastsq
@@ -12,6 +13,40 @@ from mmpose.structures.bbox import bbox_cs2xyxy
 from mmpose.utils.typing import (ConfigType, InstanceList, OptConfigType,
                                  OptMultiConfig, PixelDataList, SampleList)
 from .topdown import TopdownPoseEstimator
+
+
+def get_root_depthv2(keypoints, camera, template_bones, undistort):
+    if undistort:
+        keypoints[..., :2] = camera.undistort(keypoints[..., :2])
+    f = np.array(camera.f, dtype=np.float32)
+    c = np.array(camera.c, dtype=np.float32)
+    keypoints[..., :2] = (keypoints[..., :2] - c) / f
+    root_kpt = keypoints[:1].reshape((1, 1, 3))
+    root_kpt = np.tile(root_kpt, (5, 1, 1))
+    kpt = keypoints[1:].reshape((5, 4, 3))
+    kpt = np.concatenate([root_kpt, kpt], axis=1)
+    root_list = []
+    template_bones = template_bones.reshape(-1)
+    for i in range(5):
+        for j in range(4):
+            kpt_m = kpt[i][j]
+            kpt_n = kpt[i][j + 1]
+            bone = template_bones[i * 4 + j]
+            xm = kpt_m[0]
+            ym = kpt_m[1]
+            zm = kpt_m[2]
+            xn = kpt_n[0]
+            yn = kpt_n[1]
+            zn = kpt_n[2]
+            a = (xn - xm)**2 + (yn - ym)**2
+            b = zn * (xn**2 + yn**2 - xn * xm - yn * ym) + zm * (
+                xm**2 + ym**2 - xn * xm - yn * ym)
+            c = (xn * zn - xm * zm)**2 + (yn * zn - ym * zm)**2 + (
+                zn - zm)**2 - bone * bone
+            root = 0.5 * (-b + np.sqrt(b**2 - 4 * a * c)) / a
+            if not np.isnan(root):
+                root_list.append(root)
+    return np.mean(root_list)
 
 
 def get_root_depth(keypoints,
@@ -74,14 +109,159 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                  test_cfg: OptConfigType = None,
                  data_preprocessor: OptConfigType = None,
                  init_cfg: OptMultiConfig = None,
+                 camera_layout: str = 'monocular',
                  root_mode: str = 'gt'):
         super().__init__(backbone, neck, head, train_cfg, test_cfg,
                          data_preprocessor, init_cfg)
         self.root_mode = root_mode
+        self.camera_layout = camera_layout
 
     def add_pred_to_datasample(self, batch_pred_instances: InstanceList,
                                batch_pred_fields: Optional[PixelDataList],
                                batch_data_samples: SampleList) -> SampleList:
+        if self.camera_layout == 'monocular':
+            return self.add_pred_to_datasample_monocular(
+                batch_pred_instances, batch_pred_fields, batch_data_samples)
+        elif self.camera_layout == 'ori_binocular':
+            return self.add_pred_to_datasample_binocular(
+                batch_pred_instances, batch_pred_fields, batch_data_samples)
+        elif self.camera_layout == 'virtual_binocular':
+            return self.add_pred_to_datasample_binocular_virtual(
+                batch_pred_instances, batch_pred_fields, batch_data_samples)
+
+    def add_pred_to_datasample_binocular(
+            self, batch_pred_instances: InstanceList,
+            batch_pred_fields: Optional[PixelDataList],
+            batch_data_samples: SampleList) -> SampleList:
+        """Add predictions into data samples.
+
+        Args:
+            batch_pred_instances (List[InstanceData]): The predicted instances
+                of the input data batch
+            batch_pred_fields (List[PixelData], optional): The predicted
+                fields (e.g. heatmaps) of the input batch
+            batch_data_samples (List[PoseDataSample]): The input data batch
+
+        Returns:
+            List[PoseDataSample]: A list of data samples where the predictions
+            are stored in the ``pred_instances`` field of each data sample.
+        """
+        assert len(batch_pred_instances) == len(batch_data_samples)
+        N = len(batch_data_samples) // 2
+        new_batch_data_samples = []
+        for i in range(N):
+            left_pred_instance = batch_pred_instances[2 * i]
+            left_data_sample = batch_data_samples[2 * i]
+            right_pred_instance = batch_pred_instances[2 * i + 1]
+            right_data_sample = batch_data_samples[2 * i + 1]
+            left_camera = left_data_sample.meta['ori_camera']
+            left_kpt = left_pred_instance.keypoints[0].copy()[..., :2]
+            left_gt_instances = left_data_sample.gt_instances
+            input_size = left_data_sample.metainfo['input_size']
+            left_bbox_centers = left_gt_instances.bbox_centers
+            left_bbox_scales = left_gt_instances.bbox_scales
+            left_kpt[..., :2] = left_kpt[
+                ..., :
+                2] / input_size * left_bbox_scales + left_bbox_centers - 0.5 * left_bbox_scales  # noqa
+            right_camera = right_data_sample.meta['ori_camera']
+            right_kpt = right_pred_instance.keypoints[0].copy()[..., :2]
+            right_gt_instances = right_data_sample.gt_instances
+            right_bbox_centers = right_gt_instances.bbox_centers
+            right_bbox_scales = right_gt_instances.bbox_scales
+            right_kpt[..., :2] = right_kpt[
+                ..., :
+                2] / input_size * right_bbox_scales + right_bbox_centers - 0.5 * right_bbox_scales  # noqa
+            T1 = left_data_sample.meta['ori_camera'].camera_to_world_xf[:3]
+            T = right_data_sample.meta['ori_xf'] @ right_data_sample.meta[
+                'ori_camera'].camera_to_world_xf
+            T2 = np.linalg.inv(T)[:3]
+            left_f, left_c = left_camera.f, left_camera.c
+            right_f, right_c = right_camera.f, right_camera.c
+            if left_data_sample.meta['flipped']:
+                image_width = left_data_sample.meta['frame_width']
+                left_kpt[..., 0] = image_width - left_kpt[..., 0]
+                right_kpt[..., 0] = image_width - right_kpt[..., 0]
+                left_gt_instances.keypoints3d[..., 0] *= -1
+            left_kpt_u = left_kpt.copy()
+            right_kpt_u = right_kpt.copy()
+            left_kpt_u = left_camera.undistort(left_kpt_u)
+            right_kpt_u = right_camera.undistort(right_kpt_u)
+            left_kpt_u = (left_kpt_u - np.array([left_c], dtype=np.float32)
+                          ) / np.array([left_f], dtype=np.float32)
+            right_kpt_u = (right_kpt_u - np.array([right_c], dtype=np.float32)
+                           ) / np.array([right_f], dtype=np.float32)
+            X = cv2.triangulatePoints(T1, T2, left_kpt_u.transpose(),
+                                      right_kpt_u.transpose())
+            new_pred_kpt3d = X[:3] / X[3:]
+            new_pred_kpt3d = new_pred_kpt3d.T
+            left_pred_instance.keypoints3d = new_pred_kpt3d[None, ...]
+            left_pred_instance.keypoints = left_kpt[None, ...]
+            left_data_sample.pred_instances = left_pred_instance
+            new_batch_data_samples.append(left_data_sample)
+        return new_batch_data_samples
+
+    def add_pred_to_datasample_binocular_virtual(
+            self, batch_pred_instances: InstanceList,
+            batch_pred_fields: Optional[PixelDataList],
+            batch_data_samples: SampleList) -> SampleList:
+        """Add predictions into data samples.
+
+        Args:
+            batch_pred_instances (List[InstanceData]): The predicted instances
+                of the input data batch
+            batch_pred_fields (List[PixelData], optional): The predicted
+                fields (e.g. heatmaps) of the input batch
+            batch_data_samples (List[PoseDataSample]): The input data batch
+
+        Returns:
+            List[PoseDataSample]: A list of data samples where the predictions
+            are stored in the ``pred_instances`` field of each data sample.
+        """
+        assert len(batch_pred_instances) == len(batch_data_samples)
+        N = len(batch_data_samples) // 2
+        new_batch_data_samples = []
+        for i in range(N):
+            left_pred_instance = batch_pred_instances[2 * i]
+            left_data_sample = batch_data_samples[2 * i]
+            right_pred_instance = batch_pred_instances[2 * i + 1]
+            right_data_sample = batch_data_samples[2 * i + 1]
+            left_virtual_camera = left_data_sample.meta['virtual_camera']
+            left_kpt = left_pred_instance.keypoints[0].copy()[..., :2]
+            left_gt_instances = left_data_sample.gt_instances
+            left_kpt = left_gt_instances.transformed_keypoints[0, ..., :2]
+            right_virtual_camera = right_data_sample.meta['virtual_camera']
+            right_kpt = right_pred_instance.keypoints[0].copy()[..., :2]
+            right_gt_instances = right_data_sample.gt_instances
+            right_kpt = right_gt_instances.transformed_keypoints[0, ..., :2]
+            T1 = np.linalg.inv(
+                left_data_sample.meta['virtual_camera'].camera_to_world_xf)[:3]
+            T = right_data_sample.meta['ori_xf'] @ right_data_sample.meta[
+                'ori_camera'].camera_to_world_xf
+            T2 = np.linalg.inv(T)[:3]
+            left_f, left_c = left_virtual_camera.f, left_virtual_camera.c
+            right_f, right_c = right_virtual_camera.f, right_virtual_camera.c
+            left_kpt_u = left_kpt.copy()
+            right_kpt_u = right_kpt.copy()
+            left_kpt_u = (left_kpt - np.array([left_c], dtype=np.float32)
+                          ) / np.array([left_f], dtype=np.float32)
+            right_kpt_u = (right_kpt - np.array([right_c], dtype=np.float32)
+                           ) / np.array([right_f], dtype=np.float32)
+            X = cv2.triangulatePoints(T1, T2, left_kpt_u.transpose(),
+                                      right_kpt_u.transpose())
+            pred_kpt3d = X[:3] / X[3:]
+            pred_kpt3d = -pred_kpt3d.T
+            left_pred_instance.keypoints3d = pred_kpt3d[None, ...]
+            left_camera = left_data_sample.meta['ori_camera']
+            kpt2d = left_camera.eye_to_window(pred_kpt3d)
+            left_pred_instance.keypoints = kpt2d[None, ...]
+            left_data_sample.pred_instances = left_pred_instance
+            new_batch_data_samples.append(left_data_sample)
+        return new_batch_data_samples
+
+    def add_pred_to_datasample_monocular(
+            self, batch_pred_instances: InstanceList,
+            batch_pred_fields: Optional[PixelDataList],
+            batch_data_samples: SampleList) -> SampleList:
         """Add predictions into data samples.
 
         Args:
