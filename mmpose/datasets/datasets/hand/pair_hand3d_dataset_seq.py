@@ -43,7 +43,7 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
                  sub_data_index=-1,
                  data_ratio=-1,
                  point_type='3D',
-                 seq_len=3):
+                 seq_len=4):
         self.flip_left_to_right = flip_left_to_right
         self.data_ratio = data_ratio
         self.data_file_list = data_file_list

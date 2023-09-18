@@ -19,7 +19,7 @@ class LiftHeadSeq(BaseModule):
 
     def __init__(self,
                  lift_loss: ConfigType,
-                 seq_len: int = 3,
+                 seq_len: int = 4,
                  channel_num: int = 55,
                  output_num: int = 42,
                  undistort: bool = False,
@@ -30,7 +30,8 @@ class LiftHeadSeq(BaseModule):
         super().__init__(init_cfg)
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.seq_len = seq_len
-        self.channel_num = (21 * 2) * seq_len + 9 + 3 + 1
+        # self.channel_num = (21 * 2) * seq_len + 9 + 3 + 1
+        self.channel_num = channel_num
         self.lambda_t = lambda_t
         self.corruption_cam = corruption_cam
         self.liftnet = gMLP(
@@ -46,15 +47,51 @@ class LiftHeadSeq(BaseModule):
         self.undistort = undistort
         self.use_kp2d_gt = use_kp2d_gt
 
+        self.num_layers = 2
+        self.lstm_size = 2 * self.channel_num
+
+        self.lstm = nn.LSTM(
+            input_size=2 * self.channel_num,
+            hidden_size=self.lstm_size,
+            num_layers=self.num_layers,
+            batch_first=True,
+            dropout=0,
+            bidirectional=False)
+
+    def init_hidden(self, x, batch_size, first_batch=False):
+        # 获取网络的第一个参数，主要是为了在下面new新的参数时，可以和网络的第一个参数data type保持一致
+        weight = next(self.parameters()).data
+        if torch.cuda.is_available():
+            hidden = (weight.new(self.num_layers, batch_size,
+                                 self.lstm_size).zero_().to(x.device),
+                      weight.new(self.num_layers, batch_size,
+                                 self.lstm_size).zero_().to(x.device))
+        else:
+            hidden = (weight.new(self.num_layers, batch_size,
+                                 self.lstm_size).zero_(),
+                      weight.new(self.num_layers, batch_size,
+                                 self.lstm_size).zero_())
+
+        return hidden
+
     def forward(self, feats: Tuple[Tensor]) -> Tensor:
-        output = self.liftnet(feats)
+        embed_feats = self.liftnet(feats)
+        S = self.seq_len
+        B = int(embed_feats.shape[0] / S)
+        embed_feats = embed_feats.view(B, self.seq_len, -1)
+
+        (hn, cn) = self.init_hidden(embed_feats, B)
+        output, (hn2, cn2) = self.lstm(embed_feats, (hn, cn))
+        output = output.reshape(B * S, -1, 1, 1)
+        # from IPython import embed; embed()
         output = self.last_layer(output).view(
-            (feats.shape[0], -1, 1, 1))  # [64, 42, 1, 1]
+            (B * S, -1, 1, 1))  # [64, 42, 1, 1]
         return output
 
-    def _sample(self, tensor):
+    def _sample(self, tensor, idx=1):
         seq = self.seq_len
-        res = tensor[seq - 1::seq, ...]
+        sample_start_idx = seq - idx
+        res = tensor[sample_start_idx::seq, ...]
         return res
 
     def preprocess(self, feats, batch_data_samples):
@@ -192,33 +229,43 @@ class LiftHeadSeq(BaseModule):
         Tmatrix_leftcam = torch.tensor(
             (0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)).view((1, -1)).cuda()
 
-        left_hand_sample = self._sample(left_hand)
         hand3d_gt_sample = self._sample(hand3d_gt)
-        leftcam_xy_sample = self._sample(leftcam_xy)
-        rightcam_xy_sample = self._sample(rightcam_xy)
-        lr_rot_matrix_sample = self._sample(lr_rot_matrix)
-        lr_p_sample = self._sample(lr_p)
-        leftcam_cam_matrix_sample = self._sample(leftcam_cam_matrix)
-        rightcam_cam_matrix_sample = self._sample(rightcam_cam_matrix)
-        uv_coord_im_pred_global_sample = self._sample(uv_coord_im_pred_global)
-        hand3d_gt_sample = self._sample(hand3d_gt)
-        uv_coord_im_pred_global_distort_sample = self._sample(
-            uv_coord_im_pred_global_distort)
+        # left_hand_sample = self._sample(left_hand)
+        # leftcam_xy_sample = self._sample(leftcam_xy)
+        # rightcam_xy_sample = self._sample(rightcam_xy)
+        # lr_rot_matrix_sample = self._sample(lr_rot_matrix)
+        # lr_p_sample = self._sample(lr_p)
+        # leftcam_cam_matrix_sample = self._sample(leftcam_cam_matrix)
+        # rightcam_cam_matrix_sample = self._sample(rightcam_cam_matrix)
+        # uv_coord_im_pred_global_sample = self._sample(uv_coord_im_pred_global)  # noqa
+        # hand3d_gt_sample_pre = self._sample(hand3d_gt, idx=-2)
+        # hand3d_gt_sample_pre_pre = self._sample(hand3d_gt, idx=-3)
+        # uv_coord_im_pred_global_distort_sample = self._sample(
+        #     uv_coord_im_pred_global_distort)
 
         feature1 = torch.cat((leftcam_xy.view(
-            (B, -1)), Tmatrix_leftcam.repeat(
-                B, 1), left_hand_sample.view((B, -1))),
-                             dim=1).view((B, self.channel_num, 1, 1))
+            (B * S, -1)), Tmatrix_leftcam.repeat(
+                B * S, 1), left_hand.view((B * S, -1))),
+                             dim=1).view((B * S, self.channel_num, 1, 1))
         feature2 = torch.cat((rightcam_xy.view(
-            (B, -1)), lr_p_sample.view(
-                (B, -1)), lr_rot_matrix_sample.view(
-                    (B, -1)), left_hand_sample.view((B, -1))),
-                             dim=1).view((B, self.channel_num, 1, 1))
-        feats = torch.torch.cat((feature1, feature2), dim=1).float()
-        return (feats, leftcam_xy_sample, rightcam_xy_sample,
-                lr_rot_matrix_sample, lr_p_sample, leftcam_cam_matrix_sample,
-                rightcam_cam_matrix_sample, uv_coord_im_pred_global_sample,
-                uv_coord_im_pred_global_distort_sample, hand3d_gt_sample)
+            (B * S, -1)), lr_p.view(
+                (B * S, -1)), lr_rot_matrix.view(
+                    (B * S, -1)), left_hand.view((B * S, -1))),
+                             dim=1).view((B * S, self.channel_num, 1, 1))
+        # feature1 = torch.cat((leftcam_xy_sample.view(
+        #     (B, -1)), Tmatrix_leftcam.repeat(
+        #         B, 1), left_hand_sample.view((B, -1))),
+        #                      dim=1).view((B, self.channel_num, 1, 1))
+        # feature2 = torch.cat((rightcam_xy_sample.view(
+        #     (B, -1)), lr_p_sample.view(
+        #         (B, -1)), lr_rot_matrix_sample.view(
+        #             (B, -1)), left_hand_sample.view((B, -1))),
+        #                      dim=1).view((B, self.channel_num, 1, 1))
+        feats = torch.cat((feature1, feature2), dim=1).float()
+        return (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,
+                leftcam_cam_matrix, rightcam_cam_matrix,
+                uv_coord_im_pred_global, uv_coord_im_pred_global_distort,
+                hand3d_gt, hand3d_gt_sample)
 
     def postprocess(self, output, leftcam_xy, rightcam_xy, lr_rot_matrix,
                     lr_p):
@@ -249,8 +296,8 @@ class LiftHeadSeq(BaseModule):
         with torch.no_grad():
             (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,
              leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global,
-             uv_coord_im_pred_global_distort,
-             hand3d_gt) = self.preprocess(feats, batch_data_samples)
+             uv_coord_im_pred_global_distort, hand3d_gt,
+             hand3d_gt_sample) = self.preprocess(feats, batch_data_samples)
         output = self.forward(feats)
         hand3d_pred = self.postprocess(output, leftcam_xy, rightcam_xy,
                                        lr_rot_matrix, lr_p)[0]
@@ -262,10 +309,10 @@ class LiftHeadSeq(BaseModule):
              train_cfg: ConfigType = {}) -> dict:
         """Calculate losses from a batch of inputs and data samples."""
         with torch.no_grad():
-            feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,\
-                leftcam_cam_matrix, rightcam_cam_matrix, \
-                uv_coord_im_pred_global, hand3d_gt = \
-                self.preprocess(feats, batch_data_samples)
+            (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,
+             leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global,
+             uv_coord_im_pred_global_distort, hand3d_gt,
+             hand3d_gt_sample) = self.preprocess(feats, batch_data_samples)
         output = self.forward(feats)
         hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
             output, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p)
@@ -313,12 +360,26 @@ class LiftHeadSeq(BaseModule):
             if cur_epoch <= self.lambda_t:
                 loss_mse_2d_leftcam *= 0
                 loss_mse_2d_rightcam *= 0
+        # smooth loss
+
+        hand3d_pred = hand3d_pred.reshape(-1, self.seq_len, 21, 3)
+        x1 = hand3d_pred[:, 0]
+        x2 = hand3d_pred[:, 1]
+        x3 = hand3d_pred[:, 2]
+        x4 = hand3d_pred[:, 3]
+
+        hand3d_acc = -x1 + 3 * x2 - 3 * x3 + x4  # delta acc
+        loss_delta_acc = hand3d_acc.abs().mean()
+
+        # hand3d_gt_pre
+        # hand3d_gt_pre_pre
+        # hand3d_pred
         losses_dict = dict(
             loss_mse_3d=loss_mse_3d,
             loss_mse_3d_leftcam=loss_mse_3d_leftcam,
             loss_mse_3d_rightcam=loss_mse_3d_rightcam,
             loss_mse_2d_leftcam=loss_mse_2d_leftcam,
             loss_mse_2d_rightcam=loss_mse_2d_rightcam,
-        )
+            loss_delta_acc=loss_delta_acc)
 
         return losses_dict

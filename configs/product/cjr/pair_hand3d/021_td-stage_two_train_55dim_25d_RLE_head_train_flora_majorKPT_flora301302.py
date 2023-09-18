@@ -1,9 +1,10 @@
 # flake8: noqa
 _base_ = ['../../../_base_/default_runtime.py']
 
-train_cfg = dict(max_epochs=100, val_interval=100)
+train_cfg = dict(max_epochs=100, val_interval=5)
 
 data_root = '/data/AI_DATA'
+# data_root = '/data/AI_DATA_WX'
 # data_root = '/data/AI_DATA_LOCAL'
 
 # optimizer
@@ -63,7 +64,7 @@ pinch_thre = [20, 40]  # pinch双阈值，单位：mm
 # model settings
 backbone_out_channels = [64, 96, 128, 160]
 model = dict(
-    type='TopdownPoseLiftEstimatorSeq',
+    type='TopdownPoseLiftEstimator',
     data_preprocessor=dict(
         type='PoseDataPreprocessor', mean=[0.449 * 255], std=[0.226 * 255]),
     backbone=dict(
@@ -94,6 +95,7 @@ model = dict(
         feat_norm_type='softmax',
         in_featuremap_size=(32, 32),
         num_joints=21,
+        output_depth=True,
         loss=dict(
             type='MultipleLossWrapper',
             losses=[
@@ -101,15 +103,15 @@ model = dict(
                     type='RLELoss',
                     use_target_weight=False,
                     flow_model_pretrain_path=
-                    f'{data_root}/data_hand/model/mmpose/td-hand_rsn50_pre_ipr_rle_lscale_wholedata_4xb64-100e-128x128/epoch_100.pth'
+                    '/data/AI_DATA/data_hand/model/mmpose/td-hand_rsn50_pre_ipr_rle_lscale_wholedata_4xb64-100e-128x128/epoch_100.pth'
                 ),
                 dict(type='KeypointMSELoss', use_target_weight=True)
             ]),
         decoder=codec,
         deploy=False,
-        output_sigma=True),
+        output_sigma=False),
     kpt3d_lift=dict(
-        type='LiftHeadSeq',
+        type='LiftHead',
         lift_loss=dict(
             type='MultipleLossWrapper',
             losses=[
@@ -125,8 +127,9 @@ model = dict(
                 #     loss_weight=0.09),
                 # dict(type='L1Loss', loss_weight=0),  # major kpt
             ]),
-        seq_len=4,
         channel_num=55,
+        use_kp2d_gt=False,
+        kpt2d_with_depth=True,
         output_num=42,
         undistort=True),
     test_cfg=dict(
@@ -134,19 +137,22 @@ model = dict(
         shift_coords=False,
         shift_heatmap=False,
     ),
+    kpt2d_with_depth=True,
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
         # '/home/zx_li/workspace/mmpose/work_dirs/td-hand_res26_fpn_sk_weightdata_4xb64-50e_0919data-128x128/epoch_50.pth'
-        # f'{data_root}/data_hand/model/mmpose/td-hand_res26_fpn_skpre_flow_wd_ipr_rle_weightdata_0919_4xb64-50e-128x128/epoch_50.pth'  # ella kp2d
+        # '/data/AI_DATA/data_hand/model/mmpose/td-hand_res26_fpn_skpre_flow_wd_ipr_rle_weightdata_0919_4xb64-50e-128x128/epoch_50.pth'  # ella kp2d
         # '/home/jrchen/git-project/mmpose/work_dirs/pair_hand3d/003_td-stage_two_train_55dim_l1/epoch_60_new.pth'
         # '/home/jrchen/git-project/mmpose/work_dirs/hand_2d_keypoint/td-hand_res26_fpn_skpre_flow_wd_ipr_rle_weightdata_0919_4xb64-50e-128x128_pretrainmodel/epoch_30_FT.pth'
-        f'{data_root}/jrchen/git-project/mmpose/work_dirs/pair_hand3d/006_td-stage_two_train_55dim_RLE_head_train_flora_finetune/FT_kp2d_add_ella_pretrain_lift.pth'  # flora kp2d + ella kp3d
+        #f'/data/AI_DATA/jrchen/git-project/mmpose/work_dirs/pair_hand3d/006_td-stage_two_train_55dim_RLE_head_train_flora_finetune/FT_kp2d_add_ella_pretrain_lift.pth'  # flora kp2d + ella kp3d
+        # '/home/zx_li/workspace/mmpose/work_dirs/td-hand_rsn26_fpn_25d_ipr_right_pcl_2d3d_4x128-100e-128x128/epoch_100.pth',
+        'work_dirs/keypoint25d/01_td-hand_rsn26_fpn_25d_ipr_right_pcl_2d3d_4x128-100e-128x128_Affine/best_all_p-mpjpe_epoch_90.pth'
     ),
 )
 
 # base dataset settings
-dataset_type = 'PairHand3DDatasetSeq'
+dataset_type = 'PairHand3DDataset'
 data_mode = 'topdown'
 
 import os
@@ -154,7 +160,7 @@ import os
 # lmdb root dir, maybe different between beijing and wuxi
 
 # test only
-# data_root = '/data/hand_group/data/data_hand/lmdb_data/'
+#data_root = '/data/hand_group/data/data_hand/lmdb_data/'
 train_data_list = [
     # 0824
     'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230824_060805__all__normal__left__1111__0006__undistort_tar__Flora301.json',
@@ -227,7 +233,6 @@ train_data_list = [
     # 'data_hand/hand_keypoint/annotations3d/Flora304/XS__20230828_075809__all__normal__left__1111__0018__undistort_tar__Flora304.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora304/XS__20230828_080553__all__normal__right__1111__0018__undistort_tar__Flora304.json',
 ]
-
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
@@ -297,11 +302,8 @@ val_pipeline = [
 
 # data loaders
 train_dataloader = dict(
-    # batch_size=32,  # debug
-    # num_workers=0,
-    # persistent_workers=False,
-    batch_size=32,
-    num_workers=16,
+    batch_size=128,
+    num_workers=8,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
     collate_fn=dict(type='default_collate'),
@@ -314,7 +316,6 @@ train_dataloader = dict(
         data_root=data_root,
         # point_type='leftcam',
         # indices=1000,
-        seq_len=4,
     ),
 )
 val_dataloader = dict(
@@ -349,9 +350,7 @@ gesture_list = [
 # val_evaluator = dict(type='MPJPEMetricLifting', gesture_list=gesture_list)
 val_evaluator = [
     dict(type='MPJPEV2', gesture_list=gesture_list, result_dir='.'),
-    dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
-    dict(type='EPE'),
-    dict(type='NrealKeypointAP'),
+    dict(type='MPJPEV2', mode='p-mpjpe', prefix='1')
 ]
 test_evaluator = val_evaluator
 
@@ -364,7 +363,7 @@ find_unused_parameters = True
 vis_backends = [
     dict(type='LocalVisBackend'),
     # this will slow the training process ???
-    dict(type='TensorboardVisBackend')
+    # dict(type='TensorboardVisBackend')
 ]
 visualizer = dict(
     type='PoseLocalVisualizer', vis_backends=vis_backends, name='visualizer')
