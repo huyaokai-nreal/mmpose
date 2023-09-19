@@ -92,21 +92,26 @@ def main():
     else:
         sample_index = range(len(dataset))
     for i, id in enumerate(tqdm(sample_index)):
-        img_id = str(i).zfill(8)
         item = dataset[id]
-        img = item['inputs'].unsqueeze(0).numpy().astype(np.float32)
-        # img = item['inputs'][[0], ...].numpy().astype(np.float32)  # flora data (N,C,H,W)  # noqa
-        if args.type == 'npy':
-            np.save(os.path.join(args.output_dir, f'{img_id}.npy'), img)
-        if args.type == 'raw':
-            if args.quantize_type == 'snpe':
-                img = img.transpose((0, 2, 3, 1))  # (N,H,W,C)
-            elif args.quantize_type == 'mnn':
-                pass  # (N,C,H,W)
-            img.tofile(os.path.join(args.output_dir, f'{img_id}.raw'))
-        if args.type == 'png':
-            img = img[0].transpose((1, 2, 0))
-            cv2.imwrite(os.path.join(args.output_dir, f'{img_id}.png'), img)
+        inputs = item['inputs']
+        if inputs.dim() == 3:
+            inputs = inputs.unsqueeze(0)
+        B = inputs.shape[0]
+        for j in range(B):
+            img_id = str(i * B + j).zfill(8)
+            img = item['inputs'][j].unsqueeze(0).numpy().astype(np.float32)
+            if args.type == 'npy':
+                np.save(os.path.join(args.output_dir, f'{img_id}.npy'), img)
+            if args.type == 'raw':
+                if args.quantize_type == 'snpe':
+                    img = img.transpose((0, 2, 3, 1))  # (N,H,W,C)
+                elif args.quantize_type == 'mnn':
+                    pass  # (N,C,H,W)
+                img.tofile(os.path.join(args.output_dir, f'{img_id}.raw'))
+            if args.type == 'png':
+                img = img[0].transpose((1, 2, 0))
+                cv2.imwrite(
+                    os.path.join(args.output_dir, f'{img_id}.png'), img)
 
 
 if __name__ == '__main__':
