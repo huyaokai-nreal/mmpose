@@ -43,6 +43,9 @@ class NrealKeypointAP(BaseMetric):
             keypoint_scores = data_sample['pred_instances']['keypoint_scores']
             assert keypoint_scores.shape == keypoints.shape[:2]
             result = KeypointEvaluationItem(image_id=data_sample['img_id'])
+            result.gt_keypoints3d = (
+                data_sample['gt_instances']['keypoints3d'][0] *
+                1e3).tolist()  # m -> mm
             result.gt_keypoints = data_sample['gt_instances']['keypoints'][
                 0].tolist()
             result.keypoints = keypoints[0].tolist()
@@ -80,5 +83,5 @@ class NrealKeypointAP(BaseMetric):
         # print(filter_result)
         # print(filter_result['filtered_acc_noise'].mean())
         with open(res_file, 'w') as f:
-            json.dump(results, f, sort_keys=True, indent=4)
+            json.dump(self.results, f, sort_keys=True, indent=4)
         return self.metric(res_file)
