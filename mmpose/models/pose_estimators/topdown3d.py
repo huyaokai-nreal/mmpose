@@ -28,12 +28,14 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                  data_preprocessor: OptConfigType = None,
                  init_cfg: OptMultiConfig = None,
                  camera_layout: str = 'monocular',
-                 root_mode: str = 'gt'):
+                 root_mode: str = 'gt',
+                 root_id: int = 0):
         super().__init__(backbone, neck, head, train_cfg, test_cfg,
                          data_preprocessor, init_cfg)
         self.root_mode = root_mode
         self.camera_layout = camera_layout
         self.last_kpt3d = None
+        self.root_id = root_id
 
     def add_pred_to_datasample(self, batch_pred_instances: InstanceList,
                                batch_pred_fields: Optional[PixelDataList],
@@ -251,7 +253,8 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                         virtual_cam,
                         data_sample.meta['template_bones'],
                         last_kpt3d=self.last_kpt3d,
-                        undistort=False)
+                        undistort=False,
+                        root_id=self.root_id)
                     virtual_keypoints[..., 2] = kpt_depth
                     root_depth = 0
                 virtual_keypoints[..., 2] += root_depth
@@ -286,7 +289,7 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                         pred_instances.keypoints[0],
                         ori_cam,
                         data_sample.meta['template_bones'],
-                    )
+                        root_id=self.root_id)
                     global_keypoints[..., 2] = kpt_depth
                     root_depth = 0
                 elif self.root_mode == 'rootnet':

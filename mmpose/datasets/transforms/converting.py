@@ -10,9 +10,9 @@ from mmpose.registry import TRANSFORMS
 @TRANSFORMS.register_module()
 class KeypointTo25DLabel(BaseTransform):
 
-    def __init__(self, root_idx=0) -> None:
+    def __init__(self, root_id=0) -> None:
         super().__init__()
-        self.root_idx = root_idx
+        self.root_id = root_id
 
     def transform(self, results: Dict) -> Dict:
         results['keypoints3d'][0] = results['meta']['ori_camera'].world_to_eye(
@@ -22,7 +22,7 @@ class KeypointTo25DLabel(BaseTransform):
         results['meta']['ori_camera'].camera_to_world_xf = np.eye(4)
         if results['meta']['flipped']:
             results['keypoints3d'][..., 0] = -results['keypoints3d'][..., 0]
-        root_depth = results['keypoints3d'][0][self.root_idx][2]
+        root_depth = results['keypoints3d'][0][self.root_id][2]
         results['keypoints'] = np.concatenate([
             results['keypoints'], results['keypoints3d'][..., 2:] - root_depth
         ],

@@ -44,6 +44,8 @@ def get_kpt_depth(keypoints,
                   camera,
                   template_bones,
                   last_kpt3d,
+                  root_id=0,
+                  last_kpt3d_weight=0.05,
                   undistort: bool = True):
     rel_depth = keypoints[..., 2:]
     kpt2d = keypoints[..., :2]
@@ -66,13 +68,14 @@ def get_kpt_depth(keypoints,
     def error(p, x, y):
         kpt3d = x * p.reshape(-1, 1)
         bones = get_bones_from_kpt3d(kpt3d)
-        depth_error = (p - p[-1] - rel_depth.reshape(-1)).reshape(-1)
+        depth_error = (p - p[root_id] - rel_depth.reshape(-1)).reshape(-1)
         bone_error = ((y - bones).reshape(-1))
         reproj_kpt2d = camera.eye_to_window(kpt3d)
         reproj_error = np.linalg.norm(reproj_kpt2d - kpt2d, axis=-1) / 128
         result = np.concatenate([bone_error, depth_error, reproj_error])
         if last_kpt3d is not None:
-            time_error = np.linalg.norm(kpt3d - cur_last_kpt3d, axis=-1) * 0.05
+            time_error = np.linalg.norm(
+                kpt3d - cur_last_kpt3d, axis=-1) * last_kpt3d_weight
             result = np.concatenate([result, time_error])
         return result
 
