@@ -380,7 +380,7 @@ val_3d_dataset = dict(
     flip_left_to_right=True,
     mean_bone_template_path=
     '/data/AI_DATA/data_hand/model/mmpose/mean_hand_bones_230824.npz',
-    point_type='leftcam',
+    point_type='2.5D',
     data_root=data_root)
 val_2d_dataset = dict(
     type='HANDDataset',

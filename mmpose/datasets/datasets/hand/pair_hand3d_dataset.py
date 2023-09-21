@@ -111,6 +111,8 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         Returns:
             int: The length of filtered dataset.
         """
+        if self.test_mode and self.point_type == '2.5D':
+            self.data_ratio = 2
         if self.data_ratio <= 0:
             return super().__len__()
         else:
@@ -478,7 +480,11 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                 self.__left_2_right_hand(data_info_right)
         if self.point_type == 'leftcam':
             all_results = self.pipeline(data_info_left)
-        elif self.test_mode or self.point_type == '3D':
+        elif self.test_mode and self.point_type == '2.5D':
+            ppl_left = self.pipeline(data_info_left)
+            ppl_right = self.pipeline(data_info_right)
+            all_results = ppl_left if idx < self.data_num else ppl_right
+        elif self.point_type == '3D':
             ppl_left = self.pipeline(data_info_left)
             ppl_right = self.pipeline(data_info_right)
             all_results = default_collate([ppl_left, ppl_right])
