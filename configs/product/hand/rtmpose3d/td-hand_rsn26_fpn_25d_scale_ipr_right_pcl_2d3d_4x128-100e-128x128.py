@@ -43,7 +43,9 @@ codec2d = dict(
     input_size=(128, 128),
     with_depth=False,
     depth_bound=0.4)
-
+# monocular单目手模优化， ori_binocular warpaffine的双目三角化, virtual_binocular pcl的虚拟相机双目三角化
+# ori_binocular_depth warpaffine的双目加depth优化
+camera_layout = 'monocular'
 # model settings
 backbone_out_channels = [64, 96, 128, 160]
 model = dict(
@@ -380,7 +382,7 @@ val_3d_dataset = dict(
     flip_left_to_right=True,
     mean_bone_template_path=
     '/data/AI_DATA/data_hand/model/mmpose/mean_hand_bones_230824.npz',
-    point_type='2.5D',
+    point_type='2.5D' if camera_layout == 'monocular' else '3D',
     data_root=data_root)
 val_2d_dataset = dict(
     type='HANDDataset',

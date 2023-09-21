@@ -8,7 +8,9 @@ import numpy as np
 from mmengine import MMLogger
 from nreal_data_tool.utils.camera import PinholePlaneCameraModel
 
-from mmpose.models.utils.pose_solver import get_kpt_depth, get_root_depth
+from mmpose.models.utils.pose_solver import (get_kpt_depth,
+                                             get_kpt_depth_binocular,
+                                             get_root_depth)
 from mmpose.registry import MODELS
 from mmpose.structures.bbox import bbox_cs2xyxy
 from mmpose.utils.typing import (ConfigType, InstanceList, OptConfigType,
@@ -46,12 +48,75 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
         elif self.camera_layout == 'ori_binocular':
             return self.add_pred_to_datasample_binocular(
                 batch_pred_instances, batch_pred_fields, batch_data_samples)
+        elif self.camera_layout == 'ori_binocular_depth':
+            return self.add_pred_to_datasample_binocular_depth(
+                batch_pred_instances, batch_pred_fields, batch_data_samples)
         elif self.camera_layout == 'virtual_binocular':
             return self.add_pred_to_datasample_binocular_virtual(
                 batch_pred_instances, batch_pred_fields, batch_data_samples)
         else:
             logger = MMLogger.get_current_instance()
             logger.error(f'layout { self.camera_layout} is not supported')
+
+    # warpaffine抠图时进行三角化
+    def add_pred_to_datasample_binocular_depth(
+            self, batch_pred_instances: InstanceList,
+            batch_pred_fields: Optional[PixelDataList],
+            batch_data_samples: SampleList) -> SampleList:
+        """Add predictions into data samples.
+
+        Args:
+            batch_pred_instances (List[InstanceData]): The predicted instances
+                of the input data batch
+            batch_pred_fields (List[PixelData], optional): The predicted
+                fields (e.g. heatmaps) of the input batch
+            batch_data_samples (List[PoseDataSample]): The input data batch
+
+        Returns:
+            List[PoseDataSample]: A list of data samples where the predictions
+            are stored in the ``pred_instances`` field of each data sample.
+        """
+        assert len(batch_pred_instances) == len(batch_data_samples)
+        N = len(batch_data_samples) // 2
+        new_batch_data_samples = []
+        for i in range(N):
+            left_pred_instance = batch_pred_instances[2 * i]
+            left_data_sample = batch_data_samples[2 * i]
+            right_pred_instance = batch_pred_instances[2 * i + 1]
+            right_data_sample = batch_data_samples[2 * i + 1]
+            left_camera = left_data_sample.meta['ori_camera']
+            left_kpt = left_pred_instance.keypoints[0].copy()
+            left_gt_instances = left_data_sample.gt_instances
+            input_size = left_data_sample.metainfo['input_size']
+            left_bbox_centers = left_gt_instances.bbox_centers
+            left_bbox_scales = left_gt_instances.bbox_scales
+            left_kpt[..., :2] = left_kpt[
+                ..., :
+                2] / input_size * left_bbox_scales + left_bbox_centers - 0.5 * left_bbox_scales  # noqa
+            right_camera = right_data_sample.meta['ori_camera']
+            right_camera.camera_to_world_xf = right_data_sample.meta['ori_xf']
+            right_kpt = right_pred_instance.keypoints[0].copy()
+            right_gt_instances = right_data_sample.gt_instances
+            right_bbox_centers = right_gt_instances.bbox_centers
+            right_bbox_scales = right_gt_instances.bbox_scales
+            right_kpt[..., :2] = right_kpt[
+                ..., :
+                2] / input_size * right_bbox_scales + right_bbox_centers - 0.5 * right_bbox_scales  # noqa
+            if left_data_sample.meta['flipped']:
+                image_width = left_data_sample.meta['frame_width']
+                left_kpt[..., 0] = image_width - 1 - left_kpt[..., 0]
+                right_kpt[..., 0] = image_width - 1 - right_kpt[..., 0]
+                left_gt_instances.keypoints3d[..., 0] *= -1
+            left_pred_instance.keypoints = left_kpt[None, ..., :2].copy()
+            left_kpt_depth = get_kpt_depth_binocular(left_kpt, left_camera,
+                                                     right_kpt, right_camera,
+                                                     None)
+            left_kpt[..., -1] = left_kpt_depth
+            left_kpt3d = left_camera.window_to_eye(left_kpt)
+            left_pred_instance.keypoints3d = left_kpt3d[None, ...]
+            left_data_sample.pred_instances = left_pred_instance
+            new_batch_data_samples.append(left_data_sample)
+        return new_batch_data_samples
 
     # warpaffine抠图时进行三角化
     def add_pred_to_datasample_binocular(
