@@ -59,6 +59,7 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         self.sub_data_index = int(sub_data_index)
         self.cams_info = dict()
         self.seq_len = seq_len
+        self.test_mode = test_mode
         if dataset_weight_list:
             assert len(dataset_weight_list) == len(data_file_list)
         super().__init__(
@@ -339,6 +340,8 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         seq_list = self.dataset_info_list[seq_idx]
 
         seq_list_cur_idx = np.random.choice(range(len(seq_list)))
+        if self.test_mode:
+            seq_list_cur_idx = idx
         idx_list = []
         for i in range(self.seq_len):
             tmp = max(seq_list_cur_idx - i, 0)

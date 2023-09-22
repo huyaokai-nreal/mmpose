@@ -37,10 +37,7 @@ class LiftHead(BaseModule):
         if self.kpt2d_with_depth:
             feat_dim = feat_dim + 21
         self.corruption_cam = corruption_cam
-        self.liftnet = gMLP(
-            d_model=2 * self.channel_num + 21,
-            d_ffn=4 * self.channel_num,
-            num_layers=3)
+        self.liftnet = gMLP(d_model=feat_dim, d_ffn=feat_dim * 2, num_layers=3)
         self.last_layer = nn.Sequential(
             nn.Conv2d(feat_dim, feat_dim, kernel_size=1),
             nn.SyncBatchNorm(feat_dim), nn.ReLU(),

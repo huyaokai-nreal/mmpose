@@ -26,6 +26,10 @@ param_scheduler = [
 # automatically scaling LR based on the actual training batch size
 auto_scale_lr = dict(base_batch_size=128)
 
+# hooks
+default_hooks = dict(
+    checkpoint=dict(interval=5, save_best='mAP', rule='greater'))
+
 # codec settings
 codec = dict(
     type='IntegralRegressionLabel',
@@ -57,10 +61,10 @@ model = dict(
         type='FPN',
         in_channels=backbone_out_channels,
         out_channels=192,
+        norm_cfg=dict(type='BN'),
         num_outs=4,
         upsample_cfg=dict(mode='bilinear', align_corners=True),
         upsample_style='rsn',
-        norm_cfg=dict(type='BN'),
         reverse_output=True,
         apply_fpn_conv=False),
     head=dict(
@@ -200,10 +204,6 @@ val_dataloader = dict(
         flip_left_to_right=True,
         data_root=data_root))
 test_dataloader = val_dataloader
-
-# hooks
-default_hooks = dict(
-    checkpoint=dict(interval=5, save_best='mAP', rule='greater'))
 
 # evaluators
 gesture_list = [

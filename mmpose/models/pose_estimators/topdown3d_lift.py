@@ -285,7 +285,7 @@ class TopdownPoseLiftEstimatorSeq(TopdownPoseLiftEstimator):
                  data_preprocessor: OptConfigType = None,
                  init_cfg: OptMultiConfig = None,
                  metainfo: Optional[dict] = None,
-                 seq_len: int = 3):
+                 seq_len: int = 4):
         super().__init__(backbone, neck, head, kpt3d_lift, train_cfg, test_cfg,
                          data_preprocessor, init_cfg, metainfo)
         self.seq_len = seq_len
