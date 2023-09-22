@@ -287,9 +287,14 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             mean_bones = self._get_mean_hand_bones(keypoints3d_list)
             self.hand_bones_list.append(mean_bones)
         logger: MMLogger = MMLogger.get_current_instance()
-        logger.info(
-            f'HandDataset loaded {len(image_list)} images, {len(instance_list)} pair instances'  # noqa
-        )
+        if self.test_mode:
+            logger.info(
+                f'Test PairHandDataset loaded {len(image_list)} images, {len(instance_list)} pair instances'  # noqa
+            )
+        else:
+            logger.info(
+                f'Train PairHandDataset loaded {len(image_list)} images, {len(instance_list)} pair instances'  # noqa
+            )
         if self.pinch_random:
             for i, instance in enumerate(instance_list):
                 kpt3d = instance['keypoints3d']
@@ -322,7 +327,10 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         results['meta']['flipped'] = True
 
     def get_data_info(self, idx):
-        idx = idx % self.data_num
+        if self.data_ratio >= 1:
+            idx = idx % self.data_num
+        else:
+            idx = random.randint(0, self.data_num - 1)
         if not self.test_mode and self.pinch_random:
             idx = random.choice(
                 random.choice([

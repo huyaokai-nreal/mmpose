@@ -215,9 +215,15 @@ class HANDDataset(BaseCocoStyleDataset):
                 (sub_dataset_start_id, sub_dataset_num))
             sub_dataset_start_id += sub_dataset_num
         logger: MMLogger = MMLogger.get_current_instance()
-        logger.info(
-            f'HandDataset loaded {len(image_list)} images, {len(instance_list)} instances'  # noqa
-        )
+        if self.test_mode:
+            logger.info(
+                f'Test NrealHandDataset loaded {len(image_list)} images, {len(instance_list)} instances'  # noqa
+            )
+        else:
+            logger.info(
+                f'Train NrealHandDataset loaded {len(image_list)} images, {len(instance_list)} instances'  # noqa
+            )
+
         return instance_list, image_list
 
     def __left_2_right_hand(self, results):
