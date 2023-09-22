@@ -40,6 +40,54 @@ def get_root_depthv2(keypoints, camera, template_bones, undistort):
     return np.mean(root_list)
 
 
+def get_kpt_depth_binocular63(left_keypoints,
+                              left_camera,
+                              right_keypoints,
+                              right_camera,
+                              init_kpt3d,
+                              last_kpt3d,
+                              root_id=0,
+                              last_kpt3d_weight=0.05,
+                              undistort: bool = True):
+    left_rel_depth = left_keypoints[..., 2]
+    left_kpt2d = left_keypoints[..., :2]
+    right_rel_depth = right_keypoints[..., 2]
+    right_kpt2d = right_keypoints[..., :2]
+    if last_kpt3d is not None:
+        cur_last_kpt3d = left_camera.world_to_eye(last_kpt3d)
+    if undistort:
+        left_kpt2d = left_camera.undistort(left_kpt2d)
+        right_kpt2d = right_camera.undistort(right_kpt2d)
+
+    def error(kpt3d):
+        kpt3d = kpt3d.reshape((21, 3))
+        right_kpt3d = right_camera.world_to_eye(kpt3d)
+        left_depth = kpt3d[..., -1]
+        right_depth = right_kpt3d[..., -1]
+        left_depth_error = (left_depth - left_depth[root_id] -
+                            left_rel_depth.reshape(-1)).reshape(-1)
+        left_reproj_kpt2d = left_camera.eye_to_window(kpt3d)
+        left_reproj_error = left_reproj_kpt2d - left_kpt2d
+        right_depth_error = (right_depth - right_depth[root_id] -
+                             right_rel_depth.reshape(-1)).reshape(-1)
+        right_reproj_kpt2d = right_camera.eye_to_window(right_kpt3d)
+        right_reproj_error = right_reproj_kpt2d - right_kpt2d
+        result = np.concatenate([
+            left_reproj_error.reshape(-1), left_depth_error,
+            right_reproj_error.reshape(-1), right_depth_error
+        ])
+        if last_kpt3d is not None:
+            time_error = np.linalg.norm(
+                kpt3d - cur_last_kpt3d, axis=-1) * last_kpt3d_weight
+            result = np.concatenate([result, time_error])
+        return result
+
+    p0 = init_kpt3d.reshape(-1)
+    param = leastsq(error, p0, maxfev=2)
+    new_kpt3d = param[0].reshape((21, 3))
+    return new_kpt3d
+
+
 def get_kpt_depth_binocular(left_keypoints,
                             left_camera,
                             right_keypoints,

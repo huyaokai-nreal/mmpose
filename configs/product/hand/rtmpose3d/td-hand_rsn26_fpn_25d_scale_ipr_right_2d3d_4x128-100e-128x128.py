@@ -107,7 +107,7 @@ model = dict(
         '/data/AI_DATA/data_hand/model/mmpose/td-hand_res26_fpn_skpre_flow_wd_ipr_rle_weightdata_0919_4xb64-50e-128x128/epoch_50.pth'
     ),
     root_mode='optimize' if test_type == '3d' else 'gt',
-    camera_layout='monocular')
+    camera_layout='ori_binocular')
 
 # visualizer
 vis_backends = [
@@ -300,7 +300,7 @@ val_3d_dataset = dict(
     flip_left_to_right=True,
     mean_bone_template_path=
     '/data/AI_DATA/data_hand/model/mmpose/mean_hand_bones_230824.npz',
-    point_type='2.5D',
+    point_type='3D',
     data_root=data_root)
 val_2d_dataset = dict(
     type='HANDDataset',

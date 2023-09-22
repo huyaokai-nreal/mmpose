@@ -10,6 +10,7 @@ from nreal_data_tool.utils.camera import PinholePlaneCameraModel
 
 from mmpose.models.utils.pose_solver import (get_kpt_depth,
                                              get_kpt_depth_binocular,
+                                             get_kpt_depth_binocular63,
                                              get_root_depth)
 from mmpose.registry import MODELS
 from mmpose.structures.bbox import bbox_cs2xyxy
@@ -145,7 +146,7 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             right_pred_instance = batch_pred_instances[2 * i + 1]
             right_data_sample = batch_data_samples[2 * i + 1]
             left_camera = left_data_sample.meta['ori_camera']
-            left_kpt = left_pred_instance.keypoints[0].copy()[..., :2]
+            left_kpt = left_pred_instance.keypoints[0].copy()
             left_gt_instances = left_data_sample.gt_instances
             input_size = left_data_sample.metainfo['input_size']
             left_bbox_centers = left_gt_instances.bbox_centers
@@ -154,7 +155,7 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                 ..., :
                 2] / input_size * left_bbox_scales + left_bbox_centers - 0.5 * left_bbox_scales  # noqa
             right_camera = right_data_sample.meta['ori_camera']
-            right_kpt = right_pred_instance.keypoints[0].copy()[..., :2]
+            right_kpt = right_pred_instance.keypoints[0].copy()
             right_gt_instances = right_data_sample.gt_instances
             right_bbox_centers = right_gt_instances.bbox_centers
             right_bbox_scales = right_gt_instances.bbox_scales
@@ -167,14 +168,14 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             T2 = np.linalg.inv(T)[:3]
             left_f, left_c = left_camera.f, left_camera.c
             right_f, right_c = right_camera.f, right_camera.c
-            left_pred_instance.keypoints = left_kpt[None, ...].copy()
+            left_pred_instance.keypoints = left_kpt[None, ..., :2].copy()
             if left_data_sample.meta['flipped']:
                 image_width = left_data_sample.meta['frame_width']
                 left_kpt[..., 0] = image_width - 1 - left_kpt[..., 0]
                 right_kpt[..., 0] = image_width - 1 - right_kpt[..., 0]
                 left_gt_instances.keypoints3d[..., 0] *= -1
-            left_kpt_u = left_kpt.copy()
-            right_kpt_u = right_kpt.copy()
+            left_kpt_u = left_kpt[..., :2].copy()
+            right_kpt_u = right_kpt[..., :2].copy()
             left_kpt_u = left_camera.undistort(left_kpt_u)
             right_kpt_u = right_camera.undistort(right_kpt_u)
             left_kpt_u = (left_kpt_u - np.array([left_c], dtype=np.float32)
@@ -185,7 +186,11 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                                       right_kpt_u.transpose())
             new_pred_kpt3d = X[:3] / X[3:]
             new_pred_kpt3d = new_pred_kpt3d.T
-            left_pred_instance.keypoints3d = new_pred_kpt3d[None, ...]
+            right_camera.camera_to_world_xf = right_data_sample.meta['ori_xf']
+            refined_kpt3d = get_kpt_depth_binocular63(left_kpt, left_camera,
+                                                      right_kpt, right_camera,
+                                                      new_pred_kpt3d, None)
+            left_pred_instance.keypoints3d = refined_kpt3d[None, ...]
             left_data_sample.pred_instances = left_pred_instance
             new_batch_data_samples.append(left_data_sample)
         return new_batch_data_samples
