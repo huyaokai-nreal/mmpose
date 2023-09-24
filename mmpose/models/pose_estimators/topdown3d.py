@@ -6,7 +6,7 @@ from typing import Optional
 import cv2
 import numpy as np
 from mmengine import MMLogger
-from nreal_data_tool.utils.camera import PinholePlaneCameraModel
+from nreal_data_tool.utils.camera import NoDistortion, PinholePlaneCameraModel
 
 from mmpose.models.utils.pose_solver import (get_kpt_depth,
                                              get_kpt_depth_binocular,
@@ -174,22 +174,36 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                 left_kpt[..., 0] = image_width - 1 - left_kpt[..., 0]
                 right_kpt[..., 0] = image_width - 1 - right_kpt[..., 0]
                 left_gt_instances.keypoints3d[..., 0] *= -1
-            left_kpt_u = left_kpt[..., :2].copy()
-            right_kpt_u = right_kpt[..., :2].copy()
-            left_kpt_u = left_camera.undistort(left_kpt_u)
-            right_kpt_u = right_camera.undistort(right_kpt_u)
-            left_kpt_u = (left_kpt_u - np.array([left_c], dtype=np.float32)
-                          ) / np.array([left_f], dtype=np.float32)
-            right_kpt_u = (right_kpt_u - np.array([right_c], dtype=np.float32)
-                           ) / np.array([right_f], dtype=np.float32)
-            X = cv2.triangulatePoints(T1, T2, left_kpt_u.transpose(),
-                                      right_kpt_u.transpose())
+                left_gt_instances.keypoints[
+                    ...,
+                    0] = image_width - 1 - left_gt_instances.keypoints[..., 0]
+                right_gt_instances.keypoints[
+                    ...,
+                    0] = image_width - 1 - right_gt_instances.keypoints[..., 0]
+            left_kpt_u = left_kpt.copy()
+            right_kpt_u = right_kpt.copy()
+            left_kpt_u[..., :2] = left_camera.undistort(left_kpt_u[..., :2])
+            right_kpt_u[..., :2] = right_camera.undistort(right_kpt_u[..., :2])
+            left_kpt_norm = (left_kpt_u[..., :2] -
+                             np.array([left_c], dtype=np.float32)) / np.array(
+                                 [left_f], dtype=np.float32)
+            right_kpt_norm = (right_kpt_u[..., :2] - np.array(
+                [right_c], dtype=np.float32)) / np.array([right_f],
+                                                         dtype=np.float32)
+            X = cv2.triangulatePoints(T1, T2, left_kpt_norm.transpose(),
+                                      right_kpt_norm.transpose())
             new_pred_kpt3d = X[:3] / X[3:]
             new_pred_kpt3d = new_pred_kpt3d.T
             right_camera.camera_to_world_xf = right_data_sample.meta['ori_xf']
-            refined_kpt3d = get_kpt_depth_binocular63(left_kpt, left_camera,
-                                                      right_kpt, right_camera,
-                                                      new_pred_kpt3d, None)
+            # dont consider distortion in the refine stage
+            left_camera.distort = NoDistortion()
+            right_camera.distort = NoDistortion()
+            refined_kpt3d = get_kpt_depth_binocular63(left_kpt_u, left_camera,
+                                                      right_kpt_u,
+                                                      right_camera,
+                                                      new_pred_kpt3d,
+                                                      self.last_kpt3d)
+            self.last_kpt3d = refined_kpt3d
             left_pred_instance.keypoints3d = refined_kpt3d[None, ...]
             left_data_sample.pred_instances = left_pred_instance
             new_batch_data_samples.append(left_data_sample)

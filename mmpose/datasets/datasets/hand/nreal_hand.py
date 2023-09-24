@@ -1,5 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import os.path as osp
+import random
 from typing import Callable, List, Optional, Sequence, Union
 
 import numpy as np
@@ -243,7 +244,7 @@ class HANDDataset(BaseCocoStyleDataset):
             results['mask'] = results['mask'][:, ::-1]
 
     def get_data_info(self, idx):
-        idx = idx % self.data_num
+        idx = random.randint(0, self.data_num - 1)
         if self.dataset_weight_list:
             idx = self.__get_weighted_random_image_id()
         data_info = super().get_data_info(idx)

@@ -47,17 +47,13 @@ def get_kpt_depth_binocular63(left_keypoints,
                               init_kpt3d,
                               last_kpt3d,
                               root_id=0,
-                              last_kpt3d_weight=0.05,
-                              undistort: bool = True):
+                              last_kpt3d_weight=0.05):
     left_rel_depth = left_keypoints[..., 2]
     left_kpt2d = left_keypoints[..., :2]
     right_rel_depth = right_keypoints[..., 2]
     right_kpt2d = right_keypoints[..., :2]
     if last_kpt3d is not None:
         cur_last_kpt3d = left_camera.world_to_eye(last_kpt3d)
-    if undistort:
-        left_kpt2d = left_camera.undistort(left_kpt2d)
-        right_kpt2d = right_camera.undistort(right_kpt2d)
 
     def error(kpt3d):
         kpt3d = kpt3d.reshape((21, 3))
@@ -83,7 +79,7 @@ def get_kpt_depth_binocular63(left_keypoints,
         return result
 
     p0 = init_kpt3d.reshape(-1)
-    param = leastsq(error, p0, maxfev=2)
+    param = leastsq(error, p0, maxfev=10)
     new_kpt3d = param[0].reshape((21, 3))
     return new_kpt3d
 

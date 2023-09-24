@@ -327,16 +327,16 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         results['meta']['flipped'] = True
 
     def get_data_info(self, idx):
-        if self.data_ratio >= 1:
-            idx = idx % self.data_num
-        else:
+        if not self.test_mode:
             idx = random.randint(0, self.data_num - 1)
-        if not self.test_mode and self.pinch_random:
-            idx = random.choice(
-                random.choice([
-                    self.pinch_idx_list, self.no_pinch_idx_list,
-                    self.media_idx_list
-                ]))
+            if self.pinch_random:
+                idx = random.choice(
+                    random.choice([
+                        self.pinch_idx_list, self.no_pinch_idx_list,
+                        self.media_idx_list
+                    ]))
+        else:
+            idx = idx % self.data_num
         data_info = super().get_data_info(idx)
         data_info['left_img'] = self.lmdb_client.get(
             data_info['left_img_path'])

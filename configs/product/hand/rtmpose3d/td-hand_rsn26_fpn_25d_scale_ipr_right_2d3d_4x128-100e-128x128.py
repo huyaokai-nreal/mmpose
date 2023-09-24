@@ -8,6 +8,7 @@ train_cfg = dict(max_epochs=100, val_interval=10)
 data_root = '/data/AI_DATA_WX'
 # data_root = '/data/AI_DATA_LOCAL'
 test_type = '3d'
+camera_layout = 'ori_binocular'
 base_lr = 1e-4
 # optimizer
 optim_wrapper = dict(
@@ -107,7 +108,7 @@ model = dict(
         '/data/AI_DATA/data_hand/model/mmpose/td-hand_res26_fpn_skpre_flow_wd_ipr_rle_weightdata_0919_4xb64-50e-128x128/epoch_50.pth'
     ),
     root_mode='optimize' if test_type == '3d' else 'gt',
-    camera_layout='ori_binocular')
+    camera_layout=camera_layout)
 
 # visualizer
 vis_backends = [
@@ -225,29 +226,29 @@ val_data_list = [
     'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__right__1000__0007__20230809_100619__undistort_tar__Flora301.json',
     #'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_080834__pinch__normal__left__1111__0008__undistort_tar__Flora301.json'
 ]
-#val_data_list = [
-#0809  眼镜离手比较近
-#    'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__left__1000__0007__20230809_090503__undistort_tar__Flora301.json',
-#    'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__left__1000__0006__20230809_055248__undistort_tar__Flora301.json',
-#    'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__left__1000__0006__20230809_055716__undistort_tar__Flora301.json',
-#    'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__left__1000__0007__20230809_101132__undistort_tar__Flora301.json',
-#    'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__right__1000__0006__20230809_054849__undistort_tar__Flora301.json',
-#    'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__right__1000__0006__20230809_060122__undistort_tar__Flora301.json',
-#    'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__right__1000__0007__20230809_060812__undistort_tar__Flora301.json',
-#
-#    #0815
-#    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_080834__pinch__normal__left__1111__0008__undistort_tar__Flora301.json',
-#    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_081340__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
-#    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_081732__pinch__normal__left__1111__0008__undistort_tar__Flora301.json',
-#    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_083351__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
-#    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_083727__pinch__normal__left__1111__0008__undistort_tar__Flora301.json',
-#    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_084129__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
-#    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_085606__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
-#    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_091548__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
-#    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_094552__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
-#    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_095319__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
-#    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_095734__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
-#]
+val_data_list = [
+    #0809  眼镜离手比较近
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__left__1000__0007__20230809_090503__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__left__1000__0006__20230809_055248__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__left__1000__0006__20230809_055716__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__left__1000__0007__20230809_101132__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__right__1000__0006__20230809_054849__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__right__1000__0006__20230809_060122__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__right__1000__0007__20230809_060812__undistort_tar__Flora301.json',
+
+    #0815
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_080834__pinch__normal__left__1111__0008__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_081340__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_081732__pinch__normal__left__1111__0008__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_083351__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_083727__pinch__normal__left__1111__0008__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_084129__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_085606__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_091548__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_094552__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_095319__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_095734__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
+]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 train_dataloader = dict(
     batch_size=128,
@@ -300,7 +301,8 @@ val_3d_dataset = dict(
     flip_left_to_right=True,
     mean_bone_template_path=
     '/data/AI_DATA/data_hand/model/mmpose/mean_hand_bones_230824.npz',
-    point_type='3D',
+    #point_type='leftcam',
+    point_type='2.5D' if camera_layout == 'monocular' else '3D',
     data_root=data_root)
 val_2d_dataset = dict(
     type='HANDDataset',
