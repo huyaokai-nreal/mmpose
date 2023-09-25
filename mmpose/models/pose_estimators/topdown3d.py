@@ -32,6 +32,7 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                  init_cfg: OptMultiConfig = None,
                  camera_layout: str = 'monocular',
                  root_mode: str = 'gt',
+                 refine_kpt: bool = False,
                  root_id: int = 0):
         super().__init__(backbone, neck, head, train_cfg, test_cfg,
                          data_preprocessor, init_cfg)
@@ -39,6 +40,7 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
         self.camera_layout = camera_layout
         self.last_kpt3d = None
         self.root_id = root_id
+        self.refine_kpt = refine_kpt
 
     def add_pred_to_datasample(self, batch_pred_instances: InstanceList,
                                batch_pred_fields: Optional[PixelDataList],
@@ -198,13 +200,13 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             # dont consider distortion in the refine stage
             left_camera.distort = NoDistortion()
             right_camera.distort = NoDistortion()
-            refined_kpt3d = get_kpt_depth_binocular63(left_kpt_u, left_camera,
-                                                      right_kpt_u,
-                                                      right_camera,
-                                                      new_pred_kpt3d,
-                                                      self.last_kpt3d)
-            self.last_kpt3d = refined_kpt3d
-            left_pred_instance.keypoints3d = refined_kpt3d[None, ...]
+            if self.refine_kpt:
+                refined_kpt3d = get_kpt_depth_binocular63(
+                    left_kpt_u, left_camera, right_kpt_u, right_camera,
+                    new_pred_kpt3d, self.last_kpt3d)
+                self.last_kpt3d = refined_kpt3d
+                new_pred_kpt3d = refined_kpt3d
+            left_pred_instance.keypoints3d = new_pred_kpt3d[None, ...]
             left_data_sample.pred_instances = left_pred_instance
             new_batch_data_samples.append(left_data_sample)
         return new_batch_data_samples
