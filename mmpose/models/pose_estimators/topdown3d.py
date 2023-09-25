@@ -176,12 +176,6 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                 left_kpt[..., 0] = image_width - 1 - left_kpt[..., 0]
                 right_kpt[..., 0] = image_width - 1 - right_kpt[..., 0]
                 left_gt_instances.keypoints3d[..., 0] *= -1
-                left_gt_instances.keypoints[
-                    ...,
-                    0] = image_width - 1 - left_gt_instances.keypoints[..., 0]
-                right_gt_instances.keypoints[
-                    ...,
-                    0] = image_width - 1 - right_gt_instances.keypoints[..., 0]
             left_kpt_u = left_kpt.copy()
             right_kpt_u = right_kpt.copy()
             left_kpt_u[..., :2] = left_camera.undistort(left_kpt_u[..., :2])
@@ -198,9 +192,9 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             new_pred_kpt3d = new_pred_kpt3d.T
             right_camera.camera_to_world_xf = right_data_sample.meta['ori_xf']
             # dont consider distortion in the refine stage
-            left_camera.distort = NoDistortion()
-            right_camera.distort = NoDistortion()
             if self.refine_kpt:
+                left_camera.distort = NoDistortion()
+                right_camera.distort = NoDistortion()
                 refined_kpt3d = get_kpt_depth_binocular63(
                     left_kpt_u, left_camera, right_kpt_u, right_camera,
                     new_pred_kpt3d, self.last_kpt3d)
