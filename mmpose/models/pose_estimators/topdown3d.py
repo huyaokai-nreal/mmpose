@@ -170,7 +170,7 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             T2 = np.linalg.inv(T)[:3]
             left_f, left_c = left_camera.f, left_camera.c
             right_f, right_c = right_camera.f, right_camera.c
-            left_pred_instance.keypoints = left_kpt[None, ..., :2].copy()
+            left_pred_instance.keypoints = left_kpt[None, ...].copy()
             if left_data_sample.meta['flipped']:
                 image_width = left_data_sample.meta['frame_width']
                 left_kpt[..., 0] = image_width - 1 - left_kpt[..., 0]
@@ -333,7 +333,6 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                         virtual_cam,
                         data_sample.meta['template_bones'],
                         last_kpt3d=self.last_kpt3d,
-                        undistort=False,
                         root_id=self.root_id)
                     virtual_keypoints[..., 2] = kpt_depth
                     root_depth = 0
@@ -359,17 +358,22 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                     ..., :
                     2] / input_size * bbox_scales + bbox_centers - 0.5 * bbox_scales  # noqa
                 if self.root_mode == 'optimize':
+                    kpt = pred_instances.keypoints[0].copy()
                     root_depth, hand_scale = get_root_depth(
-                        pred_instances.keypoints[0], ori_cam,
-                        data_sample.meta['template_bones'],
+                        kpt, ori_cam, data_sample.meta['template_bones'],
                         pred_instances.keypoint_scores)
                     global_keypoints[..., 2] *= hand_scale
                 elif self.root_mode == 'optimizev2':
+                    kpt = global_keypoints[0].copy()
+                    kpt[..., :2] = ori_cam.undistort(kpt[..., :2])
+                    tmp_cam = copy.deepcopy(ori_cam)
+                    tmp_cam.distort = NoDistortion()
                     kpt_depth = get_kpt_depth(
-                        pred_instances.keypoints[0],
-                        ori_cam,
+                        kpt,
+                        tmp_cam,
                         data_sample.meta['template_bones'],
-                        root_id=self.root_id)
+                        root_id=self.root_id,
+                        last_kpt3d=None)
                     global_keypoints[..., 2] = kpt_depth
                     root_depth = 0
                 elif self.root_mode == 'rootnet':
@@ -387,7 +391,6 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                             value[:, output_keypoint_indices], key)
 
             # add bbox information into pred_instances
-            # pred_instances.bboxes = gt_instances.bboxes
             pred_instances.bboxes = bbox_cs2xyxy(bbox_centers, bbox_scales)
             pred_instances.bbox_scores = gt_instances.bbox_scores
             data_sample.pred_instances = pred_instances

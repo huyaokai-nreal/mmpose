@@ -136,19 +136,18 @@ def get_kpt_depth_binocular(left_keypoints,
     return param[0]
 
 
-def get_kpt_depth(keypoints,
-                  camera,
-                  template_bones,
-                  last_kpt3d,
-                  root_id=0,
-                  last_kpt3d_weight=0.05,
-                  undistort: bool = True):
+def get_kpt_depth(
+    keypoints,
+    camera,
+    template_bones,
+    last_kpt3d,
+    root_id=0,
+    last_kpt3d_weight=0.05,
+):
     rel_depth = keypoints[..., 2:]
     kpt2d = keypoints[..., :2]
     if last_kpt3d is not None:
         cur_last_kpt3d = camera.world_to_eye(last_kpt3d)
-    if undistort:
-        kpt2d = camera.undistort(kpt2d)
     f = np.array(camera.f, dtype=np.float32)
     c = np.array(camera.c, dtype=np.float32)
     norm_kpt2d = np.concatenate([(kpt2d - c) / f, np.ones((21, 1))], axis=-1)
@@ -161,14 +160,14 @@ def get_kpt_depth(keypoints,
         bones = np.linalg.norm(kpt[:, 1:, :] - kpt[:, :-1, :], axis=-1)
         return bones.reshape(-1)
 
-    def error(p, x, y):
-        kpt3d = x * p.reshape(-1, 1)
+    def error(p):
+        kpt3d = norm_kpt2d * p.reshape(-1, 1)
         bones = get_bones_from_kpt3d(kpt3d)
         depth_error = (p - p[root_id] - rel_depth.reshape(-1)).reshape(-1)
-        bone_error = ((y - bones).reshape(-1))
+        bone_error = ((template_bones.reshape(-1) - bones).reshape(-1)) * 1000
         reproj_kpt2d = camera.eye_to_window(kpt3d)
-        reproj_error = np.linalg.norm(reproj_kpt2d - kpt2d, axis=-1) / 128
-        result = np.concatenate([bone_error, depth_error, reproj_error])
+        reproj_error = np.linalg.norm(reproj_kpt2d - kpt2d, axis=-1) / 640
+        result = np.concatenate([bone_error, reproj_error, depth_error])
         if last_kpt3d is not None:
             time_error = np.linalg.norm(
                 kpt3d - cur_last_kpt3d, axis=-1) * last_kpt3d_weight
@@ -176,7 +175,7 @@ def get_kpt_depth(keypoints,
         return result
 
     p0 = np.array([0.3] * 21) + rel_depth.reshape(-1)
-    param = leastsq(error, p0, args=(norm_kpt2d, template_bones.reshape(-1)))
+    param = leastsq(error, p0)
     return param[0]
 
 

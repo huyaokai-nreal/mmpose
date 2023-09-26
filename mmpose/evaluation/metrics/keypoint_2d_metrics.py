@@ -663,11 +663,11 @@ class EPE(BaseMetric):
         """
         for data_sample in data_samples:
             # predicted keypoints coordinates, [1, K, D]
-            pred_coords = data_sample['pred_instances']['keypoints'][..., :2]
+            pred_coords = data_sample['pred_instances']['keypoints']
             # ground truth data_info
             gt = data_sample['gt_instances']
             # ground truth keypoints coordinates, [1, K, D]
-            gt_coords = gt['keypoints'][..., :2]
+            gt_coords = gt['keypoints']
             # ground truth keypoints_visible, [1, K, 1]
             mask = gt['keypoints_visible'].astype(bool).reshape(1, -1)
 
@@ -701,11 +701,13 @@ class EPE(BaseMetric):
 
         logger.info(f'Evaluating {self.__class__.__name__}...')
 
-        epe = keypoint_epe(pred_coords, gt_coords, mask)
-
         metrics = dict()
-        metrics['EPE'] = epe
-
+        epe_2d = keypoint_epe(pred_coords[..., :2], gt_coords[..., :2], mask)
+        metrics['2D EPE'] = epe_2d
+        if pred_coords.shape[-1] == 3:
+            epe_depth = keypoint_epe(pred_coords[..., 2:3],
+                                     gt_coords[..., 2:3], mask)
+            metrics['DEPTH EPE'] = epe_depth
         return metrics
 
 
