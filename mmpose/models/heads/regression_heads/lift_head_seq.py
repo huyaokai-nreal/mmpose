@@ -100,7 +100,7 @@ class LiftHeadSeq(BaseModule):
         N = 2
         B = int(len(batch_data_samples) / S / N)
         H, W = batch_data_samples[0].input_size
-        K = xy_coord.shape[1]  # (B,21, 2)
+        K = xy_coord.shape[1]  # (B, 21, 2)
 
         # kpt2d output to crop wh
         uv_coord_im_pred_crop_right = xy_coord[..., :2] * torch.tensor(
@@ -183,12 +183,12 @@ class LiftHeadSeq(BaseModule):
                                      dim=-1)
         uv_coord_im_pred_global_distort = torch.bmm(uv_coord_im_pred,
                                                     all_inv_warp_mat)
-        uv_coord_im_pred_global_distort = uv_coord_im_pred_global_distort.view(
-            B * S, N, K, 2)
+        uv_coord_im_pred_global_distort_noflip = \
+            uv_coord_im_pred_global_distort.view(B * S, N, K, 2)
 
         frame_width = batch_data_samples[0].meta['frame_width']
         uv_coord_im_pred_global_distort = recover_hand(
-            uv_coord_im_pred_global_distort, left_hand, frame_width)
+            uv_coord_im_pred_global_distort_noflip, left_hand, frame_width)
 
         uv_coord_im_gt_global = recover_hand(uv_coord_im_gt_global, left_hand,
                                              frame_width)
@@ -264,8 +264,9 @@ class LiftHeadSeq(BaseModule):
         feats = torch.cat((feature1, feature2), dim=1).float()
         return (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,
                 leftcam_cam_matrix, rightcam_cam_matrix,
-                uv_coord_im_pred_global, uv_coord_im_pred_global_distort,
-                hand3d_gt, hand3d_gt_sample)
+                uv_coord_im_pred_global,
+                uv_coord_im_pred_global_distort_noflip, hand3d_gt,
+                hand3d_gt_sample)
 
     def postprocess(self, output, leftcam_xy, rightcam_xy, lr_rot_matrix,
                     lr_p):

@@ -334,7 +334,8 @@ val_dataloader = dict(
         pipeline=val_pipeline,
         flip_left_to_right=True,
         data_root=data_root,
-        # point_type='leftcam'
+        # point_type='leftcam',
+        # indices=30,
     ),
 )
 test_dataloader = val_dataloader
@@ -342,7 +343,10 @@ test_dataloader = val_dataloader
 # hooks
 default_hooks = dict(
     checkpoint=dict(interval=5, save_best='all_mpjpe', rule='less'),
-    run_time_info=dict(type='RuntimeInfoHookV2'))
+    run_time_info=dict(type='RuntimeInfoHookV2'),
+    visualization=dict(
+        type='PoseVisualizationHook', enable=True, draw_3d=False),
+)
 
 # evaluators
 gesture_list = [
@@ -355,7 +359,6 @@ val_evaluator = [
         mode=['mpjpe', 'p-mpjpe'],
         gesture_list=gesture_list,
         result_dir='.'),
-    # dict(type='MPJPEV2', , prefix='1'),
     dict(type='EPE'),
     dict(type='NrealKeypointAP'),
 ]
