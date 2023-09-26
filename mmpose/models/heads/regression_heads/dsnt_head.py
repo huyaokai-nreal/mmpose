@@ -149,7 +149,11 @@ class DSNTHead(IntegralRegressionHead):
             keypoint_label = data.gt_instance_labels.keypoint_labels
             label_2d_list.append(keypoint_label[..., :2])
             if keypoint_label.shape[-1] == 3:
-                label_depth_list.append(keypoint_label[..., 2:3])
+                if self.with_hand_scale:
+                    label_depth_list.append(keypoint_label[..., 2:3] *
+                                            hand_scales[i])
+                else:
+                    label_depth_list.append(keypoint_label[..., 2:3])
                 label_depth_id_list.append(i)
         label_2d = torch.cat(label_2d_list)
         keypoint_weights = torch.cat([
@@ -164,8 +168,6 @@ class DSNTHead(IntegralRegressionHead):
             label_depth_id = torch.tensor(
                 label_depth_id_list, dtype=torch.int32).cuda()
             pred_depth = outputs[2]
-            if self.with_hand_scale:
-                pred_depth *= hand_scales
             valid_depth_pred = torch.index_select(pred_depth, 0,
                                                   label_depth_id)
             input_list.append(valid_depth_pred)
