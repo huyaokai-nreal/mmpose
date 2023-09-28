@@ -146,7 +146,7 @@ class LiftHead(BaseModule):
             B, N, K, 2)
 
         frame_width = batch_data_samples[0].meta['frame_width']
-        uv_coord_im_pred_global_distort = recover_hand(
+        uv_coord_im_pred_global_distort_flip = recover_hand(
             uv_coord_im_pred_global_distort, left_hand, frame_width)
 
         uv_coord_im_gt_global = recover_hand(uv_coord_im_gt_global, left_hand,
@@ -157,7 +157,7 @@ class LiftHead(BaseModule):
             depth = left_rel_depth
 
         if self.undistort:
-            uv_coord_im_pred_global = uv_coord_im_pred_global_distort.clone(
+            uv_coord_im_pred_global = uv_coord_im_pred_global_distort_flip.clone(
             ).view(-1, K, 2)
             for i, data_sample in enumerate(batch_data_samples):
                 camera_model = data_sample.meta['ori_camera']
@@ -166,7 +166,7 @@ class LiftHead(BaseModule):
                 uv_coord_im_pred_global[i] = torch.from_numpy(kpt2d_u).cuda()
             uv_coord_im_pred_global = uv_coord_im_pred_global.view(B, N, K, 2)
         else:
-            uv_coord_im_pred_global = uv_coord_im_pred_global_distort.clone()
+            uv_coord_im_pred_global = uv_coord_im_pred_global_distort_flip.clone()
 
         leftcam_uv = uv_coord_im_pred_global[:, 0]  # (B, 21, 2)
         leftcam_x = (leftcam_uv[:, :, 0] - leftcam_cam_matrix[:, 0, 2].view(
