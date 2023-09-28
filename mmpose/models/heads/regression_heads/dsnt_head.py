@@ -150,7 +150,7 @@ class DSNTHead(IntegralRegressionHead):
             label_2d_list.append(keypoint_label[..., :2])
             if keypoint_label.shape[-1] == 3:
                 if self.with_hand_scale:
-                    label_depth_list.append(keypoint_label[..., 2:3] *
+                    label_depth_list.append(keypoint_label[..., 2:3] /
                                             hand_scales[i])
                 else:
                     label_depth_list.append(keypoint_label[..., 2:3])
