@@ -258,7 +258,13 @@ class LiftHead(BaseModule):
         output = self.forward(feats)
         hand3d_pred = self.postprocess(output, leftcam_xy, rightcam_xy,
                                        lr_rot_matrix, lr_p)[0]
-        return hand3d_pred, uv_coord_im_pred_global_distort
+        leftcam_uv_reproj = torch.matmul(hand3d_pred,
+                                         leftcam_cam_matrix.permute(0, 2, 1))
+        leftcam_uv_reproj = leftcam_uv_reproj[..., :2] / leftcam_uv_reproj[...,
+                                                                           2:]
+
+        # return hand3d_pred, uv_coord_im_pred_global_distort
+        return hand3d_pred, leftcam_uv_reproj[:, None, ...]
 
     def loss(self,
              feats: Tuple[Tensor],

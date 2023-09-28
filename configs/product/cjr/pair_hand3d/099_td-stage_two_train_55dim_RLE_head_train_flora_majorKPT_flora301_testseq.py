@@ -243,7 +243,7 @@ val_data_list = [
 
     #0815
     # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_080834__pinch__normal__left__1111__0008__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_081340__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_081340__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_081732__pinch__normal__left__1111__0008__undistort_tar__Flora301.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_083351__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_083727__pinch__normal__left__1111__0008__undistort_tar__Flora301.json',
@@ -265,7 +265,7 @@ val_data_list = [
     # 'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_094552__pinch__normal__right__1111__0008__undistort_tar__Flora303.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_095319__pinch__normal__right__1111__0008__undistort_tar__Flora303.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_095734__pinch__normal__right__1111__0008__undistort_tar__Flora303.json',
-    'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__right__1000__0007__20230809_100619__undistort_tar__Flora301.json'
+    # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__right__1000__0007__20230809_100619__undistort_tar__Flora301.json'
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # pipelines

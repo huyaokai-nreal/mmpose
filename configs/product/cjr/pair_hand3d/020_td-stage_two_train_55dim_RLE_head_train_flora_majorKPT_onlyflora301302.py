@@ -206,8 +206,8 @@ val_data_list = [
     # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__right__1000__0007__20230809_060812__undistort_tar__Flora301.json',
 
     # #0815
-    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_080834__pinch__normal__left__1111__0008__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_081340__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
+    # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_080834__pinch__normal__left__1111__0008__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_081340__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_081732__pinch__normal__left__1111__0008__undistort_tar__Flora301.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_083351__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_083727__pinch__normal__left__1111__0008__undistort_tar__Flora301.json',
@@ -423,7 +423,10 @@ test_dataloader = val_dataloader
 # hooks
 default_hooks = dict(
     checkpoint=dict(interval=5, save_best='all_mpjpe', rule='less'),
-    run_time_info=dict(type='RuntimeInfoHookV2'))
+    run_time_info=dict(type='RuntimeInfoHookV2'),
+    visualization=dict(
+        type='PoseVisualizationHook', enable=True, draw_3d=False),
+)
 
 # evaluators
 gesture_list = [

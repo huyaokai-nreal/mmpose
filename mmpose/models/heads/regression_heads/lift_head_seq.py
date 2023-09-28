@@ -183,12 +183,12 @@ class LiftHeadSeq(BaseModule):
                                      dim=-1)
         uv_coord_im_pred_global_distort = torch.bmm(uv_coord_im_pred,
                                                     all_inv_warp_mat)
-        uv_coord_im_pred_global_distort_noflip = \
-            uv_coord_im_pred_global_distort.view(B * S, N, K, 2)
+        uv_coord_im_pred_global_distort = uv_coord_im_pred_global_distort.view(
+            B * S, N, K, 2)
 
         frame_width = batch_data_samples[0].meta['frame_width']
         uv_coord_im_pred_global_distort = recover_hand(
-            uv_coord_im_pred_global_distort_noflip, left_hand, frame_width)
+            uv_coord_im_pred_global_distort, left_hand, frame_width)
 
         uv_coord_im_gt_global = recover_hand(uv_coord_im_gt_global, left_hand,
                                              frame_width)
@@ -264,9 +264,8 @@ class LiftHeadSeq(BaseModule):
         feats = torch.cat((feature1, feature2), dim=1).float()
         return (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,
                 leftcam_cam_matrix, rightcam_cam_matrix,
-                uv_coord_im_pred_global,
-                uv_coord_im_pred_global_distort_noflip, hand3d_gt,
-                hand3d_gt_sample)
+                uv_coord_im_pred_global, uv_coord_im_pred_global_distort,
+                hand3d_gt, hand3d_gt_sample)
 
     def postprocess(self, output, leftcam_xy, rightcam_xy, lr_rot_matrix,
                     lr_p):
@@ -433,11 +432,17 @@ class LiftHeadSeqTest(LiftHeadSeq):
         rightcam_xy_sample = self._sample(rightcam_xy)
         lr_rot_matrix_sample = self._sample(lr_rot_matrix)
         lr_p_sample = self._sample(lr_p)
+        leftcam_cam_matrix_sample = self._sample(leftcam_cam_matrix)
 
-        uv_coord_im_pred_global_distort_sample = self._sample(
-            uv_coord_im_pred_global_distort)
+        # uv_coord_im_pred_global_distort_sample = self._sample(
+        #     uv_coord_im_pred_global_distort)
 
         hand3d_pred = self.postprocess(output, leftcam_xy_sample,
                                        rightcam_xy_sample,
                                        lr_rot_matrix_sample, lr_p_sample)[0]
-        return hand3d_pred, uv_coord_im_pred_global_distort_sample
+        leftcam_uv_reproj = torch.matmul(
+            hand3d_pred, leftcam_cam_matrix_sample.permute(0, 2, 1))
+        leftcam_uv_reproj = leftcam_uv_reproj[..., :2] / leftcam_uv_reproj[...,
+                                                                           2:]
+        # return hand3d_pred, uv_coord_im_pred_global_distort_sample
+        return hand3d_pred, leftcam_uv_reproj[:, None, ...]

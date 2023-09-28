@@ -372,7 +372,7 @@ val_data_list = [
     # 'data_hand/hand_keypoint/annotations3d/Flora8/XS__all__normal__right__1000__0011__20230810_081042__undistort_tar__Flora8.json'
 
     # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_080834__pinch__normal__left__1111__0008__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_081340__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_081340__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_081732__pinch__normal__left__1111__0008__undistort_tar__Flora301.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_083351__pinch__normal__right__1111__0008__undistort_tar__Flora301.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_083727__pinch__normal__left__1111__0008__undistort_tar__Flora301.json',
@@ -395,7 +395,7 @@ val_data_list = [
     # 'data_hand/hand_keypoint/annotations3d/Flora302/XS__20230815_095734__pinch__normal__right__1111__0008__undistort_tar__Flora302.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_080834__pinch__normal__left__1111__0008__undistort_tar__Flora303.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_081340__pinch__normal__right__1111__0008__undistort_tar__Flora303.json',
-    'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_081732__pinch__normal__left__1111__0008__undistort_tar__Flora303.json',
+    # 'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_081732__pinch__normal__left__1111__0008__undistort_tar__Flora303.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_083351__pinch__normal__right__1111__0008__undistort_tar__Flora303.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_083727__pinch__normal__left__1111__0008__undistort_tar__Flora303.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora303/XS__20230815_084129__pinch__normal__right__1111__0008__undistort_tar__Flora303.json',
