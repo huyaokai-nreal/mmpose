@@ -38,6 +38,16 @@ def get_simcc_normalized(batch_pred_simcc, sigma=None):
     return batch_pred_simcc
 
 
+def get_simcc_1d_maximum(heatmap: np.ndarray
+                         ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    assert isinstance(heatmap,
+                      np.ndarray), ('heatmap[] should be numpy.ndarray')
+    N, K, Wx = heatmap.shape
+    heatmap = heatmap.reshape(N * K, -1)
+    locs = np.argmax(heatmap, axis=1)
+    return locs
+
+
 def get_simcc_3d_maximum(simcc_x: np.ndarray, simcc_y: np.ndarray,
                          simcc_z: np.ndarray
                          ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:

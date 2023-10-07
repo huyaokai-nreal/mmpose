@@ -4,6 +4,7 @@ from typing import List, Optional, Sequence, Tuple, Union
 import cv2
 import numpy as np
 import torch
+from mmengine import MMLogger
 from mmengine.logging import MessageHub
 from torch import Tensor
 
@@ -65,38 +66,40 @@ class DSNTHead(IntegralRegressionHead):
 
     _version = 2
 
-    def __init__(self,
-                 in_channels: Union[int, Sequence[int]],
-                 in_featuremap_size: Tuple[int, int],
-                 num_joints: int,
-                 lambda_t: int = -1,
-                 debias: bool = False,
-                 beta: float = 1.0,
-                 deconv_out_channels: OptIntSeq = (256, 256, 256),
-                 deconv_kernel_sizes: OptIntSeq = (4, 4, 4),
-                 conv_out_channels: OptIntSeq = None,
-                 conv_kernel_sizes: OptIntSeq = None,
-                 final_layer: dict = dict(kernel_size=1),
-                 output_sigma: bool = False,
-                 loss: ConfigType = dict(
-                     type='MultipleLossWrapper',
-                     losses=[
-                         dict(type='SmoothL1Loss', use_target_weight=True),
-                         dict(type='JSDiscretLoss', use_target_weight=True)
-                     ]),
-                 decoder: OptConfigType = None,
-                 init_cfg: OptConfigType = None,
-                 deploy: bool = False,
-                 feat_norm_type='softmax',
-                 deploy_output: List[str] = ['feat', 'score'],
-                 output_fuse_coord: bool = False,
-                 symmetry_ipr=False,
-                 consistency_loss=False,
-                 heatmap_loss=True,
-                 output_depth=False,
-                 depth_channel=256,
-                 with_hand_scale=False,
-                 input_size: Optional[Tuple] = None):
+    def __init__(
+            self,
+            in_channels: Union[int, Sequence[int]],
+            in_featuremap_size: Tuple[int, int],
+            num_joints: int,
+            lambda_t: int = -1,
+            debias: bool = False,
+            beta: float = 1.0,
+            deconv_out_channels: OptIntSeq = (256, 256, 256),
+            deconv_kernel_sizes: OptIntSeq = (4, 4, 4),
+            conv_out_channels: OptIntSeq = None,
+            conv_kernel_sizes: OptIntSeq = None,
+            final_layer: dict = dict(kernel_size=1),
+            output_sigma: bool = False,
+            loss: ConfigType = dict(
+                type='MultipleLossWrapper',
+                losses=[
+                    dict(type='SmoothL1Loss', use_target_weight=True),
+                    dict(type='JSDiscretLoss', use_target_weight=True)
+                ]),
+            decoder: OptConfigType = None,
+            init_cfg: OptConfigType = None,
+            deploy: bool = False,
+            feat_norm_type='softmax',
+            deploy_output: List[str] = ['feat', 'score'],
+            output_fuse_coord: bool = False,
+            symmetry_ipr=False,
+            consistency_loss=False,
+            heatmap_loss=True,
+            output_depth=False,
+            depth_channel=256,
+            with_hand_scale=False,
+            depth_encode_type='direct',  # 'heatmap' or 'direct'
+            input_size: Optional[Tuple] = None):
 
         super().__init__(
             in_channels=in_channels,
@@ -120,7 +123,8 @@ class DSNTHead(IntegralRegressionHead):
             symmetry_ipr=symmetry_ipr,
             output_fuse_coord=output_fuse_coord,
             output_depth=output_depth,
-            depth_channel=depth_channel)
+            depth_channel=depth_channel,
+            depth_encode_type=depth_encode_type)
 
         self.lambda_t = lambda_t
         self.consistency_loss = consistency_loss
@@ -137,24 +141,24 @@ class DSNTHead(IntegralRegressionHead):
         label_2d_list = []
         label_depth_list = []
         label_depth_id_list = []
-        if self.with_hand_scale:
-            hand_scales = [
-                sample.meta.get('hand_scale', 1)
-                for sample in batch_data_samples
-            ]
-            hand_scales = torch.from_numpy(
-                np.array(hand_scales,
-                         dtype=np.float32)).cuda().unsqueeze(1).unsqueeze(2)
         for i, data in enumerate(batch_data_samples):
-            keypoint_label = data.gt_instance_labels.keypoint_labels
-            label_2d_list.append(keypoint_label[..., :2])
-            if keypoint_label.shape[-1] == 3:
-                if self.with_hand_scale:
-                    label_depth_list.append(keypoint_label[..., 2:3] /
-                                            hand_scales[i])
-                else:
+            if self.depth_encode_type == 'direct':
+                keypoint_label = data.gt_instance_labels.keypoint_labels
+                label_2d_list.append(keypoint_label[..., :2])
+                if keypoint_label.shape[-1] == 3:
                     label_depth_list.append(keypoint_label[..., 2:3])
-                label_depth_id_list.append(i)
+                    label_depth_id_list.append(i)
+            elif self.depth_encode_type == 'heatmap':
+                keypoint_label = data.gt_instance_labels.keypoint_labels
+                label_2d_list.append(keypoint_label[..., :2])
+                if hasattr(data.gt_instance_labels, 'keypoint_z_labels'):
+                    label_depth_list.append(
+                        data.gt_instance_labels.keypoint_z_labels)
+                    label_depth_id_list.append(i)
+            else:
+                logger = MMLogger.get_current_instance()
+                logger.error(f'{self.depth_encode_type} is not supported')
+
         label_2d = torch.cat(label_2d_list)
         keypoint_weights = torch.cat([
             d.gt_instance_labels.keypoint_weights for d in batch_data_samples

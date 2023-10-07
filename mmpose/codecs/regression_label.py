@@ -1,11 +1,12 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-
+from itertools import product
 from typing import Optional, Tuple
 
 import numpy as np
 
 from mmpose.registry import KEYPOINT_CODECS
 from .base import BaseKeypointCodec
+from .utils.post_processing import get_simcc_1d_maximum
 
 
 @KEYPOINT_CODECS.register_module()
@@ -33,17 +34,51 @@ class RegressionLabel(BaseKeypointCodec):
     def __init__(self,
                  input_size: Tuple[int, int],
                  with_depth: bool = False,
-                 depth_bound: float = 0.4) -> None:
+                 depth_bound: float = 0.4,
+                 sigma=6,
+                 depth_channel=256,
+                 depth_type: str = 'direct') -> None:
         super().__init__()
         self.with_depth = with_depth
         self.depth_bound = depth_bound
         self.input_size = input_size
+        self.depth_type = depth_type
+        self.depth_channel = depth_channel
+        self.sigma = sigma
         if self.with_depth:
             assert self.depth_bound > 0, \
                 f'depth bound should be positive vs {self.depth_bound}'
             assert len(self.input_size) == 3, \
                 f'input size should be 3 param while having \
                     {len(self.input_size)}'
+
+    def __encode_depth_to_heatmap(
+        self,
+        depth,
+        keypoints_visible: Optional[np.ndarray] = None
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Encoding keypoints into SimCC labels with Gaussian Label Smoothing
+        strategy."""
+        D = self.depth_channel
+        N, K = depth.shape
+        target_z = np.zeros((N, K, D), dtype=np.float32)
+        # 3-sigma rule
+        radius = self.sigma * 3
+        z = np.arange(0, D, 1, dtype=np.float32)
+        keypoint_weights = keypoints_visible.copy()
+        for n, k in product(range(N), range(K)):
+            # skip unlabled keypoints
+            if np.abs(keypoints_visible[n, k]) < 0.5:
+                continue
+            mu = depth[n, k]
+            # check that the gaussian has in-bounds part
+            near = mu - radius
+            far = mu + radius + 1
+            if near >= D or far < 0:
+                keypoint_weights[n, k] = 0
+                continue
+            target_z[n, k] = np.exp(-((z - mu)**2) / (2 * self.sigma**2))
+        return target_z, keypoint_weights
 
     def encode(self,
                keypoints: np.ndarray,
@@ -77,9 +112,19 @@ class RegressionLabel(BaseKeypointCodec):
                                np.array([w, h, 1])).astype(np.float32)
             keypoint_labels[..., 2] = (
                 keypoints[..., 2] / self.depth_bound + 0.5)
-        encoded = dict(
-            keypoint_labels=keypoint_labels, keypoint_weights=keypoint_weights)
-
+        if self.depth_type == 'direct':
+            encoded = dict(
+                keypoint_labels=keypoint_labels,
+                keypoint_weights=keypoint_weights)
+        if self.depth_type == 'heatmap':
+            keypoints_split = np.around(keypoint_labels[..., 2] *
+                                        self.depth_channel)
+            keypoint_z_labels, _ = self.__encode_depth_to_heatmap(
+                keypoints_split, keypoints_visible)
+            encoded = dict(
+                keypoint_labels=keypoint_labels[..., :2],
+                keypoint_z_labels=keypoint_z_labels,
+                keypoint_weights=keypoint_weights)
         return encoded
 
     def decode(self, encoded: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -96,8 +141,8 @@ class RegressionLabel(BaseKeypointCodec):
                 It usually represents the confidence of the keypoint prediction
         """
 
+        N, K, _ = encoded.shape
         if encoded.shape[-1] in [2, 3]:
-            N, K, _ = encoded.shape
             normalized_coords = encoded.copy()
             scores = np.ones((N, K), dtype=np.float32)
         elif encoded.shape[-1] in [4, 6]:
@@ -106,6 +151,10 @@ class RegressionLabel(BaseKeypointCodec):
             normalized_coords = encoded[..., :key_dim].copy()
             output_sigma = encoded[..., key_dim:key_dim * 2].copy()
             scores = (1 - output_sigma).mean(axis=-1)
+        elif encoded.shape[-1] == 258:
+            normalized_coords = encoded[..., :2].copy()
+            depth_heatmap = encoded[..., 2:].copy()
+            scores = np.ones((N, K), dtype=np.float32)
         else:
             raise ValueError(
                 'Keypoint dimension should be 2 or 4 (with sigma), '
@@ -115,6 +164,14 @@ class RegressionLabel(BaseKeypointCodec):
         if not self.with_depth:
             keypoints = normalized_coords * np.array([w, h])
         else:
-            keypoints = normalized_coords * np.array([w, h, 1])
+            if self.depth_type == 'heatmap':
+                keypoints = normalized_coords * np.array([w, h])
+                depth = get_simcc_1d_maximum(
+                    depth_heatmap) / self.depth_channel
+                keypoints = np.concatenate(
+                    [keypoints[..., :2],
+                     depth.reshape((N, K, 1))], axis=-1)
+            else:
+                keypoints = normalized_coords * np.array([w, h, 1])
             keypoints[..., 2] = (keypoints[..., 2] - 0.5) * self.depth_bound
         return keypoints, scores

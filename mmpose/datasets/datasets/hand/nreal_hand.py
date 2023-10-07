@@ -174,6 +174,9 @@ class HANDDataset(BaseCocoStyleDataset):
 
         return data_info
 
+    def _get_topdown_data_infos(self, instance_list) -> List:
+        return instance_list
+
     def _load_annotations(self):
         image_list = []
         instance_list = []
@@ -224,7 +227,6 @@ class HANDDataset(BaseCocoStyleDataset):
             logger.info(
                 f'Train NrealHandDataset loaded {len(image_list)} images, {len(instance_list)} instances'  # noqa
             )
-
         return instance_list, image_list
 
     def __left_2_right_hand(self, results):

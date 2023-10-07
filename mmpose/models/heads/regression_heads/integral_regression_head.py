@@ -93,6 +93,7 @@ class IntegralRegressionHead(BaseHead):
                  output_fuse_coord: bool = False,
                  output_depth: bool = False,
                  depth_channel: int = 256,
+                 depth_encode_type: str = 'direct',
                  with_hand_scale=False):
 
         if init_cfg is None:
@@ -100,7 +101,7 @@ class IntegralRegressionHead(BaseHead):
 
         super().__init__(init_cfg)
         self.with_hand_scale = with_hand_scale
-
+        self.depth_encode_type = depth_encode_type
         self.in_channels = in_channels
         self.num_joints = num_joints
         self.debias = debias
@@ -302,7 +303,10 @@ class IntegralRegressionHead(BaseHead):
         else:
             outputs = [coords, heatmaps]
             if self.output_depth:
-                outputs.append(pred_depth)
+                if self.depth_encode_type == 'direct':
+                    outputs.append(pred_depth)
+                else:
+                    outputs.append(pred_depth_hm.reshape(B, N, -1))
             return tuple(outputs)
 
     def predict(self,
@@ -338,15 +342,6 @@ class IntegralRegressionHead(BaseHead):
 
                 - heatmaps (Tensor): The predicted heatmaps in shape (K, h, w)
         """
-        if self.with_hand_scale:
-            hand_scales = [
-                sample.meta.get('hand_scale', 1)
-                for sample in batch_data_samples
-            ]
-            hand_scales = torch.from_numpy(
-                np.array(hand_scales,
-                         dtype=np.float32)).cuda().unsqueeze(1).unsqueeze(2)
-
         if test_cfg.get('flip_test', False):
             # TTA: flip test -> feats = [orig, flipped]
             assert isinstance(feats, list) and len(feats) == 2
@@ -378,14 +373,16 @@ class IntegralRegressionHead(BaseHead):
             batch_coords, batch_heatmaps = outputs[:2]
             if self.output_depth:
                 batch_depth = outputs[2]
-                if self.with_hand_scale:
-                    batch_depth *= hand_scales
                 batch_coords = torch.cat([batch_coords[..., :2], batch_depth],
                                          dim=-1)
         if self.output_sigma:
             batch_coords[..., 2:] = batch_coords[..., 2:].sigmoid()
         batch_coords.unsqueeze_(dim=1)  # (B, N, K, D)
         preds = self.decode(batch_coords)
+        if self.with_hand_scale:
+            for i in range(len(preds)):
+                preds[i].keypoints[..., -1] * batch_data_samples[i].meta.get(
+                    'hand_scale', 1)
         if test_cfg.get('output_heatmaps', False):
             pred_fields = [
                 PixelData(heatmaps=hm) for hm in batch_heatmaps.detach()
