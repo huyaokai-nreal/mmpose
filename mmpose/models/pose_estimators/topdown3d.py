@@ -170,6 +170,9 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             T2 = np.linalg.inv(T)[:3]
             left_f, left_c = left_camera.f, left_camera.c
             right_f, right_c = right_camera.f, right_camera.c
+            if left_data_sample.meta.get('norm_depth', False):
+                hand_scale = left_data_sample.meta.get('hand_scale', 1.0)
+                left_gt_instances.keypoints[..., -1] *= hand_scale
             left_pred_instance.keypoints = left_kpt[None, ...].copy()
             if left_data_sample.meta['flipped']:
                 image_width = left_data_sample.meta['frame_width']
