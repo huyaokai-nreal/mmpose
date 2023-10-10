@@ -371,9 +371,13 @@ class GenerateAttrLabel(BaseTransform):
 @TRANSFORMS.register_module()
 class TopdownPCL(BaseTransform):
 
-    def __init__(self, input_size: Tuple[int, int], root_id: int = 0) -> None:
+    def __init__(self,
+                 input_size: Tuple[int, int],
+                 root_id: int = 0,
+                 norm_depth: bool = False) -> None:
         self.input_size = input_size
         self.root_id = root_id
+        self.norm_depth = norm_depth
 
     def transform(self, results: Dict) -> Dict:
         w, h = self.input_size
@@ -402,6 +406,10 @@ class TopdownPCL(BaseTransform):
         virtual_cam_points = virtual_camera.world_to_eye(world_points)
         results['transformed_keypoints'][..., 2] = virtual_cam_points[
             ..., 2] - virtual_cam_points[self.root_id, 2]
+        if self.norm_depth:
+            results['transformed_keypoints'][
+                ..., -1] /= results['meta']['hand_scale']
+            results['meta']['norm_depth'] = True
         results['meta']['root_depth'] = virtual_cam_points[self.root_id][2]
         results['warp_mat'] = np.array([[1, 0, 0], [0, 1, 0]],
                                        dtype=np.float32)

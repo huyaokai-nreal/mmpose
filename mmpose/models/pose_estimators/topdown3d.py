@@ -235,9 +235,9 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             right_pred_instance = batch_pred_instances[2 * i + 1]
             right_data_sample = batch_data_samples[2 * i + 1]
             left_virtual_camera = left_data_sample.meta['virtual_camera']
-            left_kpt = left_pred_instance.keypoints[0].copy()[..., :2]
+            left_kpt = left_pred_instance.keypoints[0].copy()
             right_virtual_camera = right_data_sample.meta['virtual_camera']
-            right_kpt = right_pred_instance.keypoints[0].copy()[..., :2]
+            right_kpt = right_pred_instance.keypoints[0].copy()
             if left_data_sample.meta['flipped']:
                 mirror_x_matrix = np.eye(4)
                 mirror_x_matrix[0][0] = -1
@@ -249,9 +249,6 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                         'virtual_camera'].camera_to_world_xf
                 T2 = np.linalg.inv(T)[:3]
                 left_data_sample.gt_instances.keypoints3d[..., 0] *= -1
-                image_width = left_data_sample.meta['frame_width']
-                gt_kpt2d = left_data_sample.gt_instances.keypoints
-                gt_kpt2d[..., 0] = image_width - 1 - gt_kpt2d[..., 0]
             else:
                 T1 = np.linalg.inv(left_data_sample.meta['virtual_camera'].
                                    camera_to_world_xf)[:3]
@@ -261,11 +258,11 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                 T2 = np.linalg.inv(T)[:3]
             left_f, left_c = left_virtual_camera.f, left_virtual_camera.c
             right_f, right_c = right_virtual_camera.f, right_virtual_camera.c
-            left_kpt_u = left_kpt.copy()
-            right_kpt_u = right_kpt.copy()
-            left_kpt_u = (left_kpt - np.array([left_c], dtype=np.float32)
+            left_kpt_u = left_kpt[..., :2].copy()
+            right_kpt_u = right_kpt[..., :2].copy()
+            left_kpt_u = (left_kpt_u - np.array([left_c], dtype=np.float32)
                           ) / np.array([left_f], dtype=np.float32)
-            right_kpt_u = (right_kpt - np.array([right_c], dtype=np.float32)
+            right_kpt_u = (right_kpt_u - np.array([right_c], dtype=np.float32)
                            ) / np.array([right_f], dtype=np.float32)
             X = cv2.triangulatePoints(T1, T2, left_kpt_u.transpose(),
                                       right_kpt_u.transpose())
@@ -273,9 +270,18 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             pred_kpt3d = pred_kpt3d.T
             left_pred_instance.keypoints3d = pred_kpt3d[None, ...]
             left_camera = left_data_sample.meta['ori_camera']
-            kpt2d = left_camera.eye_to_window(pred_kpt3d)
-            left_pred_instance.keypoints = kpt2d[None, ...]
+            # vir_camera_window->vir_camera_eye->ori_camera_eye->ori_camera_windows
+            kpt_norm_eye = left_virtual_camera.window_to_eye(left_kpt[..., :2])
+            kpt_norm_world = left_virtual_camera.eye_to_world(kpt_norm_eye)
+            kpt2d_ori = left_camera.eye_to_window(kpt_norm_world)
+            left_pred_instance.keypoints[..., :2] = kpt2d_ori[None, ...]
             left_data_sample.pred_instances = left_pred_instance
+            if left_data_sample.meta.get('norm_depth', False):
+                hand_scale = left_data_sample.meta.get('hand_scale', 1.0)
+                left_data_sample.gt_instances.keypoints[
+                    ...,
+                    -1] = left_data_sample.gt_instances.transformed_keypoints[
+                        ..., -1] * hand_scale
             new_batch_data_samples.append(left_data_sample)
         return new_batch_data_samples
 
@@ -346,8 +352,11 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                     virtual_keypoints3d)
                 ori_keypoints3d = ori_cam.world_to_eye(world_keypoints3d)
                 self.last_kpt3d = ori_keypoints3d
-                pred_instances.keypoints[0][..., :2] = ori_cam.eye_to_window(
-                    ori_keypoints3d)
+                # vir_camera_window->vir_camera_eye->ori_camera_eye->ori_camera_windows
+                kpt_norm_eye = virtual_cam.window_to_eye(virtual_keypoints)
+                kpt_norm_world = virtual_cam.eye_to_world(kpt_norm_eye)
+                kpt2d_ori = ori_cam.eye_to_window(kpt_norm_world)
+                pred_instances.keypoints[0][..., :2] = kpt2d_ori
                 pred_instances.keypoints3d = pred_instances.keypoints.copy()
                 pred_instances.keypoints3d[0] = ori_keypoints3d
             else:
