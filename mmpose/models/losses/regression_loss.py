@@ -6,7 +6,6 @@ from functools import partial
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from mmengine import MMLogger
 from mmengine.logging import MessageHub, MMLogger
 from mmengine.runner import CheckpointLoader, load_state_dict
 from torch import Tensor
@@ -656,19 +655,23 @@ class PinchLoss(nn.Module):
     """Pinch loss for keypoints3d.
 
     Args:
-        enter_thre (float): The maximum distance between the thumb and index finger recognized as a pinch. Defaults to 0.02
-        exit_thre (float): Minimum distance between thumb and index finger recognized as non pinch. Defaults to 0.04
+        enter_thre (float): The maximum distance between the thumb and
+            index finger recognized as a pinch. Defaults to 0.02
+        exit_thre (float): Minimum distance between thumb and index
+            finger recognized as non pinch. Defaults to 0.04
         loss_weight (float): Weight of the loss. Defaults to 0.09
     """
 
     def __init__(self,
                  enter_thre: float = 0.02,
                  exit_thre: float = 0.04,
-                 loss_weight: float = 0.09):
+                 loss_weight: float = 0.09,
+                 enable_start_epoch=0):
         super().__init__()
         self.enter_thre = enter_thre
         self.exit_thre = exit_thre
         self.loss_weight = loss_weight
+        self.enable_start_epoch = enable_start_epoch
 
     def forward(
         self,
@@ -679,7 +682,8 @@ class PinchLoss(nn.Module):
         """Forward function of loss.
 
         Args:
-            dist_pred (Tensor): Predicted distance between index finger and thumb.
+            dist_pred (Tensor): Predicted distance between index finger
+                and thumb.
             dist_gt (Tensor): The learning target of the predicted distance.
             weight (Tensor, optional): Weight of the loss for each
                 prediction. Defaults to None.
@@ -703,4 +707,9 @@ class PinchLoss(nn.Module):
         ) if no_pinch_index.numel() else torch.tensor(0.0)
         loss_pinch = self.loss_weight * (pinch_loss + no_pinch_loss)
 
+        if self.enable_start_epoch > 0:
+            mh = MessageHub.get_current_instance()
+            cur_epoch = mh.get_info('epoch')
+            if cur_epoch <= self.enable_start_epoch:
+                return loss_pinch * 0
         return loss_pinch

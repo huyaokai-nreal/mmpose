@@ -35,9 +35,10 @@ class LiftHead(BaseModule):
         self.kpt2d_with_depth = kpt2d_with_depth
         feat_dim = 2 * self.channel_num
         if self.kpt2d_with_depth:
-            feat_dim = feat_dim + 21
+            feat_dim += 21
+        self.liftnet = gMLP(
+            d_model=feat_dim, d_ffn=channel_num * 4, num_layers=3)
         self.corruption_cam = corruption_cam
-        self.liftnet = gMLP(d_model=feat_dim, d_ffn=feat_dim * 2, num_layers=3)
         self.last_layer = nn.Sequential(
             nn.Conv2d(feat_dim, feat_dim, kernel_size=1),
             nn.SyncBatchNorm(feat_dim), nn.ReLU(),
@@ -56,7 +57,8 @@ class LiftHead(BaseModule):
     def preprocess(self, feats, batch_data_samples):
         xy_coord = feats[..., :2]
         if self.kpt2d_with_depth:
-            depth = feats[..., -1:][::2]
+            # depth = feats[..., -1:][::2]
+            depth = feats[..., 2:][::2]
         B = int(len(batch_data_samples) / 2)
         N = 2
         H, W = batch_data_samples[0].input_size
@@ -263,9 +265,15 @@ class LiftHead(BaseModule):
                                          leftcam_cam_matrix.permute(0, 2, 1))
         leftcam_uv_reproj = \
             leftcam_uv_reproj[..., :2] / leftcam_uv_reproj[..., 2:]
+        camera_model = batch_data_samples[0].meta[
+            'ori_camera']  # leftcam model
+        leftcam_uv_reproj_distort = camera_model.eye_to_window(
+            hand3d_pred.cpu().numpy())
+        leftcam_uv_reproj_distort = torch.tensor(
+            leftcam_uv_reproj_distort).cuda()
 
         # return hand3d_pred, uv_coord_im_pred_global_distort
-        return hand3d_pred, leftcam_uv_reproj[:, None, ...]
+        return hand3d_pred, leftcam_uv_reproj_distort[:, None, ...]
 
     def loss(self,
              feats: Tuple[Tensor],
@@ -297,11 +305,11 @@ class LiftHead(BaseModule):
         leftcam_uv_gt = uv_coord_im_pred_global[:, 0]
         rightcam_uv_gt = uv_coord_im_pred_global[:, 1]
 
-        major_gt = torch.cat(
-            (hand3d_gt[:, 1:10, :], hand3d_gt[:, 13, :].unsqueeze(1)), dim=1)
-        major_pred = torch.cat(
-            (hand3d_pred[:, 1:10, :], hand3d_pred[:, 13, :].unsqueeze(1)),
-            dim=1)
+        # major_gt = torch.cat(
+        #     (hand3d_gt[:, 1:10, :], hand3d_gt[:, 13, :].unsqueeze(1)), dim=1)
+        # major_pred = torch.cat(
+        #     (hand3d_pred[:, 1:10, :], hand3d_pred[:, 13, :].unsqueeze(1)),
+        #     dim=1)
 
         # origin distance, no norm
         dist_pred = torch.norm(
@@ -309,15 +317,15 @@ class LiftHead(BaseModule):
         dist_gt = torch.norm(hand3d_gt[:, 4, :] - hand3d_gt[:, 8, :], dim=-1)
         pred_for_loss = [
             hand3d_pred, leftcam_XYZ, rightcam_XYZ, leftcam_uv_reproj,
-            rightcam_uv_reproj, dist_pred, major_pred
+            rightcam_uv_reproj, dist_pred
         ]
         targ_for_loss = [
             hand3d_gt, hand3d_gt, hand3d_gt, leftcam_uv_gt, rightcam_uv_gt,
-            dist_gt, major_gt
+            dist_gt
         ]
         losses = self.lift_loss(pred_for_loss, targ_for_loss)
         (loss_mse_3d, loss_mse_3d_leftcam, loss_mse_3d_rightcam,
-         loss_mse_2d_leftcam, loss_mse_2d_rightcam) = losses
+         loss_mse_2d_leftcam, loss_mse_2d_rightcam, loss_pinch) = losses
         if self.lambda_t > 0:
             mh = MessageHub.get_current_instance()
             cur_epoch = mh.get_info('epoch')
@@ -330,6 +338,6 @@ class LiftHead(BaseModule):
             loss_mse_3d_rightcam=loss_mse_3d_rightcam,
             loss_mse_2d_leftcam=loss_mse_2d_leftcam,
             loss_mse_2d_rightcam=loss_mse_2d_rightcam,
-        )
+            loss_pinch=loss_pinch)
 
         return losses_dict

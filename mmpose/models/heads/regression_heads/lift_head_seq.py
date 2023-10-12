@@ -432,7 +432,6 @@ class LiftHeadSeqTest(LiftHeadSeq):
         rightcam_xy_sample = self._sample(rightcam_xy)
         lr_rot_matrix_sample = self._sample(lr_rot_matrix)
         lr_p_sample = self._sample(lr_p)
-        leftcam_cam_matrix_sample = self._sample(leftcam_cam_matrix)
 
         # uv_coord_im_pred_global_distort_sample = self._sample(
         #     uv_coord_im_pred_global_distort)
@@ -440,9 +439,12 @@ class LiftHeadSeqTest(LiftHeadSeq):
         hand3d_pred = self.postprocess(output, leftcam_xy_sample,
                                        rightcam_xy_sample,
                                        lr_rot_matrix_sample, lr_p_sample)[0]
-        leftcam_uv_reproj = torch.matmul(
-            hand3d_pred, leftcam_cam_matrix_sample.permute(0, 2, 1))
-        leftcam_uv_reproj = leftcam_uv_reproj[..., :2] / leftcam_uv_reproj[...,
-                                                                           2:]
+
+        camera_model = batch_data_samples[0].meta[
+            'ori_camera']  # leftcam model
+        leftcam_uv_reproj_distort = camera_model.eye_to_window(
+            hand3d_pred.cpu().numpy())
+        leftcam_uv_reproj_distort = torch.tensor(
+            leftcam_uv_reproj_distort).cuda()
         # return hand3d_pred, uv_coord_im_pred_global_distort_sample
-        return hand3d_pred, leftcam_uv_reproj[:, None, ...]
+        return hand3d_pred, leftcam_uv_reproj_distort[:, None, ...]
