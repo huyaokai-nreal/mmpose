@@ -1,6 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from typing import Optional, Sequence, Tuple, Union
-
+import copy
 import numpy as np
 import torch
 import torch.nn as nn
@@ -11,7 +11,9 @@ from mmpose.evaluation.functional import keypoint_pck_accuracy
 from mmpose.models.utils.tta import flip_coordinates, flip_heatmaps
 from mmpose.registry import MODELS
 from mmpose.utils.tensor_utils import to_numpy
-from mmpose.utils.typing import ConfigType, OptConfigType, OptSampleList
+from mmpose.utils.typing import ConfigType, InstanceList, OptConfigType, OptSampleList, SampleList
+from mmpose.models.pose_estimators.topdown3d import get_root_depth
+from nreal_data_tool.utils.camera import PinholePlaneCameraModel
 from ...utils.siamcc_to_kpt import SimCCToKeypoint3D
 from ..coord_cls_heads import RTMCCHead3D
 
@@ -108,7 +110,7 @@ class RTMCCIPRHead3D(RTMCCHead3D):
             self.sigma_conv = nn.Conv2d(
                 self.in_channels, self.out_channels * 3, kernel_size=1)
 
-    def forward(self, feats: Tuple[Tensor], scale=1) -> Tuple[Tensor, Tensor]:
+    def forward(self, feats: Tuple[Tensor]) -> Tuple[Tensor, Tensor]:
         """Forward the network.
 
         The input is multi scale feature maps and the
@@ -124,8 +126,10 @@ class RTMCCIPRHead3D(RTMCCHead3D):
         pred_x, pred_y, pred_z = super().forward(feats)
         heatmaps = torch.cat([pred_x, pred_y, pred_z], dim=1)
         raw_feats = feats[-1]
-        pred_x, pred_y, pred_z = self.ipr_module(pred_x, pred_y, pred_z)
-        pred_z = pred_z * scale
+        pred_x, pred_y, pred_z = self.ipr_module(
+            pred_x, pred_y, pred_z
+        )
+        pred_z = pred_z
         output = torch.cat([pred_x, pred_y, pred_z], dim=-1)
         if self.output_sigma:
             x = self.gap(raw_feats)
@@ -171,14 +175,6 @@ class RTMCCIPRHead3D(RTMCCHead3D):
 
                 - heatmaps (Tensor): The predicted heatmaps in shape (K, h, w)
         """
-
-        if self.with_hand_scale:
-            hand_scales = [
-                sample.meta['hand_scale'] for sample in batch_data_samples
-            ]
-            hand_scales = torch.from_numpy(
-                np.array(hand_scales,
-                         dtype=np.float32)).cuda().unsqueeze(1).unsqueeze(2)
         if test_cfg.get('flip_test', False):
             # TTA: flip test -> feats = [orig, flipped]
             assert isinstance(feats, list) and len(feats) == 2
@@ -204,17 +200,16 @@ class RTMCCIPRHead3D(RTMCCHead3D):
             batch_coords = (_batch_coords + _batch_coords_flip) * 0.5
             batch_heatmaps = (_batch_heatmaps + _batch_heatmaps_flip) * 0.5
         else:
-            if self.with_hand_scale:
-                batch_coords, batch_heatmaps = self.forward(
-                    feats, hand_scales)  # (B, K, D)
-            else:
-                batch_coords, batch_heatmaps = self.forward(feats)  # (B, K, D)
+            batch_coords, batch_heatmaps = self.forward(feats)  # (B, K, D)
 
         if self.output_sigma:
             batch_coords[..., 2:] = batch_coords[..., 2:].sigmoid()
         batch_coords.unsqueeze_(dim=1)  # (B, N, K, D)
         preds = self.decode(batch_coords)
-
+        if self.with_hand_scale:
+            for i in range(len(preds)):
+                preds[i].keypoints[..., -1] * batch_data_samples[i].meta.get(
+                    'hand_scale', 1)
         if test_cfg.get('output_heatmaps', False):
             pred_fields = [
                 PixelData(heatmaps=hm) for hm in batch_heatmaps.detach()
@@ -228,16 +223,7 @@ class RTMCCIPRHead3D(RTMCCHead3D):
              batch_data_samples: OptSampleList,
              train_cfg: ConfigType = {}) -> dict:
         """Calculate losses from a batch of inputs and data samples."""
-        if self.with_hand_scale:
-            hand_scales = [
-                sample.meta['hand_scale'] for sample in batch_data_samples
-            ]
-            hand_scales = torch.from_numpy(
-                np.array(hand_scales,
-                         dtype=np.float32)).cuda().unsqueeze(1).unsqueeze(2)
-            pred_outputs, _ = self.forward(inputs, hand_scales)
-        else:
-            pred_outputs, _ = self.forward(inputs)
+        pred_outputs, _ = self.forward(inputs)
 
         keypoint_weights = torch.cat([
             d.gt_instance_labels.keypoint_weights for d in batch_data_samples
@@ -257,12 +243,14 @@ class RTMCCIPRHead3D(RTMCCHead3D):
             label_depth_id_list, dtype=torch.int32).cuda()
         valid_depth_pred = torch.index_select(pred_outputs, 0,
                                               label_depth_id)[..., 2:3]
-        # calculate losses
+        valid_depth_weights = torch.index_select(keypoint_weights, 0,
+                                                 label_depth_id)
+
         losses = dict()
         input_list = [pred_outputs[..., :2], valid_depth_pred]
         target_list = [label_2d, label_depth]
         loss = self.loss_module(input_list, target_list,
-                                keypoint_weights.unsqueeze(-1))
+                                [keypoint_weights, valid_depth_weights])
 
         losses.update(loss_kpt2d=loss[0])
         losses.update(loss_depth=loss[1])
