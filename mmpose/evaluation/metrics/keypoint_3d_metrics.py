@@ -149,14 +149,18 @@ class MPJPEV2(MPJPE):
                  result_dir=None,
                  with_tag=False,
                  pinch_thre: list = [20, 40],
-                 seq: bool = False) -> None:
-        super().__init__(collect_device=collect_device, prefix=prefix)
+                 scale_metric: bool = False,
+                 bmk_save_root: str = '',
+                 show_bmk_thr:tuple = (0, 10),
+                 filter_exceed:bool = True) -> None:
+        super().__init__(mode, collect_device, prefix)
         self.result_dir = result_dir
         self.logger = MMLogger.get_current_instance()
         self.mpjpe_metric = MPJPEMetric(
-            gesture_list, mode=mode, with_tag=with_tag)
+            gesture_list, mode=mode, with_tag=with_tag, bmk_save_root=bmk_save_root,
+              scale_metric=scale_metric, show_bmk_thr=show_bmk_thr,filter_exceed=filter_exceed)
         self.self_stability_metric = SelfStabilityMetric(reduction='mean')
-        self.pinch_metric = PinchMetric(pinch_thre=pinch_thre, seq=seq)
+        self.pinch_metric = PinchMetric(pinch_thre=pinch_thre)
 
     def process(self, data_batch, data_samples: Sequence[dict]) -> None:
         for data_sample in data_samples:
@@ -183,6 +187,10 @@ class MPJPEV2(MPJPE):
             if 'gesture' in data_sample['meta']:
                 result.meta['gesture'] = data_sample['meta']['gesture']
 
+            if 'img_path' in data_sample.keys():
+                result.meta['img_path'] = data_sample['img_path']
+                result.meta['frame_height'] = data_sample['meta']['frame_height']
+                result.meta['frame_width'] = data_sample['meta']['frame_width']
             # get area information
             if 'bbox_scales' in data_sample['gt_instances']:
                 result.area = float(

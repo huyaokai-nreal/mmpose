@@ -23,14 +23,16 @@ class NrealKeypointAP(BaseMetric):
                  collect_device: str = 'cpu',
                  prefix: Optional[str] = None,
                  result_dir=None,
-                 with_tag: bool = False) -> None:
+                 with_tag: bool = False,
+                 filter_exceed:bool = False) -> None:
         super().__init__(collect_device, prefix)
         self.result_dir = result_dir
         self.logger = MMLogger.get_current_instance()
         self.metric = KeypointOKSMetric(
             gesture_list=deepcopy(gesture_list),
             logger=self.logger,
-            with_tag=with_tag)
+            with_tag=with_tag,
+            filter_exceed=filter_exceed)
 
     def process(self, data_batch, data_samples: Sequence[dict]) -> None:
         for data_sample in data_samples:
