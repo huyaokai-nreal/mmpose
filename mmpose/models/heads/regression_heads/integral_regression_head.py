@@ -290,7 +290,7 @@ class IntegralRegressionHead(BaseHead):
             if 'feat' in self.deploy_output:
                 output_list.append(feats)
             if 'kpt' in self.deploy_output:
-                output_list += [pred_x, pred_y]
+                output_list += [torch.cat([pred_x, pred_y], dim=-1)]
             if 'fused_kpt' in self.deploy_output:
                 output_list.append(coords[..., :2])
             if 'depth' in self.deploy_output:
