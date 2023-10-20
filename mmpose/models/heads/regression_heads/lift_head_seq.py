@@ -390,7 +390,7 @@ class LiftHeadSeqTest(LiftHeadSeq):
 
     def __init__(self,
                  lift_loss: ConfigType,
-                 seq_len: int = 4,
+                 seq_len: int = 1,
                  channel_num: int = 55,
                  output_num: int = 42,
                  undistort: bool = False,
@@ -402,31 +402,34 @@ class LiftHeadSeqTest(LiftHeadSeq):
                          undistort, use_kp2d_gt, lambda_t, corruption_cam,
                          init_cfg)
 
-    def forward(self, feats: Tuple[Tensor]) -> Tensor:
+    def forward(self, feats: Tuple[Tensor], hn=None, cn=None) -> Tensor:
         embed_feats = self.liftnet(feats)
         S = self.seq_len
         B = int(embed_feats.shape[0] / S)
         embed_feats = embed_feats.view(B, self.seq_len, -1)
 
-        (hn, cn) = self.init_hidden(embed_feats, B)
+        if hn is None:
+            (hn, cn) = self.init_hidden(embed_feats, B)
         output, (hn2, cn2) = self.lstm(embed_feats, (hn, cn))
         output = output.reshape(B * S, -1, 1, 1)
         # from IPython import embed; embed()
         output = self.last_layer(output).view(
             (B, S, -1, 1, 1))  # [64, 42, 1, 1]
         res = output[:, -1, ...]  # return the last output of lstm
-        return res
+        return res, hn2, cn2
 
     def predict(self,
                 feats: Tuple[Tensor],
                 batch_data_samples: OptSampleList,
+                hn,
+                cn,
                 test_cfg: ConfigType = {}) -> Predictions:
         with torch.no_grad():
             (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,
              leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global,
              uv_coord_im_pred_global_distort, hand3d_gt,
              hand3d_gt_sample) = self.preprocess(feats, batch_data_samples)
-        output = self.forward(feats)
+        output, hn2, cn2 = self.forward(feats, hn, cn)
 
         leftcam_xy_sample = self._sample(leftcam_xy)
         rightcam_xy_sample = self._sample(rightcam_xy)
@@ -447,4 +450,4 @@ class LiftHeadSeqTest(LiftHeadSeq):
         leftcam_uv_reproj_distort = torch.tensor(
             leftcam_uv_reproj_distort).cuda()
         # return hand3d_pred, uv_coord_im_pred_global_distort_sample
-        return hand3d_pred, leftcam_uv_reproj_distort[:, None, ...]
+        return hand3d_pred, leftcam_uv_reproj_distort[:, None, ...], hn2, cn2

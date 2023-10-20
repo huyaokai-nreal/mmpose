@@ -20,6 +20,8 @@ class LiftHead(BaseModule):
     def __init__(self,
                  lift_loss: ConfigType,
                  channel_num: int = 55,
+                 num_layers: int = 3,
+                 d_ffn: int = 220,
                  output_num: int = 42,
                  undistort: bool = False,
                  use_kp2d_gt=False,
@@ -37,7 +39,7 @@ class LiftHead(BaseModule):
         if self.kpt2d_with_depth:
             feat_dim += 21
         self.liftnet = gMLP(
-            d_model=feat_dim, d_ffn=channel_num * 4, num_layers=3)
+            d_model=feat_dim, d_ffn=d_ffn, num_layers=num_layers)
         self.corruption_cam = corruption_cam
         self.last_layer = nn.Sequential(
             nn.Conv2d(feat_dim, feat_dim, kernel_size=1),

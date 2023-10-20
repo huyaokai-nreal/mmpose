@@ -285,10 +285,97 @@ class TopdownPoseLiftEstimatorSeq(TopdownPoseLiftEstimator):
                  data_preprocessor: OptConfigType = None,
                  init_cfg: OptMultiConfig = None,
                  metainfo: Optional[dict] = None,
-                 seq_len: int = 4):
+                 seq_len: int = 1):
         super().__init__(backbone, neck, head, kpt3d_lift, train_cfg, test_cfg,
                          data_preprocessor, init_cfg, metainfo)
         self.seq_len = seq_len
+
+    def forward(self,
+                inputs: torch.Tensor,
+                data_samples: Optional[OptSampleList] = None,
+                mode: str = 'tensor') -> ForwardResults:
+        if isinstance(inputs, list):
+            inputs = torch.stack(inputs)
+        if mode == 'loss':
+            return self.loss(inputs, data_samples)
+        elif mode == 'predict':
+            # use customed metainfo to override the default metainfo
+            if self.metainfo is not None:
+                for data_sample in data_samples:
+                    data_sample.set_metainfo(self.metainfo)
+            return self.predict(inputs, data_samples)
+        elif mode == 'tensor':
+            logger: MMLogger = MMLogger.get_current_instance()
+            logger.warning(
+                'topdown3d lift only support output 2d kpt for tensor mode')
+            return self._forward(inputs)
+        else:
+            raise RuntimeError(f'Invalid mode "{mode}". '
+                               'Only supports loss, predict and tensor mode.')
+
+    @format_data
+    def predict(self, inputs: Tensor, data_samples: SampleList) -> SampleList:
+        """Predict results from a batch of inputs and data samples with post-
+        processing.
+
+        Args:
+            inputs (Tensor): Inputs with shape (N, C, H, W)
+            data_samples (List[:obj:`PoseDataSample`]): The batch
+                data samples
+
+        Returns:
+            list[:obj:`PoseDataSample`]: The pose estimation results of the
+            input images. The return value is `PoseDataSample` instances with
+            ``pred_instances`` and ``pred_fields``(optional) field , and
+            ``pred_instances`` usually contains the following keys:
+
+                - keypoints (Tensor): predicted keypoint coordinates in shape
+                    (num_instances, K, D) where K is the keypoint number and D
+                    is the keypoint dimension
+                - keypoint_scores (Tensor): predicted keypoint scores in shape
+                    (num_instances, K)
+        """
+        assert self.with_head, (
+            'The model must have head to perform prediction.')
+
+        if self.test_cfg.get('flip_test', False):
+            _feats = self.extract_feat(inputs)
+            _feats_flip = self.extract_feat(inputs.flip(-1))
+            feats = [_feats, _feats_flip]
+        else:
+            feats = self.extract_feat(inputs)
+            outputs = self.head.forward(feats)
+            xy_sigma, heatmap = outputs[:2]
+            if self.kpt2d_with_depth:
+                depth = outputs[2]
+                depth = (depth - 0.5) * 0.4  # 0.4 is the depth bound
+                xy_sigma = torch.cat([xy_sigma, depth], dim=-1)
+        # pred, pred_bino_kp2d = self.kpt3d_lift.predict(
+        #     xy_sigma, data_samples, test_cfg=self.test_cfg)
+
+        batch_pred_instances = []
+        hn, cn = None, None
+        for b in range(inputs.shape[0] // 2):
+            # from IPython import embed; embed()
+            pred, pred_bino_kp2d, hn2, cn2 = self.kpt3d_lift.predict(
+                xy_sigma[b * 2:b * 2 + 2, ...],
+                data_samples[b * 2:b * 2 + 2],
+                hn,
+                cn,
+                test_cfg=self.test_cfg)
+            hn, cn = hn2, cn2
+            keypoints = pred_bino_kp2d[:, 0, ...]  # gt为左目信息
+            batch_pred_instances.append(
+                InstanceData(
+                    keypoints3d=pred,
+                    keypoints3d_scores=torch.ones((1, 21)),
+                    keypoints=keypoints,
+                    keypoint_scores=torch.ones((1, 21)),
+                ))
+
+        results = self.add_pred_to_datasample(batch_pred_instances, None,
+                                              data_samples)
+        return results
 
     def add_pred_to_datasample(self, batch_pred_instances: InstanceList,
                                batch_pred_fields: Optional[PixelDataList],

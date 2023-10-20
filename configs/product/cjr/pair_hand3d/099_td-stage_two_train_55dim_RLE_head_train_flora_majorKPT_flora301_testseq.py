@@ -125,7 +125,7 @@ model = dict(
                 #     loss_weight=0.09),
                 # dict(type='L1Loss', loss_weight=0),  # major kpt
             ]),
-        seq_len=4,
+        seq_len=1,
         channel_num=55,
         output_num=42,
         undistort=True),
@@ -320,7 +320,7 @@ train_dataloader = dict(
     ),
 )
 val_dataloader = dict(
-    batch_size=32,
+    batch_size=4,
     num_workers=2,
     persistent_workers=True,
     drop_last=False,
@@ -336,6 +336,7 @@ val_dataloader = dict(
         data_root=data_root,
         # point_type='leftcam',
         # indices=30,
+        seq_len=1,
     ),
 )
 test_dataloader = val_dataloader
@@ -373,7 +374,7 @@ find_unused_parameters = True
 vis_backends = [
     dict(type='LocalVisBackend'),
     # this will slow the training process ???
-    dict(type='TensorboardVisBackend')
+    # dict(type='TensorboardVisBackend')
 ]
 visualizer = dict(
     type='PoseLocalVisualizer', vis_backends=vis_backends, name='visualizer')
