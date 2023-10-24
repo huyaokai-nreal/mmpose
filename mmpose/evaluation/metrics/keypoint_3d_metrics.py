@@ -151,9 +151,9 @@ class MPJPEV2(MPJPE):
                  pinch_thre: list = [20, 40],
                  scale_metric: bool = False,
                  bmk_save_root: str = '',
-                 show_bmk_thr:tuple = (0, 10),
+                 show_bmk_thr:float = 20,
                  filter_exceed:bool = True) -> None:
-        super().__init__(mode, collect_device, prefix)
+        super().__init__(collect_device=collect_device, prefix=prefix)
         self.result_dir = result_dir
         self.logger = MMLogger.get_current_instance()
         self.mpjpe_metric = MPJPEMetric(
