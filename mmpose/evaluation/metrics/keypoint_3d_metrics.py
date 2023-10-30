@@ -151,14 +151,19 @@ class MPJPEV2(MPJPE):
                  pinch_thre: list = [20, 40],
                  scale_metric: bool = False,
                  bmk_save_root: str = '',
-                 show_bmk_thr:tuple = (0,10),
-                 filter_exceed:bool = True) -> None:
+                 show_bmk_thr: tuple = (0, 10),
+                 filter_exceed: bool = True) -> None:
         super().__init__(collect_device=collect_device, prefix=prefix)
         self.result_dir = result_dir
         self.logger = MMLogger.get_current_instance()
         self.mpjpe_metric = MPJPEMetric(
-            gesture_list, mode=mode, with_tag=with_tag, bmk_save_root=bmk_save_root,
-              scale_metric=scale_metric, show_bmk_thr=show_bmk_thr,filter_exceed=filter_exceed)
+            gesture_list,
+            mode=mode,
+            with_tag=with_tag,
+            bmk_save_root=bmk_save_root,
+            scale_metric=scale_metric,
+            show_bmk_thr=show_bmk_thr,
+            filter_exceed=filter_exceed)
         self.self_stability_metric = SelfStabilityMetric(reduction='mean')
         self.pinch_metric = PinchMetric(pinch_thre=pinch_thre)
 
@@ -182,12 +187,13 @@ class MPJPEV2(MPJPE):
                 (-1)).tolist()
             result.score = float(np.mean(keypoint_scores))
             result.video_id = data_sample['img_path']
-            import ipdb;ipdb.set_trace()
             if data_sample['meta']['flipped']:
                 pred_kpt = data_sample['pred_instances']['keypoints'][0]
                 gt_kpt = gt['keypoints'][0]
-                pred_kpt[...,0] = (data_sample['meta']['frame_width'] - 1 - pred_kpt[...,0])
-                gt_kpt[...,0] = (data_sample['meta']['frame_width'] - 1 - gt_kpt[...,0])
+                pred_kpt[..., 0] = (
+                    data_sample['meta']['frame_width'] - 1 - pred_kpt[..., 0])
+                gt_kpt[..., 0] = (
+                    data_sample['meta']['frame_width'] - 1 - gt_kpt[..., 0])
                 result.keypoints = pred_kpt.tolist()
                 result.gt_keypoints = gt_kpt.tolist()
             else:
@@ -201,7 +207,8 @@ class MPJPEV2(MPJPE):
 
             if 'img_path' in data_sample.keys():
                 result.meta['img_path'] = data_sample['img_path']
-                result.meta['frame_height'] = data_sample['meta']['frame_height']
+                result.meta['frame_height'] = data_sample['meta'][
+                    'frame_height']
                 result.meta['frame_width'] = data_sample['meta']['frame_width']
             # get area information
             if 'bbox_scales' in data_sample['gt_instances']:
