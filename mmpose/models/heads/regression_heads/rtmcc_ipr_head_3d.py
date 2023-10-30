@@ -208,7 +208,7 @@ class RTMCCIPRHead3D(RTMCCHead3D):
         preds = self.decode(batch_coords)
         if self.with_hand_scale:
             for i in range(len(preds)):
-                preds[i].keypoints[..., -1] * batch_data_samples[i].meta.get(
+                preds[i].keypoints[..., -1] *= batch_data_samples[i].meta.get(
                     'hand_scale', 1)
         if test_cfg.get('output_heatmaps', False):
             pred_fields = [
