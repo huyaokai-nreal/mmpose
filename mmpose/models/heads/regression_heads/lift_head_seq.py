@@ -40,9 +40,16 @@ class LiftHeadSeq(BaseModule):
             num_layers=3)
         self.last_layer = nn.Sequential(
             nn.Conv2d(
-                2 * self.channel_num, 2 * self.channel_num, kernel_size=1),
-            nn.SyncBatchNorm(2 * self.channel_num), nn.ReLU(),
+                2 * self.channel_num * 2, 2 * self.channel_num, kernel_size=1),
+            nn.ReLU(),
             nn.Conv2d(self.channel_num * 2, output_num, kernel_size=1))
+        self.convRNN = nn.Sequential(
+            nn.Conv2d(
+                2 * self.channel_num * 2, 2 * self.channel_num, kernel_size=1),
+            nn.ReLU(),
+            nn.Conv2d(
+                self.channel_num * 2, self.channel_num * 2, kernel_size=1))
+        # self.register_buffer("mem", torch.zeros(2 * self.channel_num, 1, 1))
         self.lift_loss = MODELS.build(lift_loss)
         self.undistort = undistort
         self.use_kp2d_gt = use_kp2d_gt
@@ -71,22 +78,33 @@ class LiftHeadSeq(BaseModule):
                                  self.lstm_size).zero_(),
                       weight.new(self.num_layers, batch_size,
                                  self.lstm_size).zero_())
-
         return hidden
 
     def forward(self, feats: Tuple[Tensor]) -> Tensor:
-        embed_feats = self.liftnet(feats)
+        embed_feats = self.liftnet(feats)  # [128, 110, 1, 1]
+
         S = self.seq_len
-        B = int(embed_feats.shape[0] / S)
+        B = int(embed_feats.shape[0] / S)  # 1
+
+        mems = torch.zeros(B, 2 * self.channel_num, 1, 1).cuda()
+
         embed_feats = embed_feats.view(B, self.seq_len, -1)
 
-        (hn, cn) = self.init_hidden(embed_feats, B)
-        output, (hn2, cn2) = self.lstm(embed_feats, (hn, cn))
-        output = output.reshape(B * S, -1, 1, 1)
+        outputs = torch.zeros((B, S, 42, 1, 1)).cuda()
+        for i in range(S):
+            feat = embed_feats[:, i:i + 1, :].reshape(B, -1, 1, 1)
+            feat_mix = torch.concatenate([feat, mems], dim=1)
+            mems = self.convRNN(feat_mix)
+            output = self.last_layer(feat_mix)
+            outputs[:, i, ...] = output
+
+        # (hn, cn) = self.init_hidden(embed_feats, B)
+        # output, (hn2, cn2) = self.lstm(embed_feats, (hn, cn))
+        outputs = outputs.reshape(B * S, -1, 1, 1)
         # from IPython import embed; embed()
-        output = self.last_layer(output).view(
-            (B * S, -1, 1, 1))  # [64, 42, 1, 1]
-        return output
+        # output = self.last_layer(output).view(
+        #     (B * S, -1, 1, 1))  # [64, 42, 1, 1]
+        return outputs
 
     def _sample(self, tensor, idx=1):
         seq = self.seq_len
@@ -363,10 +381,10 @@ class LiftHeadSeq(BaseModule):
         # smooth loss
 
         hand3d_pred = hand3d_pred.reshape(-1, self.seq_len, 21, 3)
-        x1 = hand3d_pred[:, 0]
-        x2 = hand3d_pred[:, 1]
-        x3 = hand3d_pred[:, 2]
-        x4 = hand3d_pred[:, 3]
+        x1 = hand3d_pred[:, 0:self.seq_len - 3]
+        x2 = hand3d_pred[:, 1:self.seq_len - 2]
+        x3 = hand3d_pred[:, 2:self.seq_len - 1]
+        x4 = hand3d_pred[:, 3:self.seq_len]
 
         hand3d_acc = -x1 + 3 * x2 - 3 * x3 + x4  # delta acc
         loss_delta_acc = hand3d_acc.abs().mean()
@@ -402,34 +420,40 @@ class LiftHeadSeqTest(LiftHeadSeq):
                          undistort, use_kp2d_gt, lambda_t, corruption_cam,
                          init_cfg)
 
-    def forward(self, feats: Tuple[Tensor], hn=None, cn=None) -> Tensor:
+    def forward(self, feats: Tuple[Tensor], mems=None) -> Tensor:
         embed_feats = self.liftnet(feats)
         S = self.seq_len
         B = int(embed_feats.shape[0] / S)
         embed_feats = embed_feats.view(B, self.seq_len, -1)
 
-        if hn is None:
-            (hn, cn) = self.init_hidden(embed_feats, B)
-        output, (hn2, cn2) = self.lstm(embed_feats, (hn, cn))
-        output = output.reshape(B * S, -1, 1, 1)
-        # from IPython import embed; embed()
-        output = self.last_layer(output).view(
-            (B, S, -1, 1, 1))  # [64, 42, 1, 1]
-        res = output[:, -1, ...]  # return the last output of lstm
-        return res, hn2, cn2
+        # if mems is None:
+        mems = torch.zeros(B, 2 * self.channel_num, 1, 1).cuda()
+
+        outputs = torch.zeros((B, S, 42, 1, 1)).cuda()
+        for i in range(S):
+            feat = embed_feats[:, i:i + 1, :].reshape(B, -1, 1, 1)
+            feat_mix = torch.concatenate([feat, mems], dim=1)
+            mems = self.convRNN(feat_mix)
+            output = self.last_layer(feat_mix)
+            outputs[:, i, ...] = output
+
+        # (hn, cn) = self.init_hidden(embed_feats, B)
+        # output, (hn2, cn2) = self.lstm(embed_feats, (hn, cn))
+        outputs = outputs.reshape(B * S, -1, 1, 1)
+
+        return outputs, mems
 
     def predict(self,
                 feats: Tuple[Tensor],
                 batch_data_samples: OptSampleList,
-                hn,
-                cn,
+                mem,
                 test_cfg: ConfigType = {}) -> Predictions:
         with torch.no_grad():
             (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,
              leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global,
              uv_coord_im_pred_global_distort, hand3d_gt,
              hand3d_gt_sample) = self.preprocess(feats, batch_data_samples)
-        output, hn2, cn2 = self.forward(feats, hn, cn)
+        output, mem2 = self.forward(feats, mem)
 
         leftcam_xy_sample = self._sample(leftcam_xy)
         rightcam_xy_sample = self._sample(rightcam_xy)
@@ -450,4 +474,4 @@ class LiftHeadSeqTest(LiftHeadSeq):
         leftcam_uv_reproj_distort = torch.tensor(
             leftcam_uv_reproj_distort).cuda()
         # return hand3d_pred, uv_coord_im_pred_global_distort_sample
-        return hand3d_pred, leftcam_uv_reproj_distort[:, None, ...], hn2, cn2
+        return hand3d_pred, leftcam_uv_reproj_distort[:, None, ...], mem2

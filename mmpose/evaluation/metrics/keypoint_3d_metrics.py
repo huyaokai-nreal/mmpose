@@ -152,7 +152,7 @@ class MPJPEV2(MPJPE):
                  scale_metric: bool = False,
                  bmk_save_root: str = '',
                  show_bmk_thr: tuple = (0, 10),
-                 filter_exceed: bool = True) -> None:
+                 filter_exceed: bool = False) -> None:
         super().__init__(collect_device=collect_device, prefix=prefix)
         self.result_dir = result_dir
         self.logger = MMLogger.get_current_instance()

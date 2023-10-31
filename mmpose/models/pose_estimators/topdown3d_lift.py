@@ -385,16 +385,15 @@ class TopdownPoseLiftEstimatorSeq(TopdownPoseLiftEstimator):
         #     xy_sigma, data_samples, test_cfg=self.test_cfg)
 
         batch_pred_instances = []
-        hn, cn = None, None
+        mem = None
         for b in range(inputs.shape[0] // 2):
             # from IPython import embed; embed()
-            pred, pred_bino_kp2d, hn2, cn2 = self.kpt3d_lift.predict(
+            pred, pred_bino_kp2d, mem2 = self.kpt3d_lift.predict(
                 xy_sigma[b * 2:b * 2 + 2, ...],
                 data_samples[b * 2:b * 2 + 2],
-                hn,
-                cn,
+                mem,
                 test_cfg=self.test_cfg)
-            hn, cn = hn2, cn2
+            mem = mem2
             keypoints = pred_bino_kp2d[:, 0, ...]  # gt为左目信息
             batch_pred_instances.append(
                 InstanceData(
