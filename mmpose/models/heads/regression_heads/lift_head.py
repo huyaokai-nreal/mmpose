@@ -26,6 +26,8 @@ class LiftHead(BaseModule):
                  undistort: bool = False,
                  use_kp2d_gt=False,
                  kpt2d_with_depth: bool = False,
+                 nano_2d: bool = False,
+                 reproj:bool = True,
                  noRt=False,
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
@@ -49,17 +51,18 @@ class LiftHead(BaseModule):
         self.undistort = undistort
         self.use_kp2d_gt = use_kp2d_gt
         self.noRt = noRt
+        self.nano_2d = nano_2d
+        self.reproj = reproj
 
     def forward(self, feats: Tuple[Tensor]) -> Tensor:
         output = self.liftnet(feats)
         output = self.last_layer(output).view(
-            (feats.shape[0], -1, 1, 1))  # [64, 42, 1, 1]
+            (feats.shape[0], -1, 1, 1))
         return output
 
     def preprocess(self, feats, batch_data_samples):
         xy_coord = feats[..., :2]
         if self.kpt2d_with_depth:
-            # depth = feats[..., -1:][::2]
             depth = feats[..., 2:][::2]
         B = int(len(batch_data_samples) / 2)
         N = 2
@@ -97,7 +100,9 @@ class LiftHead(BaseModule):
                 right_cam_matrix = right_camera.uv_to_window_matrix()
                 rightcam_cam_matrix.append(right_cam_matrix)
                 left_cam_xf = left_camera.camera_to_world_xf
-                right_cam_xf = right_camera.camera_to_world_xf
+                right_cam_xf = data_sample.meta['ori_xf'] @\
+                      right_camera.camera_to_world_xf if self.nano_2d \
+                        else right_camera.camera_to_world_xf
                 lr_t = np.dot(np.linalg.inv(left_cam_xf),
                               right_cam_xf).astype(np.float32)
                 lr_rot_matrix.append(lr_t[:3, :3])
@@ -121,6 +126,7 @@ class LiftHead(BaseModule):
         left_hand = torch.tensor(np.array(is_left_hands)).cuda().float()
         uv_coord_im_gt_global = torch.tensor(
             np.array(uv_coord_im_gt_global)).cuda().float()
+        uv_coord_im_gt_global = uv_coord_im_gt_global[...,:2] if self.nano_2d else uv_coord_im_gt_global
         uv_coord_im_gt_global = uv_coord_im_gt_global.view(B, N, K, 2)
 
         def recover_hand(uv_coord_im_pred, left_hand, w):
@@ -133,9 +139,6 @@ class LiftHead(BaseModule):
             return recover_uv_coord_im_pred
 
         uv_coord_im_pred_crop_leftright = uv_coord_im_pred_crop_right
-        # uv_coord_im_pred_crop_leftright = recover_hand(
-        #     uv_coord_im_pred_crop_right, left_hand, device, W)
-
         uv_coord_im_pred_crop_leftright = uv_coord_im_pred_crop_leftright.view(
             B * N, K, 2)
 
@@ -263,19 +266,20 @@ class LiftHead(BaseModule):
         output = self.forward(feats)
         hand3d_pred = self.postprocess(output, leftcam_xy, rightcam_xy,
                                        lr_rot_matrix, lr_p)[0]
-        leftcam_uv_reproj = torch.matmul(hand3d_pred,
-                                         leftcam_cam_matrix.permute(0, 2, 1))
-        leftcam_uv_reproj = \
-            leftcam_uv_reproj[..., :2] / leftcam_uv_reproj[..., 2:]
-        camera_model = batch_data_samples[0].meta[
-            'ori_camera']  # leftcam model
-        leftcam_uv_reproj_distort = camera_model.eye_to_window(
-            hand3d_pred.cpu().numpy())
-        leftcam_uv_reproj_distort = torch.tensor(
-            leftcam_uv_reproj_distort).cuda()
-
-        # return hand3d_pred, uv_coord_im_pred_global_distort
-        return hand3d_pred, leftcam_uv_reproj_distort[:, None, ...]
+        if self.reproj:
+            leftcam_uv_reproj = torch.matmul(hand3d_pred,
+                                            leftcam_cam_matrix.permute(0, 2, 1))
+            leftcam_uv_reproj = \
+                leftcam_uv_reproj[..., :2] / leftcam_uv_reproj[..., 2:]
+            camera_model = batch_data_samples[0].meta[
+                'ori_camera']  # leftcam model
+            leftcam_uv_reproj_distort = camera_model.eye_to_window(
+                hand3d_pred.cpu().numpy())
+            leftcam_uv_reproj_distort = torch.tensor(
+                leftcam_uv_reproj_distort).cuda()
+            return hand3d_pred, leftcam_uv_reproj_distort[:, None, ...]
+        else:
+            return hand3d_pred, uv_coord_im_pred_global_distort
 
     def loss(self,
              feats: Tuple[Tensor],

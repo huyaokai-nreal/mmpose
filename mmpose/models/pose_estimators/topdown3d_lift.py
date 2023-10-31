@@ -32,7 +32,10 @@ class TopdownPoseLiftEstimator(BaseModel):
                  data_preprocessor: OptConfigType = None,
                  init_cfg: OptMultiConfig = None,
                  kpt2d_with_depth: bool = False,
-                 metainfo: Optional[dict] = None):
+                 metainfo: Optional[dict] = None,
+                 nano_2d=False,
+                 kpt3d_lift_model_path: str = '',
+                 distill_model_path: str = ''):
         super().__init__(data_preprocessor, init_cfg=init_cfg)
         self.metainfo = self._load_metainfo(metainfo)
         self.backbone = MODELS.build(backbone)
@@ -40,13 +43,26 @@ class TopdownPoseLiftEstimator(BaseModel):
         neck, head = check_and_update_config(neck, head)
         neck, kpt3d_lift = check_and_update_config(neck, kpt3d_lift)
 
+        self.nano_2d = nano_2d
+        self.distill_model_path = distill_model_path
         if neck is not None:
             self.neck = MODELS.build(neck)
 
         if (head is not None) and (kpt3d_lift is not None):
             self.head = MODELS.build(head)  # adapt 2d kpts model
             self.kpt3d_lift = MODELS.build(kpt3d_lift)
+            if kpt3d_lift_model_path:
+                pretrained_dict = torch.load(kpt3d_lift_model_path)
+                liftnet_dict = {k.replace('kpt3d_lift.', ''): v for k, v in pretrained_dict['state_dict'].items() if k.startswith("kpt3d_lift.")}
+                self.kpt3d_lift.load_state_dict(liftnet_dict)
 
+        if self.nano_2d and self.distill_model_path:
+            distill_model = torch.load(self.distill_model_path)
+            state_dict = {k.replace('student.', ''): v for k, v in distill_model['state_dict'].items() if not k.startswith('teacher')}
+            backbone_state_dict = {k.replace('backbone.', ''): v for k, v in state_dict.items() if k.startswith('backbone')}
+            head_state_dict = {k.replace('head.', ''): v for k, v in state_dict.items() if k.startswith('head')}
+            self.backbone.load_state_dict(backbone_state_dict)
+            self.head.load_state_dict(head_state_dict)
         self.train_cfg = train_cfg if train_cfg else {}
         self.test_cfg = test_cfg if test_cfg else {}
 
@@ -187,19 +203,26 @@ class TopdownPoseLiftEstimator(BaseModel):
         """
         assert self.with_head, (
             'The model must have head to perform prediction.')
-
         if self.test_cfg.get('flip_test', False):
             _feats = self.extract_feat(inputs)
             _feats_flip = self.extract_feat(inputs.flip(-1))
             feats = [_feats, _feats_flip]
         else:
             feats = self.extract_feat(inputs)
-            outputs = self.head.forward(feats)
-            xy_sigma, heatmap = outputs[:2]
-            if self.kpt2d_with_depth:
-                depth = outputs[2]
-                depth = (depth - 0.5) * 0.4  # 0.4 is the depth bound
-                xy_sigma = torch.cat([xy_sigma, depth], dim=-1)
+            if self.nano_2d:
+                preds = self.head.predict(feats, data_samples, test_cfg=self.test_cfg)
+                xy_sigma = []
+                for i in range(len(preds)):
+                    preds[i].keypoints[...,:2] /= data_samples[0].input_size
+                    xy_sigma.append(torch.tensor(preds[i].keypoints,dtype=torch.float32).cuda())
+                xy_sigma = torch.cat(xy_sigma, dim=0)
+            else:
+                outputs = self.head.forward(feats)
+                xy_sigma, heatmap = outputs[:2]
+                if self.kpt2d_with_depth:
+                    depth = outputs[2]
+                    depth = (depth - 0.5) * 0.4  # 0.4 is the depth bound
+                    xy_sigma = torch.cat([xy_sigma, depth], dim=-1)
         pred, pred_bino_kp2d = self.kpt3d_lift.predict(
             xy_sigma, data_samples, test_cfg=self.test_cfg)
 
@@ -231,12 +254,20 @@ class TopdownPoseLiftEstimator(BaseModel):
 
         for pred_instances, pred_fields, data_sample in zip_longest(
                 batch_pred_instances, batch_pred_fields, batch_data_samples):
-
+            if self.nano_2d and data_sample.meta['flipped']:
+                data_sample.gt_instances.keypoints3d[...,0] *= -1
             pred_instances.keypoints3d = pred_instances.keypoints3d.cpu(
             ).numpy()
             pred_instances.keypoints3d_scores = np.ones(
                 (1, pred_instances.keypoints3d.shape[1]))
             pred_instances.keypoints = pred_instances.keypoints.cpu().numpy()
+            pred_instances.keypoints = np.concatenate((pred_instances.keypoints, pred_instances.keypoints3d[...,2:]), axis=-1)
+            data_sample.gt_instances.keypoints = np.concatenate((\
+                data_sample.gt_instances.keypoints, data_sample.gt_instances.keypoints3d[...,2:]), axis=-1)
+            if self.nano_2d:
+                data_sample.gt_instances.keypoints = np.concatenate((\
+                    data_sample.gt_instances.keypoints[...,:2],\
+                          data_sample.gt_instances.keypoints3d[...,2:]), axis=-1)
             pred_instances.keypoint_scores = np.ones(
                 (1, pred_instances.keypoints.shape[1]))
 
