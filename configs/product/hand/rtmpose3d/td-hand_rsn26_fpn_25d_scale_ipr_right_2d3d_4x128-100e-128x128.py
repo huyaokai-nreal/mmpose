@@ -1,6 +1,6 @@
 # flake8: noqa
 _base_ = ['../../../_base_/default_runtime.py']
-from configs._base_.datasets.xs3d import datasets_info
+from mmpose.configs._base_.datasets.xs3d import datasets_info
 
 # runtime
 train_cfg = dict(max_epochs=100, val_interval=10)

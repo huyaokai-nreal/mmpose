@@ -1,7 +1,8 @@
 # flake8: noqa
 import os
 
-from configs._base_.datasets.xs3d import datasets_info as kpt3d_datasets_info
+from mmpose.configs._base_.datasets.xs3d import \
+    datasets_info as kpt3d_datasets_info
 
 _base_ = ['../../../_base_/default_runtime.py']
 

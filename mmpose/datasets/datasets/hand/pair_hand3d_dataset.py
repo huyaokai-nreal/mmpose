@@ -14,7 +14,7 @@ from nreal_data_tool.utils.camera import (OpenCVFisheyeCameraModel,
                                           OpenCVPinholeCameraModel)
 from xtcocotools.coco import COCO
 
-from configs._base_.datasets.xs3d import cameras_info
+from mmpose.configs._base_.datasets.xs3d import cameras_info
 from mmpose.datasets.builder import DATASETS
 from ..base import BaseCocoStyleDataset
 

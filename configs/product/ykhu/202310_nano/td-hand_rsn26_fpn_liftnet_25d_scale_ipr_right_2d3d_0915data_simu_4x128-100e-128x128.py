@@ -2,8 +2,10 @@
 import os
 
 _base_ = ['../../../_base_/default_runtime.py']
-from configs._base_.datasets.xs2d import datasets_info as kpt2d_datasets_info
-from configs._base_.datasets.xs3d import datasets_info as kpt3d_datasets_info
+from mmpose.configs._base_.datasets.xs2d import \
+    datasets_info as kpt2d_datasets_info
+from mmpose.configs._base_.datasets.xs3d import \
+    datasets_info as kpt3d_datasets_info
 
 # runtime
 train_cfg = dict(max_epochs=100, val_interval=10)
@@ -120,7 +122,7 @@ model = dict(
         checkpoint=
         '/data/AI_DATA/data_hand/model/mmpose/td-hand_rtmnanov2_25d_right_pcl_2d3d_4x128-50e-128x128/epoch_100.pth'
     ),
-    )
+)
 
 # visualizer
 vis_backends = [
@@ -334,6 +336,7 @@ val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 
 val_2d_datasets = ['flora_static_finegrain', 'flora_dynamic']   # 'flora_static_finegrain', 'flora_dynamic'   静态 + 动态2d数据
 # val_2d_datasets = ['flora_black']
+
 val_2d_data_list = [
     kpt2d_datasets_info['test_data'][key] for key in val_2d_datasets
 ]
