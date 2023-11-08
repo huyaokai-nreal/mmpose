@@ -1,8 +1,7 @@
 # flake8: noqa
 import os
 
-from mmpose.configs._base_.datasets.xs3d import \
-    datasets_info as kpt3d_datasets_info
+from configs._base_.datasets.xs3d import datasets_info as kpt3d_datasets_info
 
 _base_ = ['../../../_base_/default_runtime.py']
 
@@ -65,8 +64,8 @@ codec = dict(
     blur_kernel_size=5,
 )
 
-kpt2d_with_depth = False
 pinch_thre = [20, 40]  # pinch双阈值，单位：mm
+kpt2d_with_depth = True  # liftnet 是否使用2.5d的深度信息
 # model settings
 backbone_out_channels = [64, 96, 128, 160]
 model = dict(
@@ -135,6 +134,8 @@ model = dict(
                     20),  # 后20 epoch打开pinch loss
             ]),
         channel_num=55,
+        num_layers=3,
+        d_ffn=440,
         use_kp2d_gt=False,
         kpt2d_with_depth=kpt2d_with_depth,
         output_num=42,

@@ -27,8 +27,9 @@ class LiftHead(BaseModule):
                  use_kp2d_gt=False,
                  kpt2d_with_depth: bool = False,
                  nano_2d: bool = False,
-                 reproj:bool = True,
+                 reproj: bool = True,
                  noRt=False,
+                 not_use_Rt=False,
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
                  init_cfg: Union[dict, List[dict], None] = None):
@@ -51,13 +52,13 @@ class LiftHead(BaseModule):
         self.undistort = undistort
         self.use_kp2d_gt = use_kp2d_gt
         self.noRt = noRt
+        self.not_use_Rt = not_use_Rt
         self.nano_2d = nano_2d
         self.reproj = reproj
 
     def forward(self, feats: Tuple[Tensor]) -> Tensor:
         output = self.liftnet(feats)
-        output = self.last_layer(output).view(
-            (feats.shape[0], -1, 1, 1))
+        output = self.last_layer(output).view((feats.shape[0], -1, 1, 1))
         return output
 
     def preprocess(self, feats, batch_data_samples):
@@ -100,9 +101,11 @@ class LiftHead(BaseModule):
                 right_cam_matrix = right_camera.uv_to_window_matrix()
                 rightcam_cam_matrix.append(right_cam_matrix)
                 left_cam_xf = left_camera.camera_to_world_xf
-                right_cam_xf = data_sample.meta['ori_xf'] @\
-                      right_camera.camera_to_world_xf if self.nano_2d \
-                        else right_camera.camera_to_world_xf
+                if self.nano_2d:
+                    right_cam_xf = data_sample.meta[
+                        'ori_xf'] @ right_camera.camera_to_world_xf
+                else:
+                    right_camera.camera_to_world_xf
                 lr_t = np.dot(np.linalg.inv(left_cam_xf),
                               right_cam_xf).astype(np.float32)
                 lr_rot_matrix.append(lr_t[:3, :3])
@@ -126,7 +129,8 @@ class LiftHead(BaseModule):
         left_hand = torch.tensor(np.array(is_left_hands)).cuda().float()
         uv_coord_im_gt_global = torch.tensor(
             np.array(uv_coord_im_gt_global)).cuda().float()
-        uv_coord_im_gt_global = uv_coord_im_gt_global[...,:2] if self.nano_2d else uv_coord_im_gt_global
+        uv_coord_im_gt_global = uv_coord_im_gt_global[
+            ..., :2] if self.nano_2d else uv_coord_im_gt_global
         uv_coord_im_gt_global = uv_coord_im_gt_global.view(B, N, K, 2)
 
         def recover_hand(uv_coord_im_pred, left_hand, w):
@@ -208,6 +212,15 @@ class LiftHead(BaseModule):
                     (B, -1)), left_hand.view((B, -1))),
                 dim=1).view(B, self.channel_num * 2, 1,
                             1).float()  # 21*2+21*3+1
+        # 不使用外参信息
+        elif self.not_use_Rt:
+            feature1 = torch.cat((leftcam_xy.view(
+                (B, -1)), left_hand.view((B, -1))),
+                                 dim=1).view((B, self.channel_num, 1, 1))
+            feature2 = torch.cat((rightcam_xy.view(
+                (B, -1)), left_hand.view((B, -1))),
+                                 dim=1).view((B, self.channel_num, 1, 1))
+            feats = torch.cat((feature1, feature2), dim=1).float()
         # 隐式的使用Rt
         else:
             Tmatrix_leftcam = torch.tensor(
@@ -216,6 +229,19 @@ class LiftHead(BaseModule):
                 (B, -1)), Tmatrix_leftcam.repeat(B, 1), left_hand.view(
                     (B, -1))),
                                  dim=1).view((B, self.channel_num, 1, 1))
+            # 手动调整lr_p和lr_rot_matrix
+            # from IPython import embed
+            # embed()
+            # lr_rot_matrix_tmp = torch.tensor(
+            #     [[0.9737765, -0.02703234, 0.22589504],
+            #      [0.03400502, 0.99905601, -0.02703234],
+            #      [-0.22495105, 0.03400502, 0.9737765]]).cuda()
+            # lr_rot_matrix_tmp = lr_rot_matrix_tmp.unsqueeze(0).repeat(B, 1, 1)  # noqa
+            # lr_rot_matrix_tmp = lr_rot_matrix
+
+            # lr_p_tmp = torch.tensor([0.1, 0.1, 0.1]).cuda()
+            # lr_p_tmp = lr_p_tmp.unsqueeze(0).repeat(B, 1)
+
             feature2 = torch.cat((rightcam_xy.view((B, -1)), lr_p.view(
                 (B, -1)), lr_rot_matrix.view((B, -1)), left_hand.view(
                     (B, -1))),
@@ -267,8 +293,8 @@ class LiftHead(BaseModule):
         hand3d_pred = self.postprocess(output, leftcam_xy, rightcam_xy,
                                        lr_rot_matrix, lr_p)[0]
         if self.reproj:
-            leftcam_uv_reproj = torch.matmul(hand3d_pred,
-                                            leftcam_cam_matrix.permute(0, 2, 1))
+            leftcam_uv_reproj = torch.matmul(
+                hand3d_pred, leftcam_cam_matrix.permute(0, 2, 1))
             leftcam_uv_reproj = \
                 leftcam_uv_reproj[..., :2] / leftcam_uv_reproj[..., 2:]
             camera_model = batch_data_samples[0].meta[

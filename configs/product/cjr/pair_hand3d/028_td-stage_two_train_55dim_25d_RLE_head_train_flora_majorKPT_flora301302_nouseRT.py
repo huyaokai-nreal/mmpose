@@ -1,8 +1,7 @@
 # flake8: noqa
 import os
 
-from mmpose.configs._base_.datasets.xs3d import \
-    datasets_info as kpt3d_datasets_info
+from configs._base_.datasets.xs3d import datasets_info as kpt3d_datasets_info
 
 _base_ = ['../../../_base_/default_runtime.py']
 
@@ -134,11 +133,15 @@ model = dict(
                     enable_start_epoch=train_cfg['max_epochs'] -
                     20),  # 后20 epoch打开pinch loss
             ]),
-        channel_num=55,
+        channel_num=43,
         use_kp2d_gt=False,
         kpt2d_with_depth=kpt2d_with_depth,
         output_num=42,
-        undistort=True),
+        not_use_Rt=True,
+        undistort=True,
+        # corruption_cam=1,  # 测左目的精度
+        # corruption_cam=0,  # 测右目的精度
+    ),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
