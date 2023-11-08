@@ -162,7 +162,7 @@ class RegressionLabel(BaseKeypointCodec):
 
         w, h = self.input_size[:2]
         if not self.with_depth:
-            keypoints = normalized_coords * np.array([w, h])
+            keypoints = normalized_coords[:, :, :2] * np.array([w, h])
         else:
             if self.depth_type == 'heatmap':
                 keypoints = normalized_coords * np.array([w, h])

@@ -26,7 +26,6 @@ class LiftHead(BaseModule):
                  undistort: bool = False,
                  use_kp2d_gt=False,
                  kpt2d_with_depth: bool = False,
-                 nano_2d: bool = False,
                  reproj: bool = True,
                  noRt=False,
                  not_use_Rt=False,
@@ -53,7 +52,6 @@ class LiftHead(BaseModule):
         self.use_kp2d_gt = use_kp2d_gt
         self.noRt = noRt
         self.not_use_Rt = not_use_Rt
-        self.nano_2d = nano_2d
         self.reproj = reproj
 
     def forward(self, feats: Tuple[Tensor]) -> Tensor:
@@ -101,11 +99,7 @@ class LiftHead(BaseModule):
                 right_cam_matrix = right_camera.uv_to_window_matrix()
                 rightcam_cam_matrix.append(right_cam_matrix)
                 left_cam_xf = left_camera.camera_to_world_xf
-                if self.nano_2d:
-                    right_cam_xf = data_sample.meta[
-                        'ori_xf'] @ right_camera.camera_to_world_xf
-                else:
-                    right_camera.camera_to_world_xf
+                right_cam_xf = right_camera.camera_to_world_xf
                 lr_t = np.dot(np.linalg.inv(left_cam_xf),
                               right_cam_xf).astype(np.float32)
                 lr_rot_matrix.append(lr_t[:3, :3])
@@ -129,8 +123,7 @@ class LiftHead(BaseModule):
         left_hand = torch.tensor(np.array(is_left_hands)).cuda().float()
         uv_coord_im_gt_global = torch.tensor(
             np.array(uv_coord_im_gt_global)).cuda().float()
-        uv_coord_im_gt_global = uv_coord_im_gt_global[
-            ..., :2] if self.nano_2d else uv_coord_im_gt_global
+        uv_coord_im_gt_global = uv_coord_im_gt_global[..., :2]
         uv_coord_im_gt_global = uv_coord_im_gt_global.view(B, N, K, 2)
 
         def recover_hand(uv_coord_im_pred, left_hand, w):
