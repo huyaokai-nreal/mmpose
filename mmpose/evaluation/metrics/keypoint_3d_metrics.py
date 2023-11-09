@@ -187,19 +187,9 @@ class MPJPEV2(MPJPE):
                 (-1)).tolist()
             result.score = float(np.mean(keypoint_scores))
             result.video_id = data_sample['img_path']
-            if data_sample['meta']['flipped']:
-                pred_kpt = data_sample['pred_instances']['keypoints'][0]
-                gt_kpt = gt['keypoints'][0]
-                pred_kpt[..., 0] = (
-                    data_sample['meta']['frame_width'] - 1 - pred_kpt[..., 0])
-                gt_kpt[..., 0] = (
-                    data_sample['meta']['frame_width'] - 1 - gt_kpt[..., 0])
-                result.keypoints = pred_kpt.tolist()
-                result.gt_keypoints = gt_kpt.tolist()
-            else:
-                result.keypoints = (
-                    data_sample['pred_instances']['keypoints'][0]).tolist()
-                result.gt_keypoints = gt['keypoints'][0].tolist()
+            result.keypoints = (
+                data_sample['pred_instances']['keypoints'][0]).tolist()
+            result.gt_keypoints = gt['keypoints'][0].tolist()
             if 'tag' in data_sample['meta']:
                 result.meta['tag'] = data_sample['meta']['tag']
             if 'gesture' in data_sample['meta']:

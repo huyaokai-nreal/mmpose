@@ -51,32 +51,7 @@ class TopdownPoseLiftEstimator(BaseModel):
         if (head is not None) and (kpt3d_lift is not None):
             self.head = MODELS.build(head)  # adapt 2d kpts model
             self.kpt3d_lift = MODELS.build(kpt3d_lift)
-            if kpt3d_lift_model_path:
-                pretrained_dict = torch.load(kpt3d_lift_model_path)
-                liftnet_dict = {
-                    k.replace('kpt3d_lift.', ''): v
-                    for k, v in pretrained_dict['state_dict'].items()
-                    if k.startswith('kpt3d_lift.')
-                }
-                self.kpt3d_lift.load_state_dict(liftnet_dict)
 
-        if self.nano_2d and self.distill_model_path:
-            distill_model = torch.load(self.distill_model_path)
-            state_dict = {
-                k.replace('student.', ''): v
-                for k, v in distill_model['state_dict'].items()
-                if not k.startswith('teacher')
-            }
-            backbone_state_dict = {
-                k.replace('backbone.', ''): v
-                for k, v in state_dict.items() if k.startswith('backbone')
-            }
-            head_state_dict = {
-                k.replace('head.', ''): v
-                for k, v in state_dict.items() if k.startswith('head')
-            }
-            self.backbone.load_state_dict(backbone_state_dict)
-            self.head.load_state_dict(head_state_dict)
         self.train_cfg = train_cfg if train_cfg else {}
         self.test_cfg = test_cfg if test_cfg else {}
 
@@ -280,10 +255,6 @@ class TopdownPoseLiftEstimator(BaseModel):
                 (pred_instances.keypoints, pred_instances.keypoints3d[...,
                                                                       2:]),
                 axis=-1)
-            data_sample.gt_instances.keypoints = np.concatenate(
-                (data_sample.gt_instances.keypoints,
-                 data_sample.gt_instances.keypoints3d[..., 2:]),
-                axis=-1)
             if self.nano_2d:
                 data_sample.gt_instances.keypoints = np.concatenate(
                     (data_sample.gt_instances.keypoints[..., :2],
@@ -291,7 +262,13 @@ class TopdownPoseLiftEstimator(BaseModel):
                     axis=-1)
             pred_instances.keypoint_scores = np.ones(
                 (1, pred_instances.keypoints.shape[1]))
-
+            if data_sample.meta['flipped']:
+                pred_kpt = pred_instances.keypoints[0]
+                gt_kpt = data_sample.gt_instances.keypoints[0]
+                pred_kpt[..., 0] = (
+                    data_sample.meta['frame_width'] - 1 - pred_kpt[..., 0])
+                gt_kpt[..., 0] = (
+                    data_sample.meta['frame_width'] - 1 - gt_kpt[..., 0])
             data_sample.pred_instances = pred_instances
         return batch_data_samples
 
