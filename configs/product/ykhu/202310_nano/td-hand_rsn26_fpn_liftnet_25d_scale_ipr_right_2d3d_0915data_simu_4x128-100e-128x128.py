@@ -114,11 +114,6 @@ model = dict(
     test_cfg=dict(flip_test=False, ),
     kpt2d_with_depth=False,
     nano_2d=True,
-    # kpt3d_lift_model_path = '/data/AI_DATA/jrchen/share-data/25d_lift/022_v2_epoch_100.pth',
-    kpt3d_lift_model_path=
-    '/home/ykhu/workspace/mmpose/configs/product/ykhu/pair_hand3d/021_pinch_loss.pth',
-    distill_model_path=
-    '/home/ykhu/workspace/mmpose/work_dirs/202310_nano/dwpose-td-hand_rsn26_fpn_25d_scale_ipr_right_2d3d_0915data_simu_4x128-100e-128x128_s1_0.3_large_kernel_3.py/best_all_mpjpe_epoch_55.pth',
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
@@ -424,8 +419,6 @@ if test_type == '3d':
             scale_metric=False,
             gesture_list=gesture_list,
             filter_exceed=filter_exceed,
-            # bmk_save_root='/home/ykhu/workspace/mmpose/work_dirs/bad_case_liftnet_nano/0005/flora303/angle',
-            # show_bmk_thr=(0,100000),
         ),  #bad case mpjpe thr (mm)
         dict(
             type='MPJPEV2',
