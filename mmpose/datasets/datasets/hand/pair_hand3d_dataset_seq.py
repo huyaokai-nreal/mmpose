@@ -230,7 +230,6 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
 
             self.dataset_info_list.append(seq_list)
 
-        self.dataset_info_list = np.array(self.dataset_info_list)
         logger: MMLogger = MMLogger.get_current_instance()
         logger.info(
             f'HandDataset loaded {len(image_list)} images, {len(instance_list)} pair instances'  # noqa

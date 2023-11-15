@@ -135,13 +135,14 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             f=(cam_info['left_K'][0][0], cam_info['left_K'][1][1]),
             c=(cam_info['left_K'][0][2], cam_info['left_K'][1][2]),
             camera_to_world_xf=left_cam_xf,
-            distort_coeffs=cam_info['left_D'][0]  # k1,k2,k3,k4
-        )
+            distort_coeffs=cam_info['left_D'][0] if isinstance(
+                cam_info['left_D'][0], list) else cam_info['left_D'])
         cam_model_right = CMAERA_MODEL(
             f=(cam_info['right_K'][0][0], cam_info['right_K'][1][1]),
             c=(cam_info['right_K'][0][2], cam_info['right_K'][1][2]),
             camera_to_world_xf=right_cam_xf,
-            distort_coeffs=cam_info['right_D'][0])  # k1,k2,k3,k4
+            distort_coeffs=cam_info['right_D'][0] if isinstance(
+                cam_info['right_D'][0], list) else cam_info['right_D'])
         return cam_model_left, cam_model_right
 
     def parse_data_info(self, raw_data_info: dict) -> Optional[dict]:
