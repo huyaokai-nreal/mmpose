@@ -426,8 +426,8 @@ class LiftHeadSeqTest(LiftHeadSeq):
         B = int(embed_feats.shape[0] / S)
         embed_feats = embed_feats.view(B, self.seq_len, -1)
 
-        # if mems is None:
-        mems = torch.zeros(B, 2 * self.channel_num, 1, 1).cuda()
+        if mems is None:
+            mems = torch.zeros(B, 2 * self.channel_num, 1, 1).cuda()
 
         outputs = torch.zeros((B, S, 42, 1, 1)).cuda()
         for i in range(S):
