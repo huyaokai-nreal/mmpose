@@ -7,6 +7,7 @@ from .lift_head import LiftHead
 from .lift_head_rot import LiftNimbleHead
 from .lift_head_standard import LiftHeadStandard
 from .regression_head import RegressionHead
+from .lift_head_rot import LiftHead_Rotation
 from .rle_head import RLEHead
 from .rtmcc_ipr_head import RTMCCIPRHead
 from .rtmcc_ipr_head_3d import RTMCCIPRHead3D

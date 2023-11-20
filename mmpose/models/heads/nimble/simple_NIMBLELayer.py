@@ -58,7 +58,6 @@ class sim_NIMBLELayer(torch.nn.Module):
 
     def generate_hand_shape(self, betas, normalized=True):
         # beta : B, N
-
         batch_size, shape_ncomp = betas.shape
         assert self.shape_ncomp == shape_ncomp
 
@@ -108,7 +107,6 @@ class sim_NIMBLELayer(torch.nn.Module):
     def convert_rot_to_pca(self, nimble_pose):
         full_pose_de = nimble_pose[:, 3:]
         batch_size = nimble_pose.shape[0]
-
         ##### debug
         # from IPython import embed; embed()
         # randn_pac = torch.rand(batch_size, self.pose_ncomp).cuda()

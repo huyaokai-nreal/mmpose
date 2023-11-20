@@ -3,9 +3,9 @@ import os
 
 # from configs._base_.datasets.xs3d import datasets_info as kpt3d_datasets_info
 
-_base_ = ['../../../_base_/default_runtime.py']
+_base_ = ['../../_base_/default_runtime.py']
 
-train_cfg = dict(max_epochs=100, val_interval=1)
+train_cfg = dict(max_epochs=140, val_interval=10)
 
 data_root = '/data/AI_DATA'
 # data_root = '/data/AI_DATA_WX'
@@ -116,29 +116,29 @@ model = dict(
         deploy=False,
         output_sigma=False),
     kpt3d_lift=dict(
-        type='LiftHead',
+        type='LiftHead_Rotation',
         lift_loss=dict(
             type='MultipleLossWrapper',
             losses=[
                 dict(type='L1Loss'),  # 3d kpts
                 dict(type='L1Loss'),  # 3d kpts leftcam
                 dict(type='L1Loss'),  # 3d kpts rightcam
-                dict(type='MSELoss', loss_weight=0),  # 2d reprojection left
-                dict(type='MSELoss', loss_weight=0),  # 2d reprojection right
+                dict(type='MSELoss', loss_weight=20, enable_start_epoch=train_cfg['max_epochs'] - 40),  # 2d reprojection left
+                dict(type='MSELoss', loss_weight=20, enable_start_epoch=train_cfg['max_epochs'] - 40),  # 2d reprojection right
                 dict(
                     type='PinchLoss',
                     enter_thre=pinch_thre[0] / 1000,
                     exit_thre=pinch_thre[1] / 1000,
                     loss_weight=1,
-                    enable_start_epoch=train_cfg['max_epochs'] -
-                    20),  # 后20 epoch打开pinch loss
+                    enable_start_epoch=train_cfg['max_epochs'] - 20),  # 后20 epoch打开pinch loss
             ]),
         channel_num=55,
-        num_layers=4,
         use_kp2d_gt=False,
         kpt2d_with_depth=kpt2d_with_depth,
-        output_num=42,
-        undistort=True),
+        output_num=83,
+        undistort=True,
+        # pre_xyz_type = 0/1/2, 0 指的是 pre的3个xyz都是通过nimble获得的， 1指的是3个pre的z是通过nimble获得的而xy通过uv计算得到的，2指的是3个pre分别为nimble z+origin xy、nimble xyz、前两个值的平均值。
+        pre_xyz_type = 0), 
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
@@ -314,7 +314,7 @@ val_pipeline = [
 # data loaders
 train_dataloader = dict(
     batch_size=128,
-    num_workers=8,
+    num_workers=4,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
     collate_fn=dict(type='default_collate'),
@@ -332,7 +332,7 @@ train_dataloader = dict(
 )
 val_dataloader = dict(
     batch_size=128,
-    num_workers=8,
+    num_workers=6,
     persistent_workers=True,
     drop_last=False,
     sampler=dict(type='DefaultSampler', shuffle=False, round_up=False),

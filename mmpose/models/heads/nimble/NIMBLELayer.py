@@ -1,5 +1,3 @@
-# Copyright (c) OpenMMLab. All rights reserved.
-#
 '''
     NIMBLE: A Non-rigid Hand Model with Bones and Muscles[SIGGRAPH-22]
     https://reyuwei.github.io/proj/nimble
@@ -245,7 +243,6 @@ class NIMBLELayer(torch.nn.Module):
     def generate_texture(self, alpha, normalized=True):
         if alpha is None:
             return self.tex_mean.unsqueeze(0).repeat(batch_size, 1)
-
         batch_size = alpha.shape[0]
         assert self.tex_ncomp == alpha.shape[1]
 
@@ -394,7 +391,6 @@ class NIMBLELayer(torch.nn.Module):
             root_position = root_trans.view(batch_size, 1, 3)
             center_joint = th_jtr[:, ROOT_JOINT_IDX].unsqueeze(1)
             offset = root_position - center_joint
-
             th_jtr = th_jtr + offset
             th_verts = th_verts + offset
 

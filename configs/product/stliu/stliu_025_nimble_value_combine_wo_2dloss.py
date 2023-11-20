@@ -3,9 +3,9 @@ import os
 
 # from configs._base_.datasets.xs3d import datasets_info as kpt3d_datasets_info
 
-_base_ = ['../../../_base_/default_runtime.py']
+_base_ = ['../../_base_/default_runtime.py']
 
-train_cfg = dict(max_epochs=100, val_interval=1)
+train_cfg = dict(max_epochs=120, val_interval=10)
 
 data_root = '/data/AI_DATA'
 # data_root = '/data/AI_DATA_WX'
@@ -116,7 +116,7 @@ model = dict(
         deploy=False,
         output_sigma=False),
     kpt3d_lift=dict(
-        type='LiftHead',
+        type='LiftHead_Rotation',
         lift_loss=dict(
             type='MultipleLossWrapper',
             losses=[
@@ -134,11 +134,12 @@ model = dict(
                     20),  # 后20 epoch打开pinch loss
             ]),
         channel_num=55,
-        num_layers=4,
         use_kp2d_gt=False,
         kpt2d_with_depth=kpt2d_with_depth,
-        output_num=42,
-        undistort=True),
+        output_num=83,
+        undistort=True,
+        # pre_xyz_type = 0/1/2, 0 指的是 pre的3个xyz都是通过nimble获得的， 1指的是3个pre的z是通过nimble获得的而xy通过uv计算得到的，2指的是3个pre分别为nimble z+origin xy、nimble xyz、前两个值的平均值。
+        pre_xyz_type = 2), 
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
