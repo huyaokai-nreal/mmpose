@@ -441,11 +441,12 @@ class MPJPELoss(nn.Module):
 class L1Loss(nn.Module):
     """L1Loss loss ."""
 
-    def __init__(self, use_target_weight=False, loss_weight=1.):
+    def __init__(self, use_target_weight=False, loss_weight=1., enable_start_epoch=0):
         super().__init__()
         self.criterion = F.l1_loss
         self.use_target_weight = use_target_weight
         self.loss_weight = loss_weight
+        self.enable_start_epoch=enable_start_epoch
 
     def forward(self, output, target, target_weight=None):
         """Forward function.
@@ -466,19 +467,26 @@ class L1Loss(nn.Module):
                                   target * target_weight)
         else:
             loss = self.criterion(output, target)
-
-        return loss * self.loss_weight
+        result_loss = loss * self.loss_weight
+        
+        if self.enable_start_epoch > 0:
+            mh = MessageHub.get_current_instance()
+            cur_epoch = mh.get_info('epoch')
+            if cur_epoch <= self.enable_start_epoch:
+                return result_loss * 0
+        return result_loss
 
 
 @MODELS.register_module()
 class MSELoss(nn.Module):
     """MSE loss for coordinate regression."""
 
-    def __init__(self, use_target_weight=False, loss_weight=1.):
+    def __init__(self, use_target_weight=False, loss_weight=1., enable_start_epoch=0):
         super().__init__()
         self.criterion = F.mse_loss
         self.use_target_weight = use_target_weight
         self.loss_weight = loss_weight
+        self.enable_start_epoch=enable_start_epoch
 
     def forward(self, output, target, target_weight=None):
         """Forward function.
@@ -500,8 +508,16 @@ class MSELoss(nn.Module):
                                   target * target_weight)
         else:
             loss = self.criterion(output, target)
-
-        return loss * self.loss_weight
+        
+        result_loss = loss * self.loss_weight
+            
+        if self.enable_start_epoch > 0:
+            mh = MessageHub.get_current_instance()
+            cur_epoch = mh.get_info('epoch')
+            if cur_epoch <= self.enable_start_epoch:
+                return result_loss * 0
+            
+        return result_loss
 
 
 @MODELS.register_module()

@@ -11,26 +11,25 @@ from torch import Tensor, nn
 from mmpose.models.utils.gmlp import gMLP
 from mmpose.registry import MODELS
 from mmpose.utils.typing import ConfigType, OptSampleList, Predictions
-
+import sys
+sys.path.append("mmpose/models/heads")
+from nimble.NIMBLELayer import NIMBLELayer
 
 @MODELS.register_module()
-class LiftHead(BaseModule):
-    """liftHead for getting 3d keypoints from pair 2d keypoints."""
+class LiftHead_Rotation(BaseModule):
+    """liftHead for getting 3d rotation from pair 2d keypoints."""
 
     def __init__(self,
                  lift_loss: ConfigType,
                  channel_num: int = 55,
-                 num_layers: int = 3,
-                 d_ffn: int = 220,
-                 output_num: int = 42,
+                 output_num: int = 83,                  # rot 20 + trans 3 + shape 20
                  undistort: bool = False,
                  use_kp2d_gt=False,
                  kpt2d_with_depth: bool = False,
-                 reproj: bool = True,
                  noRt=False,
-                 not_use_Rt=False,
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
+                 pre_xyz_type: int=0,
                  init_cfg: Union[dict, List[dict], None] = None):
         super().__init__(init_cfg)
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
@@ -39,10 +38,9 @@ class LiftHead(BaseModule):
         self.kpt2d_with_depth = kpt2d_with_depth
         feat_dim = 2 * self.channel_num
         if self.kpt2d_with_depth:
-            feat_dim += 21
-        self.liftnet = gMLP(
-            d_model=feat_dim, d_ffn=d_ffn, num_layers=num_layers)
+            feat_dim = feat_dim + 21
         self.corruption_cam = corruption_cam
+        self.liftnet = gMLP(d_model=feat_dim, d_ffn=feat_dim * 2, num_layers=3)
         self.last_layer = nn.Sequential(
             nn.Conv2d(feat_dim, feat_dim, kernel_size=1),
             nn.SyncBatchNorm(feat_dim), nn.ReLU(),
@@ -51,18 +49,28 @@ class LiftHead(BaseModule):
         self.undistort = undistort
         self.use_kp2d_gt = use_kp2d_gt
         self.noRt = noRt
-        self.not_use_Rt = not_use_Rt
-        self.reproj = reproj
+        self.pre_xyz_type = pre_xyz_type
+        # define nimble layer
+        self.nimble_layer = NIMBLELayer(
+            base_path="/data/stliu/NIMBLE_model/assets",
+            device="cuda")    
+        self.kp_index = [
+            0, 1, 2, 3, 4, 6, 7, 8, 9, 11, 12, 13, 14, 16, 17, 18, 19, 21, 22,
+            23, 24
+        ]
+        self.scale_parameter = 1000
 
     def forward(self, feats: Tuple[Tensor]) -> Tensor:
         output = self.liftnet(feats)
-        output = self.last_layer(output).view((feats.shape[0], -1, 1, 1))
+        output = self.last_layer(output).view(
+            (feats.shape[0], -1, 1, 1))  # [64, 83, 1, 1]
         return output
 
     def preprocess(self, feats, batch_data_samples):
+        
         xy_coord = feats[..., :2]
         if self.kpt2d_with_depth:
-            depth = feats[..., 2:][::2]
+            depth = feats[..., -1:][::2]
         B = int(len(batch_data_samples) / 2)
         N = 2
         H, W = batch_data_samples[0].input_size
@@ -100,12 +108,12 @@ class LiftHead(BaseModule):
                 rightcam_cam_matrix.append(right_cam_matrix)
                 left_cam_xf = left_camera.camera_to_world_xf
                 right_cam_xf = right_camera.camera_to_world_xf
-                lr_t = np.dot(np.linalg.inv(left_cam_xf),           # lr_rot_matrix 代表的是 右相机向左相机的变换
+                lr_t = np.dot(np.linalg.inv(left_cam_xf),
                               right_cam_xf).astype(np.float32)
-                lr_rot_matrix.append(lr_t[:3, :3])
+                lr_rot_matrix.append(lr_t[:3, :3])                  # lr_rot_matrix 代表的是 右相机向左相机的变换
                 lr_p.append(lr_t[:3, 3])
 
-            warp_mat = data_sample.metainfo['warp_mat']
+            warp_mat = data_sample.metainfo['warp_mat']            # warp mat 代表的是从原图到crop图像的映射
             inv_warp_mat = cv2.invertAffineTransform(warp_mat).astype(
                 np.float32)
             inv_warp_mat = torch.from_numpy(inv_warp_mat).cuda()  # (2,3)
@@ -123,7 +131,6 @@ class LiftHead(BaseModule):
         left_hand = torch.tensor(np.array(is_left_hands)).cuda().float()
         uv_coord_im_gt_global = torch.tensor(
             np.array(uv_coord_im_gt_global)).cuda().float()
-        uv_coord_im_gt_global = uv_coord_im_gt_global[..., :2]
         uv_coord_im_gt_global = uv_coord_im_gt_global.view(B, N, K, 2)
 
         def recover_hand(uv_coord_im_pred, left_hand, w):
@@ -136,30 +143,36 @@ class LiftHead(BaseModule):
             return recover_uv_coord_im_pred
 
         uv_coord_im_pred_crop_leftright = uv_coord_im_pred_crop_right
+        # uv_coord_im_pred_crop_leftright = recover_hand(
+        #     uv_coord_im_pred_crop_right, left_hand, device, W)
+
         uv_coord_im_pred_crop_leftright = uv_coord_im_pred_crop_leftright.view(
             B * N, K, 2)
 
-        # from crop uv to global uv
+        # from crop uv to global uv，也就是加了一个纬度z
         uv_coord_im_pred = torch.cat(
             [uv_coord_im_pred_crop_leftright,
              torch.ones(B * 2, K, 1).cuda()],
             dim=-1)
-        uv_coord_im_pred_global_distort = torch.bmm(uv_coord_im_pred,
+        # 将crop（仿射变换）的图像的关键点恢复到在原图中位置的点，得到的uv_coord_im_pred（对应shape为（256, 21, 3））* all_inv_warp_mat（对应shape为（256, 3, 2））= shape为（256, 21, 2）
+        uv_coord_im_pred_global_distort = torch.bmm(uv_coord_im_pred,    
                                                     all_inv_warp_mat)
-        uv_coord_im_pred_global_distort = uv_coord_im_pred_global_distort.view(
+        uv_coord_im_pred_global_distort = uv_coord_im_pred_global_distort.view(     # 
             B, N, K, 2)
 
+        # 这里将原来的点（不区分左右手的），现在经过了resize以及左手翻转回对应的坐标，这时候是真正的左右的的在原图的坐标位置了（这里指的是还没有去过畸变的点）
         frame_width = batch_data_samples[0].meta['frame_width']
         uv_coord_im_pred_global_distort_noflip = recover_hand(
             uv_coord_im_pred_global_distort, left_hand, frame_width)
-
+        # 执行了相同的操作，只是这里是对真值来做的
         uv_coord_im_gt_global = recover_hand(uv_coord_im_gt_global, left_hand,
                                              frame_width)
 
         if self.use_kp2d_gt:
             uv_coord_im_pred_global = uv_coord_im_gt_global
             depth = left_rel_depth
-        import pdb; pdb.set_trace()
+
+        # 这里指的是去畸变的过程，把预测的点进行去畸变的操作，得到去畸变后的21个点的uv数值
         if self.undistort:
             uv_coord_im_pred_global = \
                 uv_coord_im_pred_global_distort_noflip.clone().view(-1, K, 2)
@@ -173,6 +186,7 @@ class LiftHead(BaseModule):
             uv_coord_im_pred_global = \
                 uv_coord_im_pred_global_distort_noflip.clone()
 
+        # 这地方可以理解是uv坐标系向相机坐标系的转化，能够得到z方向为1的向量
         leftcam_uv = uv_coord_im_pred_global[:, 0]  # (B, 21, 2)
         leftcam_x = (leftcam_uv[:, :, 0] - leftcam_cam_matrix[:, 0, 2].view(
             (B, 1))) / leftcam_cam_matrix[:, 0, 0].view((B, 1))
@@ -200,20 +214,17 @@ class LiftHead(BaseModule):
                         (B * K, 3, 1))) + lr_p.view(
                             (B, 1, 3, 1)).repeat(1, 21, 1, 1).view(
                                 (B * 21, 3, 1))).view((B, 21, 3))
+            # rightcam_xyz1_inworld = (torch.bmm(       
+            #     rightcam_xy_normplane.view((B * K, 3, 1)).permute(0, 2, 1),
+            #     lr_rot_matrix.view((B, 1, 3, 3)).repeat(1, 21, 1, 1).view(
+            #         (B * 21, 3, 3)))  + lr_p.view(
+            #                 (B, 1, 3, 1)).repeat(1, 21, 1, 1).view(
+            #                     (B * 21, 3, 1))).view((B, 21, 3))
             feats = torch.cat(
                 (leftcam_xy.view(B, -1), rightcam_xyz1_inworld.view(
                     (B, -1)), left_hand.view((B, -1))),
                 dim=1).view(B, self.channel_num * 2, 1,
                             1).float()  # 21*2+21*3+1
-        # 不使用外参信息
-        elif self.not_use_Rt:
-            feature1 = torch.cat((leftcam_xy.view(
-                (B, -1)), left_hand.view((B, -1))),
-                                 dim=1).view((B, self.channel_num, 1, 1))
-            feature2 = torch.cat((rightcam_xy.view(
-                (B, -1)), left_hand.view((B, -1))),
-                                 dim=1).view((B, self.channel_num, 1, 1))
-            feats = torch.cat((feature1, feature2), dim=1).float()
         # 隐式的使用Rt
         else:
             Tmatrix_leftcam = torch.tensor(
@@ -222,19 +233,6 @@ class LiftHead(BaseModule):
                 (B, -1)), Tmatrix_leftcam.repeat(B, 1), left_hand.view(
                     (B, -1))),
                                  dim=1).view((B, self.channel_num, 1, 1))
-            # 手动调整lr_p和lr_rot_matrix
-            # from IPython import embed
-            # embed()
-            # lr_rot_matrix_tmp = torch.tensor(
-            #     [[0.9737765, -0.02703234, 0.22589504],
-            #      [0.03400502, 0.99905601, -0.02703234],
-            #      [-0.22495105, 0.03400502, 0.9737765]]).cuda()
-            # lr_rot_matrix_tmp = lr_rot_matrix_tmp.unsqueeze(0).repeat(B, 1, 1)  # noqa
-            # lr_rot_matrix_tmp = lr_rot_matrix
-
-            # lr_p_tmp = torch.tensor([0.1, 0.1, 0.1]).cuda()
-            # lr_p_tmp = lr_p_tmp.unsqueeze(0).repeat(B, 1)
-
             feature2 = torch.cat((rightcam_xy.view((B, -1)), lr_p.view(
                 (B, -1)), lr_rot_matrix.view((B, -1)), left_hand.view(
                     (B, -1))),
@@ -249,29 +247,41 @@ class LiftHead(BaseModule):
         return (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,
                 leftcam_cam_matrix, rightcam_cam_matrix,
                 uv_coord_im_pred_global, uv_coord_im_pred_global_distort,
-                hand3d_gt)
-
-    def postprocess(self, output, leftcam_xy, rightcam_xy, lr_rot_matrix,
-                    lr_p):
+                hand3d_gt, left_hand)
+    
+    def postprocess(self, output, left_hand, leftcam_xy):
+        
         B = output.shape[0]
-        leftcam_Z = output[:, :21].view((B, 21, 1))
-        leftcam_XYZ = torch.cat((leftcam_xy * leftcam_Z, leftcam_Z),
-                                dim=2).view((B, 21, 3))
-        rightcam_Z = output[:, 21:21 * 2].reshape((B, 21, 1))
-        rightcam_XYZ = torch.cat((rightcam_xy * rightcam_Z, rightcam_Z),
-                                 dim=2).view((B * 21, 3, 1))
-
-        rightcam_XYZ = (torch.bmm(
-            lr_rot_matrix.view((B, 1, 3, 3)).repeat(1, 21, 1, 1).view(
-                (B * 21, 3, 3)), rightcam_XYZ) + lr_p.view(
-                    (B, 1, 3, 1)).repeat(1, 21, 1, 1).view(
-                        (B * 21, 3, 1))).view((B, 21, 3))
-
-        hand3d_pred = (
-            self.corruption_cam * leftcam_XYZ +
-            (1 - self.corruption_cam) * rightcam_XYZ)
-
-        return hand3d_pred, leftcam_XYZ, rightcam_XYZ
+        rot_vector = output[:, :60, 0, 0]
+        trans_vector = output[:, 60:63, 0, 0]
+        shape_vector = output[:,63:, 0, 0]
+        
+        skin_v, bone_joints = self.nimble_layer.forward(rot_vector, shape_vector, handle_collision=True)
+        rebuild_joints = bone_joints[:, self.kp_index, :]
+        root_rebuild_joints = rebuild_joints[:, 0:1, :]
+        
+        mask = left_hand == 1 
+        rebuild_joints_temp = rebuild_joints - root_rebuild_joints
+        rebuild_joints_temp[mask, :, 0] = -rebuild_joints_temp[mask, :, 0]
+        # rebuild_joints = rebuild_joints_temp + root_rebuild_joints
+        rebuild_joints_with_scale = rebuild_joints_temp / self.scale_parameter
+        
+        nimble_xyz = rebuild_joints_with_scale + trans_vector.view((B, 1, 3, 1)).repeat(1, 21, 1, 1).view((B * 21, 3, 1)).view((B, 21, 3))
+        if self.pre_xyz_type==0:
+            return nimble_xyz, nimble_xyz, nimble_xyz
+        else:
+            nimble_Z = nimble_xyz[:,:,2:].view((B, 21, 1))
+            rebuild_xyz = torch.cat((leftcam_xy * nimble_Z, nimble_Z), dim=2).view((B, 21, 3))
+            if self.pre_xyz_type == 1:
+                return rebuild_xyz, rebuild_xyz, rebuild_xyz
+            elif self.pre_xyz_type == 2:
+                hand3d_pred = (self.corruption_cam * rebuild_xyz +
+                (1 - self.corruption_cam) * nimble_xyz)
+                return hand3d_pred, nimble_xyz, rebuild_xyz
+        # nimble_Z = nimble_xyz[:,:,2:].view((B, 21, 1))
+        # rebuild_xyz = torch.cat((leftcam_xy * nimble_Z, nimble_Z), dim=2).view((B, 21, 3))
+        # hand3d_pred = (self.corruption_cam * rebuild_xyz + (1 - self.corruption_cam) * nimble_xyz)
+        # return hand3d_pred, nimble_xyz, rebuild_xyz
 
     def predict(self,
                 feats: Tuple[Tensor],
@@ -281,76 +291,104 @@ class LiftHead(BaseModule):
             (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,
              leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global,
              uv_coord_im_pred_global_distort,
-             hand3d_gt) = self.preprocess(feats, batch_data_samples)
+             hand3d_gt, left_hand) = self.preprocess(feats, batch_data_samples)
         output = self.forward(feats)
-        hand3d_pred = self.postprocess(output, leftcam_xy, rightcam_xy,
-                                       lr_rot_matrix, lr_p)[0]
-        if self.reproj:
-            leftcam_uv_reproj = torch.matmul(
-                hand3d_pred, leftcam_cam_matrix.permute(0, 2, 1))
-            leftcam_uv_reproj = \
-                leftcam_uv_reproj[..., :2] / leftcam_uv_reproj[..., 2:]
-            camera_model = batch_data_samples[0].meta[
-                'ori_camera']  # leftcam model
-            leftcam_uv_reproj_distort = camera_model.eye_to_window(
-                hand3d_pred.cpu().numpy())
-            leftcam_uv_reproj_distort = torch.tensor(
-                leftcam_uv_reproj_distort).cuda()
-            return hand3d_pred, leftcam_uv_reproj_distort[:, None, ...]
-        else:
-            return hand3d_pred, uv_coord_im_pred_global_distort
+        hand3d_pred  = self.postprocess(output, left_hand, leftcam_xy)[1]
+        leftcam_uv_reproj = torch.matmul(hand3d_pred,
+                                         leftcam_cam_matrix.permute(0, 2, 1))
+        leftcam_uv_reproj = \
+            leftcam_uv_reproj[..., :2] / leftcam_uv_reproj[..., 2:]
+        
+        return hand3d_pred, uv_coord_im_pred_global_distort
+        # return hand3d_pred, leftcam_uv_reproj[:, None, ...]
+
+    def cal_proportion(self, uv_coor, leftcam_cam_matrix):
+        B = uv_coor.shape[0]
+        leftcam_x = (uv_coor[:, :, 0] - leftcam_cam_matrix[:, 0, 2].view(
+            (B, 1))) / leftcam_cam_matrix[:, 0, 0].view((B, 1))
+        leftcam_y = (uv_coor[:, :, 1] - leftcam_cam_matrix[:, 1, 2].view(
+            (B, 1))) / leftcam_cam_matrix[:, 1, 1].view((B, 1))
+        leftcam_xy = torch.cat(
+            (leftcam_x.unsqueeze(-1), leftcam_y.unsqueeze(-1)),
+            dim=2)  # (B, 21, 2)
+        return leftcam_xy
+
+    def trans_3d_2_2d(self, hand3d_point, leftcam_cam_matrix, rightcam_cam_matrix, lr_rot_matrix, lr_p):
+        left_point_normal_t = hand3d_point[..., :2] / hand3d_point[...,  2:]
+        left_point_normal = torch.cat([left_point_normal_t,torch.ones(left_point_normal_t.shape[0], left_point_normal_t.shape[1], 1).cuda()], dim=-1)
+        leftcam_uv_reproj = torch.matmul(leftcam_cam_matrix.unsqueeze(1).repeat(1, 21, 1, 1), left_point_normal.unsqueeze(-1))[:,:,:2,0]
+        
+        right_point = torch.matmul((hand3d_point - lr_p.unsqueeze(1)), torch.inverse(lr_rot_matrix))
+        right_point_normal_t = right_point[..., :2] / right_point[...,  2:]
+        right_point_normal = torch.cat([right_point_normal_t,torch.ones(right_point_normal_t.shape[0], right_point_normal_t.shape[1], 1).cuda()], dim=-1)
+        rightcam_uv_reproj = torch.matmul(rightcam_cam_matrix.unsqueeze(1).repeat(1, 21, 1, 1), right_point_normal.unsqueeze(-1))[:,:,:2,0]
+        
+        # import pdb; pdb.set_trace()
+        # # 之前的
+        # leftcam_uv_reproj = torch.matmul(hand3d_point, leftcam_cam_matrix.permute(0, 2, 1))
+        # leftcam_uv_reproj = leftcam_uv_reproj[..., :2] / leftcam_uv_reproj[...,  2:]
+        
+        # rightcam_uv_reproj = torch.matmul((hand3d_point - lr_p.unsqueeze(1)), torch.inverse(lr_rot_matrix))
+        # rightcam_uv_reproj = torch.matmul(rightcam_uv_reproj,
+        #                                   rightcam_cam_matrix.permute(0, 2, 1))
+        # rightcam_uv_reproj = rightcam_uv_reproj[..., :2] / rightcam_uv_reproj[..., 2:]  
+        return leftcam_uv_reproj, rightcam_uv_reproj
 
     def loss(self,
              feats: Tuple[Tensor],
              batch_data_samples: OptSampleList,
              train_cfg: ConfigType = {}) -> dict:
         """Calculate losses from a batch of inputs and data samples."""
+
         with torch.no_grad():
             (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,
              leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global,
              uv_coord_im_pred_global_distort,
-             hand3d_gt) = self.preprocess(feats, batch_data_samples)
+             hand3d_gt, left_hand) = self.preprocess(feats, batch_data_samples)
+        
         output = self.forward(feats)
-        hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
-            output, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p)
-        leftcam_uv_reproj = torch.matmul(hand3d_pred,
-                                         leftcam_cam_matrix.permute(0, 2, 1))
-        leftcam_uv_reproj = leftcam_uv_reproj[..., :2] / leftcam_uv_reproj[...,
-                                                                           2:]
-
-        rightcam_uv_reproj = torch.matmul(
-            hand3d_pred, lr_rot_matrix) - torch.matmul(
-                lr_rot_matrix.permute(0, 2, 1), lr_p.unsqueeze(-1)).reshape(
-                    (-1, 1, 3))
-        rightcam_uv_reproj = torch.matmul(rightcam_uv_reproj,
-                                          rightcam_cam_matrix.permute(0, 2, 1))
-        rightcam_uv_reproj = rightcam_uv_reproj[..., :2] / rightcam_uv_reproj[
-            ..., 2:]
-
-        leftcam_uv_gt = uv_coord_im_pred_global[:, 0]
-        rightcam_uv_gt = uv_coord_im_pred_global[:, 1]
+        hand3d_pred, hand3d_nimble_xyz, hand3d_rebuild_xyz = self.postprocess(output, left_hand, leftcam_xy)
+        
+        leftcam_uv_pre, rightcam_uv_pre = self.trans_3d_2_2d(hand3d_nimble_xyz, leftcam_cam_matrix, rightcam_cam_matrix, lr_rot_matrix, lr_p)
+        
+        # 这里之前是把zuoxin的2d点当作真值了
+        # leftcam_uv_gt = uv_coord_im_pred_global[:, 0]
+        # rightcam_uv_gt = uv_coord_im_pred_global[:, 1]
+        # 直接把真实的2d点（也就是3d投影后的）当作真值
+        leftcam_uv_gt, rightcam_uv_gt = self.trans_3d_2_2d(hand3d_gt, leftcam_cam_matrix, rightcam_cam_matrix, lr_rot_matrix, lr_p)
 
         # major_gt = torch.cat(
         #     (hand3d_gt[:, 1:10, :], hand3d_gt[:, 13, :].unsqueeze(1)), dim=1)
         # major_pred = torch.cat(
         #     (hand3d_pred[:, 1:10, :], hand3d_pred[:, 13, :].unsqueeze(1)),
         #     dim=1)
+            
+        proportion_xyz_pre = self.cal_proportion(leftcam_uv_pre,leftcam_cam_matrix)
+        proportion_xyz_gt = self.cal_proportion(leftcam_uv_gt,leftcam_cam_matrix)
+        
+        # 数据归一化
+        leftcam_uv_pre = leftcam_uv_pre/500
+        rightcam_uv_pre = rightcam_uv_pre/500
+        leftcam_uv_gt = leftcam_uv_gt/500
+        rightcam_uv_gt = rightcam_uv_gt/500        
 
         # origin distance, no norm
         dist_pred = torch.norm(
-            hand3d_pred[:, 4, :] - hand3d_pred[:, 8, :], dim=-1)
+            hand3d_nimble_xyz[:, 4, :] - hand3d_nimble_xyz[:, 8, :], dim=-1)
         dist_gt = torch.norm(hand3d_gt[:, 4, :] - hand3d_gt[:, 8, :], dim=-1)
         pred_for_loss = [
-            hand3d_pred, leftcam_XYZ, rightcam_XYZ, leftcam_uv_reproj,
-            rightcam_uv_reproj, dist_pred
+            hand3d_pred, hand3d_nimble_xyz, hand3d_rebuild_xyz, leftcam_uv_pre,
+            rightcam_uv_pre, dist_pred, proportion_xyz_pre
         ]
         targ_for_loss = [
             hand3d_gt, hand3d_gt, hand3d_gt, leftcam_uv_gt, rightcam_uv_gt,
-            dist_gt
+            dist_gt, proportion_xyz_gt
         ]
+
         losses = self.lift_loss(pred_for_loss, targ_for_loss)
         (loss_mse_3d, loss_mse_3d_leftcam, loss_mse_3d_rightcam,
-         loss_mse_2d_leftcam, loss_mse_2d_rightcam, loss_pinch) = losses
+         loss_mse_2d_leftcam, loss_mse_2d_rightcam, loss_pinch, loss_scale) = losses
+        
         if self.lambda_t > 0:
             mh = MessageHub.get_current_instance()
             cur_epoch = mh.get_info('epoch')
@@ -363,6 +401,10 @@ class LiftHead(BaseModule):
             loss_mse_3d_rightcam=loss_mse_3d_rightcam,
             loss_mse_2d_leftcam=loss_mse_2d_leftcam,
             loss_mse_2d_rightcam=loss_mse_2d_rightcam,
-            loss_pinch=loss_pinch)
+            loss_pinch = loss_pinch,
+            loss_scale = loss_scale
+        )
 
         return losses_dict
+# CUDA_VISIBLE_DEVICES=1 python tools/train.py configs/product/stliu/debug.py  --work-dir work_dirs/pair_hand3d/test
+# PORT=10002 bash tools/dist_train.sh configs/product/stliu/stliu_031_nimble_value_combine_w_2dloss_weight10.py  8 --work-dir work_dirs/pair_hand3d_new/fit_rot_1101

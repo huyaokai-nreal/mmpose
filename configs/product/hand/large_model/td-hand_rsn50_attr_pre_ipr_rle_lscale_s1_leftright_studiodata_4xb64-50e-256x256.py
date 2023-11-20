@@ -125,10 +125,13 @@ train_data_list = [
     'data_hand/hand_keypoint/annotations/nreal_studio__all__normal__left__1000__0007__20230809_090503__undistort_tar_4k_lmdb.json',
     'data_hand/hand_keypoint/annotations/nreal_studio__all__normal__right__1000__0006__20230809_054849__undistort_tar_4k_lmdb.json',
     'data_hand/hand_keypoint/annotations/XS__20230830__1111__0005__undistort_tar_flir__30__binocular__lmdb.json',
-    'data_hand/hand_keypoint/annotations/XS__20230904__1111__0021__undistort_tar_flir__30__binocular__lmdb.json'
+    'data_hand/hand_keypoint/annotations/XS__20230904__1111__0021__undistort_tar_flir__30__binocular__lmdb.json',
+    'data_hand/hand_keypoint/annotations/XS__20230831__1111__0002__undistort_tar_flir__30__binocular__lmdb.json',
+    'data_hand/hand_keypoint/annotations/XS__20230830__1111__0019__undistort_tar_flir__30__binocular__lmdb.json',
+    'data_hand/hand_keypoint/annotations/XS__20230831__1111__0020__undistort_tar_flir__30__binocular__lmdb.json'
 ]
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
-studio_data_num = 12
+studio_data_num = 15
 studio_data_weight = 0.9
 dataset_weight_list = [
     (1 - studio_data_weight) / (len(train_data_list) - studio_data_num)

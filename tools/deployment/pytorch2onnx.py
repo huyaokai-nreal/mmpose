@@ -5,7 +5,8 @@ import os
 import numpy as np
 import torch
 from torch import nn
-
+import sys
+sys.path.append("/data/stliu/mmpose")
 from mmpose.apis import init_model
 from mmpose.utils import md5sum
 
@@ -271,3 +272,6 @@ if __name__ == '__main__':
         simplify=args.simplify,
         dyn_batch=args.dyn_batch,
         graph_mode=args.graph_mode)
+
+
+# python tools/deployment/pytorch2onnx.py  configs/product/hand/large_model/td-hand_rsn50_attr_pre_ipr_rle_lscale_s1_leftright_studiodata_4xb64-50e-256x256.py --checkpoint /data/stliu/mmpose/work_dirs/2d_pretrain/2d_pretrain_20231030/epoch_30.pth --shape 1 1 256 256  --verify --sim  --fuse-pre  --deploy-head --dyn-batch   --output-file   rsn50_lscale_nrealstudio_attr_231101.onnx -gm eval  --output-names  kpt attr

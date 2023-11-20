@@ -3,9 +3,9 @@ import os
 
 # from configs._base_.datasets.xs3d import datasets_info as kpt3d_datasets_info
 
-_base_ = ['../../../_base_/default_runtime.py']
+_base_ = ['../../_base_/default_runtime.py']
 
-train_cfg = dict(max_epochs=100, val_interval=1)
+train_cfg = dict(max_epochs=120, val_interval=10)
 
 data_root = '/data/AI_DATA'
 # data_root = '/data/AI_DATA_WX'
@@ -116,7 +116,7 @@ model = dict(
         deploy=False,
         output_sigma=False),
     kpt3d_lift=dict(
-        type='LiftHead',
+        type='LiftHead_Rotation',
         lift_loss=dict(
             type='MultipleLossWrapper',
             losses=[
@@ -136,8 +136,9 @@ model = dict(
         channel_num=55,
         use_kp2d_gt=False,
         kpt2d_with_depth=kpt2d_with_depth,
-        output_num=42,
-        undistort=True),
+        output_num=83,
+        undistort=True,
+        pre_xyz_type = 1),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
@@ -313,7 +314,7 @@ val_pipeline = [
 # data loaders
 train_dataloader = dict(
     batch_size=128,
-    num_workers=8,
+    num_workers=4,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
     collate_fn=dict(type='default_collate'),
@@ -331,7 +332,7 @@ train_dataloader = dict(
 )
 val_dataloader = dict(
     batch_size=128,
-    num_workers=8,
+    num_workers=6,
     persistent_workers=True,
     drop_last=False,
     sampler=dict(type='DefaultSampler', shuffle=False, round_up=False),

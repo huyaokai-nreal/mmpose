@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Copyright (c) OpenMMLab. All rights reserved.
+# PORT=10020 bash tools/dist_test.sh  configs/product/stliu/stliu_048_fit_xyz_3dloss_svd.py /data/stliu/mmpose/work_dirs/pair_hand3d_new/fit_xyz_3dloss_svd/best_all_mpjpe_epoch_140.pth 4 --work-dir work_dirs/pair_hand3d_old/test
 
 CONFIG=$1
 CHECKPOINT=$2
