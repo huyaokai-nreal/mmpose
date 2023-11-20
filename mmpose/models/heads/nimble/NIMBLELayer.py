@@ -6,8 +6,8 @@
 import torch
 import trimesh
 import sys
-sys.path.append("/data/stliu/mmpose/mmpose/models/heads/nimble")
-from utils import *
+sys.path.append("./mmpose/models/heads/nimble")
+from nimble_utils import *
 
 def procrustes_align(
     from_points: torch.Tensor,

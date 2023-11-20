@@ -1,2 +1,0 @@
-PORT=10006 bash tools/dist_train.sh configs/product/stliu/stliu_056_fit_xyz_3dloss_svd_pca_simple_shape5_pose20_direct.py  8 --amp  --auto-scale-lr --work-dir work_dirs/pair_hand3d_new/fit_xyz_3dloss_svd_pca_simple_shape5_pose20_direct
-PORT=10006 bash tools/dist_train.sh configs/product/stliu/stliu_057_fit_xyz_3dloss_svd_pca_simple_shape5_pose20.py  8 --amp  --auto-scale-lr --work-dir work_dirs/pair_hand3d_new/fit_xyz_3dloss_svd_pca_simple_shape5_pose20

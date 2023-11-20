@@ -111,7 +111,7 @@ class LiftHead_Rotation(BaseModule):
             self.nimble_layer = sim_NIMBLELayer(device="cuda",  shape_ncomp=self.shape_ncomp, pose_ncomp=self.pose_ncomp, use_pose_pca = self.use_nimble_pca)
         else:
             self.nimble_layer = NIMBLELayer(
-                base_path="/data/stliu/NIMBLE_model/assets",
+                base_path="/data/AI_DATA_WX/data_hand/nimble_model",
                 device="cuda",
                 shape_ncomp=self.shape_ncomp, 
                 pose_ncomp=self.pose_ncomp,
@@ -513,7 +513,6 @@ class LiftHead_Rotation(BaseModule):
                 gt_nimble_trans = nimble_info["nimble_trans"]
                 gt_nimble_pose_rot = nimble_info["nimble_pose"].reshape(-1,60)
             pre_nimble_pose = output[:, :self.pose_ncomp, 0, 0]
-            from IPython import embed; embed()
             gt_nimble_pose = self.nimble_layer.convert_rot_to_pca(gt_nimble_pose_rot)
         else:
             pre_nimble_pose = output[:, :self.pose_ncomp, 0, 0]
@@ -589,5 +588,3 @@ class LiftHead_Rotation(BaseModule):
         )    
 
         return losses_dict
-# CUDA_VISIBLE_DEVICES=1 python tools/train.py configs/product/stliu/debug.py  --work-dir work_dirs/pair_hand3d/test
-# PORT=10002 bash tools/dist_train.sh configs/product/stliu/stliu_031_nimble_value_combine_w_2dloss_weight10.py  8 --work-dir work_dirs/pair_hand3d_new/fit_rot_1101

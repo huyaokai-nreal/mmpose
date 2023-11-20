@@ -6,8 +6,8 @@
 import torch
 import trimesh
 import sys
-sys.path.append("/data/stliu/mmpose/mmpose/models/heads/nimble")
-from utils import *
+sys.path.append("./mmpose/models/heads/nimble")
+from nimble_utils import *
 
 class sim_NIMBLELayer(torch.nn.Module):
     __constants__ = [
@@ -16,7 +16,7 @@ class sim_NIMBLELayer(torch.nn.Module):
     def __init__(self, device, shape_ncomp=20, pose_ncomp=30, use_pose_pca=False):
         super(sim_NIMBLELayer, self).__init__()
         self.device = device
-        self.base_nimble_path = "/data/stliu/mmpose/mmpose/models/heads/nimble/nimble_simple.npy"
+        self.base_nimble_path = "/data/AI_DATA_WX/data_hand/nimble_model/nimble_simple.npy"
         nimble_info = np.load(self.base_nimble_path, allow_pickle=True).item()
 
         identity_rot = torch.eye(3).to(self.device)
