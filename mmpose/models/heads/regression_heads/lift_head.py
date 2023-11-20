@@ -100,7 +100,7 @@ class LiftHead(BaseModule):
                 rightcam_cam_matrix.append(right_cam_matrix)
                 left_cam_xf = left_camera.camera_to_world_xf
                 right_cam_xf = right_camera.camera_to_world_xf
-                lr_t = np.dot(np.linalg.inv(left_cam_xf),           # lr_rot_matrix 代表的是 右相机向左相机的变换
+                lr_t = np.dot(np.linalg.inv(left_cam_xf),
                               right_cam_xf).astype(np.float32)
                 lr_rot_matrix.append(lr_t[:3, :3])
                 lr_p.append(lr_t[:3, 3])
@@ -161,7 +161,7 @@ class LiftHead(BaseModule):
         if self.use_kp2d_gt:
             uv_coord_im_pred_global = uv_coord_im_gt_global.clone()
             depth = left_rel_depth
-        import pdb; pdb.set_trace()
+
         if self.undistort:
             for i, data_sample in enumerate(batch_data_samples):
                 if data_sample.meta.get('stereo_aug', False):

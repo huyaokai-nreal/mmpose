@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from torch import nn
 import sys
-sys.path.append("/data/stliu/mmpose")
+sys.path.append(".")
 from mmpose.apis import init_model
 from mmpose.utils import md5sum
 
