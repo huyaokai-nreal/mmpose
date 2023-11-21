@@ -7,8 +7,7 @@ import torch
 from mmengine.config import Config, DictAction
 from mmengine.registry import init_default_scope
 from mmengine.runner import Runner
-import sys
-sys.path.append(".")
+
 from mmpose.utils import register_all_modules
 
 torch.multiprocessing.set_sharing_strategy('file_system')
