@@ -5,9 +5,7 @@
 
 import torch
 import trimesh
-import sys
-sys.path.append("./mmpose/models/heads/nimble")
-from nimble_utils import *
+from mmpose.models.heads.nimble.nimble_utils import *
 
 class sim_NIMBLELayer(torch.nn.Module):
     __constants__ = [

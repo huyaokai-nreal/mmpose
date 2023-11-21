@@ -11,10 +11,9 @@ from torch import Tensor, nn
 from mmpose.models.utils.gmlp import gMLP
 from mmpose.registry import MODELS
 from mmpose.utils.typing import ConfigType, OptSampleList, Predictions
-import sys
-sys.path.append("mmpose/models/heads")
-from nimble.NIMBLELayer import NIMBLELayer, procrustes_align
-from nimble.simple_NIMBLELayer import sim_NIMBLELayer
+
+from mmpose.models.heads.nimble.NIMBLELayer import NIMBLELayer, procrustes_align
+from mmpose.models.heads.nimble.simple_NIMBLELayer import sim_NIMBLELayer
 
 def _gen_rigid_features():
     rigid_samples = np.array(
