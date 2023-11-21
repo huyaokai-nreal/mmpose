@@ -364,5 +364,4 @@ class LiftHead(BaseModule):
             loss_mse_2d_leftcam=loss_mse_2d_leftcam,
             loss_mse_2d_rightcam=loss_mse_2d_rightcam,
             loss_pinch=loss_pinch)
-
         return losses_dict
