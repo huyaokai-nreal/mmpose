@@ -371,7 +371,7 @@ class LiftHeadSeq(BaseModule):
         ]
         losses = self.lift_loss(pred_for_loss, targ_for_loss)
         (loss_mse_3d, loss_mse_3d_leftcam, loss_mse_3d_rightcam,
-         loss_mse_2d_leftcam, loss_mse_2d_rightcam) = losses
+         loss_mse_2d_leftcam, loss_mse_2d_rightcam, loss_pinch) = losses
         if self.lambda_t > 0:
             mh = MessageHub.get_current_instance()
             cur_epoch = mh.get_info('epoch')
@@ -398,6 +398,7 @@ class LiftHeadSeq(BaseModule):
             loss_mse_3d_rightcam=loss_mse_3d_rightcam,
             loss_mse_2d_leftcam=loss_mse_2d_leftcam,
             loss_mse_2d_rightcam=loss_mse_2d_rightcam,
+            loss_pinch=loss_pinch,
             loss_delta_acc=loss_delta_acc)
 
         return losses_dict
