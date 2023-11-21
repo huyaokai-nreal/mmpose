@@ -46,7 +46,7 @@ def _gen_rigid_features():
     return rigid_samples_rescaled
 
 @MODELS.register_module()
-class LiftHead_Rotation(BaseModule):
+class LiftNimbleHead(BaseModule):
     """liftHead for getting 3d rotation from pair 2d keypoints."""
 
     def __init__(self,
