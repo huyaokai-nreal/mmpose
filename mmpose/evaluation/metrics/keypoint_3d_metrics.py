@@ -149,7 +149,9 @@ class MPJPEV2(MPJPE):
                  result_dir=None,
                  with_tag=False,
                  pinch_thre: list = [20, 40],
-                 scale_metric: bool = False,
+                 scale_metric=False,
+                 fit_metric=False,
+                 openhand_metric=False,
                  bmk_save_root: str = '',
                  show_bmk_thr: tuple = (0, 10),
                  filter_exceed: bool = False) -> None:
@@ -162,10 +164,15 @@ class MPJPEV2(MPJPE):
             with_tag=with_tag,
             bmk_save_root=bmk_save_root,
             scale_metric=scale_metric,
+            fit_metric=fit_metric,
+            openhand_metric=openhand_metric,
             show_bmk_thr=show_bmk_thr,
             filter_exceed=filter_exceed)
         self.self_stability_metric = SelfStabilityMetric(reduction='mean')
-        self.pinch_metric = PinchMetric(pinch_thre=pinch_thre)
+        self.pinch_metric = PinchMetric(
+            pinch_thre=pinch_thre,
+            fit_metric=fit_metric,
+            filter_exceed=filter_exceed)
 
     def process(self, data_batch, data_samples: Sequence[dict]) -> None:
         for data_sample in data_samples:
