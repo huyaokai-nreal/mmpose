@@ -11,6 +11,7 @@ from .loss_wrappers import CombinedLoss, MultipleLossWrapper
 from .regression_loss import (BoneLoss, L1Loss, MPJPELoss, MSELoss, PinchLoss,
                               RLELoss, SemiSupervisionLoss, SmoothL1Loss,
                               SoftWeightSmoothL1Loss, SoftWingLoss, WingLoss)
+from .seq_smooth_loss import MPJPAELoss, MPJPALoss
 
 __all__ = [
     'KeypointMSELoss', 'KeypointOHKMMSELoss', 'SmoothL1Loss', 'WingLoss',
@@ -20,5 +21,5 @@ __all__ = [
     'AssociativeEmbeddingLoss', 'SoftWeightSmoothL1Loss', 'JointsL2Loss',
     'FocalHeatmapLoss', 'CombinedTargetMSELoss', 'FocalLoss', 'PinchLoss',
     'AssociativeEmbeddingLoss', 'SoftWeightSmoothL1Loss', 'FeaLoss', 'KDLoss',
-    'KDLoss3D'
+    'KDLoss3D', 'MPJPAELoss', 'MPJPALoss'
 ]

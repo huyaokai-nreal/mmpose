@@ -363,35 +363,22 @@ class LiftHeadSeq(BaseModule):
         dist_gt = torch.norm(hand3d_gt[:, 4, :] - hand3d_gt[:, 8, :], dim=-1)
         pred_for_loss = [
             hand3d_pred, leftcam_XYZ, rightcam_XYZ, leftcam_uv_reproj,
-            rightcam_uv_reproj, dist_pred, major_pred
+            rightcam_uv_reproj, dist_pred, hand3d_pred, major_pred
         ]
         targ_for_loss = [
             hand3d_gt, hand3d_gt, hand3d_gt, leftcam_uv_gt, rightcam_uv_gt,
-            dist_gt, major_gt
+            dist_gt, hand3d_gt, major_gt
         ]
         losses = self.lift_loss(pred_for_loss, targ_for_loss)
         (loss_mse_3d, loss_mse_3d_leftcam, loss_mse_3d_rightcam,
-         loss_mse_2d_leftcam, loss_mse_2d_rightcam, loss_pinch) = losses
+         loss_mse_2d_leftcam, loss_mse_2d_rightcam, loss_pinch,
+         loss_smooth) = losses
         if self.lambda_t > 0:
             mh = MessageHub.get_current_instance()
             cur_epoch = mh.get_info('epoch')
             if cur_epoch <= self.lambda_t:
                 loss_mse_2d_leftcam *= 0
                 loss_mse_2d_rightcam *= 0
-        # smooth loss
-
-        hand3d_pred = hand3d_pred.reshape(-1, self.seq_len, 21, 3)
-        x1 = hand3d_pred[:, 0:self.seq_len - 3]
-        x2 = hand3d_pred[:, 1:self.seq_len - 2]
-        x3 = hand3d_pred[:, 2:self.seq_len - 1]
-        x4 = hand3d_pred[:, 3:self.seq_len]
-
-        hand3d_acc = -x1 + 3 * x2 - 3 * x3 + x4  # delta acc
-        loss_delta_acc = hand3d_acc.abs().mean()
-
-        # hand3d_gt_pre
-        # hand3d_gt_pre_pre
-        # hand3d_pred
         losses_dict = dict(
             loss_mse_3d=loss_mse_3d,
             loss_mse_3d_leftcam=loss_mse_3d_leftcam,
@@ -399,7 +386,7 @@ class LiftHeadSeq(BaseModule):
             loss_mse_2d_leftcam=loss_mse_2d_leftcam,
             loss_mse_2d_rightcam=loss_mse_2d_rightcam,
             loss_pinch=loss_pinch,
-            loss_delta_acc=loss_delta_acc)
+            loss_smooth=loss_smooth)
 
         return losses_dict
 
