@@ -4,11 +4,46 @@ import math
 from typing import Iterator, List, Optional, Sized, Union
 
 import torch
+from mmengine.dataset.sampler import DefaultSampler
 from mmengine.dist import get_dist_info, sync_random_seed
 from torch.utils.data import Sampler
 
 from mmpose.datasets import CombinedDataset
 from mmpose.registry import DATA_SAMPLERS
+
+
+@DATA_SAMPLERS.register_module()
+class DistributedRangeSampler(DefaultSampler):
+
+    def __init__(self,
+                 dataset: Sized,
+                 shuffle: bool = True,
+                 seed: Optional[int] = None,
+                 round_up: bool = True) -> None:
+        super().__init__(dataset, shuffle, seed, round_up)
+
+    def __iter__(self) -> Iterator[int]:
+        """Iterate the indices."""
+        # deterministically shuffle based on epoch and seed
+        if self.shuffle:
+            g = torch.Generator()
+            g.manual_seed(self.seed + self.epoch)
+            indices = torch.randperm(len(self.dataset), generator=g).tolist()
+        else:
+            indices = torch.arange(len(self.dataset)).tolist()
+
+        # add extra samples to make it evenly divisible
+        if self.round_up:
+            indices = (
+                indices *
+                int(self.total_size / len(indices) + 1))[:self.total_size]
+
+        # subsample
+        start_id = self.rank * self.num_samples
+        end_id = min(start_id + self.num_samples, len(indices))
+        indices = indices[start_id:end_id]
+
+        return iter(indices)
 
 
 @DATA_SAMPLERS.register_module()

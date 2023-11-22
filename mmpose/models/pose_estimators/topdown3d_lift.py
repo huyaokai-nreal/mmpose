@@ -1,5 +1,5 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-from itertools import zip_longest
+from itertools import chain, zip_longest
 from typing import Optional, Tuple
 
 import numpy as np
@@ -311,7 +311,7 @@ class TopdownPoseLiftEstimatorSeq(TopdownPoseLiftEstimator):
                  data_preprocessor: OptConfigType = None,
                  init_cfg: OptMultiConfig = None,
                  metainfo: Optional[dict] = None,
-                 seq_len: int = 1):
+                 seq_len: int = 32):
         super().__init__(backbone, neck, head, kpt3d_lift, train_cfg, test_cfg,
                          data_preprocessor, init_cfg, metainfo)
         self.seq_len = seq_len
@@ -376,29 +376,42 @@ class TopdownPoseLiftEstimatorSeq(TopdownPoseLiftEstimator):
                 depth = outputs[2]
                 depth = (depth - 0.5) * 0.4  # 0.4 is the depth bound
                 xy_sigma = torch.cat([xy_sigma, depth], dim=-1)
-        # pred, pred_bino_kp2d = self.kpt3d_lift.predict(
-        #     xy_sigma, data_samples, test_cfg=self.test_cfg)
-
         batch_pred_instances = []
         mem = None
-        for b in range(inputs.shape[0] // 2):
-            # from IPython import embed; embed()
-            pred, pred_bino_kp2d, mem2 = self.kpt3d_lift.predict(
-                xy_sigma[b * 2:b * 2 + 2, ...],
-                data_samples[b * 2:b * 2 + 2],
+        assert inputs.shape[
+            0] // 2 % self.seq_len == 0, \
+            f'batch size {inputs.shape[0]//2} can be divided by {self.seq_len}'
+        clip_len = self.seq_len * 2
+        clip_num = inputs.shape[0] // clip_len
+        N = xy_sigma.shape[-2]
+        K = xy_sigma.shape[-1]
+        xy_sigma_input = xy_sigma.reshape(clip_num, clip_len, N, K)
+        for b in range(self.seq_len):
+            sub_xy_input = xy_sigma_input[:, 2 * b:2 * b +
+                                          2, :].reshape(-1, N, K)
+            data_sample_id_list = [[
+                2 * b + clip_id * clip_len, 2 * b + 1 + clip_id * clip_len
+            ] for clip_id in range(clip_num)]
+            data_sample_id_list = list(
+                chain.from_iterable(data_sample_id_list))
+            pred, pred_bino_kp2d, mem = self.kpt3d_lift.predict(
+                sub_xy_input, [data_samples[i] for i in data_sample_id_list],
                 mem,
                 test_cfg=self.test_cfg)
-            mem = mem2
-            keypoints = pred_bino_kp2d[:, 0, ...]  # gt为左目信息
-            batch_pred_instances.append(
-                InstanceData(
-                    keypoints3d=pred,
-                    keypoints3d_scores=torch.ones((1, 21)),
-                    keypoints=keypoints,
-                    keypoint_scores=torch.ones((1, 21)),
-                ))
+            for b in range(pred.shape[0]):
+                keypoints = pred_bino_kp2d[b:b + 1, 0, ...]  # gt为左目信息
+                batch_pred_instances.append(
+                    InstanceData(
+                        keypoints3d=pred[b:b + 1, ...],
+                        keypoints3d_scores=torch.ones((1, 21)),
+                        keypoints=keypoints,
+                        keypoint_scores=torch.ones((1, 21)),
+                    ))
+        final_pred_instances = []
+        for i in range(clip_num):
+            final_pred_instances += batch_pred_instances[i::clip_num]
 
-        results = self.add_pred_to_datasample(batch_pred_instances, None,
+        results = self.add_pred_to_datasample(final_pred_instances, None,
                                               data_samples)
         return results
 
@@ -407,10 +420,7 @@ class TopdownPoseLiftEstimatorSeq(TopdownPoseLiftEstimator):
                                batch_data_samples_seq: SampleList
                                ) -> SampleList:
 
-        batch_data_samples = batch_data_samples_seq[self.seq_len * 2 -
-                                                    2::self.seq_len *
-                                                    2]  # 3d gt信息保存在左目
-
+        batch_data_samples = batch_data_samples_seq[::2]
         assert len(batch_pred_instances) == len(batch_data_samples)
         if batch_pred_fields is None:
             batch_pred_fields = []
