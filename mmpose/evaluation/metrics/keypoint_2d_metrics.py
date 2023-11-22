@@ -649,10 +649,10 @@ class EPE(BaseMetric):
             will be used instead. Default: ``None``.
     """
 
-    def __init__(self,
-                 filter_exceed:bool=False) -> None:
+    def __init__(self, filter_exceed: bool = False) -> None:
         super().__init__()
         self.filter_exceed = filter_exceed
+
     def process(self, data_batch: Sequence[dict],
                 data_samples: Sequence[dict]) -> None:
         """Process one batch of data samples and predictions. The processed
@@ -672,16 +672,18 @@ class EPE(BaseMetric):
             gt = data_sample['gt_instances']
             # ground truth keypoints coordinates, [1, K, D]
             gt_coords = gt['keypoints']
-            # ground truth keypoints_visible, [1, K, 1]
             if self.filter_exceed:
-                gt_keypoints = np.array(gt['keypoints'])[...,:2]  
-                gt['keypoints_visible'] = ((gt_keypoints[...,0] < data_sample['meta']['frame_width']) & \
-                                                (gt_keypoints[...,1] < data_sample['meta']['frame_height']))
+                gt_keypoints = np.array(gt['keypoints'])[..., :2]
+                gt['keypoints_visible'] = (
+                    (gt_keypoints[..., 0] < data_sample['meta']['frame_width'])
+                    & (gt_keypoints[..., 1] <
+                       data_sample['meta']['frame_height']))
             mask = gt['keypoints_visible'].astype(bool).reshape(1, -1)
 
             result = {
                 'pred_coords': pred_coords,
                 'gt_coords': gt_coords,
+                # 'gt_coords_3d': gt_coords_3d,
                 'mask': mask,
             }
 
@@ -698,7 +700,6 @@ class EPE(BaseMetric):
             the metrics, and the values are corresponding results.
         """
         logger: MMLogger = MMLogger.get_current_instance()
-
         # pred_coords: [N, K, D]
         pred_coords = np.concatenate(
             [result['pred_coords'] for result in results])

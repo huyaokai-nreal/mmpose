@@ -10,6 +10,7 @@ from mmengine.dataset.base_dataset import force_full_init
 from mmengine.dataset.utils import default_collate
 from mmengine.logging import MMLogger
 from nreal_data_tool import LmdbClient
+from nreal_data_tool.utils.affine import from_two_vectors, normalized
 from nreal_data_tool.utils.camera import (OpenCVFisheyeCameraModel,
                                           OpenCVPinholeCameraModel)
 from xtcocotools.coco import COCO
@@ -47,7 +48,9 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                  pinch_random=False,
                  mean_bone_template_path='',
                  extern_hand_template_path='',
-                 rt_aug_prob=0.0):
+                 rt_aug_prob=0.0,
+                 filter_kpt_exceed=False,
+                 standard_stereo=False):
         self.flip_left_to_right = flip_left_to_right
         self.data_ratio = data_ratio
         self.data_file_list = data_file_list
@@ -70,6 +73,8 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         self.hand_bones_list = list()
         self.mean_bone_template_path = mean_bone_template_path
         self.rt_aug_prob = rt_aug_prob
+        self.filter_kpt_exceed = filter_kpt_exceed
+        self.standard_stereo = standard_stereo
         if dataset_weight_list:
             assert len(dataset_weight_list) == len(data_file_list)
         super().__init__(
@@ -102,6 +107,12 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         for bones in self.hand_bones_list:
             scale = np.mean(bones / mean_bones)
             self.hand_scale_list.append(scale)
+
+    @staticmethod
+    def is_keypoint_within_bounds(self, keypoint, image_width, image_height):
+        x, y = keypoint[:, 0], keypoint[:, 1]
+        within_mask = (x < image_width) & (y < image_height)
+        return within_mask.sum() == keypoint.shape[0]
 
     @force_full_init
     def __len__(self) -> int:
@@ -145,6 +156,39 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                 cam_info['right_D'][0], list) else cam_info['right_D'])
         return cam_model_left, cam_model_right
 
+    @staticmethod
+    def get_virtual_cam(cam_model_left, cam_model_right):
+        baseline_vector = cam_model_right.camera_to_world_xf[:3, 3]
+        leftcam_rot = from_two_vectors(np.array([1, 0, 0]), baseline_vector)
+        world_to_leftvirtual_rot = leftcam_rot @ \
+            cam_model_left.camera_to_world_xf[:3, :3]
+
+        right_cam_x = normalized(
+            cam_model_right.eye_to_world(np.array([[1, 0, 0]]))[0] -
+            baseline_vector)
+        rightcam_rot = from_two_vectors(right_cam_x, baseline_vector)
+        world_to_rightvirtual_rot = rightcam_rot @ \
+            cam_model_right.camera_to_world_xf[:3, :3]
+
+        rightvirtual_to_leftvirtual_rot = np.linalg.inv(
+            world_to_rightvirtual_rot) @ world_to_leftvirtual_rot
+        world_to_rightvirtual_rot = rightvirtual_to_leftvirtual_rot @ \
+            world_to_rightvirtual_rot
+
+        left_to_virtual_R = np.linalg.inv(
+            world_to_leftvirtual_rot
+        ) @ cam_model_left.camera_to_world_xf[:3, :3]
+        right_to_virtual_R = np.linalg.inv(
+            world_to_rightvirtual_rot
+        ) @ cam_model_right.camera_to_world_xf[:3, :3]
+
+        # 获取scale
+        rotated_baseline = np.linalg.norm(
+            cam_model_right.camera_to_world_xf[:3, 3])
+        baseline_scale = cam_model_right.camera_to_world_xf[
+            0, -1] / rotated_baseline
+        return left_to_virtual_R, right_to_virtual_R, baseline_scale
+
     def parse_data_info(self, raw_data_info: dict) -> Optional[dict]:
         ann = raw_data_info['raw_ann_info']
         left_img, right_img = raw_data_info['raw_img_info']
@@ -184,19 +228,25 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         cam_key = ann['camera_instance_id']
         cam_info = self.cams_info[cam_key]
         cam_model_left, cam_model_right = self.get_cam_model(cam_info)
+
         meta = ann.get('meta', dict())
         meta.update(cam_info)
         meta['category_id'] = ann['category_id']
-        # meta['gesture'] = ann['gesture']
-        # meta['tag'] = ann['tag']
+        if self.standard_stereo:
+            left_to_virtual_R, right_to_virtual_R, baseline_scale = \
+                self.get_virtual_cam(cam_model_left, cam_model_right)
+            meta['left_to_virtual_R'] = left_to_virtual_R
+            meta['right_to_virtual_R'] = right_to_virtual_R
+            meta['baseline_scale'] = baseline_scale
+            keypoints3d /= baseline_scale
 
         if 'nimble_pose' in ann.keys():
-            nimble_pose = np.array(ann["nimble_pose"])
-            nimble_translation = np.array(ann["nimble_translation"])
-            nimble_shape = np.array(ann["nimble_shape"])
-            nimble_joints = np.array(ann["nimble_joints"])
-            nimble_occlusion_cam0 = np.array(ann["nimble_occlusion_cam0"])
-            nimble_occlusion_cam1 = np.array(ann["nimble_occlusion_cam1"])
+            nimble_pose = np.array(ann['nimble_pose'])
+            nimble_translation = np.array(ann['nimble_translation'])
+            nimble_shape = np.array(ann['nimble_shape'])
+            nimble_joints = np.array(ann['nimble_joints'])
+            nimble_occlusion_cam0 = np.array(ann['nimble_occlusion_cam0'])
+            nimble_occlusion_cam1 = np.array(ann['nimble_occlusion_cam1'])
             data_info = {
                 'left_img_id': left_img_id,
                 'right_img_id': right_img_id,
@@ -205,12 +255,12 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                 'left_keypoints': left_keypoints,
                 'right_keypoints': right_keypoints,
                 'keypoints3d': keypoints3d,
-                'nimble_pose':nimble_pose,
-                'nimble_translation':nimble_translation,
-                'nimble_shape':nimble_shape,
-                'nimble_joints':nimble_joints,
-                'nimble_occlusion_cam0':nimble_occlusion_cam0,
-                'nimble_occlusion_cam1':nimble_occlusion_cam1,
+                'nimble_pose': nimble_pose,
+                'nimble_translation': nimble_translation,
+                'nimble_shape': nimble_shape,
+                'nimble_joints': nimble_joints,
+                'nimble_occlusion_cam0': nimble_occlusion_cam0,
+                'nimble_occlusion_cam1': nimble_occlusion_cam1,
                 'cam_info': cam_info,
                 'left_bbox': left_bbox,
                 'right_bbox': right_bbox,
@@ -251,7 +301,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                 'cam_model_left': cam_model_left,
                 'cam_model_right': cam_model_right,
                 'meta': meta
-        }
+            }
 
         return data_info
 
@@ -270,6 +320,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
     def _load_annotations(self) -> Tuple[List[dict], List[dict]]:
         image_list = []
         instance_list = []
+        filter_annotation_num = 0
 
         # 更新离线统计的nreal眼镜内外参
         self.offline_cams_info = copy.deepcopy(cameras_info)
@@ -293,6 +344,20 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                 right_img = coco.loadImgs(right_img_id)[0]
                 image_list.append(left_img)
                 image_list.append(right_img)
+
+                if self.filter_kpt_exceed:
+                    left_keypoints = np.array(
+                        ann['keypoints_left'])[..., :2].reshape(-1, 2)
+                    right_keypoints = np.array(
+                        ann['keypoints_right'])[..., :2].reshape(-1, 2)
+                    left_within_bounds = self.is_keypoint_within_bounds(
+                        left_keypoints, left_img['width'], left_img['height'])
+                    right_within_bounds = self.is_keypoint_within_bounds(
+                        right_keypoints, right_img['width'],
+                        right_img['height'])
+                    if not left_within_bounds or not right_within_bounds:
+                        filter_annotation_num += 1
+                        continue
 
                 data_info = self.parse_data_info(
                     dict(raw_ann_info=ann, raw_img_info=[left_img, right_img]))
@@ -329,11 +394,11 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         logger: MMLogger = MMLogger.get_current_instance()
         if self.test_mode:
             logger.info(
-                f'Test PairHandDataset loaded {len(image_list)} images, {len(instance_list)} pair instances'  # noqa
+                f'Test PairHandDataset loaded {len(image_list)} images, {len(instance_list)} pair instances, filter {filter_annotation_num} pair instances'  # noqa
             )
         else:
             logger.info(
-                f'Train PairHandDataset loaded {len(image_list)} images, {len(instance_list)} pair instances'  # noqa
+                f'Train PairHandDataset loaded {len(image_list)} images, {len(instance_list)} pair instances, filter {filter_annotation_num} pair instances'  # noqa
             )
         if self.pinch_random:
             for i, instance in enumerate(instance_list):
@@ -470,14 +535,23 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             meta_right['hand_scale'] = self.hand_scale_list[
                 data_info['meta']['template_bones_id']]
 
-        if "nimble_pose" in data_info.keys():
-            meta_left["nimble_pose"] = data_info['nimble_pose']
-            meta_left["nimble_translation"] = data_info['nimble_translation']
-            meta_left["nimble_shape"] = data_info['nimble_shape']
-            meta_right["nimble_pose"] = data_info['nimble_pose']
-            meta_right["nimble_translation"] = data_info['nimble_translation']
-            meta_right["nimble_shape"] = data_info['nimble_shape']
+        if self.standard_stereo:
+            meta_left['cam_to_virtual_R'] = copy.deepcopy(
+                data_info['meta']['left_to_virtual_R'])
+            meta_left['baseline_scale'] = copy.deepcopy(
+                data_info['meta']['baseline_scale'])
+            meta_right['cam_to_virtual_R'] = copy.deepcopy(
+                data_info['meta']['right_to_virtual_R'])
+            meta_right['baseline_scale'] = copy.deepcopy(
+                data_info['meta']['baseline_scale'])
 
+        if 'nimble_pose' in data_info.keys():
+            meta_left['nimble_pose'] = data_info['nimble_pose']
+            meta_left['nimble_translation'] = data_info['nimble_translation']
+            meta_left['nimble_shape'] = data_info['nimble_shape']
+            meta_right['nimble_pose'] = data_info['nimble_pose']
+            meta_right['nimble_translation'] = data_info['nimble_translation']
+            meta_right['nimble_shape'] = data_info['nimble_shape']
 
         data_info_left = {
             'img_id': data_info['left_img_id'],
