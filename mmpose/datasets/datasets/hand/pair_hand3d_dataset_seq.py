@@ -1,8 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import copy
 import os.path as osp
-# import random
-# from itertools import groupby
 from typing import Any, Callable, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -10,8 +8,8 @@ from mmengine.dataset.base_dataset import force_full_init
 from mmengine.dataset.utils import default_collate
 from mmengine.logging import MMLogger
 from nreal_data_tool import LmdbClient
-from nreal_data_tool.utils.camera import (OpenCVFisheyeCameraModel,
-                                          OpenCVPinholeCameraModel)
+from nreal_data_tool.schema.instance import BinocularCameraInstance
+from nreal_data_tool.utils.camera import build_from_BinocularCameraInstance
 from xtcocotools.coco import COCO
 
 from mmpose.datasets.builder import DATASETS
@@ -91,29 +89,6 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
             else:
                 return int(len(self.data_list) * self.data_ratio)
 
-    @staticmethod
-    def get_cam_model(cam_info):
-        if cam_info['camera_type'] == 'fisheye':
-            CMAERA_MODEL = OpenCVFisheyeCameraModel
-        elif cam_info['camera_type'] == 'pinhole':
-            CMAERA_MODEL = OpenCVPinholeCameraModel
-        else:
-            raise NotImplementedError
-        left_cam_xf = np.array(cam_info['left_T'])
-        right_cam_xf = np.array(cam_info['right_T'])
-        cam_model_left = CMAERA_MODEL(
-            f=(cam_info['left_K'][0][0], cam_info['left_K'][1][1]),
-            c=(cam_info['left_K'][0][2], cam_info['left_K'][1][2]),
-            camera_to_world_xf=left_cam_xf,
-            distort_coeffs=cam_info['left_D'][0]  # k1,k2,k3,k4
-        )
-        cam_model_right = CMAERA_MODEL(
-            f=(cam_info['right_K'][0][0], cam_info['right_K'][1][1]),
-            c=(cam_info['right_K'][0][2], cam_info['right_K'][1][2]),
-            camera_to_world_xf=right_cam_xf,
-            distort_coeffs=cam_info['right_D'][0])  # k1,k2,k3,k4
-        return cam_model_left, cam_model_right
-
     def parse_data_info(self, raw_data_info: dict) -> Optional[dict]:
         ann = raw_data_info['raw_ann_info']
         left_img, right_img = raw_data_info['raw_img_info']
@@ -152,12 +127,12 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
                                                             2].reshape(1, -1)
         cam_key = ann['camera_instance_id']
         cam_info = self.cams_info[cam_key]
-        cam_model_left, cam_model_right = self.get_cam_model(cam_info)
+        cam_model_left, cam_model_right = build_from_BinocularCameraInstance(
+            cam_info)
         meta = ann.get('meta', dict())
-        meta.update(cam_info)
         meta['category_id'] = ann['category_id']
-        # meta['gesture'] = ann['gesture']
-        # meta['tag'] = ann['tag']
+        meta['gesture'] = ann['gesture']
+        meta['tag'] = ann['tag']
         data_info = {
             'left_img_id': left_img_id,
             'right_img_id': right_img_id,
@@ -197,7 +172,8 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
             lmdb_path = osp.join(self.lmdb_data_root,
                                  coco.dataset['lmdb_path'])
             seq_list = []
-            self.cams_info.update(coco.dataset['cameras_info'])
+            for k, v in coco.dataset['cameras_info'].items():
+                self.cams_info[k] = BinocularCameraInstance.from_dict(v)
             ann_ids = coco.getAnnIds()
             for ann_id in ann_ids:
                 ann = coco.loadAnns(ann_id)[0]
@@ -291,7 +267,6 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
             'upper_body_ids': data_info['upper_body_ids'],
             'lower_body_ids': data_info['lower_body_ids'],
             'flip_pairs': data_info['flip_pairs'],
-            # 'keypoint_weights': data_info['dataset_keypoint_weights'],
             'flip_indices': data_info['flip_indices'],
             'keypoints_visible': data_info['keypoints_visible']
         }
@@ -314,7 +289,6 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
             'upper_body_ids': data_info['upper_body_ids'],
             'lower_body_ids': data_info['lower_body_ids'],
             'flip_pairs': data_info['flip_pairs'],
-            # 'keypoint_weights': data_info['dataset_keypoint_weights'],
             'flip_indices': data_info['flip_indices'],
             'keypoints_visible': data_info['keypoints_visible']
         }
