@@ -1,3 +1,5 @@
+# Copyright (c) OpenMMLab. All rights reserved.
+#
 '''
     NIMBLE: A Non-rigid Hand Model with Bones and Muscles[SIGGRAPH-22]
     https://reyuwei.github.io/proj/nimble
@@ -6,7 +8,9 @@
 
 import torch
 import trimesh
+
 from mmpose.models.heads.nimble.nimble_utils import *
+
 
 def procrustes_align(
     from_points: torch.Tensor,
