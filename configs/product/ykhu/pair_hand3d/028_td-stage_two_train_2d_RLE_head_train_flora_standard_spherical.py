@@ -118,7 +118,7 @@ model = dict(
         deploy=False,
         output_sigma=False),
     kpt3d_lift=dict(
-        type='LiftHeadStandardSpherical',
+        type='LiftHeadStandard',
         lift_loss=dict(
             type='MultipleLossWrapper',
             losses=[
@@ -136,7 +136,8 @@ model = dict(
                     20),  # 后20 epoch打开pinch loss
             ]),
         num_layers=3,
-        output_num=42),
+        output_num=42,
+        use_plane_coord=False),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
@@ -164,10 +165,9 @@ for data_date in train_date_list:
             glasses, [])
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 
-train_data_list = [
-    'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230904_101030__pinch__bright__right__1111__0021__undistort_tar__Flora303.json'
-]
-train_data_list = [os.path.join(data_root, item) for item in train_data_list]
+# train_data_list = [
+#     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230904_101030__pinch__bright__right__1111__0021__undistort_tar__Flora303.json']
+# train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
@@ -345,6 +345,7 @@ train_dataloader = dict(
         pipeline=train_pipeline,
         dataset_weight_list=dataset_weight_list,
         data_root=data_root,
+        flip_left_to_right=True,
         filter_kpt_exceed=True,
         standard_stereo=standard_stereo
         # point_type='leftcam',
@@ -381,13 +382,12 @@ default_hooks = dict(
 gesture_list = [
     'Click', 'Grab', 'Pinch', 'OpenHand', 'Victory', 'Call', 'Home'
 ]
-# val_evaluator = dict(type='MPJPEMetricLifting', gesture_list=gesture_list)
 filter_exceed = True
 val_evaluator = [
     dict(
         type='MPJPEV2',
         mode='mpjpe',
-        gesture_list=gesture_list,
+        # gesture_list=gesture_list,
         scale_metric=False,
         fit_metric=False,
         openhand_metric=False,

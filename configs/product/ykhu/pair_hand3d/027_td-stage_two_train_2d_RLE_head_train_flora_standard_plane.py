@@ -118,7 +118,7 @@ model = dict(
         deploy=False,
         output_sigma=False),
     kpt3d_lift=dict(
-        type='LiftHeadStandardPlane',
+        type='LiftHeadStandard',
         lift_loss=dict(
             type='MultipleLossWrapper',
             losses=[
@@ -136,7 +136,8 @@ model = dict(
                     20),  # 后20 epoch打开pinch loss
             ]),
         num_layers=3,
-        output_num=42),
+        output_num=42,
+        use_plane_coord=True),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
@@ -344,6 +345,7 @@ train_dataloader = dict(
         pipeline=train_pipeline,
         dataset_weight_list=dataset_weight_list,
         data_root=data_root,
+        flip_left_to_right=True,
         filter_kpt_exceed=True,
         standard_stereo=standard_stereo
         # point_type='leftcam',
@@ -380,19 +382,19 @@ default_hooks = dict(
 gesture_list = [
     'Click', 'Grab', 'Pinch', 'OpenHand', 'Victory', 'Call', 'Home'
 ]
-# val_evaluator = dict(type='MPJPEMetricLifting', gesture_list=gesture_list)
+filter_exceed = True
 val_evaluator = [
     dict(
         type='MPJPEV2',
         mode='mpjpe',
-        gesture_list=gesture_list,
+        # gesture_list=gesture_list,
         scale_metric=False,
         fit_metric=False,
         openhand_metric=False,
         # bmk_save_root='/home/ykhu/workspace/mmpose/work_dirs/bad_case_liftnet/flora304',
         # show_bmk_thr=(20, 10000000),
         filter_exceed=filter_exceed),  #bad case mpjpe thr (mm)
-    dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
+    # dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
     # dict(type='EPE',filter_exceed=filter_exceed),
     # dict(type='NrealKeypointAP',filter_exceed=filter_exceed)
 ]
