@@ -33,8 +33,7 @@ class TopdownPoseLiftEstimator(BaseModel):
                  init_cfg: OptMultiConfig = None,
                  kpt2d_with_depth: bool = False,
                  metainfo: Optional[dict] = None,
-                 nano_2d=False,
-                 standard_stereo=False):
+                 nano_2d=False):
         super().__init__(data_preprocessor, init_cfg=init_cfg)
         self.metainfo = self._load_metainfo(metainfo)
         self.backbone = MODELS.build(backbone)
@@ -43,7 +42,6 @@ class TopdownPoseLiftEstimator(BaseModel):
         neck, kpt3d_lift = check_and_update_config(neck, kpt3d_lift)
 
         self.nano_2d = nano_2d
-        self.standard_stereo = standard_stereo
         if neck is not None:
             self.neck = MODELS.build(neck)
 
@@ -247,11 +245,6 @@ class TopdownPoseLiftEstimator(BaseModel):
                 batch_pred_instances, batch_pred_fields, batch_data_samples):
             pred_instances.keypoints3d = pred_instances.keypoints3d.cpu(
             ).numpy()
-            if self.standard_stereo:
-                pred_instances.keypoints3d *= data_sample.meta[
-                    'baseline_scale']
-                data_sample.gt_instances.keypoints3d *= data_sample.meta[
-                    'baseline_scale']
             pred_instances.keypoints3d_scores = np.ones(
                 (1, pred_instances.keypoints3d.shape[1]))
             pred_instances.keypoints = pred_instances.keypoints.cpu().numpy()

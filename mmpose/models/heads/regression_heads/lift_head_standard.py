@@ -26,6 +26,7 @@ class LiftHeadStandard(BaseModule):
                  reproj: bool = False,
                  explicit_Rt=False,
                  use_plane_coord=True,
+                 baseline=0.13,
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
                  init_cfg: Union[dict, List[dict], None] = None):
@@ -45,6 +46,7 @@ class LiftHeadStandard(BaseModule):
         self.lift_loss = MODELS.build(lift_loss)
         self.reproj = reproj
         self.use_plane_coord = use_plane_coord
+        self.baseline = baseline
 
     def forward(self, feats: Tuple[Tensor]) -> Tensor:
         output = self.liftnet(feats)
@@ -65,8 +67,9 @@ class LiftHeadStandard(BaseModule):
 
         leftcam_cam_matrix = []
         rightcam_cam_matrix = []
-        leftcam_to_virtual_R = []
-        rightcam_to_virtual_R = []
+        left_R = []
+        right_R = []
+        baseline_scale = []
         lr_p = []
         lr_rot_matrix = []
         hand3d_gt = []
@@ -81,8 +84,7 @@ class LiftHeadStandard(BaseModule):
                 left_camera = data_sample.meta['ori_camera']
                 left_cam_matrix = left_camera.uv_to_window_matrix()
                 leftcam_cam_matrix.append(left_cam_matrix)
-                leftcam_to_virtual_R.append(
-                    data_sample.meta['cam_to_virtual_R'])
+                left_R.append(data_sample.meta['cam_to_virtual_R'])
                 hand3d_gt.append(data_sample.gt_instances.keypoints3d[0])
                 if data_sample.meta['category_id'] == 1:  # 1: left, 2: right
                     is_left_hands.append(1)
@@ -92,15 +94,15 @@ class LiftHeadStandard(BaseModule):
                 right_camera = data_sample.meta['ori_camera']
                 right_cam_matrix = right_camera.uv_to_window_matrix()
                 rightcam_cam_matrix.append(right_cam_matrix)
-                rightcam_to_virtual_R.append(
-                    data_sample.meta['cam_to_virtual_R'])
+                right_R.append(data_sample.meta['cam_to_virtual_R'])
                 left_cam_xf = left_camera.camera_to_world_xf
                 right_cam_xf = right_camera.camera_to_world_xf
                 lr_t = np.dot(np.linalg.inv(left_cam_xf),
                               right_cam_xf).astype(np.float32)
                 lr_rot_matrix.append(lr_t[:3, :3])
                 lr_p.append(lr_t[:3, 3])
-
+                baseline_scale.append(data_sample.meta['virtual_baseline'] /
+                                      self.baseline)
             warp_mat = data_sample.metainfo['warp_mat']
             inv_warp_mat = cv2.invertAffineTransform(warp_mat).astype(
                 np.float32)
@@ -112,10 +114,10 @@ class LiftHeadStandard(BaseModule):
             np.array(leftcam_cam_matrix)).cuda().float()
         rightcam_cam_matrix = torch.tensor(
             np.array(rightcam_cam_matrix)).cuda().float()
-        leftcam_to_virtual_R = torch.tensor(
-            np.array(leftcam_to_virtual_R)).cuda().float()
-        rightcam_to_virtual_R = torch.tensor(
-            np.array(rightcam_to_virtual_R)).cuda().float()
+
+        left_R = torch.tensor(np.array(left_R)).cuda().float()
+        right_R = torch.tensor(np.array(right_R)).cuda().float()
+        baseline_scale = torch.tensor(np.array(baseline_scale)).cuda().float()
         lr_p = torch.tensor(np.array(lr_p)).cuda().float()
         lr_rot_matrix = torch.tensor(np.array(lr_rot_matrix)).cuda().float()
         hand3d_gt = torch.tensor(np.array(hand3d_gt)).cuda().float()
@@ -180,8 +182,8 @@ class LiftHeadStandard(BaseModule):
             (rightcam_x.unsqueeze(-1), rightcam_y.unsqueeze(-1)), dim=2)
 
         norm_leftcam_xyz, norm_rightcam_xyz = self.standardize_stereo(
-            leftcam_xy, rightcam_xy, leftcam_to_virtual_R,
-            rightcam_to_virtual_R)
+            leftcam_xy, rightcam_xy, left_R, right_R)
+
         if self.use_plane_coord:
             feature1 = torch.cat((norm_leftcam_xyz[:, :, :2].reshape(
                 (B, -1)), left_hand.view(B, -1)),
@@ -201,42 +203,42 @@ class LiftHeadStandard(BaseModule):
         return (feats, norm_leftcam_xyz, norm_rightcam_xyz, lr_rot_matrix,
                 lr_p, leftcam_cam_matrix, rightcam_cam_matrix,
                 uv_coord_im_pred_global, uv_coord_im_pred_global_distort,
-                hand3d_gt, leftcam_to_virtual_R, rightcam_to_virtual_R)
+                hand3d_gt, left_R, right_R, baseline_scale)
 
-    def postprocess(self, output, norm_leftcam_xyz, norm_rightcam_xyz,
-                    leftcam_to_virtual_R, rightcam_to_virtual_R, lr_rot_matrix,
-                    lr_p):
+    def postprocess(self, output, norm_leftcam_xyz, norm_rightcam_xyz, left_R,
+                    right_R, lr_rot_matrix, lr_p, baseline_scale):
         B, K = norm_leftcam_xyz.shape[:2]
+        baseline_scale = baseline_scale.view(B, 1, 1)
         lr_rot_matrix = lr_rot_matrix.view(B, 1, 3,
                                            3).repeat(1, 21, 1,
                                                      1).view(B * 21, 3, 3)
         lr_p = lr_p.view(B, 1, 3, 1).repeat(1, 21, 1, 1).view(B * 21, 3, 1)
-        virtual_to_left_R = torch.inverse(leftcam_to_virtual_R).view(
-            B, 1, 3, 3).repeat(1, 21, 1, 1).view(B * 21, 3, 3)
-        virtual_to_right_R = torch.inverse(rightcam_to_virtual_R).view(
-            B, 1, 3, 3).repeat(1, 21, 1, 1).view(B * 21, 3, 3)
+        left_R_inv = torch.inverse(left_R).view(B, 1, 3, 3).repeat(
+            1, 21, 1, 1).view(B * 21, 3, 3)
+        right_R_inv = torch.inverse(right_R).view(B, 1, 3, 3).repeat(
+            1, 21, 1, 1).view(B * 21, 3, 3)
         if self.use_plane_coord:
-            leftcam_Z = output[:, :21].view(B, K, 1)
+            leftcam_Z = output[:, :21].view(B, K, 1) * baseline_scale
             leftcam_XYZ = torch.cat(
                 (norm_leftcam_xyz[:, :, :2] * leftcam_Z, leftcam_Z),
                 dim=2).view(B * K, 3, 1)
-            rightcam_Z = output[:, 21:21 * 2].reshape((B, 21, 1))
+            rightcam_Z = output[:, 21:21 * 2].reshape(
+                (B, 21, 1)) * baseline_scale
             rightcam_XYZ = torch.cat(
                 (norm_rightcam_xyz[:, :, :2] * rightcam_Z, rightcam_Z),
                 dim=2).view(B * K, 3, 1)
-
         else:
             leftcam_Z_scale = output[:, :21].view(
-                B, K, 1) / norm_leftcam_xyz[:, :, 2:]
+                B, K, 1) * baseline_scale / norm_leftcam_xyz[:, :, 2:]
             leftcam_XYZ = (norm_leftcam_xyz *
                            leftcam_Z_scale).view(B * K, 3, 1)
             rightcam_Z_scale = output[:, 21:21 * 2].reshape(
-                B, 21, 1) / norm_rightcam_xyz[:, :, 2:]
+                B, 21, 1) * baseline_scale / norm_rightcam_xyz[:, :, 2:]
             rightcam_XYZ = (norm_rightcam_xyz *
                             rightcam_Z_scale).view(B * K, 3, 1)
 
-        leftcam_XYZ = torch.bmm(virtual_to_left_R, leftcam_XYZ).view(B, K, 3)
-        rightcam_XYZ = torch.bmm(virtual_to_right_R, rightcam_XYZ)
+        leftcam_XYZ = torch.bmm(left_R_inv, leftcam_XYZ).view(B, K, 3)
+        rightcam_XYZ = torch.bmm(right_R_inv, rightcam_XYZ)
         rightcam_XYZ = (torch.bmm(lr_rot_matrix, rightcam_XYZ) +
                         lr_p).view(B, 21, 3)
         hand3d_pred = (
@@ -245,13 +247,12 @@ class LiftHeadStandard(BaseModule):
 
         return hand3d_pred, leftcam_XYZ, rightcam_XYZ
 
-    def standardize_stereo(self, leftcam_xy, rightcam_xy, leftcam_to_virtual_R,
-                           rightcam_to_virtual_R):
+    def standardize_stereo(self, leftcam_xy, rightcam_xy, left_R, right_R):
         """transform to standard stereo system."""
         standard_left_xyz = self.align_monocular_to_parallel_stereo(
-            leftcam_xy, leftcam_to_virtual_R)
+            leftcam_xy, left_R)
         standard_right_xyz = self.align_monocular_to_parallel_stereo(
-            rightcam_xy, rightcam_to_virtual_R)
+            rightcam_xy, right_R)
         if self.use_plane_coord:
             norm_left_xyz = standard_left_xyz / standard_left_xyz[:, :, 2:]
             norm_right_xyz = standard_right_xyz / standard_right_xyz[:, :, 2:]
@@ -277,14 +278,12 @@ class LiftHeadStandard(BaseModule):
         with torch.no_grad():
             (feats, norm_leftcam_xyz, norm_rightcam_xyz, lr_rot_matrix, lr_p,
              leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global,
-             uv_coord_im_pred_global_distort, hand3d_gt, leftcam_to_virtual_R,
-             rightcam_to_virtual_R) = self.preprocess(feats,
-                                                      batch_data_samples)
+             uv_coord_im_pred_global_distort, hand3d_gt, left_R, right_R,
+             baseline_scale) = self.preprocess(feats, batch_data_samples)
         output = self.forward(feats)
         hand3d_pred = self.postprocess(output, norm_leftcam_xyz,
-                                       norm_rightcam_xyz, leftcam_to_virtual_R,
-                                       rightcam_to_virtual_R, lr_rot_matrix,
-                                       lr_p)[0]
+                                       norm_rightcam_xyz, left_R, right_R,
+                                       lr_rot_matrix, lr_p, baseline_scale)[0]
         if self.reproj:
             camera_model = batch_data_samples[0].meta['ori_camera']
             leftcam_uv_reproj_distort = camera_model.eye_to_window(
@@ -301,16 +300,14 @@ class LiftHeadStandard(BaseModule):
              train_cfg: ConfigType = {}) -> dict:
         """Calculate losses from a batch of inputs and data samples."""
         with torch.no_grad():
-            (feats, norm_leftcam_xyz, norm_rightcam_xy, lr_rot_matrix, lr_p,
+            (feats, norm_leftcam_xyz, norm_rightcam_xyz, lr_rot_matrix, lr_p,
              leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global,
-             uv_coord_im_pred_global_distort, hand3d_gt, leftcam_to_virtual_R,
-             rightcam_to_virtual_R) = self.preprocess(feats,
-                                                      batch_data_samples)
+             uv_coord_im_pred_global_distort, hand3d_gt, left_R, right_R,
+             baseline_scale) = self.preprocess(feats, batch_data_samples)
         output = self.forward(feats)
-
         hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
-            output, norm_leftcam_xyz, norm_rightcam_xy, leftcam_to_virtual_R,
-            rightcam_to_virtual_R, lr_rot_matrix, lr_p)
+            output, norm_leftcam_xyz, norm_rightcam_xyz, left_R, right_R,
+            lr_rot_matrix, lr_p, baseline_scale)
         leftcam_uv_reproj = torch.matmul(hand3d_pred,
                                          leftcam_cam_matrix.permute(0, 2, 1))
         leftcam_uv_reproj = leftcam_uv_reproj[..., :2] / leftcam_uv_reproj[...,

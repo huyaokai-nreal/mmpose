@@ -137,13 +137,13 @@ model = dict(
             ]),
         num_layers=3,
         output_num=42,
-        use_plane_coord=True),
+        use_plane_coord=True,
+        baseline=0.13),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
         shift_heatmap=False,
     ),
-    standard_stereo=standard_stereo,
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
@@ -166,7 +166,8 @@ for data_date in train_date_list:
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 
 # train_data_list = [
-#     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230904_101030__pinch__bright__right__1111__0021__undistort_tar__Flora303.json']
+#     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230904_101030__pinch__bright__right__1111__0021__undistort_tar__Flora303.json'
+# ]
 # train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 

@@ -109,7 +109,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             self.hand_scale_list.append(scale)
 
     @staticmethod
-    def is_keypoint_within_bounds(self, keypoint, image_width, image_height):
+    def is_keypoint_within_bounds(keypoint, image_width, image_height):
         x, y = keypoint[:, 0], keypoint[:, 1]
         within_mask = (x < image_width) & (y < image_height)
         return within_mask.sum() == keypoint.shape[0]
@@ -159,35 +159,27 @@ class PairHand3DDataset(BaseCocoStyleDataset):
     @staticmethod
     def get_virtual_cam(cam_model_left, cam_model_right):
         baseline_vector = cam_model_right.camera_to_world_xf[:3, 3]
-        leftcam_rot = from_two_vectors(np.array([1, 0, 0]), baseline_vector)
-        world_to_leftvirtual_rot = leftcam_rot @ \
-            cam_model_left.camera_to_world_xf[:3, :3]
+        R_left = from_two_vectors(np.array([1, 0, 0]), baseline_vector)
+        virtual_left_camera = copy.deepcopy(cam_model_left)
+        virtual_left_camera.camera_to_world_xf[:3, :3] = \
+            R_left @ virtual_left_camera.camera_to_world_xf[:3, :3]
 
         right_cam_x = normalized(
             cam_model_right.eye_to_world(np.array([[1, 0, 0]]))[0] -
             baseline_vector)
-        rightcam_rot = from_two_vectors(right_cam_x, baseline_vector)
-        world_to_rightvirtual_rot = rightcam_rot @ \
-            cam_model_right.camera_to_world_xf[:3, :3]
+        R_right = from_two_vectors(right_cam_x, baseline_vector)
+        virtual_right_camera = copy.deepcopy(cam_model_right)
+        virtual_right_camera.camera_to_world_xf[:3, : 3] = \
+            R_right @ virtual_right_camera.camera_to_world_xf[:3, :3]
 
-        rightvirtual_to_leftvirtual_rot = np.linalg.inv(
-            world_to_rightvirtual_rot) @ world_to_leftvirtual_rot
-        world_to_rightvirtual_rot = rightvirtual_to_leftvirtual_rot @ \
-            world_to_rightvirtual_rot
-
-        left_to_virtual_R = np.linalg.inv(
-            world_to_leftvirtual_rot
-        ) @ cam_model_left.camera_to_world_xf[:3, :3]
-        right_to_virtual_R = np.linalg.inv(
-            world_to_rightvirtual_rot
-        ) @ cam_model_right.camera_to_world_xf[:3, :3]
-
-        # 获取scale
-        rotated_baseline = np.linalg.norm(
-            cam_model_right.camera_to_world_xf[:3, 3])
-        baseline_scale = cam_model_right.camera_to_world_xf[
-            0, -1] / rotated_baseline
-        return left_to_virtual_R, right_to_virtual_R, baseline_scale
+        left_R = np.linalg.inv(virtual_left_camera.camera_to_world_xf
+                               ) @ cam_model_left.camera_to_world_xf
+        right_R = np.linalg.inv(virtual_right_camera.camera_to_world_xf
+                                ) @ cam_model_right.camera_to_world_xf
+        relative_T = np.linalg.inv(virtual_left_camera.camera_to_world_xf
+                                   ) @ virtual_right_camera.camera_to_world_xf
+        virtual_baseline = np.linalg.norm(relative_T[:3, 3])
+        return left_R[:3, :3], right_R[:3, :3], virtual_baseline
 
     def parse_data_info(self, raw_data_info: dict) -> Optional[dict]:
         ann = raw_data_info['raw_ann_info']
@@ -233,12 +225,11 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         meta.update(cam_info)
         meta['category_id'] = ann['category_id']
         if self.standard_stereo:
-            left_to_virtual_R, right_to_virtual_R, baseline_scale = \
+            left_R, right_R, virtual_baseline = \
                 self.get_virtual_cam(cam_model_left, cam_model_right)
-            meta['left_to_virtual_R'] = left_to_virtual_R
-            meta['right_to_virtual_R'] = right_to_virtual_R
-            meta['baseline_scale'] = baseline_scale
-            keypoints3d /= baseline_scale
+            meta['left_R'] = left_R
+            meta['right_R'] = right_R
+            meta['virtual_baseline'] = virtual_baseline
 
         if 'nimble_pose' in ann.keys():
             nimble_pose = np.array(ann['nimble_pose'])
@@ -537,13 +528,11 @@ class PairHand3DDataset(BaseCocoStyleDataset):
 
         if self.standard_stereo:
             meta_left['cam_to_virtual_R'] = copy.deepcopy(
-                data_info['meta']['left_to_virtual_R'])
-            meta_left['baseline_scale'] = copy.deepcopy(
-                data_info['meta']['baseline_scale'])
+                data_info['meta']['left_R'])
             meta_right['cam_to_virtual_R'] = copy.deepcopy(
-                data_info['meta']['right_to_virtual_R'])
-            meta_right['baseline_scale'] = copy.deepcopy(
-                data_info['meta']['baseline_scale'])
+                data_info['meta']['right_R'])
+            meta_right['virtual_baseline'] = copy.deepcopy(
+                data_info['meta']['virtual_baseline'])
 
         if 'nimble_pose' in data_info.keys():
             meta_left['nimble_pose'] = data_info['nimble_pose']
