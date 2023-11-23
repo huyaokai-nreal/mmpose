@@ -4,7 +4,7 @@ train_cfg = dict(max_epochs=100, val_interval=100)
 from mmpose.configs._base_.datasets.xs3d import \
     datasets_info as kpt3d_datasets_info
 
-data_root = '/data/AI_DATA'
+data_root = '/data/AI_DATA_WX'
 # optimizer
 optim_wrapper = dict(
     optimizer=dict(type='Adam', lr=5e-4, weight_decay=1e-4),
@@ -83,17 +83,6 @@ model = dict(
         feat_norm_type='softmax',
         in_featuremap_size=(32, 32),
         num_joints=21,
-        loss=dict(
-            type='MultipleLossWrapper',
-            losses=[
-                dict(
-                    type='RLELoss',
-                    use_target_weight=False,
-                    flow_model_pretrain_path=
-                    f'{data_root}/data_hand/model/mmpose/td-hand_rsn50_pre_ipr_rle_lscale_wholedata_4xb64-100e-128x128/epoch_100.pth'
-                ),
-                dict(type='KeypointMSELoss', use_target_weight=True)
-            ]),
         decoder=codec,
         deploy=False,
         output_sigma=True),
@@ -122,17 +111,7 @@ model = dict(
         flip_test=False,
         shift_coords=False,
         shift_heatmap=False,
-    ),
-    init_cfg=dict(
-        type='Pretrained',
-        checkpoint=
-        # '/home/zx_li/workspace/mmpose/work_dirs/td-hand_res26_fpn_sk_weightdata_4xb64-50e_0919data-128x128/epoch_50.pth'
-        # f'{data_root}/data_hand/model/mmpose/td-hand_res26_fpn_skpre_flow_wd_ipr_rle_weightdata_0919_4xb64-50e-128x128/epoch_50.pth'  # ella kp2d
-        # '/home/jrchen/git-project/mmpose/work_dirs/pair_hand3d/003_td-stage_two_train_55dim_l1/epoch_60_new.pth'
-        # '/home/jrchen/git-project/mmpose/work_dirs/hand_2d_keypoint/td-hand_res26_fpn_skpre_flow_wd_ipr_rle_weightdata_0919_4xb64-50e-128x128_pretrainmodel/epoch_30_FT.pth'
-        f'{data_root}/jrchen/git-project/mmpose/work_dirs/pair_hand3d/006_td-stage_two_train_55dim_RLE_head_train_flora_finetune/FT_kp2d_add_ella_pretrain_lift.pth'  # flora kp2d + ella kp3d
-    ),
-)
+    ))
 
 # base dataset settings
 dataset_type = 'PairHand3DDatasetSeq'
