@@ -69,6 +69,7 @@ def _fuse_preprocess(module):
 
 def pytorch2onnx(model,
                  input_shape,
+                 input_names,
                  output_names,
                  opset_version=11,
                  show=False,
@@ -91,31 +92,34 @@ def pytorch2onnx(model,
         simplify (bool): whether use onnxsim to simply the onnx model
     """
     model.cpu().eval()
-    one_img = torch.randn(input_shape)
+    assert len(input_names) == len(
+        input_shape) // 4, f'inputs names {len(input_names)} does not match'
+    f'input shapes {len(input_shape)}'
+    input_list = []
+    for i in range(len(input_names)):
+        input_tensor = torch.randn(input_shape[i * 4:i * 4 + 4])
+        input_list.append(input_tensor)
+    input_list[-1] = torch.zeros(1, 110, 1, 1)
     dynamic_axes = None
     if dyn_batch:
-        dynamic_axes = {
-            'input': {
-                0: 'batch_size'
-            },  # variable length axes
-            'output': {
-                0: 'batch_size'
-            }
-        }
+        dynamic_axes = dict()
+        for input_name in input_names:
+            dynamic_axes[input_name] = {0: 'batch_size'}
+        for output_name in output_names:
+            dynamic_axes[output_name] = {0: 'batch_size'}
     mode = torch.onnx.TrainingMode.EVAL
     if graph_mode == 'train':
         mode = torch.onnx.TrainingMode.TRAINING
-
     torch.onnx.export(
         model,
-        one_img,
+        tuple(input_list),
         output_file,
         training=mode,
         export_params=True,
         verbose=show,
         do_constant_folding=True,
         opset_version=opset_version,
-        input_names=['input'],
+        input_names=input_names,
         output_names=output_names,
         dynamic_axes=dynamic_axes)
 
@@ -144,22 +148,18 @@ def pytorch2onnx(model,
 
         # check the numerical value
         # get pytorch output
-        pytorch_results = model(one_img)
+        pytorch_results = model(*input_list)
         if not isinstance(pytorch_results, (list, tuple)):
             assert isinstance(pytorch_results, torch.Tensor)
             pytorch_results = [pytorch_results]
 
         # get onnx output
-        input_all = [node.name for node in onnx_model.graph.input]
-        input_initializer = [
-            node.name for node in onnx_model.graph.initializer
-        ]
-        net_feed_input = list(set(input_all) - set(input_initializer))
-        assert len(net_feed_input) == 1
         sess = rt.InferenceSession(
             output_file, providers=['CPUExecutionProvider'])
-        onnx_results = sess.run(None,
-                                {net_feed_input[0]: one_img.detach().numpy()})
+        onnx_input = dict()
+        for input_name, input_tensor in zip(input_names, input_list):
+            onnx_input[input_name] = input_tensor.detach().numpy()
+        onnx_results = sess.run(None, onnx_input)
 
         # compare results
         assert len(pytorch_results) == len(onnx_results)
@@ -196,6 +196,12 @@ def parse_args():
         nargs='+',
         default=[1, 3, 256, 192],
         help='input size')
+    parser.add_argument(
+        '--input-names',
+        type=str,
+        nargs='+',
+        default=['input'],
+        help='input name list')
     parser.add_argument(
         '--output-names',
         type=str,
@@ -263,6 +269,7 @@ if __name__ == '__main__':
     pytorch2onnx(
         model,
         args.shape,
+        input_names=args.input_names,
         output_names=args.output_names,
         opset_version=args.opset_version,
         show=args.show,
