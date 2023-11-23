@@ -5,7 +5,6 @@ from .dsnt_head import DSNTHead
 from .integral_regression_head import IntegralRegressionHead
 from .lift_head import LiftHead
 from .lift_head_rot import LiftNimbleHead
-from .lift_head_seq import LiftHeadSeq, LiftHeadSeqTest
 from .lift_head_standard import LiftHeadStandard
 from .regression_head import RegressionHead
 from .rle_head import RLEHead
@@ -18,6 +17,6 @@ from .trajectory_regression_head import TrajectoryRegressionHead
 __all__ = [
     'RegressionHead', 'IntegralRegressionHead', 'DSNTHead', 'RLEHead',
     'TemporalRegressionHead', 'TrajectoryRegressionHead', 'DSNTAttrHead',
-    'RTMCCIPRHead', 'AttrMlpHead', 'LiftHead', 'RTMCCIPRHead3D', 'LiftHeadSeq',
-    'LiftHeadSeqTest', 'LiftHeadStandard', 'LiftNimbleHead', 'TemporalLiftHead'
+    'RTMCCIPRHead', 'AttrMlpHead', 'LiftHead', 'RTMCCIPRHead3D',
+    'LiftHeadStandard', 'LiftNimbleHead', 'TemporalLiftHead'
 ]
