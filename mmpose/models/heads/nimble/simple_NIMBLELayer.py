@@ -18,7 +18,8 @@ class sim_NIMBLELayer(torch.nn.Module):
                  device,
                  shape_ncomp=20,
                  pose_ncomp=30,
-                 use_pose_pca=False):
+                 use_pose_pca=False,
+                 reg_shape_type=0):
         super(sim_NIMBLELayer, self).__init__()
         self.device = device
         self.base_nimble_path = '/data/AI_DATA_WX/data_hand/nimble_model/nimble_simple.npy'
@@ -30,6 +31,7 @@ class sim_NIMBLELayer(torch.nn.Module):
         self.shape_ncomp = shape_ncomp
         self.pose_ncomp = pose_ncomp
         self.use_pose_pca = use_pose_pca
+        self.reg_shape_type = reg_shape_type
 
         self.register_buffer('th_verts', torch.tensor(
             nimble_info['th_verts']))  # shape (2500, 3)
@@ -50,6 +52,11 @@ class sim_NIMBLELayer(torch.nn.Module):
         self.register_buffer('pose_pm_mean',
                              torch.tensor(nimble_info['pose_pm_mean']))
 
+        self.kp_index = [
+            0, 1, 2, 3, 4, 6, 7, 8, 9, 11, 12, 13, 14, 16, 17, 18, 19, 21, 22,
+            23, 24
+        ]
+
         # Kinematic chain params
         kinetree = JOINT_PARENT_ID_DICT
         self.kintree_parents = []
@@ -60,6 +67,8 @@ class sim_NIMBLELayer(torch.nn.Module):
         # beta : B, N
         batch_size, shape_ncomp = betas.shape
         assert self.shape_ncomp == shape_ncomp
+        shape_ncomp = min(20, self.shape_ncomp)
+        betas = betas[:, :shape_ncomp]
 
         if normalized:
             betas_real = betas * self.shape_pm_std[:shape_ncomp].reshape(
@@ -130,7 +139,15 @@ class sim_NIMBLELayer(torch.nn.Module):
                 self.pose_pm_std[:self.pose_ncomp].reshape(1, -1))
         return real_theta_de
 
-    def forward(self, pose_param, shape_param):
+    def return_pose(self, pose_param):
+        if self.use_pose_pca:
+            full_pose = self.generate_full_pose(
+                pose_param, normalized=True, with_root=False).view(-1, 20, 3)
+        else:
+            full_pose = pose_param.view(-1, 20, 3)
+        return full_pose
+
+    def forward(self, pose_param, shape_param, init_shape_pose=False):
         """Takes points in R^3 and first applies relevant pose and shape blend
         shapes.
 
@@ -143,8 +160,69 @@ class sim_NIMBLELayer(torch.nn.Module):
             full_pose = pose_param.view(-1, 20, 3)
 
         # 得到在某个手型下的所有点的位置和关键骨骼点的位置
-        th_v_shaped, jreg_joints = self.generate_hand_shape(
-            shape_param, normalized=True)
+        if self.reg_shape_type == 0 or init_shape_pose:
+            th_v_shaped, jreg_joints = self.generate_hand_shape(
+                shape_param, normalized=True)
+        elif self.reg_shape_type == 1 or self.reg_shape_type == 2:
+            th_v_shaped, jreg_joints = self.generate_hand_shape(
+                torch.zeros_like(shape_param), normalized=True)
+            scale_factor = 1 + shape_param[:, 0]
+            root_jreg_joints = jreg_joints[:, 0:1, :]
+            jreg_joints_relative = jreg_joints - root_jreg_joints
+            jreg_joints = scale_factor.view(
+                scale_factor.shape[0], 1,
+                1) * jreg_joints_relative + root_jreg_joints
+        elif self.reg_shape_type == 3:
+            # ** original Nimble joint order
+            #                 4- 3- 2- 1-\
+            #                             \
+            #          9 --8 --7 --6--5----0
+            #    14-- 13 --12--11--10-----/
+            #     19-- 18- 17-16--15-----/
+            #      24--23--22--21--20---/
+            index_child = [
+                0, 1, 2, 3, 0, 5, 6, 7, 8, 0, 10, 11, 12, 13, 0, 15, 16, 17,
+                18, 0, 20, 21, 22, 23
+            ]
+            index_parent = [
+                1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+                19, 20, 21, 22, 23, 24
+            ]
+            th_v_shaped, jreg_joints = self.generate_hand_shape(
+                torch.zeros_like(shape_param), normalized=True)
+            root_jreg_joints = jreg_joints[:, 0:1, :]
+
+            jreg_joints_relative = jreg_joints[:,
+                                               index_parent, :] - jreg_joints[:,
+                                                                              index_child, :]
+            scale_factor = shape_param
+            jreg_joints_relative = scale_factor.view(
+                scale_factor.shape[0], jreg_joints_relative.shape[1],
+                1) * jreg_joints_relative
+
+            # add_one_index = np.array([0,4,9,14,19]);
+            # add_two_index = add_one_index + 1
+            # add_three_index = add_one_index + 2
+            # add_four_index = add_one_index + 3
+            # add_five_index = (add_one_index + 4)[1:]
+            # result = torch.clone(jreg_joints)
+            # jreg_joints[:,add_one_index+1,:] = jreg_joints[:,add_one_index+1,:] + jreg_joints_relative[:,add_one_index,:]
+            # jreg_joints[:,add_two_index+2,:] = jreg_joints[:,add_one_index+2,:] + jreg_joints_relative[:,add_one_index,:] + jreg_joints_relative[:,add_one_index+1,:]
+            # jreg_joints[:,add_two_index+3,:] = jreg_joints[:,add_one_index+3,:] + jreg_joints_relative[:,add_one_index,:] + jreg_joints_relative[:,add_one_index+1,:] + jreg_joints_relative[:,add_one_index+2,:]
+            # jreg_joints[:,add_two_index+4,:] = jreg_joints[:,add_one_index+4,:] + jreg_joints_relative[:,add_one_index,:] + jreg_joints_relative[:,add_one_index+1,:] + jreg_joints_relative[:,add_one_index+2,:] + jreg_joints_relative[:,add_one_index+3,:]
+            # jreg_joints[:,(add_two_index+5)[1:],:] = jreg_joints[:,add_one_index+4,:] + jreg_joints_relative[:,add_one_index,:] + jreg_joints_relative[:,add_one_index+1,:] + jreg_joints_relative[:,add_one_index+2,:] + jreg_joints_relative[:,add_one_index+3,:]
+
+            add_one_index = np.array([0, 4, 9, 14, 19])
+            for i in range(5):
+                if i == 4:
+                    used_add_index = add_one_index[1:]
+                else:
+                    used_add_index = add_one_index
+                for j in range(i + 1):
+                    jreg_joints[:, used_add_index + i +
+                                1, :] += jreg_joints_relative[:,
+                                                              used_add_index +
+                                                              j, :]
 
         bone_joints = self.forward_full(full_pose, jreg_joints)
 
@@ -180,7 +258,8 @@ class sim_NIMBLELayer(torch.nn.Module):
             parent = self.kintree_parents[i_val_joint]
             parent_j = th_j[:, parent, :].contiguous().view(batch_size, 3, 1)
             joint_rel_transform = th_with_zeros(
-                torch.cat([joint_rot, joint_j - parent_j], 2))
+                torch.cat([joint_rot.to(joint_j.device), joint_j - parent_j],
+                          2))
 
             th_results.append(
                 torch.matmul(th_results[parent], joint_rel_transform))
