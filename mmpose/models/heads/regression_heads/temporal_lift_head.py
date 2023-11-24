@@ -82,10 +82,10 @@ class TemporalLiftHead(BaseModule):
         outputs = outputs.reshape(B, -1, 1, 1)
         return outputs, mems
 
-    def preprocess(self, feats, batch_data_samples, seq_len: int = 1):
+    def preprocess(self, feats, batch_data_samples):
         xy_coord = feats
         N = 2
-        B = int(len(batch_data_samples) / seq_len / N)
+        B = int(len(batch_data_samples) / N)
         H, W = batch_data_samples[0].input_size
         K = xy_coord.shape[1]  # (B, 21, 2)
 
@@ -93,7 +93,7 @@ class TemporalLiftHead(BaseModule):
         uv_coord_im_pred_crop_right = xy_coord[..., :2] * torch.tensor(
             [W, H]).cuda()
         uv_coord_im_pred_crop_right = uv_coord_im_pred_crop_right.view(
-            B * seq_len, N, K, 2)
+            B, N, K, 2)
 
         leftcam_cam_matrix = []
         rightcam_cam_matrix = []
@@ -104,7 +104,7 @@ class TemporalLiftHead(BaseModule):
 
         uv_coord_im_gt_global = []
 
-        all_inv_warp_mat = torch.zeros(B * seq_len * N, 3, 2).cuda()
+        all_inv_warp_mat = torch.zeros(B * N, 3, 2).cuda()
         all_inv_warp_mat.requires_grad = False
         for i, data_sample in enumerate(batch_data_samples):
             if i % 2 == 0:
@@ -144,8 +144,7 @@ class TemporalLiftHead(BaseModule):
         left_hand = torch.tensor(np.array(is_left_hands)).cuda().float()
         uv_coord_im_gt_global = torch.tensor(
             np.array(uv_coord_im_gt_global)).cuda().float()
-        uv_coord_im_gt_global = uv_coord_im_gt_global.view(
-            B * seq_len, N, K, 2)
+        uv_coord_im_gt_global = uv_coord_im_gt_global.view(B, N, K, 2)
 
         def recover_hand(uv_coord_im_pred, left_hand, w):
             recover_uv_coord_im_pred = (
@@ -157,17 +156,16 @@ class TemporalLiftHead(BaseModule):
             return recover_uv_coord_im_pred
 
         uv_coord_im_pred_crop_leftright = uv_coord_im_pred_crop_right.view(
-            B * seq_len * N, K, 2)
+            B * N, K, 2)
         # from crop uv to global uv
-        uv_coord_im_pred = torch.cat([
-            uv_coord_im_pred_crop_leftright,
-            torch.ones(B * seq_len * N, K, 1).cuda()
-        ],
-                                     dim=-1)
+        uv_coord_im_pred = torch.cat(
+            [uv_coord_im_pred_crop_leftright,
+             torch.ones(B * N, K, 1).cuda()],
+            dim=-1)
         uv_coord_im_pred_global_distort = torch.bmm(uv_coord_im_pred,
                                                     all_inv_warp_mat)
         uv_coord_im_pred_global_distort = uv_coord_im_pred_global_distort.view(
-            B * seq_len, N, K, 2)
+            B, N, K, 2)
 
         frame_width = batch_data_samples[0].meta['frame_width']
         uv_coord_im_pred_global_distort = recover_hand(
@@ -187,28 +185,23 @@ class TemporalLiftHead(BaseModule):
                 kpt2d_u = camera_model.undistort(
                     uv_coord_im_pred_global[i].cpu().numpy())
                 uv_coord_im_pred_global[i] = torch.from_numpy(kpt2d_u).cuda()
-            uv_coord_im_pred_global = uv_coord_im_pred_global.view(
-                B * seq_len, N, K, 2)
+            uv_coord_im_pred_global = uv_coord_im_pred_global.view(B, N, K, 2)
         else:
             uv_coord_im_pred_global = uv_coord_im_pred_global_distort.clone()
 
         leftcam_uv = uv_coord_im_pred_global[:, 0]  # (B*S, 21, 2)
         leftcam_x = (leftcam_uv[:, :, 0] - leftcam_cam_matrix[:, 0, 2].view(
-            (B * seq_len, 1))) / leftcam_cam_matrix[:, 0, 0].view(
-                (B * seq_len, 1))
+            (B, 1))) / leftcam_cam_matrix[:, 0, 0].view((B, 1))
         leftcam_y = (leftcam_uv[:, :, 1] - leftcam_cam_matrix[:, 1, 2].view(
-            (B * seq_len, 1))) / leftcam_cam_matrix[:, 1, 1].view(
-                (B * seq_len, 1))
+            (B, 1))) / leftcam_cam_matrix[:, 1, 1].view((B, 1))
         leftcam_xy = torch.cat(
             (leftcam_x.unsqueeze(-1), leftcam_y.unsqueeze(-1)),
             dim=2)  # (B*S, 21, 2)
         rightcam_uv = uv_coord_im_pred_global[:, 1]  # (B, 21, 2)
         rightcam_x = (rightcam_uv[:, :, 0] - rightcam_cam_matrix[:, 0, 2].view(
-            (B * seq_len, 1))) / rightcam_cam_matrix[:, 0, 0].view(
-                (B * seq_len, 1))
+            (B, 1))) / rightcam_cam_matrix[:, 0, 0].view((B, 1))
         rightcam_y = (rightcam_uv[:, :, 1] - rightcam_cam_matrix[:, 1, 2].view(
-            (B * seq_len, 1))) / rightcam_cam_matrix[:, 1, 1].view(
-                (B * seq_len, 1))
+            (B, 1))) / rightcam_cam_matrix[:, 1, 1].view((B, 1))
         rightcam_xy = torch.cat(
             (rightcam_x.unsqueeze(-1), rightcam_y.unsqueeze(-1)),
             dim=2)  # (B*S, 21, 2)
@@ -216,14 +209,11 @@ class TemporalLiftHead(BaseModule):
         Tmatrix_leftcam = torch.tensor(
             (0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)).view((1, -1)).cuda()
         feature1 = torch.cat((leftcam_xy.view(
-            (B * seq_len, -1)), Tmatrix_leftcam.repeat(
-                B * seq_len, 1), left_hand.view((B * seq_len, -1))),
-                             dim=1).view((B * seq_len, self.channel_num, 1, 1))
-        feature2 = torch.cat((rightcam_xy.view(
-            (B * seq_len, -1)), lr_p.view(
-                (B * seq_len, -1)), lr_rot_matrix.view(
-                    (B * seq_len, -1)), left_hand.view((B * seq_len, -1))),
-                             dim=1).view((B * seq_len, self.channel_num, 1, 1))
+            (B, -1)), Tmatrix_leftcam.repeat(B, 1), left_hand.view((B, -1))),
+                             dim=1).view((B, self.channel_num, 1, 1))
+        feature2 = torch.cat((rightcam_xy.view((B, -1)), lr_p.view(
+            (B, -1)), lr_rot_matrix.view((B, -1)), left_hand.view((B, -1))),
+                             dim=1).view((B, self.channel_num, 1, 1))
         feats = torch.cat((feature1, feature2), dim=1).float()
         return (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,
                 leftcam_cam_matrix, rightcam_cam_matrix,
@@ -259,7 +249,7 @@ class TemporalLiftHead(BaseModule):
             (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,
              leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global,
              uv_coord_im_pred_global_distort,
-             hand3d_gt) = self.preprocess(feats, batch_data_samples, 1)
+             hand3d_gt) = self.preprocess(feats, batch_data_samples)
         output, mems = self.forward(feats, mems, 1)
         hand3d_pred = self.postprocess(output, leftcam_xy, rightcam_xy,
                                        lr_rot_matrix, lr_p)[0]
@@ -281,8 +271,7 @@ class TemporalLiftHead(BaseModule):
             (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,
              leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global,
              uv_coord_im_pred_global_distort,
-             hand3d_gt) = self.preprocess(feats, batch_data_samples,
-                                          self.seq_len)
+             hand3d_gt) = self.preprocess(feats, batch_data_samples)
         output, _ = self.forward(feats, None, self.seq_len)
         hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
             output, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p)
