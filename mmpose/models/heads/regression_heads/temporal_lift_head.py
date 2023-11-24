@@ -66,6 +66,22 @@ class TemporalLiftHead(BaseModule):
         outputs = outputs.reshape(B * seq_len, -1, 1, 1)
         return outputs, mems
 
+    def _forward(self, feats, mems):
+        feats = self.liftnet(feats)
+        B = feats.shape[0]
+        if mems is None:
+            mems = torch.zeros(B, 2 * self.channel_num, 1, 1).cuda()
+        feats = feats.view(B, 1, -1)
+        outputs = torch.zeros((B, 1, 42, 1, 1)).cuda()
+        for i in range(1):
+            feat = feats[:, i:i + 1, :].reshape(B, -1, 1, 1)
+            feat_mix = torch.concatenate([feat, mems], dim=1)
+            mems = self.temporal(feat_mix)
+            output = self.last_layer(feat_mix)
+            outputs[:, i, ...] = output
+        outputs = outputs.reshape(B, -1, 1, 1)
+        return outputs, mems
+
     def preprocess(self, feats, batch_data_samples, seq_len: int = 1):
         xy_coord = feats
         N = 2
