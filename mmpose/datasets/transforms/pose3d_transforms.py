@@ -1,12 +1,70 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from copy import deepcopy
-from typing import Dict
 
 import numpy as np
 from mmcv.transforms import BaseTransform
+from nreal_data_tool.utils.bbox import kpt_to_bbox
+from scipy.spatial.transform import Rotation as R
 
+from mmpose.datasets.datasets.hand.pair_hand3d_dataset import PairHand3DDataset
 from mmpose.registry import TRANSFORMS
 from mmpose.structures.keypoint import flip_keypoints_custom_center
+
+
+def convert_bbox(bbox, img_w, img_h):
+    x, y, w, h = bbox
+    x1 = np.clip(x, 0, img_w - 1)
+    y1 = np.clip(y, 0, img_h - 1)
+    x2 = np.clip(x + w, 0, img_w - 1)
+    y2 = np.clip(y + h, 0, img_h - 1)
+    bbox = np.array([x1, y1, x2, y2], dtype=np.float32).reshape(1, 4)
+    return bbox
+
+
+@TRANSFORMS.register_module()
+class RandomStereoParamAug(BaseTransform):
+
+    def __init__(self,
+                 prob=0.5,
+                 baseline_range=[-0.03, 0.03],
+                 y_angle_range=[-3, 3]) -> None:
+        super().__init__()
+        self.prob = prob
+        self.baseline_range = deepcopy(baseline_range)
+        self.y_angle_range = deepcopy(y_angle_range)
+
+    def transform(self, results):
+        if np.random.rand() <= self.prob and results['camera_name'] == 'right':
+            cam_model_right = results['meta']['ori_camera']
+            keypoints3d = results['keypoints3d']
+            delta_baseline = np.random.rand() * (
+                self.baseline_range[1] -
+                self.baseline_range[0]) + self.baseline_range[0]
+            random_angle = np.random.rand() * (
+                self.y_angle_range[1] -
+                self.y_angle_range[0]) + self.y_angle_range[0]
+            delta_R = R.from_euler(
+                'ZYX', [0, random_angle, 0], degrees=True).as_matrix()
+            cam_model_right.camera_to_world_xf[:3, :3] = \
+                cam_model_right.camera_to_world_xf[:3, :3] @ delta_R
+            cam_model_right.camera_to_world_xf[0, 3] += delta_baseline
+            right_keypoints = cam_model_right.world_to_eye(keypoints3d[0])
+            right_keypoints = cam_model_right.eye_to_window(
+                right_keypoints).reshape(1, -1, 2)
+            right_bbox = kpt_to_bbox(right_keypoints[0])
+            right_bbox = convert_bbox(right_bbox, results['image_width'],
+                                      results['image_height'])
+            cam_model_left = deepcopy(cam_model_right)
+            cam_model_left.camera_to_world_xf = np.eye(4)
+            _, right_R, virtual_baseline = \
+                PairHand3DDataset.get_virtual_cam(cam_model_left, cam_model_right) # noqa
+            results['meta']['ori_camera'] = cam_model_right
+            results['bbox'] = right_bbox
+            results['keypoints'] = right_keypoints
+            results['meta']['cam_to_virtual_R'] = right_R
+            results['meta']['virtual_baseline'] = virtual_baseline
+            results['meta']['stereo_aug'] = True
+        return results
 
 
 @TRANSFORMS.register_module()
@@ -45,7 +103,7 @@ class RandomFlipAroundRoot(BaseTransform):
         self.flip_prob = flip_prob
         self.flip_camera = flip_camera
 
-    def transform(self, results: Dict) -> dict:
+    def transform(self, results) -> dict:
         """The transform function of :class:`ZeroCenterPose`.
 
         See ``transform()`` method of :class:`BaseTransform` for details.

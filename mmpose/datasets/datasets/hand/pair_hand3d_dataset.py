@@ -4,7 +4,6 @@ import os.path as osp
 import random
 from typing import Any, Callable, List, Optional, Sequence, Tuple, Union
 
-import cv2
 import numpy as np
 from mmengine.dataset.base_dataset import force_full_init
 from mmengine.dataset.utils import default_collate
@@ -443,47 +442,6 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         data_info['meta']['flipped'] = False
         return data_info
 
-    def cam_rt_aug_update(self, data_info, cam_info):
-        kp3d_homo = np.concatenate(
-            [data_info['keypoints3d'][0],
-             np.ones((21, 1))], axis=1)
-
-        T = np.array(cam_info['left_T'])
-        K = np.array(cam_info['left_K'])
-        D = np.array(cam_info['left_D'])
-
-        left_cam_3d = np.matmul(np.linalg.inv(T), kp3d_homo.T).T[:, :3]
-
-        kp2d = np.matmul(K, left_cam_3d.T).T
-        kp2d = kp2d[:, :2] / kp2d[:, 2:]
-        fx, fy = K[0, 0], K[1, 1]
-        cx, cy = K[0, 2], K[1, 2]
-        kp2d[:, 0] = (kp2d[:, 0] - cx) / fx
-        kp2d[:, 1] = (kp2d[:, 1] - cy) / fy
-        kp2d = cv2.fisheye.distortPoints(kp2d.reshape(1, -1, 2), K,
-                                         D).reshape(-1, 2)
-        data_info['left_keypoints'] = copy.deepcopy(kp2d[np.newaxis])
-
-        T = np.array(cam_info['right_T'])
-        K = np.array(cam_info['right_K'])
-        D = np.array(cam_info['right_D'])
-        right_cam_3d = np.matmul(np.linalg.inv(T), kp3d_homo.T).T[:, :3]
-
-        kp2d = np.matmul(K, right_cam_3d.T).T
-        kp2d = kp2d[:, :2] / kp2d[:, 2:]
-        fx, fy = K[0, 0], K[1, 1]
-        cx, cy = K[0, 2], K[1, 2]
-        kp2d[:, 0] = (kp2d[:, 0] - cx) / fx
-        kp2d[:, 1] = (kp2d[:, 1] - cy) / fy
-        kp2d = cv2.fisheye.distortPoints(kp2d.reshape(1, -1, 2), K,
-                                         D).reshape(-1, 2)
-        data_info['right_keypoints'] = copy.deepcopy(kp2d[np.newaxis])
-
-        (data_info['cam_model_left'],
-         data_info['cam_model_right']) = self.get_cam_model(cam_info)
-
-        return data_info
-
     @force_full_init
     def prepare_data(self, idx) -> Any:
         """Get data processed by ``self.pipeline``.
@@ -500,16 +458,6 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         """
         data_info_ori = self.get_data_info(idx)
         data_info = copy.deepcopy(data_info_ori)
-
-        use_rt_aug = False
-        if np.random.uniform() < self.rt_aug_prob:
-            aug_cam_name = np.random.choice(
-                list(self.offline_cams_info.keys()))
-            cam_info = self.offline_cams_info[aug_cam_name]
-
-            data_info = self.cam_rt_aug_update(data_info, cam_info)
-            use_rt_aug = True
-
         meta_left = copy.deepcopy(data_info['meta'])
         meta_left['ori_camera'] = copy.deepcopy(data_info['cam_model_left'])
         meta_left['template_bones'] = self.hand_bones_list[
@@ -560,10 +508,9 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'upper_body_ids': data_info['upper_body_ids'],
             'lower_body_ids': data_info['lower_body_ids'],
             'flip_pairs': data_info['flip_pairs'],
-            # 'keypoint_weights': data_info['dataset_keypoint_weights'],
             'flip_indices': data_info['flip_indices'],
             'keypoints_visible': data_info['keypoints_visible'].copy(),
-            'use_rt_aug': use_rt_aug,
+            'camera_name': 'left'
         }
 
         data_info_right = {
@@ -584,9 +531,9 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'upper_body_ids': data_info['upper_body_ids'],
             'lower_body_ids': data_info['lower_body_ids'],
             'flip_pairs': data_info['flip_pairs'],
-            # 'keypoint_weights': data_info['dataset_keypoint_weights'],
             'flip_indices': data_info['flip_indices'],
-            'keypoints_visible': data_info['keypoints_visible'].copy()
+            'keypoints_visible': data_info['keypoints_visible'].copy(),
+            'camera_name': 'right'
         }
 
         if self.with_mask:

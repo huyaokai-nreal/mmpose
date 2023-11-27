@@ -5,7 +5,6 @@ import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
-from mmengine.logging import MessageHub
 from mmengine.model import BaseModule
 from torch import Tensor, nn
 
@@ -15,7 +14,7 @@ from mmpose.utils.typing import ConfigType, OptSampleList, Predictions
 
 
 @MODELS.register_module()
-class LiftHeadStandard(BaseModule):
+class TemporalLiftHeadStandard(BaseModule):
     """liftHead for getting 3d keypoints from pair 2d keypoints."""
 
     def __init__(self,
@@ -28,11 +27,11 @@ class LiftHeadStandard(BaseModule):
                  baseline=0.13,
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
-                 use_kp2d_gt: bool = False,
+                 seq_len: int = 4,
                  init_cfg: Union[dict, List[dict], None] = None):
         super().__init__(init_cfg)
-        self.use_kp2d_gt = use_kp2d_gt
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
+        self.seq_len = seq_len
         self.channel_num = 43 if use_plane_coord else 64
         self.lambda_t = lambda_t
         feat_dim = 2 * self.channel_num
@@ -40,17 +39,53 @@ class LiftHeadStandard(BaseModule):
             d_model=feat_dim, d_ffn=d_ffn, num_layers=num_layers)
         self.corruption_cam = corruption_cam
         self.last_layer = nn.Sequential(
-            nn.Conv2d(feat_dim, feat_dim, kernel_size=1), nn.ReLU(),
+            nn.Conv2d(feat_dim * 2, feat_dim, kernel_size=1), nn.ReLU(),
             nn.Conv2d(feat_dim, output_num, kernel_size=1))
-        self.lift_loss = MODELS.build(lift_loss)
+        self.temporal = nn.Sequential(
+            nn.Conv2d(
+                2 * self.channel_num * 2, 2 * self.channel_num, kernel_size=1),
+            nn.ReLU(),
+            nn.Conv2d(
+                self.channel_num * 2, self.channel_num * 2, kernel_size=1))
+        self.loss_module = MODELS.build(lift_loss)
         self.reproj = reproj
         self.use_plane_coord = use_plane_coord
         self.baseline = baseline
 
-    def forward(self, feats: Tuple[Tensor]) -> Tensor:
-        output = self.liftnet(feats)
-        output = self.last_layer(output).view(feats.shape[0], -1, 1, 1)
-        return output
+    def forward(self,
+                feats: Tuple[Tensor],
+                mems=None,
+                seq_len: int = 1) -> Tensor:
+        feats = self.liftnet(feats)
+        B = int(feats.shape[0] / seq_len)
+        if mems is None:
+            mems = torch.zeros(B, 2 * self.channel_num, 1, 1).cuda()
+        feats = feats.view(B, seq_len, -1)
+        outputs = torch.zeros((B, seq_len, 42, 1, 1)).cuda()
+        for i in range(seq_len):
+            feat = feats[:, i:i + 1, :].reshape(B, -1, 1, 1)
+            feat_mix = torch.concatenate([feat, mems], dim=1)
+            mems = self.temporal(feat_mix)
+            output = self.last_layer(feat_mix)
+            outputs[:, i, ...] = output
+        outputs = outputs.reshape(B * seq_len, -1, 1, 1)
+        return outputs, mems
+
+    def _forward(self, feats, mems):
+        feats = self.liftnet(feats)
+        B = feats.shape[0]
+        if mems is None:
+            mems = torch.zeros(B, 2 * self.channel_num, 1, 1).cuda()
+        feats = feats.view(B, 1, -1)
+        outputs = torch.zeros((B, 1, 42, 1, 1)).cuda()
+        for i in range(1):
+            feat = feats[:, i:i + 1, :].reshape(B, -1, 1, 1)
+            feat_mix = torch.concatenate([feat, mems], dim=1)
+            mems = self.temporal(feat_mix)
+            output = self.last_layer(feat_mix)
+            outputs[:, i, ...] = output
+        outputs = outputs.reshape(B, -1, 1, 1)
+        return outputs, mems
 
     def preprocess(self, feats, batch_data_samples):
         xy_coord = feats[..., :2]
@@ -156,8 +191,6 @@ class LiftHeadStandard(BaseModule):
                                              frame_width)  # 翻转gt
 
         # undistort
-        if self.use_kp2d_gt:
-            uv_coord_im_pred_global = uv_coord_im_gt_global
         uv_coord_im_pred_global = \
             uv_coord_im_pred_global_distort_noflip.clone().view(-1, K, 2)
         for i, data_sample in enumerate(batch_data_samples):
@@ -275,13 +308,14 @@ class LiftHeadStandard(BaseModule):
     def predict(self,
                 feats: Tuple[Tensor],
                 batch_data_samples: OptSampleList,
+                mems=None,
                 test_cfg: ConfigType = {}) -> Predictions:
         with torch.no_grad():
             (feats, norm_leftcam_xyz, norm_rightcam_xyz, lr_rot_matrix, lr_p,
              leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global,
              uv_coord_im_pred_global_distort, hand3d_gt, left_R, right_R,
              baseline_scale) = self.preprocess(feats, batch_data_samples)
-        output = self.forward(feats)
+        output, mems = self.forward(feats, mems, 1)
         hand3d_pred = self.postprocess(output, norm_leftcam_xyz,
                                        norm_rightcam_xyz, left_R, right_R,
                                        lr_rot_matrix, lr_p, baseline_scale)[0]
@@ -291,9 +325,9 @@ class LiftHeadStandard(BaseModule):
                 hand3d_pred.cpu().numpy())
             leftcam_uv_reproj_distort = torch.tensor(
                 leftcam_uv_reproj_distort).cuda()
-            return hand3d_pred, leftcam_uv_reproj_distort[:, None, ...]
+            return hand3d_pred, leftcam_uv_reproj_distort[:, None, ...], mems
         else:
-            return hand3d_pred, uv_coord_im_pred_global_distort
+            return hand3d_pred, uv_coord_im_pred_global_distort, mems
 
     def loss(self,
              feats: Tuple[Tensor],
@@ -305,7 +339,7 @@ class LiftHeadStandard(BaseModule):
              leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global,
              uv_coord_im_pred_global_distort, hand3d_gt, left_R, right_R,
              baseline_scale) = self.preprocess(feats, batch_data_samples)
-        output = self.forward(feats)
+        output, _ = self.forward(feats, None, self.seq_len)
         hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
             output, norm_leftcam_xyz, norm_rightcam_xyz, left_R, right_R,
             lr_rot_matrix, lr_p, baseline_scale)
@@ -326,11 +360,11 @@ class LiftHeadStandard(BaseModule):
         leftcam_uv_gt = uv_coord_im_pred_global[:, 0]
         rightcam_uv_gt = uv_coord_im_pred_global[:, 1]
 
-        # major_gt = torch.cat(
-        #     (hand3d_gt[:, 1:10, :], hand3d_gt[:, 13, :].unsqueeze(1)), dim=1)
-        # major_pred = torch.cat(
-        #     (hand3d_pred[:, 1:10, :], hand3d_pred[:, 13, :].unsqueeze(1)),
-        #     dim=1)
+        major_gt = torch.cat(
+            (hand3d_gt[:, 1:10, :], hand3d_gt[:, 13, :].unsqueeze(1)), dim=1)
+        major_pred = torch.cat(
+            (hand3d_pred[:, 1:10, :], hand3d_pred[:, 13, :].unsqueeze(1)),
+            dim=1)
 
         # origin distance, no norm
         dist_pred = torch.norm(
@@ -338,26 +372,23 @@ class LiftHeadStandard(BaseModule):
         dist_gt = torch.norm(hand3d_gt[:, 4, :] - hand3d_gt[:, 8, :], dim=-1)
         pred_for_loss = [
             hand3d_pred, leftcam_XYZ, rightcam_XYZ, leftcam_uv_reproj,
-            rightcam_uv_reproj, dist_pred
+            rightcam_uv_reproj, dist_pred, hand3d_pred, major_pred
         ]
         targ_for_loss = [
             hand3d_gt, hand3d_gt, hand3d_gt, leftcam_uv_gt, rightcam_uv_gt,
-            dist_gt
+            dist_gt, hand3d_gt, major_gt
         ]
-        losses = self.lift_loss(pred_for_loss, targ_for_loss)
+        losses = self.loss_module(pred_for_loss, targ_for_loss)
         (loss_mse_3d, loss_mse_3d_leftcam, loss_mse_3d_rightcam,
-         loss_mse_2d_leftcam, loss_mse_2d_rightcam, loss_pinch) = losses
-        if self.lambda_t > 0:
-            mh = MessageHub.get_current_instance()
-            cur_epoch = mh.get_info('epoch')
-            if cur_epoch <= self.lambda_t:
-                loss_mse_2d_leftcam *= 0
-                loss_mse_2d_rightcam *= 0
+         loss_mse_2d_leftcam, loss_mse_2d_rightcam, loss_pinch,
+         loss_smooth) = losses
         losses_dict = dict(
             loss_mse_3d=loss_mse_3d,
             loss_mse_3d_leftcam=loss_mse_3d_leftcam,
             loss_mse_3d_rightcam=loss_mse_3d_rightcam,
             loss_mse_2d_leftcam=loss_mse_2d_leftcam,
             loss_mse_2d_rightcam=loss_mse_2d_rightcam,
-            loss_pinch=loss_pinch)
+            loss_pinch=loss_pinch,
+            loss_smooth=loss_smooth)
+
         return losses_dict

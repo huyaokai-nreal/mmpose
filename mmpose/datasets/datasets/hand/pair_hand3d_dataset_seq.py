@@ -134,6 +134,11 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
             cam_info)
         meta = ann.get('meta', dict())
         meta['category_id'] = ann['category_id']
+        left_R, right_R, virtual_baseline = \
+            PairHand3DDataset.get_virtual_cam(cam_model_left, cam_model_right)
+        meta['left_R'] = left_R
+        meta['right_R'] = right_R
+        meta['virtual_baseline'] = virtual_baseline
         meta['gesture'] = ann['gesture']
         meta['tag'] = ann['tag']
         data_info = {
@@ -267,6 +272,12 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
 
         meta_right = copy.deepcopy(data_info['meta'])
         meta_right['ori_camera'] = copy.deepcopy(data_info['cam_model_right'])
+        meta_left['cam_to_virtual_R'] = copy.deepcopy(
+            data_info['meta']['left_R'])
+        meta_right['cam_to_virtual_R'] = copy.deepcopy(
+            data_info['meta']['right_R'])
+        meta_right['virtual_baseline'] = copy.deepcopy(
+            data_info['meta']['virtual_baseline'])
 
         data_info_left = {
             'img_id': data_info['left_img_id'],
