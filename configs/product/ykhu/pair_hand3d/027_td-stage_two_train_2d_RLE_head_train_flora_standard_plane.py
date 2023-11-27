@@ -168,6 +168,7 @@ for data_date in train_date_list:
         train_data_list += kpt3d_datasets_info['train_data'][data_date].get(
             glasses, [])
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
+train_data_list = train_data_list[:1]
 
 # train_data_list = [
 #     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230904_101030__pinch__bright__right__1111__0021__undistort_tar__Flora303.json'
