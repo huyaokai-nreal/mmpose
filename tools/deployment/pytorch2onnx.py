@@ -99,7 +99,6 @@ def pytorch2onnx(model,
     for i in range(len(input_names)):
         input_tensor = torch.randn(input_shape[i * 4:i * 4 + 4])
         input_list.append(input_tensor)
-    input_list[-1] = torch.zeros(1, 110, 1, 1)
     dynamic_axes = None
     if dyn_batch:
         dynamic_axes = dict()
