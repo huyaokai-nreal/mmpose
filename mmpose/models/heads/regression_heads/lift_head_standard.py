@@ -26,6 +26,7 @@ class LiftHeadStandard(BaseModule):
                  reproj: bool = False,
                  use_plane_coord=True,
                  baseline=0.13,
+                 stereo_param_aug_train=False,
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
                  use_kp2d_gt: bool = False,
@@ -46,19 +47,29 @@ class LiftHeadStandard(BaseModule):
         self.reproj = reproj
         self.use_plane_coord = use_plane_coord
         self.baseline = baseline
+        self.stereo_param_aug_train = stereo_param_aug_train
 
     def forward(self, feats: Tuple[Tensor]) -> Tensor:
         output = self.liftnet(feats)
         output = self.last_layer(output).view(feats.shape[0], -1, 1, 1)
         return output
 
+    @staticmethod
+    def recover_hand(uv_coord_im_pred, left_hand, w):
+        recover_uv_coord_im_pred = (1 - left_hand.view(
+            size=(-1, 1, 1, 1))) * uv_coord_im_pred + left_hand.view(
+                size=(-1, 1, 1, 1)) * (
+                    torch.tensor([w - 1, 0]).view(size=(1, 1, 1, 2)).cuda() +
+                    torch.tensor([-1, 1]).view(size=(1, 1, 1, 2)).cuda() *
+                    uv_coord_im_pred)
+        return recover_uv_coord_im_pred
+
     def preprocess(self, feats, batch_data_samples):
         xy_coord = feats[..., :2]
         B = int(len(batch_data_samples) / 2)
         N = 2
         H, W = batch_data_samples[0].input_size
-        K = xy_coord.shape[1]  # (B,21, 2)
-
+        K = xy_coord.shape[1]
         # kpt2d output to crop wh
         uv_coord_im_pred_crop_right = xy_coord * torch.tensor([W, H]).cuda()
         uv_coord_im_pred_crop_right = uv_coord_im_pred_crop_right.view(
@@ -85,7 +96,7 @@ class LiftHeadStandard(BaseModule):
                 leftcam_cam_matrix.append(left_cam_matrix)
                 left_R.append(data_sample.meta['cam_to_virtual_R'])
                 hand3d_gt.append(data_sample.gt_instances.keypoints3d[0])
-                if data_sample.meta['category_id'] == 1:  # 1: left, 2: right
+                if data_sample.meta['category_id'] == 1:
                     is_left_hands.append(1)
                 else:
                     is_left_hands.append(0)
@@ -126,15 +137,6 @@ class LiftHeadStandard(BaseModule):
         uv_coord_im_gt_global = uv_coord_im_gt_global[..., :2]
         uv_coord_im_gt_global = uv_coord_im_gt_global.view(B, N, K, 2)
 
-        def recover_hand(uv_coord_im_pred, left_hand, w):
-            recover_uv_coord_im_pred = (
-                1 - left_hand.view(size=(-1, 1, 1, 1))
-            ) * uv_coord_im_pred + left_hand.view(size=(-1, 1, 1, 1)) * (
-                torch.tensor([w - 1, 0]).view(size=(1, 1, 1, 2)).cuda() +
-                torch.tensor([-1, 1]).view(size=(1, 1, 1, 2)).cuda() *
-                uv_coord_im_pred)
-            return recover_uv_coord_im_pred
-
         uv_coord_im_pred_crop_leftright = uv_coord_im_pred_crop_right
         uv_coord_im_pred_crop_leftright = uv_coord_im_pred_crop_leftright.view(
             B * N, K, 2)
@@ -150,21 +152,26 @@ class LiftHeadStandard(BaseModule):
             B, N, K, 2)
 
         frame_width = batch_data_samples[0].meta['frame_width']
-        uv_coord_im_pred_global_distort_noflip = recover_hand(
-            uv_coord_im_pred_global_distort, left_hand, frame_width)  # 翻转pred
-        uv_coord_im_gt_global = recover_hand(uv_coord_im_gt_global, left_hand,
-                                             frame_width)  # 翻转gt
+        uv_coord_im_pred_global_distort_noflip = self.recover_hand(
+            uv_coord_im_pred_global_distort, left_hand, frame_width)
+        uv_coord_im_gt_global = self.recover_hand(uv_coord_im_gt_global,
+                                                  left_hand,
+                                                  frame_width).view(-1, K, 2)
 
-        # undistort
+        uv_coord_im_pred_global = uv_coord_im_pred_global_distort_noflip.view(
+            -1, K, 2).clone()
         if self.use_kp2d_gt:
-            uv_coord_im_pred_global = uv_coord_im_gt_global
-        uv_coord_im_pred_global = \
-            uv_coord_im_pred_global_distort_noflip.clone().view(-1, K, 2)
+            uv_coord_im_pred_global = uv_coord_im_gt_global.view(-1, K,
+                                                                 2).clone()
+
         for i, data_sample in enumerate(batch_data_samples):
-            camera_model = data_sample.meta['ori_camera']
-            kpt2d_u = camera_model.undistort(
-                uv_coord_im_pred_global[i].cpu().numpy())
-            uv_coord_im_pred_global[i] = torch.from_numpy(kpt2d_u).cuda()
+            if self.stereo_param_aug_train and data_sample.meta['stereo_aug']:
+                uv_coord_im_pred_global[i] = uv_coord_im_gt_global[i].clone()
+            else:
+                camera_model = data_sample.meta['ori_camera']
+                kpt2d_u = camera_model.undistort(
+                    uv_coord_im_pred_global[i].cpu().numpy())
+                uv_coord_im_pred_global[i] = torch.from_numpy(kpt2d_u).cuda()
         uv_coord_im_pred_global = uv_coord_im_pred_global.view(B, N, K, 2)
 
         leftcam_uv = uv_coord_im_pred_global[:, 0]

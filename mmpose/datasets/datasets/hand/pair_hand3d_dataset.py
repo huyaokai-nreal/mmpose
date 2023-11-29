@@ -110,7 +110,8 @@ class PairHand3DDataset(BaseCocoStyleDataset):
     @staticmethod
     def is_keypoint_within_bounds(keypoint, image_width, image_height):
         x, y = keypoint[:, 0], keypoint[:, 1]
-        within_mask = (x < image_width) & (y < image_height)
+        within_mask = ((0 <= x) & (x < image_width)) & ((0 <= y) &
+                                                        (y < image_height))
         return within_mask.sum() == keypoint.shape[0]
 
     @force_full_init

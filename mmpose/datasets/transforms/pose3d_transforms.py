@@ -21,6 +21,16 @@ def convert_bbox(bbox, img_w, img_h):
     return bbox
 
 
+def left_to_right_hand(keypoints, bbox, width):
+    keypoints[:, :, 0] = width - 1 - keypoints[:, :, 0]
+    bbox[:, ::2] = width - 1 - bbox[:, ::2]
+    min_x = np.min(bbox[:, ::2])
+    max_x = np.max(bbox[:, ::2])
+    min_y = np.min(bbox[:, 1::2])
+    max_y = np.max(bbox[:, 1::2])
+    bbox = np.array([[min_x, min_y, max_x, max_y]], np.float32)
+
+
 @TRANSFORMS.register_module()
 class RandomStereoParamAug(BaseTransform):
 
@@ -35,7 +45,7 @@ class RandomStereoParamAug(BaseTransform):
 
     def transform(self, results):
         if np.random.rand() <= self.prob and results['camera_name'] == 'right':
-            cam_model_right = results['meta']['ori_camera']
+            cam_model_right = deepcopy(results['meta']['ori_camera'])
             keypoints3d = results['keypoints3d']
             delta_baseline = np.random.rand() * (
                 self.baseline_range[1] -
@@ -55,15 +65,21 @@ class RandomStereoParamAug(BaseTransform):
             right_bbox = convert_bbox(right_bbox, results['image_width'],
                                       results['image_height'])
             cam_model_left = deepcopy(cam_model_right)
+            if results['meta']['flipped']:
+                width = results['image_width']
+                left_to_right_hand(right_keypoints, right_bbox, width)
+
             cam_model_left.camera_to_world_xf = np.eye(4)
-            _, right_R, virtual_baseline = \
-                PairHand3DDataset.get_virtual_cam(cam_model_left, cam_model_right) # noqa
+            _, right_R, virtual_baseline = PairHand3DDataset.get_virtual_cam(
+                cam_model_left, cam_model_right)
             results['meta']['ori_camera'] = cam_model_right
             results['bbox'] = right_bbox
             results['keypoints'] = right_keypoints
             results['meta']['cam_to_virtual_R'] = right_R
             results['meta']['virtual_baseline'] = virtual_baseline
             results['meta']['stereo_aug'] = True
+        else:
+            results['meta']['stereo_aug'] = False
         return results
 
 

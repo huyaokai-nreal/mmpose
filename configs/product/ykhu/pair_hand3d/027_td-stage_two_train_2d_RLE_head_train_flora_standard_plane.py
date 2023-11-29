@@ -138,7 +138,10 @@ model = dict(
         num_layers=3,
         output_num=42,
         use_plane_coord=True,
-        baseline=0.13),
+        baseline=0.13,
+        use_kp2d_gt=False,
+        stereo_param_aug_train=True,
+    ),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
@@ -147,8 +150,8 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        #'/data/AI_DATA/data_hand/model/mmpose/td-hand_rsn26_fpn_25d_ipr_right_2d3d_0915data_simu_4x128-100e-128x128/epoch_100.pth'  # 加载2d模型且不更新
-        '/home/zx_li/workspace/mmpose/work_dirs/027_td-stage_two_train_2d_RLE_head_train_flora_standard_plane/epoch_100.pth'
+        '/data/AI_DATA/data_hand/model/mmpose/td-hand_rsn26_fpn_25d_ipr_right_2d3d_0915data_simu_4x128-100e-128x128/epoch_100.pth'  # 加载2d模型且不更新
+        # '/home/zx_li/workspace/mmpose/work_dirs/027_td-stage_two_train_2d_RLE_head_train_flora_standard_plane/epoch_100.pth'
     ))
 
 # base dataset settings
@@ -164,7 +167,6 @@ for data_date in train_date_list:
         train_data_list += kpt3d_datasets_info['train_data'][data_date].get(
             glasses, [])
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
-train_data_list = train_data_list[:1]
 
 # train_data_list = [
 #     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230904_101030__pinch__bright__right__1111__0021__undistort_tar__Flora303.json'
@@ -306,6 +308,10 @@ val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # pipelines
 train_pipeline = [
     dict(
+        type='RandomStereoParamAug',
+        baseline_range=[-0.005, 0.005],
+        y_angle_range=[-3, 3]),
+    dict(
         type='Albumentation',
         transforms=[
             dict(type='RandomBrightnessContrast', p=0.2),
@@ -327,6 +333,10 @@ train_pipeline = [
     dict(type='PackPoseInputs')
 ]
 val_pipeline = [
+    dict(
+        type='RandomStereoParamAug',
+        baseline_range=[-0.005, 0.005],
+        y_angle_range=[-3, 3]),
     dict(type='GetBBoxCenterScale', padding=1.0),
     dict(type='TopdownAffine', input_size=codec['input_size']),
     dict(type='PackPoseInputs')
