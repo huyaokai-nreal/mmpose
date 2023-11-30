@@ -139,10 +139,10 @@ model = dict(
         output_num=42,
         use_plane_coord=False,
         baseline=0.13,
-        all_use_kp2d_gt=True,
+        all_use_kp2d_gt=False,
         perturb_right_use_2d_gt=False,
-        disparity_input=True,
-    ),
+        disparity_input=False,
+        rightcam_3d_disable=False),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,

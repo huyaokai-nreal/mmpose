@@ -28,6 +28,7 @@ class LiftHeadStandard(BaseModule):
                  baseline=0.13,
                  disparity_input=False,
                  perturb_right_use_2d_gt=False,
+                 rightcam_3d_disable=False,
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
                  all_use_kp2d_gt: bool = False,
@@ -38,12 +39,15 @@ class LiftHeadStandard(BaseModule):
         self.channel_num = 43 if use_plane_coord else 64
         self.disparity_input = disparity_input
         self.lambda_t = lambda_t
+        self.rightcam_3d_disable = rightcam_3d_disable
         feat_dim = 2 * self.channel_num
         if self.disparity_input:
             feat_dim += 21
         self.liftnet = gMLP(
             d_model=feat_dim, d_ffn=d_ffn, num_layers=num_layers)
         self.corruption_cam = corruption_cam
+        if self.rightcam_3d_disable:
+            output_num = 21
         self.last_layer = nn.Sequential(
             nn.Conv2d(feat_dim, feat_dim, kernel_size=1), nn.ReLU(),
             nn.Conv2d(feat_dim, output_num, kernel_size=1))
@@ -238,28 +242,33 @@ class LiftHeadStandard(BaseModule):
             leftcam_XYZ = torch.cat(
                 (norm_leftcam_xyz[:, :, :2] * leftcam_Z, leftcam_Z),
                 dim=2).view(B * K, 3, 1)
-            rightcam_Z = output[:, 21:21 * 2].reshape(
-                (B, 21, 1)) * baseline_scale
-            rightcam_XYZ = torch.cat(
-                (norm_rightcam_xyz[:, :, :2] * rightcam_Z, rightcam_Z),
-                dim=2).view(B * K, 3, 1)
+            if not self.rightcam_3d_disable:
+                rightcam_Z = output[:, 21:21 * 2].reshape(
+                    (B, 21, 1)) * baseline_scale
+                rightcam_XYZ = torch.cat(
+                    (norm_rightcam_xyz[:, :, :2] * rightcam_Z, rightcam_Z),
+                    dim=2).view(B * K, 3, 1)
         else:
             leftcam_Z_scale = output[:, :21].view(
                 B, K, 1) * baseline_scale / norm_leftcam_xyz[:, :, 2:]
             leftcam_XYZ = (norm_leftcam_xyz *
                            leftcam_Z_scale).view(B * K, 3, 1)
-            rightcam_Z_scale = output[:, 21:21 * 2].reshape(
-                B, 21, 1) * baseline_scale / norm_rightcam_xyz[:, :, 2:]
-            rightcam_XYZ = (norm_rightcam_xyz *
-                            rightcam_Z_scale).view(B * K, 3, 1)
+            if not self.rightcam_3d_disable:
+                rightcam_Z_scale = output[:, 21:21 * 2].reshape(
+                    B, 21, 1) * baseline_scale / norm_rightcam_xyz[:, :, 2:]
+                rightcam_XYZ = (norm_rightcam_xyz *
+                                rightcam_Z_scale).view(B * K, 3, 1)
 
         leftcam_XYZ = torch.bmm(left_R_inv, leftcam_XYZ).view(B, K, 3)
-        rightcam_XYZ = torch.bmm(right_R_inv, rightcam_XYZ)
-        rightcam_XYZ = (torch.bmm(lr_rot_matrix, rightcam_XYZ) +
-                        lr_p).view(B, 21, 3)
-        hand3d_pred = (
-            self.corruption_cam * leftcam_XYZ +
-            (1 - self.corruption_cam) * rightcam_XYZ)
+        if not self.rightcam_3d_disable:
+            rightcam_XYZ = torch.bmm(right_R_inv, rightcam_XYZ)
+            rightcam_XYZ = (torch.bmm(lr_rot_matrix, rightcam_XYZ) +
+                            lr_p).view(B, 21, 3)
+            hand3d_pred = (
+                self.corruption_cam * leftcam_XYZ +
+                (1 - self.corruption_cam) * rightcam_XYZ)
+        else:
+            hand3d_pred, rightcam_XYZ = leftcam_XYZ, leftcam_XYZ
 
         return hand3d_pred, leftcam_XYZ, rightcam_XYZ
 
@@ -368,6 +377,9 @@ class LiftHeadStandard(BaseModule):
             if cur_epoch <= self.lambda_t:
                 loss_mse_2d_leftcam *= 0
                 loss_mse_2d_rightcam *= 0
+        if self.rightcam_3d_disable:
+            loss_mse_3d_leftcam *= 0
+            loss_mse_3d_rightcam *= 0
         losses_dict = dict(
             loss_mse_3d=loss_mse_3d,
             loss_mse_3d_leftcam=loss_mse_3d_leftcam,

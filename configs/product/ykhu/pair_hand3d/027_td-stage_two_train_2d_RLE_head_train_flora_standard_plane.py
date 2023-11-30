@@ -139,10 +139,10 @@ model = dict(
         output_num=42,
         use_plane_coord=True,
         baseline=0.13,
-        all_use_kp2d_gt=True,
+        all_use_kp2d_gt=False,
         perturb_right_use_2d_gt=False,
-        disparity_input=True,
-    ),
+        disparity_input=False,
+        rightcam_3d_disable=False),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
@@ -168,7 +168,6 @@ for data_date in train_date_list:
         train_data_list += kpt3d_datasets_info['train_data'][data_date].get(
             glasses, [])
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
-train_data_list = train_data_list[:1]
 
 # train_data_list = [
 #     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230904_101030__pinch__bright__right__1111__0021__undistort_tar__Flora303.json'
@@ -410,7 +409,7 @@ val_evaluator = [
         # bmk_save_root='/home/ykhu/workspace/mmpose/work_dirs/bad_case_liftnet/flora304',
         # show_bmk_thr=(20, 10000000),
         filter_exceed=filter_exceed),  #bad case mpjpe thr (mm)
-    # dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
+    dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
     # dict(type='EPE',filter_exceed=filter_exceed),
     # dict(type='NrealKeypointAP',filter_exceed=filter_exceed)
 ]
