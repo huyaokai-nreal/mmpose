@@ -44,7 +44,6 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                  sub_data_index=-1,
                  data_ratio=-1,
                  point_type='3D',
-                 pinch_random=False,
                  mean_bone_template_path='',
                  extern_hand_template_path='',
                  rt_aug_prob=0.0,
@@ -55,7 +54,6 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         self.data_file_list = data_file_list
         self.lmdb_client = LmdbClient()
         self.point_type = point_type
-        self.pinch_random = pinch_random
         self.dataset_info_list = list()
         self.dataset_weight_list = dataset_weight_list
         self.dataset_num = len(self.data_file_list)
@@ -66,9 +64,6 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         self.cams_info = dict()
         self.enter_thre = 0.02
         self.exit_thre = 0.04
-        self.pinch_idx_list = []
-        self.no_pinch_idx_list = []
-        self.media_idx_list = []
         self.hand_bones_list = list()
         self.mean_bone_template_path = mean_bone_template_path
         self.rt_aug_prob = rt_aug_prob
@@ -391,17 +386,6 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             logger.info(
                 f'Train PairHandDataset loaded {len(image_list)} images, {len(instance_list)} pair instances, filter {filter_annotation_num} pair instances'  # noqa
             )
-        if self.pinch_random:
-            for i, instance in enumerate(instance_list):
-                kpt3d = instance['keypoints3d']
-                dist = np.linalg.norm(
-                    kpt3d[:, 4, :] - kpt3d[:, 8, :], axis=-1).item()
-                if dist < self.enter_thre:
-                    self.pinch_idx_list.append(i)
-                elif dist > self.exit_thre:
-                    self.no_pinch_idx_list.append(i)
-                else:
-                    self.media_idx_list.append(i)
 
         return instance_list, image_list
 
@@ -425,12 +409,6 @@ class PairHand3DDataset(BaseCocoStyleDataset):
     def get_data_info(self, idx):
         if not self.test_mode:
             idx = random.randint(0, self.data_num - 1)
-            if self.pinch_random:
-                idx = random.choice(
-                    random.choice([
-                        self.pinch_idx_list, self.no_pinch_idx_list,
-                        self.media_idx_list
-                    ]))
         else:
             idx = idx % self.data_num
         data_info = super().get_data_info(idx)

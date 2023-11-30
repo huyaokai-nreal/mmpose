@@ -26,28 +26,33 @@ class LiftHeadStandard(BaseModule):
                  reproj: bool = False,
                  use_plane_coord=True,
                  baseline=0.13,
-                 stereo_param_aug_train=False,
+                 disparity_input=False,
+                 perturb_right_use_2d_gt=False,
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
-                 use_kp2d_gt: bool = False,
+                 all_use_kp2d_gt: bool = False,
                  init_cfg: Union[dict, List[dict], None] = None):
         super().__init__(init_cfg)
-        self.use_kp2d_gt = use_kp2d_gt
+        self.all_use_kp2d_gt = all_use_kp2d_gt
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.channel_num = 43 if use_plane_coord else 64
+        self.disparity_input = disparity_input
         self.lambda_t = lambda_t
         feat_dim = 2 * self.channel_num
+        if self.disparity_input:
+            feat_dim += 21
         self.liftnet = gMLP(
             d_model=feat_dim, d_ffn=d_ffn, num_layers=num_layers)
         self.corruption_cam = corruption_cam
         self.last_layer = nn.Sequential(
             nn.Conv2d(feat_dim, feat_dim, kernel_size=1), nn.ReLU(),
             nn.Conv2d(feat_dim, output_num, kernel_size=1))
+        self.feat_dim = feat_dim
         self.lift_loss = MODELS.build(lift_loss)
         self.reproj = reproj
         self.use_plane_coord = use_plane_coord
         self.baseline = baseline
-        self.stereo_param_aug_train = stereo_param_aug_train
+        self.perturb_right_use_2d_gt = perturb_right_use_2d_gt
 
     def forward(self, feats: Tuple[Tensor]) -> Tensor:
         output = self.liftnet(feats)
@@ -160,18 +165,17 @@ class LiftHeadStandard(BaseModule):
 
         uv_coord_im_pred_global = uv_coord_im_pred_global_distort_noflip.view(
             -1, K, 2).clone()
-        if self.use_kp2d_gt:
+        if self.all_use_kp2d_gt:
             uv_coord_im_pred_global = uv_coord_im_gt_global.view(-1, K,
                                                                  2).clone()
 
         for i, data_sample in enumerate(batch_data_samples):
-            if self.stereo_param_aug_train and data_sample.meta['stereo_aug']:
+            if self.perturb_right_use_2d_gt and data_sample.meta['stereo_aug']:
                 uv_coord_im_pred_global[i] = uv_coord_im_gt_global[i].clone()
-            else:
-                camera_model = data_sample.meta['ori_camera']
-                kpt2d_u = camera_model.undistort(
-                    uv_coord_im_pred_global[i].cpu().numpy())
-                uv_coord_im_pred_global[i] = torch.from_numpy(kpt2d_u).cuda()
+            camera_model = data_sample.meta['ori_camera']
+            kpt2d_u = camera_model.undistort(
+                uv_coord_im_pred_global[i].cpu().numpy())
+            uv_coord_im_pred_global[i] = torch.from_numpy(kpt2d_u).cuda()
         uv_coord_im_pred_global = uv_coord_im_pred_global.view(B, N, K, 2)
 
         leftcam_uv = uv_coord_im_pred_global[:, 0]
@@ -195,19 +199,23 @@ class LiftHeadStandard(BaseModule):
         if self.use_plane_coord:
             feature1 = torch.cat((norm_leftcam_xyz[:, :, :2].reshape(
                 (B, -1)), left_hand.view(B, -1)),
-                                 dim=1).view(B, self.channel_num, 1, 1)
+                                 dim=1)
             feature2 = torch.cat((norm_rightcam_xyz[:, :, :2].reshape(
                 (B, -1)), left_hand.view(B, -1)),
-                                 dim=1).view(B, self.channel_num, 1, 1)
+                                 dim=1)
         else:
             feature1 = torch.cat((norm_leftcam_xyz.view(
                 (B, -1)), left_hand.view(B, -1)),
-                                 dim=1).view(B, self.channel_num, 1, 1)
+                                 dim=1)
             feature2 = torch.cat((norm_rightcam_xyz.view(
                 (B, -1)), left_hand.view(B, -1)),
-                                 dim=1).view(B, self.channel_num, 1, 1)
+                                 dim=1)
         feats = torch.cat((feature1, feature2), dim=1).float()
+        if self.disparity_input:
+            disparity = norm_leftcam_xyz[:, :, 0] - norm_rightcam_xyz[:, :, 0]
+            feats = torch.cat((feats, disparity), dim=1).float()
 
+        feats = feats.reshape(B, self.feat_dim, 1, 1)
         return (feats, norm_leftcam_xyz, norm_rightcam_xyz, lr_rot_matrix,
                 lr_p, leftcam_cam_matrix, rightcam_cam_matrix,
                 uv_coord_im_pred_global, uv_coord_im_pred_global_distort,

@@ -139,8 +139,9 @@ model = dict(
         output_num=42,
         use_plane_coord=True,
         baseline=0.13,
-        use_kp2d_gt=False,
-        stereo_param_aug_train=True,
+        all_use_kp2d_gt=True,
+        perturb_right_use_2d_gt=False,
+        disparity_input=True,
     ),
     test_cfg=dict(
         flip_test=False,
@@ -309,6 +310,7 @@ val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 train_pipeline = [
     dict(
         type='RandomStereoParamAug',
+        prob=0.5,
         baseline_range=[-0.005, 0.005],
         y_angle_range=[-3, 3]),
     dict(
@@ -335,6 +337,7 @@ train_pipeline = [
 val_pipeline = [
     dict(
         type='RandomStereoParamAug',
+        prob=0.5,
         baseline_range=[-0.005, 0.005],
         y_angle_range=[-3, 3]),
     dict(type='GetBBoxCenterScale', padding=1.0),
