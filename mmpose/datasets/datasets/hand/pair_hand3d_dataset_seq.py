@@ -14,6 +14,7 @@ from xtcocotools.coco import COCO
 
 from mmpose.datasets.builder import DATASETS
 from ..base import BaseCocoStyleDataset
+from .pair_hand3d_dataset import PairHand3DDataset
 
 
 @DATASETS.register_module()
@@ -41,6 +42,7 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
                  sub_data_index=-1,
                  data_ratio=-1,
                  point_type='3D',
+                 filter_kpt_exceed=False,
                  seq_len=4):
         self.flip_left_to_right = flip_left_to_right
         self.data_ratio = data_ratio
@@ -58,6 +60,7 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         self.cams_info = dict()
         self.seq_len = seq_len
         self.test_mode = test_mode
+        self.filter_kpt_exceed = filter_kpt_exceed
         if dataset_weight_list:
             assert len(dataset_weight_list) == len(data_file_list)
         super().__init__(
@@ -163,7 +166,7 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
     def _load_annotations(self) -> Tuple[List[dict], List[dict]]:
         image_list = []
         instance_list = []
-        # sub_dataset_start_id = 0
+        filter_annotation_num = 0
         if self.sub_data_index >= 0:
             self.data_file_list = [self.data_file_list[self.sub_data_index]]
         instance_idx = 0
@@ -183,6 +186,22 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
                 right_img = coco.loadImgs(right_img_id)[0]
                 image_list.append(left_img)
                 image_list.append(right_img)
+                if self.filter_kpt_exceed:
+                    left_keypoints = np.array(
+                        ann['keypoints_left'])[..., :2].reshape(-1, 2)
+                    right_keypoints = np.array(
+                        ann['keypoints_right'])[..., :2].reshape(-1, 2)
+                    left_within_bounds = PairHand3DDataset \
+                        .is_keypoint_within_bounds(
+                            left_keypoints, left_img['width'],
+                            left_img['height'])
+                    right_within_bounds = PairHand3DDataset \
+                        .is_keypoint_within_bounds(
+                            right_keypoints, right_img['width'],
+                            right_img['height'])
+                    if not left_within_bounds or not right_within_bounds:
+                        filter_annotation_num += 1
+                        continue
 
                 data_info = self.parse_data_info(
                     dict(raw_ann_info=ann, raw_img_info=[left_img, right_img]))
