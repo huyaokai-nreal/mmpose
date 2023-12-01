@@ -78,8 +78,6 @@ class RandomStereoParamAug(BaseTransform):
             results['meta']['cam_to_virtual_R'] = right_R
             results['meta']['virtual_baseline'] = virtual_baseline
             results['meta']['stereo_aug'] = True
-        else:
-            results['meta']['stereo_aug'] = False
         return results
 
 

@@ -174,7 +174,8 @@ class LiftHeadStandard(BaseModule):
                                                                  2).clone()
 
         for i, data_sample in enumerate(batch_data_samples):
-            if self.perturb_right_use_2d_gt and data_sample.meta['stereo_aug']:
+            if self.perturb_right_use_2d_gt and data_sample.meta.get(
+                    'stereo_aug', False):
                 uv_coord_im_pred_global[i] = uv_coord_im_gt_global[i].clone()
             camera_model = data_sample.meta['ori_camera']
             kpt2d_u = camera_model.undistort(

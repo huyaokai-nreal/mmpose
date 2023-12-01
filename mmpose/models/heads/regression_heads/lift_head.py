@@ -25,6 +25,7 @@ class LiftHead(BaseModule):
                  output_num: int = 42,
                  undistort: bool = False,
                  use_kp2d_gt=False,
+                 perturb_right_use_2d_gt=False,
                  kpt2d_with_depth: bool = False,
                  reproj: bool = True,
                  noRt=False,
@@ -53,6 +54,7 @@ class LiftHead(BaseModule):
         self.noRt = noRt
         self.not_use_Rt = not_use_Rt
         self.reproj = reproj
+        self.perturb_right_use_2d_gt = perturb_right_use_2d_gt
 
     def forward(self, feats: Tuple[Tensor]) -> Tensor:
         output = self.liftnet(feats)
@@ -155,15 +157,19 @@ class LiftHead(BaseModule):
 
         uv_coord_im_gt_global = recover_hand(uv_coord_im_gt_global, left_hand,
                                              frame_width)
-
+        uv_coord_im_pred_global = uv_coord_im_pred_global_distort_noflip.view(
+            -1, K, 2).clone()
         if self.use_kp2d_gt:
-            uv_coord_im_pred_global = uv_coord_im_gt_global
+            uv_coord_im_pred_global = uv_coord_im_gt_global.view(-1, K,
+                                                                 2).clone()
             depth = left_rel_depth
 
         if self.undistort:
-            uv_coord_im_pred_global = \
-                uv_coord_im_pred_global_distort_noflip.clone().view(-1, K, 2)
             for i, data_sample in enumerate(batch_data_samples):
+                if self.perturb_right_use_2d_gt and data_sample.meta.get(
+                        'stereo_aug', False):
+                    uv_coord_im_pred_global[i] = uv_coord_im_gt_global[
+                        i].clone()
                 camera_model = data_sample.meta['ori_camera']
                 kpt2d_u = camera_model.undistort(
                     uv_coord_im_pred_global[i].cpu().numpy())
