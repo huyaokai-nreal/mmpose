@@ -29,6 +29,7 @@ class LiftHeadStandard(BaseModule):
                  disparity_input=False,
                  rightcam_3d_disable=False,
                  kpt3d_output=False,
+                 kpt3d_output_delta=False,
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
                  all_use_kp2d_gt: bool = False,
@@ -41,6 +42,7 @@ class LiftHeadStandard(BaseModule):
         self.lambda_t = lambda_t
         self.rightcam_3d_disable = rightcam_3d_disable
         self.kpt3d_output = kpt3d_output
+        self.kpt3d_output_delta = kpt3d_output_delta
         feat_dim = 2 * self.channel_num
         if self.disparity_input:
             feat_dim += 21
@@ -54,6 +56,10 @@ class LiftHeadStandard(BaseModule):
         self.last_layer = nn.Sequential(
             nn.Conv2d(feat_dim, feat_dim, kernel_size=1), nn.ReLU(),
             nn.Conv2d(feat_dim, output_num, kernel_size=1))
+        if self.kpt3d_output_delta:
+            self.delta_last_layer = nn.Sequential(
+                nn.Conv2d(feat_dim, feat_dim, kernel_size=1), nn.ReLU(),
+                nn.Conv2d(feat_dim, 21, kernel_size=1))
         self.feat_dim = feat_dim
         self.lift_loss = MODELS.build(lift_loss)
         self.reproj = reproj
@@ -61,8 +67,12 @@ class LiftHeadStandard(BaseModule):
         self.baseline = baseline
 
     def forward(self, feats: Tuple[Tensor]) -> Tensor:
-        output = self.liftnet(feats)
-        output = self.last_layer(output).view(feats.shape[0], -1, 1, 1)
+        liftnet_output = self.liftnet(feats)
+        output = self.last_layer(liftnet_output).view(feats.shape[0], -1, 1, 1)
+        if self.kpt3d_output_delta:
+            delta_output = self.delta_last_layer(liftnet_output).view(
+                feats.shape[0], -1, 1, 1)
+            output = torch.cat((output, delta_output), dim=1)
         return output
 
     @staticmethod
@@ -231,8 +241,13 @@ class LiftHeadStandard(BaseModule):
                     right_R, lr_rot_matrix, lr_p, baseline_scale):
         B, K = norm_leftcam_xyz.shape[:2]
         if self.kpt3d_output:
-            baseline_scale = baseline_scale.view(B, 1, 1, 1)
-            hand3d_pred = (output * baseline_scale).reshape(B, K, 3)
+            if self.kpt3d_output_delta:
+                delta_output = output[:, 63:]
+                output = output[:, :63].view(B, K, 3, 1)
+                output = (output * delta_output).view(B, 63, 1, 1)
+            baseline_scale = baseline_scale.view(B, 1, 1)
+            hand3d_pred = (output.view(B, K, 3) *
+                           baseline_scale).reshape(B, K, 3)
             return hand3d_pred, hand3d_pred, hand3d_pred
         baseline_scale = baseline_scale.view(B, 1, 1)
         lr_rot_matrix = lr_rot_matrix.view(B, 1, 3,
