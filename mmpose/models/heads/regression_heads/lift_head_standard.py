@@ -27,7 +27,6 @@ class LiftHeadStandard(BaseModule):
                  use_plane_coord=True,
                  baseline=0.13,
                  disparity_input=False,
-                 perturb_right_use_2d_gt=False,
                  rightcam_3d_disable=False,
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
@@ -56,7 +55,6 @@ class LiftHeadStandard(BaseModule):
         self.reproj = reproj
         self.use_plane_coord = use_plane_coord
         self.baseline = baseline
-        self.perturb_right_use_2d_gt = perturb_right_use_2d_gt
 
     def forward(self, feats: Tuple[Tensor]) -> Tensor:
         output = self.liftnet(feats)
@@ -174,8 +172,7 @@ class LiftHeadStandard(BaseModule):
                                                                  2).clone()
 
         for i, data_sample in enumerate(batch_data_samples):
-            if self.perturb_right_use_2d_gt and data_sample.meta.get(
-                    'stereo_aug', False):
+            if data_sample.meta.get('stereo_aug', False):
                 uv_coord_im_pred_global[i] = uv_coord_im_gt_global[i].clone()
             camera_model = data_sample.meta['ori_camera']
             kpt2d_u = camera_model.undistort(
