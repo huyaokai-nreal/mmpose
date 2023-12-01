@@ -460,6 +460,8 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                 data_info['meta']['right_R'])
             meta_right['virtual_baseline'] = copy.deepcopy(
                 data_info['meta']['virtual_baseline'])
+            meta_left['test_mode'] = self.test_mode
+            meta_right['test_mode'] = self.test_mode
 
         if 'nimble_pose' in data_info.keys():
             meta_left['nimble_pose'] = data_info['nimble_pose']
