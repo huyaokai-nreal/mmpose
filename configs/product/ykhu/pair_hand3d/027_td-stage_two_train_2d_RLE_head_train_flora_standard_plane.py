@@ -135,14 +135,10 @@ model = dict(
                     enable_start_epoch=train_cfg['max_epochs'] -
                     20),  # 后20 epoch打开pinch loss
             ]),
-        num_layers=3,
-        output_num=42,
         use_plane_coord=True,
-        baseline=0.13,
-        all_use_kp2d_gt=False,
-        perturb_right_use_2d_gt=False,
-        disparity_input=False,
-        rightcam_3d_disable=False),
+        disparity_input=True,
+        rightcam_3d_disable=False,
+        kpt3d_output=True),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,

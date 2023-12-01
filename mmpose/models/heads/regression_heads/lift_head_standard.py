@@ -28,6 +28,7 @@ class LiftHeadStandard(BaseModule):
                  baseline=0.13,
                  disparity_input=False,
                  rightcam_3d_disable=False,
+                 kpt3d_output=False,
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
                  all_use_kp2d_gt: bool = False,
@@ -39,6 +40,7 @@ class LiftHeadStandard(BaseModule):
         self.disparity_input = disparity_input
         self.lambda_t = lambda_t
         self.rightcam_3d_disable = rightcam_3d_disable
+        self.kpt3d_output = kpt3d_output
         feat_dim = 2 * self.channel_num
         if self.disparity_input:
             feat_dim += 21
@@ -47,6 +49,8 @@ class LiftHeadStandard(BaseModule):
         self.corruption_cam = corruption_cam
         if self.rightcam_3d_disable:
             output_num = 21
+        if self.kpt3d_output:
+            output_num = 63
         self.last_layer = nn.Sequential(
             nn.Conv2d(feat_dim, feat_dim, kernel_size=1), nn.ReLU(),
             nn.Conv2d(feat_dim, output_num, kernel_size=1))
@@ -226,6 +230,10 @@ class LiftHeadStandard(BaseModule):
     def postprocess(self, output, norm_leftcam_xyz, norm_rightcam_xyz, left_R,
                     right_R, lr_rot_matrix, lr_p, baseline_scale):
         B, K = norm_leftcam_xyz.shape[:2]
+        if self.kpt3d_output:
+            baseline_scale = baseline_scale.view(B, 1, 1, 1)
+            hand3d_pred = (output * baseline_scale).reshape(B, K, 3)
+            return hand3d_pred, hand3d_pred, hand3d_pred
         baseline_scale = baseline_scale.view(B, 1, 1)
         lr_rot_matrix = lr_rot_matrix.view(B, 1, 3,
                                            3).repeat(1, 21, 1,
@@ -375,7 +383,7 @@ class LiftHeadStandard(BaseModule):
             if cur_epoch <= self.lambda_t:
                 loss_mse_2d_leftcam *= 0
                 loss_mse_2d_rightcam *= 0
-        if self.rightcam_3d_disable:
+        if self.rightcam_3d_disable or self.kpt3d_output:
             loss_mse_3d_leftcam *= 0
             loss_mse_3d_rightcam *= 0
         losses_dict = dict(
