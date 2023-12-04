@@ -263,6 +263,7 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
             data_info['right_img_path'])
         data_info['meta']['frame_height'] = data_info['left_img'].shape[0]
         data_info['meta']['frame_width'] = data_info['left_img'].shape[1]
+        data_info['meta']['flipped'] = False
         return data_info
 
     def prepare_pair_data(self, idx) -> Any:
@@ -298,7 +299,8 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
             'lower_body_ids': data_info['lower_body_ids'],
             'flip_pairs': data_info['flip_pairs'],
             'flip_indices': data_info['flip_indices'],
-            'keypoints_visible': data_info['keypoints_visible']
+            'keypoints_visible': data_info['keypoints_visible'],
+            'camera_name': 'left'
         }
 
         data_info_right = {
@@ -320,7 +322,8 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
             'lower_body_ids': data_info['lower_body_ids'],
             'flip_pairs': data_info['flip_pairs'],
             'flip_indices': data_info['flip_indices'],
-            'keypoints_visible': data_info['keypoints_visible']
+            'keypoints_visible': data_info['keypoints_visible'],
+            'camera_name': 'right'
         }
 
         if self.with_mask:

@@ -353,7 +353,8 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                 ori_keypoints3d = ori_cam.world_to_eye(world_keypoints3d)
                 self.last_kpt3d = ori_keypoints3d
                 # vir_camera_window->vir_camera_eye->ori_camera_eye->ori_camera_windows
-                kpt_norm_eye = virtual_cam.window_to_eye(virtual_keypoints)
+                kpt_norm_eye = virtual_cam.window_to_eye(
+                    virtual_keypoints[:, :2])
                 kpt_norm_world = virtual_cam.eye_to_world(kpt_norm_eye)
                 kpt2d_ori = ori_cam.eye_to_window(kpt_norm_world)
                 pred_instances.keypoints[0][..., :2] = kpt2d_ori
@@ -406,6 +407,9 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             pred_instances.bboxes = bbox_cs2xyxy(bbox_centers, bbox_scales)
             pred_instances.bbox_scores = gt_instances.bbox_scores
             data_sample.pred_instances = pred_instances
+            if data_sample.meta.get('norm_depth', False):
+                hand_scale = data_sample.meta.get('hand_scale', 1.0)
+                gt_instances.keypoints[..., -1] *= hand_scale
 
             if pred_fields is not None:
                 if output_keypoint_indices is not None:

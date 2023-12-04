@@ -29,6 +29,7 @@ def left_to_right_hand(keypoints, bbox, width):
     min_y = np.min(bbox[:, 1::2])
     max_y = np.max(bbox[:, 1::2])
     bbox = np.array([[min_x, min_y, max_x, max_y]], np.float32)
+    return keypoints, bbox
 
 
 @TRANSFORMS.register_module()

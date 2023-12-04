@@ -410,6 +410,7 @@ class TopdownPCL(BaseTransform):
             results['transformed_keypoints'][
                 ..., -1] /= results['meta']['hand_scale']
             results['meta']['norm_depth'] = True
+        results['keypoints'][..., 2] = results['transformed_keypoints'][..., 2]
         results['meta']['root_depth'] = virtual_cam_points[self.root_id][2]
         results['warp_mat'] = np.array([[1, 0, 0], [0, 1, 0]],
                                        dtype=np.float32)
