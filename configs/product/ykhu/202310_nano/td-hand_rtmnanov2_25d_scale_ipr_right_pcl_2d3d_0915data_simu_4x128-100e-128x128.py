@@ -12,7 +12,7 @@ train_cfg = dict(max_epochs=100, val_interval=5)
 
 data_root = '/data/AI_DATA_WX'
 # data_root = '/data/AI_DATA_LOCAL'
-test_type = '2d'
+test_type = '3d'
 camera_layout = 'monocular'
 base_lr = 1e-4
 # optimizer

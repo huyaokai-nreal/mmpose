@@ -9,12 +9,11 @@ from mmengine.dataset.base_dataset import force_full_init
 from mmengine.dataset.utils import default_collate
 from mmengine.logging import MMLogger
 from nreal_data_tool import LmdbClient
+from nreal_data_tool.schema.instance import BinocularCameraInstance
 from nreal_data_tool.utils.affine import from_two_vectors, normalized
-from nreal_data_tool.utils.camera import (OpenCVFisheyeCameraModel,
-                                          OpenCVPinholeCameraModel)
+from nreal_data_tool.utils.camera import build_from_BinocularCameraInstance
 from xtcocotools.coco import COCO
 
-from mmpose.configs._base_.datasets.xs3d import cameras_info
 from mmpose.datasets.builder import DATASETS
 from ..base import BaseCocoStyleDataset
 
@@ -46,7 +45,6 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                  point_type='3D',
                  mean_bone_template_path='',
                  extern_hand_template_path='',
-                 rt_aug_prob=0.0,
                  filter_kpt_exceed=False,
                  standard_stereo=False):
         self.flip_left_to_right = flip_left_to_right
@@ -62,11 +60,8 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         self.mask_ext = mask_ext
         self.sub_data_index = int(sub_data_index)
         self.cams_info = dict()
-        self.enter_thre = 0.02
-        self.exit_thre = 0.04
         self.hand_bones_list = list()
         self.mean_bone_template_path = mean_bone_template_path
-        self.rt_aug_prob = rt_aug_prob
         self.filter_kpt_exceed = filter_kpt_exceed
         self.standard_stereo = standard_stereo
         if dataset_weight_list:
@@ -126,30 +121,6 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                 return int(len(self.data_address) * self.data_ratio)
             else:
                 return int(len(self.data_list) * self.data_ratio)
-
-    @staticmethod
-    def get_cam_model(cam_info):
-        if cam_info['camera_type'] == 'fisheye':
-            CMAERA_MODEL = OpenCVFisheyeCameraModel
-        elif cam_info['camera_type'] == 'pinhole':
-            CMAERA_MODEL = OpenCVPinholeCameraModel
-        else:
-            raise NotImplementedError
-        left_cam_xf = np.array(cam_info['left_T'])
-        right_cam_xf = np.array(cam_info['right_T'])
-        cam_model_left = CMAERA_MODEL(
-            f=(cam_info['left_K'][0][0], cam_info['left_K'][1][1]),
-            c=(cam_info['left_K'][0][2], cam_info['left_K'][1][2]),
-            camera_to_world_xf=left_cam_xf,
-            distort_coeffs=cam_info['left_D'][0] if isinstance(
-                cam_info['left_D'][0], list) else cam_info['left_D'])
-        cam_model_right = CMAERA_MODEL(
-            f=(cam_info['right_K'][0][0], cam_info['right_K'][1][1]),
-            c=(cam_info['right_K'][0][2], cam_info['right_K'][1][2]),
-            camera_to_world_xf=right_cam_xf,
-            distort_coeffs=cam_info['right_D'][0] if isinstance(
-                cam_info['right_D'][0], list) else cam_info['right_D'])
-        return cam_model_left, cam_model_right
 
     @staticmethod
     def get_virtual_cam(cam_model_left, cam_model_right):
@@ -214,11 +185,12 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                                                             2].reshape(1, -1)
         cam_key = ann['camera_instance_id']
         cam_info = self.cams_info[cam_key]
-        cam_model_left, cam_model_right = self.get_cam_model(cam_info)
-
+        cam_model_left, cam_model_right = build_from_BinocularCameraInstance(
+            cam_info)
         meta = ann.get('meta', dict())
-        meta.update(cam_info)
         meta['category_id'] = ann['category_id']
+        left_R, right_R, virtual_baseline = \
+            PairHand3DDataset.get_virtual_cam(cam_model_left, cam_model_right)
         if self.standard_stereo:
             left_R, right_R, virtual_baseline = \
                 self.get_virtual_cam(cam_model_left, cam_model_right)
@@ -247,7 +219,6 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                 'nimble_joints': nimble_joints,
                 'nimble_occlusion_cam0': nimble_occlusion_cam0,
                 'nimble_occlusion_cam1': nimble_occlusion_cam1,
-                'cam_info': cam_info,
                 'left_bbox': left_bbox,
                 'right_bbox': right_bbox,
                 'image_width': left_img_w,
@@ -272,7 +243,6 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                 'left_keypoints': left_keypoints,
                 'right_keypoints': right_keypoints,
                 'keypoints3d': keypoints3d,
-                'cam_info': cam_info,
                 'left_bbox': left_bbox,
                 'right_bbox': right_bbox,
                 'image_width': left_img_w,
@@ -307,19 +277,14 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         image_list = []
         instance_list = []
         filter_annotation_num = 0
-
-        # 更新离线统计的nreal眼镜内外参
-        self.offline_cams_info = copy.deepcopy(cameras_info)
-
-        # sub_dataset_start_id = 0
         if self.sub_data_index >= 0:
             self.data_file_list = [self.data_file_list[self.sub_data_index]]
         for i, anno_file in enumerate(self.data_file_list):
             coco = COCO(anno_file)
             lmdb_path = osp.join(self.lmdb_data_root,
                                  coco.dataset['lmdb_path'])
-            # sub_dataset_num = 0
-            self.cams_info.update(coco.dataset['cameras_info'])
+            for k, v in coco.dataset['cameras_info'].items():
+                self.cams_info[k] = BinocularCameraInstance.from_dict(v)
             keypoints3d_list = []
             ann_ids = coco.getAnnIds()
             for ann_id in ann_ids:
