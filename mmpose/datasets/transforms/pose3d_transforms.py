@@ -38,13 +38,11 @@ class RandomStereoParamAug(BaseTransform):
     def __init__(self,
                  prob=0.5,
                  baseline_range=[-0.03, 0.03],
-                 y_angle_range=[-3, 3],
-                 flora_with_ella=False) -> None:
+                 y_angle_range=[-3, 3]) -> None:
         super().__init__()
         self.prob = prob
         self.baseline_range = deepcopy(baseline_range)
         self.y_angle_range = deepcopy(y_angle_range)
-        self.flora_with_ella = flora_with_ella
 
     def transform(self, results):
         """Add disturbance randomly during training and every other data point
@@ -79,8 +77,6 @@ class RandomStereoParamAug(BaseTransform):
             cam_model_left.camera_to_world_xf = np.eye(4)
             _, right_R, vir_baseline = PairHand3DDataset.get_virtual_cam(
                 cam_model_left, cam_model_right)
-            if delta_baseline != 0 and self.flora_with_ella:
-                results['meta']['baseline'] = 0.103
             results['meta']['ori_camera'] = cam_model_right
             results['bbox'] = right_bbox
             results['keypoints'] = right_keypoints
