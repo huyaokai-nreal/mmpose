@@ -38,54 +38,55 @@ class RandomStereoParamAug(BaseTransform):
     def __init__(self,
                  prob=0.5,
                  baseline_range=[-0.03, 0.03],
-                 y_angle_range=[-3, 3]) -> None:
+                 y_angle_range=[-3, 3],
+                 flora_with_ella=False) -> None:
         super().__init__()
         self.prob = prob
         self.baseline_range = deepcopy(baseline_range)
         self.y_angle_range = deepcopy(y_angle_range)
-        self.index = 0
+        self.flora_with_ella = flora_with_ella
 
     def transform(self, results):
         """Add disturbance randomly during training and every other data point
         in test mode for the right camera."""
-        if results['camera_name'] == 'right':
-            if (not results['meta']['test_mode']
-                    and np.random.rand() <= self.prob) or (
-                        results['meta']['test_mode'] and self.index % 2 == 0):
-                cam_model_right = deepcopy(results['meta']['ori_camera'])
-                keypoints3d = results['keypoints3d']
-                delta_baseline = np.random.rand() * (
-                    self.baseline_range[1] -
-                    self.baseline_range[0]) + self.baseline_range[0]
-                random_angle = np.random.rand() * (
-                    self.y_angle_range[1] -
-                    self.y_angle_range[0]) + self.y_angle_range[0]
-                delta_R = R.from_euler(
-                    'ZYX', [0, random_angle, 0], degrees=True).as_matrix()
-                cam_model_right.camera_to_world_xf[:3, :3] = \
-                    cam_model_right.camera_to_world_xf[:3, :3] @ delta_R
-                cam_model_right.camera_to_world_xf[0, 3] += delta_baseline
-                right_keypoints = cam_model_right.world_to_eye(keypoints3d[0])
-                right_keypoints = cam_model_right.eye_to_window(
-                    right_keypoints).reshape(1, -1, 2)
-                right_bbox = kpt_to_bbox(right_keypoints[0])
-                right_bbox = convert_bbox(right_bbox, results['image_width'],
-                                          results['image_height'])
-                cam_model_left = deepcopy(cam_model_right)
-                if results['meta']['flipped']:
-                    width = results['image_width']
-                    left_to_right_hand(right_keypoints, right_bbox, width)
+        if results['camera_name'] == 'right' and (
+            (not results['meta']['test_mode'] and
+             np.random.rand() <= self.prob) or results['meta']['test_mode']):
+            cam_model_right = deepcopy(results['meta']['ori_camera'])
+            keypoints3d = results['keypoints3d']
+            delta_baseline = np.random.rand() * (
+                self.baseline_range[1] -
+                self.baseline_range[0]) + self.baseline_range[0]
+            random_angle = np.random.rand() * (
+                self.y_angle_range[1] -
+                self.y_angle_range[0]) + self.y_angle_range[0]
+            delta_R = R.from_euler(
+                'ZYX', [0, random_angle, 0], degrees=True).as_matrix()
+            cam_model_right.camera_to_world_xf[:3, :3] = \
+                cam_model_right.camera_to_world_xf[:3, :3] @ delta_R
+            cam_model_right.camera_to_world_xf[0, 3] += delta_baseline
+            right_keypoints = cam_model_right.world_to_eye(keypoints3d[0])
+            right_keypoints = cam_model_right.eye_to_window(
+                right_keypoints).reshape(1, -1, 2)
+            right_bbox = kpt_to_bbox(right_keypoints[0])
+            right_bbox = convert_bbox(right_bbox, results['image_width'],
+                                      results['image_height'])
+            cam_model_left = deepcopy(cam_model_right)
+            if results['meta']['flipped']:
+                width = results['image_width']
+                left_to_right_hand(right_keypoints, right_bbox, width)
 
-                cam_model_left.camera_to_world_xf = np.eye(4)
-                _, right_R, vir_baseline = PairHand3DDataset.get_virtual_cam(
-                    cam_model_left, cam_model_right)
-                results['meta']['ori_camera'] = cam_model_right
-                results['bbox'] = right_bbox
-                results['keypoints'] = right_keypoints
-                results['meta']['cam_to_virtual_R'] = right_R
-                results['meta']['virtual_baseline'] = vir_baseline
-                results['meta']['stereo_aug'] = True
-            self.index += 1
+            cam_model_left.camera_to_world_xf = np.eye(4)
+            _, right_R, vir_baseline = PairHand3DDataset.get_virtual_cam(
+                cam_model_left, cam_model_right)
+            if delta_baseline != 0 and self.flora_with_ella:
+                results['meta']['baseline'] = 0.103
+            results['meta']['ori_camera'] = cam_model_right
+            results['bbox'] = right_bbox
+            results['keypoints'] = right_keypoints
+            results['meta']['cam_to_virtual_R'] = right_R
+            results['meta']['virtual_baseline'] = vir_baseline
+            results['meta']['stereo_aug'] = True
         return results
 
 

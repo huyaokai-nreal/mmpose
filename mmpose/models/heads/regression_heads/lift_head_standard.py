@@ -25,7 +25,6 @@ class LiftHeadStandard(BaseModule):
                  output_num: int = 42,
                  reproj: bool = False,
                  use_plane_coord=True,
-                 baseline=0.13,
                  disparity_input=False,
                  rightcam_3d_disable=False,
                  kpt3d_output=False,
@@ -64,7 +63,6 @@ class LiftHeadStandard(BaseModule):
         self.lift_loss = MODELS.build(lift_loss)
         self.reproj = reproj
         self.use_plane_coord = use_plane_coord
-        self.baseline = baseline
 
     def forward(self, feats: Tuple[Tensor]) -> Tensor:
         liftnet_output = self.liftnet(feats)
@@ -133,7 +131,7 @@ class LiftHeadStandard(BaseModule):
                 lr_rot_matrix.append(lr_t[:3, :3])
                 lr_p.append(lr_t[:3, 3])
                 baseline_scale.append(data_sample.meta['virtual_baseline'] /
-                                      self.baseline)
+                                      data_sample.meta['baseline'])
             warp_mat = data_sample.metainfo['warp_mat']
             inv_warp_mat = cv2.invertAffineTransform(warp_mat).astype(
                 np.float32)

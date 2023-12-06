@@ -423,6 +423,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                 data_info['meta']['left_R'])
             meta_right['cam_to_virtual_R'] = copy.deepcopy(
                 data_info['meta']['right_R'])
+            meta_right['baseline'] = 0.13  # flora baseline
             meta_right['virtual_baseline'] = copy.deepcopy(
                 data_info['meta']['virtual_baseline'])
             meta_left['test_mode'] = self.test_mode

@@ -135,14 +135,11 @@ model = dict(
                     enable_start_epoch=train_cfg['max_epochs'] -
                     20),  # 后20 epoch打开pinch loss
             ]),
-        num_layers=3,
-        output_num=42,
         use_plane_coord=False,
-        baseline=0.13,
-        all_use_kp2d_gt=False,
-        perturb_right_use_2d_gt=False,
         disparity_input=False,
-        rightcam_3d_disable=False),
+        rightcam_3d_disable=False,
+        kpt3d_output=False,
+        kpt3d_output_delta=False),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
@@ -169,10 +166,10 @@ for data_date in train_date_list:
             glasses, [])
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 
-# train_data_list = [
-#     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230904_101030__pinch__bright__right__1111__0021__undistort_tar__Flora303.json'
-# ]
-# train_data_list = [os.path.join(data_root, item) for item in train_data_list]
+train_data_list = [
+    'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230904_101030__pinch__bright__right__1111__0021__undistort_tar__Flora303.json'
+]
+train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
@@ -311,8 +308,9 @@ train_pipeline = [
     dict(
         type='RandomStereoParamAug',
         prob=0.5,
-        baseline_range=[-0.005, 0.005],
-        y_angle_range=[-3, 3]),
+        baseline_range=[-0.033, -0.032],
+        y_angle_range=[-3, 3],
+        flora_with_ella=True),
     dict(
         type='Albumentation',
         transforms=[
@@ -337,9 +335,9 @@ train_pipeline = [
 val_pipeline = [
     dict(
         type='RandomStereoParamAug',
-        prob=0.5,
-        baseline_range=[-0.005, 0.005],
-        y_angle_range=[-3, 3]),
+        baseline_range=[0, 0],
+        y_angle_range=[-3, 3],
+        flora_with_ella=True),
     dict(type='GetBBoxCenterScale', padding=1.0),
     dict(type='TopdownAffine', input_size=codec['input_size']),
     dict(type='PackPoseInputs')
