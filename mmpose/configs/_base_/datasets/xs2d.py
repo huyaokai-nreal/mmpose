@@ -52,6 +52,16 @@ datasets_info = {
         'flora_black': [
             'data_hand/hand_keypoint/annotations/hand_test_chichi_keypoint_230912_5k__1__binocular__lmdb.json',
             'data_hand/hand_keypoint/annotations/hand_test_chichis_keypoint_230918_5k__1__binocular__lmdb.json'
+        ],
+        # 车内数据
+        'flora_car': [
+            'data_hand/hand_keypoint/annotations/hand_test_flora_keypoint_car_231208_2k__1__binocular__lmdb.json'
+        ],
+        # 手部佩戴装饰品数据
+        'flora_decoration': [
+            'data_hand/hand_keypoint/annotations/hand_test_flora_keypoint_decoration_1_231208_1k__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_test_flora_keypoint_decoration_2_231208_1k__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_test_flora_keypoint_decoration_3_231208_1k__1__binocular__lmdb.json',
         ]
     }
 }

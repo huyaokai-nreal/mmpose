@@ -135,7 +135,7 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         meta = ann.get('meta', dict())
         meta['category_id'] = ann['category_id']
         left_R, right_R, virtual_baseline = \
-            PairHand3DDataset.get_virtual_cam(cam_model_left, cam_model_right)
+            PairHand3DDataset.get_virtual_camv2(cam_model_left, cam_model_right) # noqa
         meta['left_R'] = left_R
         meta['right_R'] = right_R
         meta['virtual_baseline'] = virtual_baseline

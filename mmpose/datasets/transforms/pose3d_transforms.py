@@ -48,7 +48,7 @@ class RandomStereoParamAug(BaseTransform):
         """Add disturbance randomly during training and every other data point
         in test mode for the right camera."""
         if results['camera_name'] == 'right' and (
-            (not results['meta']['test_mode'] and
+            (not results['meta'].get('test_mode', False) and
              np.random.rand() <= self.prob) or results['meta']['test_mode']):
             cam_model_right = deepcopy(results['meta']['ori_camera'])
             keypoints3d = results['keypoints3d']
