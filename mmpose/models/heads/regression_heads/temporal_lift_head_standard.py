@@ -33,7 +33,6 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
             reproj,
             use_plane_coord,
             baseline,
-            perturb_right_use_2d_gt=perturb_right_use_2d_gt,
             all_use_kp2d_gt=False,
             corruption_cam=corruption_cam,
             init_cfg=init_cfg)

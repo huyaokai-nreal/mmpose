@@ -12,6 +12,8 @@ from nreal_data_tool import LmdbClient
 from nreal_data_tool.schema.instance import BinocularCameraInstance
 from nreal_data_tool.utils.affine import from_two_vectors, normalized
 from nreal_data_tool.utils.camera import build_from_BinocularCameraInstance
+from nreal_data_tool.utils.geometry import \
+    get_fisheye_rotations_from_relative_transform_for_std_stereo
 from xtcocotools.coco import COCO
 
 from mmpose.datasets.builder import DATASETS
@@ -147,6 +149,28 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         virtual_baseline = np.linalg.norm(relative_T[:3, 3])
         return left_R[:3, :3], right_R[:3, :3], virtual_baseline
 
+    @staticmethod
+    def get_virtual_camv2(cam_model_left, cam_model_right):
+        T = np.linalg.inv(cam_model_left.camera_to_world_xf
+                          ) @ cam_model_right.camera_to_world_xf
+        R_left, R_right = get_fisheye_rotations_from_relative_transform_for_std_stereo(  # noqa
+            T)
+        virtual_left_camera = copy.deepcopy(cam_model_left)
+        virtual_left_camera.camera_to_world_xf[:3, :3] = \
+            R_left @ virtual_left_camera.camera_to_world_xf[:3, :3]
+        virtual_right_camera = copy.deepcopy(cam_model_right)
+        virtual_right_camera.camera_to_world_xf[:3, : 3] = \
+            R_right @ virtual_right_camera.camera_to_world_xf[:3, :3]
+
+        left_R = np.linalg.inv(virtual_left_camera.camera_to_world_xf
+                               ) @ cam_model_left.camera_to_world_xf
+        right_R = np.linalg.inv(virtual_right_camera.camera_to_world_xf
+                                ) @ cam_model_right.camera_to_world_xf
+        relative_T = np.linalg.inv(virtual_left_camera.camera_to_world_xf
+                                   ) @ virtual_right_camera.camera_to_world_xf
+        virtual_baseline = np.linalg.norm(relative_T[:3, 3])
+        return left_R[:3, :3], right_R[:3, :3], virtual_baseline
+
     def parse_data_info(self, raw_data_info: dict) -> Optional[dict]:
         ann = raw_data_info['raw_ann_info']
         left_img, right_img = raw_data_info['raw_img_info']
@@ -189,11 +213,9 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             cam_info)
         meta = ann.get('meta', dict())
         meta['category_id'] = ann['category_id']
-        left_R, right_R, virtual_baseline = \
-            PairHand3DDataset.get_virtual_cam(cam_model_left, cam_model_right)
         if self.standard_stereo:
             left_R, right_R, virtual_baseline = \
-                self.get_virtual_cam(cam_model_left, cam_model_right)
+                self.get_virtual_camv2(cam_model_left, cam_model_right)
             meta['left_R'] = left_R
             meta['right_R'] = right_R
             meta['virtual_baseline'] = virtual_baseline
