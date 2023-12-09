@@ -136,6 +136,7 @@ model = dict(
                     20),  # 后20 epoch打开pinch loss
             ]),
         use_plane_coord=False,
+        # baseline=0.12,
         disparity_input=False,
         rightcam_3d_disable=False,
         kpt3d_output=False,
@@ -164,11 +165,10 @@ for data_date in train_date_list:
     for glasses in train_glasses_list:
         train_data_list += kpt3d_datasets_info['train_data'][data_date].get(
             glasses, [])
-train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 
-train_data_list = [
-    'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230904_101030__pinch__bright__right__1111__0021__undistort_tar__Flora303.json'
-]
+# train_data_list = [
+#     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230904_101030__pinch__bright__right__1111__0021__undistort_tar__Flora303.json'
+# ]
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
@@ -201,6 +201,7 @@ val_data_list = [
     # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073857__pinch__normal__right__1111__0005__undistort_tar__Flora302.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_074601__pinch__bright__left__1111__0005__undistort_tar__Flora302.json',
     # # flora301
+    # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__left__1000__0007__20230809_090503__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_070648__all__normal__right__1111__0005__undistort_tar__Flora301.json',  # xujian 33684 images, 16842 pair instances
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_071804__all__bright__left__1111__0005__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_072334__pinch__dark__right__1111__0005__undistort_tar__Flora301.json',
@@ -308,9 +309,10 @@ train_pipeline = [
     dict(
         type='RandomStereoParamAug',
         prob=0.5,
-        baseline_range=[-0.033, -0.032],
-        y_angle_range=[-3, 3],
-        flora_with_ella=True),
+        baseline_range=[-0.005, 0.005],
+        x_angle_range=[-1, 1],
+        y_angle_range=[-5, 5],
+        z_angle_range=[-1, 1]),
     dict(
         type='Albumentation',
         transforms=[
@@ -335,9 +337,10 @@ train_pipeline = [
 val_pipeline = [
     dict(
         type='RandomStereoParamAug',
-        baseline_range=[0, 0],
-        y_angle_range=[-3, 3],
-        flora_with_ella=True),
+        baseline_range=[-0.005, 0.005],
+        x_angle_range=[-1, 1],
+        y_angle_range=[-5, 5],
+        z_angle_range=[-1, 1]),
     dict(type='GetBBoxCenterScale', padding=1.0),
     dict(type='TopdownAffine', input_size=codec['input_size']),
     dict(type='PackPoseInputs')

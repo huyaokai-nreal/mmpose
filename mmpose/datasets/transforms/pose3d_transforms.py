@@ -38,11 +38,15 @@ class RandomStereoParamAug(BaseTransform):
     def __init__(self,
                  prob=0.5,
                  baseline_range=[-0.03, 0.03],
-                 y_angle_range=[-3, 3]) -> None:
+                 x_angle_range=[-1, 1],
+                 y_angle_range=[-3, 3],
+                 z_angle_range=[-1, 1]) -> None:
         super().__init__()
         self.prob = prob
         self.baseline_range = deepcopy(baseline_range)
+        self.x_angle_range = deepcopy(x_angle_range)
         self.y_angle_range = deepcopy(y_angle_range)
+        self.z_angle_range = deepcopy(z_angle_range)
 
     def transform(self, results):
         """Add disturbance randomly during training and every other data point
@@ -55,11 +59,18 @@ class RandomStereoParamAug(BaseTransform):
             delta_baseline = np.random.rand() * (
                 self.baseline_range[1] -
                 self.baseline_range[0]) + self.baseline_range[0]
-            random_angle = np.random.rand() * (
+            x_random_angle = np.random.rand() * (
+                self.x_angle_range[1] -
+                self.x_angle_range[0]) + self.x_angle_range[0]
+            y_random_angle = np.random.rand() * (
                 self.y_angle_range[1] -
                 self.y_angle_range[0]) + self.y_angle_range[0]
+            z_random_angle = np.random.rand() * (
+                self.z_angle_range[1] -
+                self.z_angle_range[0]) + self.z_angle_range[0]
             delta_R = R.from_euler(
-                'ZYX', [0, random_angle, 0], degrees=True).as_matrix()
+                'ZYX', [z_random_angle, y_random_angle, x_random_angle],
+                degrees=True).as_matrix()
             cam_model_right.camera_to_world_xf[:3, :3] = \
                 cam_model_right.camera_to_world_xf[:3, :3] @ delta_R
             cam_model_right.camera_to_world_xf[0, 3] += delta_baseline
