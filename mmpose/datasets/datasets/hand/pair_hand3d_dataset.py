@@ -10,7 +10,6 @@ from mmengine.dataset.utils import default_collate
 from mmengine.logging import MMLogger
 from nreal_data_tool import LmdbClient
 from nreal_data_tool.schema.instance import BinocularCameraInstance
-from nreal_data_tool.utils.affine import from_two_vectors, normalized
 from nreal_data_tool.utils.camera import build_from_BinocularCameraInstance
 from nreal_data_tool.utils.geometry import \
     get_fisheye_rotations_from_relative_transform_for_std_stereo as \
@@ -179,7 +178,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         relative_T = np.linalg.inv(virtual_left_camera.camera_to_world_xf
                                    ) @ virtual_right_camera.camera_to_world_xf
         virtual_baseline = np.linalg.norm(relative_T[:3, 3])
-        return left_R[:3, :3], right_R[:3, :3], virtual_baseline
+        return left_R, right_R, virtual_baseline
 
     def parse_data_info(self, raw_data_info: dict) -> Optional[dict]:
         ann = raw_data_info['raw_ann_info']
