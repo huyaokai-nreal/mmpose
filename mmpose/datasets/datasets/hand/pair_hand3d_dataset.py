@@ -10,6 +10,7 @@ from mmengine.dataset.utils import default_collate
 from mmengine.logging import MMLogger
 from nreal_data_tool import LmdbClient
 from nreal_data_tool.schema.instance import BinocularCameraInstance
+from nreal_data_tool.utils.affine import from_two_vectors, normalized
 from nreal_data_tool.utils.camera import build_from_BinocularCameraInstance
 from nreal_data_tool.utils.geometry import \
     get_fisheye_rotations_from_relative_transform_for_std_stereo as \
@@ -125,17 +126,50 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                 return int(len(self.data_list) * self.data_ratio)
 
     @staticmethod
-    def get_virtual_cam(cam_model_left, cam_model_right):
-        leftcam_T = np.array(cam_model_left.camera_to_world_xf)
-        rightcam_T = np.array(cam_model_right.camera_to_world_xf)
+    def get_virtual_camv1(cam_model_left, cam_model_right):
+        baseline_vector = cam_model_right.camera_to_world_xf[:3, 3]
+        R_left = from_two_vectors(np.array([1, 0, 0]), baseline_vector)
+        virtual_left_camera = copy.deepcopy(cam_model_left)
+        virtual_left_camera.camera_to_world_xf[:3, :3] = \
+            R_left @ virtual_left_camera.camera_to_world_xf[:3, :3]
 
-        left_R, right_R = get_rotation(rightcam_T)
-        leftcam_T[:3, :3] = left_R @ leftcam_T[:3, :3]
-        rightcam_T[:3, :3] = right_R @ rightcam_T[:3, :3]
+        right_cam_x = normalized(
+            cam_model_right.eye_to_world(np.array([[1, 0, 0]]))[0] -
+            baseline_vector)
+        R_right = from_two_vectors(right_cam_x, baseline_vector)
+        virtual_right_camera = copy.deepcopy(cam_model_right)
+        virtual_right_camera.camera_to_world_xf[:3, : 3] = \
+            R_right @ virtual_right_camera.camera_to_world_xf[:3, :3]
 
-        relative_T = np.linalg.inv(leftcam_T) @ rightcam_T
+        left_R = np.linalg.inv(virtual_left_camera.camera_to_world_xf
+                               ) @ cam_model_left.camera_to_world_xf
+        right_R = np.linalg.inv(virtual_right_camera.camera_to_world_xf
+                                ) @ cam_model_right.camera_to_world_xf
+        relative_T = np.linalg.inv(virtual_left_camera.camera_to_world_xf
+                                   ) @ virtual_right_camera.camera_to_world_xf
         virtual_baseline = np.linalg.norm(relative_T[:3, 3])
-        return left_R, right_R, virtual_baseline
+        return left_R[:3, :3], right_R[:3, :3], virtual_baseline
+
+    @staticmethod
+    def get_virtual_cam(cam_model_left, cam_model_right):
+        T = np.linalg.inv(cam_model_left.camera_to_world_xf
+                          ) @ cam_model_right.camera_to_world_xf
+        R_left, R_right = get_rotation(T)
+        virtual_left_camera = copy.deepcopy(cam_model_left)
+        virtual_left_camera.camera_to_world_xf[:3, :3] = \
+            R_left @ virtual_left_camera.camera_to_world_xf[:3, :3]
+        virtual_right_camera = copy.deepcopy(cam_model_right)
+        virtual_right_camera.camera_to_world_xf[:3, : 3] = \
+            R_right @ virtual_right_camera.camera_to_world_xf[:3, :3]
+
+        left_R = np.linalg.inv(virtual_left_camera.camera_to_world_xf
+                               ) @ cam_model_left.camera_to_world_xf
+        right_R = np.linalg.inv(virtual_right_camera.camera_to_world_xf
+                                ) @ cam_model_right.camera_to_world_xf
+        relative_T = np.linalg.inv(virtual_left_camera.camera_to_world_xf
+                                   ) @ virtual_right_camera.camera_to_world_xf
+        virtual_baseline = np.linalg.norm(relative_T[:3, 3])
+        return left_R[:3, :3], right_R[:3, :3], virtual_baseline
 
     @staticmethod
     def get_virtual_camv2(cam_model_left, cam_model_right):

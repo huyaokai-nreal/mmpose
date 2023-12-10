@@ -37,10 +37,10 @@ class RandomStereoParamAug(BaseTransform):
 
     def __init__(self,
                  prob=0.5,
-                 baseline_range=[-0.03, 0.03],
-                 x_angle_range=[-1, 1],
-                 y_angle_range=[-3, 3],
-                 z_angle_range=[-1, 1]) -> None:
+                 baseline_range=[0, 0],
+                 x_angle_range=[0, 0],
+                 y_angle_range=[0, 0],
+                 z_angle_range=[0, 0]) -> None:
         super().__init__()
         self.prob = prob
         self.baseline_range = deepcopy(baseline_range)
