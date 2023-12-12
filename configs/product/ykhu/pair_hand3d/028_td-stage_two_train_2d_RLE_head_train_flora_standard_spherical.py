@@ -136,7 +136,7 @@ model = dict(
                     20),  # 后20 epoch打开pinch loss
             ]),
         use_plane_coord=False,
-        # baseline=0.12,
+        baseline=0.12,
         disparity_input=False,
         rightcam_3d_disable=False,
         kpt3d_output=False,
@@ -308,10 +308,10 @@ val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 train_pipeline = [
     dict(
         type='RandomStereoParamAug',
-        prob=0.5,
-        baseline_range=[-0.005, 0.005],
+        prob=0.25,
+        baseline_range=[-0.033, -0.032],
         x_angle_range=[-1, 1],
-        y_angle_range=[-5, 5],
+        y_angle_range=[-3, 3],
         z_angle_range=[-1, 1]),
     dict(
         type='Albumentation',
@@ -337,9 +337,9 @@ train_pipeline = [
 val_pipeline = [
     dict(
         type='RandomStereoParamAug',
-        baseline_range=[-0.005, 0.005],
+        baseline_range=[-0.033, -0.032],
         x_angle_range=[-1, 1],
-        y_angle_range=[-5, 5],
+        y_angle_range=[-3, 3],
         z_angle_range=[-1, 1]),
     dict(type='GetBBoxCenterScale', padding=1.0),
     dict(type='TopdownAffine', input_size=codec['input_size']),
