@@ -9,7 +9,7 @@ import numpy as np
 from mmengine.dist import get_dist_info
 from mmengine.evaluator import BaseMetric
 from mmengine.logging import MMLogger
-from nreal_data_tool.metric import (MPJPEMetric, PinchMetric,
+from nreal_data_tool.metric import (MPJAEMetric, MPJPEMetric, PinchMetric,
                                     SelfStabilityMetric)
 from nreal_data_tool.schema import KeypointEvaluationItem
 
@@ -180,6 +180,7 @@ class MPJPEV2(MPJPE):
             filter_exceed=filter_exceed,
             pinch_hard_metric=pinch_hard_metric,
             category_metric=category_metric)
+        self.mpjae_metric = MPJAEMetric(filter_exceed=filter_exceed)
 
     def process(self, data_batch, data_samples: Sequence[dict]) -> None:
         for data_sample in data_samples:
@@ -187,6 +188,7 @@ class MPJPEV2(MPJPE):
                 raise ValueError(
                     '`pred_instances` are required to process the '
                     f'predictions results in {self.__class__.__name__}. ')
+
             gt = data_sample['gt_instances']
             # [N, K], the scores for all keypoints of all instances
             keypoint_scores = data_sample['pred_instances']['keypoint_scores']
@@ -199,6 +201,13 @@ class MPJPEV2(MPJPE):
                 1e3).tolist()
             result.keypoint_visible = gt['keypoints_visible'].reshape(
                 (-1)).tolist()
+            if 'keypoint_euler' in data_sample[
+                    'pred_instances'] and 'gt_keypoint_euler' in data_sample[
+                        'pred_instances']:
+                result.keypoints_pose = data_sample['pred_instances'][
+                    'keypoint_euler'].tolist()
+                result.gt_keypoints_pose = data_sample['pred_instances'][
+                    'gt_keypoint_euler'].tolist()
             result.score = float(np.mean(keypoint_scores))
             result.video_id = data_sample['img_path']
             result.keypoints = (
@@ -231,6 +240,7 @@ class MPJPEV2(MPJPE):
                     np.prod(
                         data_sample['gt_instances']['bbox_scales'], axis=1))
             # add converted result to the results list
+
             self.results.append(result.to_dict())
 
     def compute_metrics(self, results: list) -> Dict[str, float]:
@@ -250,11 +260,17 @@ class MPJPEV2(MPJPE):
         with open(res_file, 'w') as f:
             json.dump(final_rseults, f, sort_keys=True, indent=4)
         self.logger.info(f'eval mpjpe with mode {self.mode}')
+
         mpjpe_res = self.mpjpe_metric(res_file)
         stability_res = self.self_stability_metric(res_file)
         pinch_res = self.pinch_metric(res_file)
+
+        if 'keypoints_pose' in results[0].keys():
+            mpjae_res = self.mpjae_metric(res_file)
         res = {}
         res.update(mpjpe_res)
+        if 'keypoints_pose' in results[0].keys():
+            res.update(mpjae_res)
         res.update(stability_res)
         res.update(pinch_res)
         return res

@@ -440,11 +440,8 @@ class LiftNimbleHead(BaseModule):
             root_matrix = batch_rodrigues(root_pose_roctor).reshape(-1, 3, 3)
 
         if self.pre_xyz_type == 0:
-            return nimble_xyz, nimble_xyz, nimble_xyz, trans_xyz, matrix_svd[:,
-                                                                             0:
-                                                                             3,
-                                                                             0:
-                                                                             3]
+            return nimble_xyz, nimble_xyz, nimble_xyz, \
+                trans_xyz, matrix_svd[:, 0:3, 0:3]
         else:
             nimble_Z = nimble_xyz[:, :, 2:].view((B, 21, 1))
             rebuild_xyz = torch.cat((leftcam_xy * nimble_Z, nimble_Z),
@@ -482,7 +479,11 @@ class LiftNimbleHead(BaseModule):
         (hand3d_pred, hand3d_nimble_xyz, hand3d_rebuild_xyz, pre_trans_xyz,
          pre_root_matrix) = self.postprocess(output, left_hand, leftcam_xy)
 
-        return hand3d_nimble_xyz, uv_coord_im_pred_global_distort
+        rot_vector = self.nimble_layer.return_pose(
+            output[:, :self.pose_ncomp, 0, 0], with_root_pose=False)[:, 1:, :]
+
+        return hand3d_nimble_xyz, uv_coord_im_pred_global_distort, \
+            pre_root_matrix, rot_vector
 
     def loss(self,
              feats: Tuple[Tensor],

@@ -10,6 +10,9 @@ from mmengine.structures import InstanceData
 from torch import Tensor
 
 from mmpose.datasets.datasets.utils import parse_pose_metainfo
+from mmpose.models.heads.nimble.nimble_utils import (adjust_predicted_angles,
+                                                     batch_rodrigues,
+                                                     matrix_to_euler_angles)
 from mmpose.models.utils import check_and_update_config
 from mmpose.registry import MODELS
 from mmpose.utils.data import format_data
@@ -212,20 +215,41 @@ class TopdownPoseLiftEstimator(BaseModel):
                     depth = outputs[2]
                     depth = (depth - 0.5) * 0.4  # 0.4 is the depth bound
                     xy_sigma = torch.cat([xy_sigma, depth], dim=-1)
-        pred, pred_bino_kp2d = self.kpt3d_lift.predict(
-            xy_sigma, data_samples, test_cfg=self.test_cfg)
 
         batch_pred_instances = []
+        pre_info = self.kpt3d_lift.predict(
+            xy_sigma, data_samples, test_cfg=self.test_cfg)
 
-        for b in range(pred.shape[0]):
-            keypoints = pred_bino_kp2d[b:b + 1, 0, ...]  # gt为左目信息
-            batch_pred_instances.append(
-                InstanceData(
-                    keypoints3d=pred[b:b + 1, ...],
-                    keypoints3d_scores=torch.ones((1, 21)),
-                    keypoints=keypoints,
-                    keypoint_scores=torch.ones((1, 21)),
-                ))
+        if len(pre_info) == 4:
+            pred, pred_bino_kp2d, parent_matrix, child_vector = pre_info
+            for b in range(pred.shape[0]):
+                keypoints = pred_bino_kp2d[b:b + 1, 0, ...]  # gt为左目信息
+                child_matrix = batch_rodrigues(child_vector[b, :, :]).reshape(
+                    -1, 3, 3)
+                pre_matrix = torch.cat(
+                    (parent_matrix[b:b + 1, :, :], child_matrix), dim=0)
+                pre_euler = matrix_to_euler_angles(pre_matrix)
+
+                batch_pred_instances.append(
+                    InstanceData(
+                        keypoints3d=pred[b:b + 1, ...],
+                        keypoints3d_scores=torch.ones((1, 21)),
+                        keypoints=keypoints,
+                        keypoint_scores=torch.ones((1, 21)),
+                        keypoint_euler=pre_euler.unsqueeze(0),
+                        gt_keypoint_euler=torch.ones_like(pre_euler).unsqueeze(
+                            0)))
+        else:
+            pred, pred_bino_kp2d = pre_info
+            for b in range(pred.shape[0]):
+                keypoints = pred_bino_kp2d[b:b + 1, 0, ...]  # gt为左目信息
+                batch_pred_instances.append(
+                    InstanceData(
+                        keypoints3d=pred[b:b + 1, ...],
+                        keypoints3d_scores=torch.ones((1, 21)),
+                        keypoints=keypoints,
+                        keypoint_scores=torch.ones((1, 21)),
+                    ))
 
         results = self.add_pred_to_datasample(batch_pred_instances, None,
                                               data_samples)
@@ -243,6 +267,7 @@ class TopdownPoseLiftEstimator(BaseModel):
 
         for pred_instances, pred_fields, data_sample in zip_longest(
                 batch_pred_instances, batch_pred_fields, batch_data_samples):
+
             pred_instances.keypoints3d = pred_instances.keypoints3d.cpu(
             ).numpy()
             pred_instances.keypoints3d_scores = np.ones(
@@ -252,6 +277,24 @@ class TopdownPoseLiftEstimator(BaseModel):
                 (pred_instances.keypoints, pred_instances.keypoints3d[...,
                                                                       2:]),
                 axis=-1)
+
+            if ('nimble_pose' in data_sample.meta
+                    and 'keypoint_euler' in pred_instances.keys()):
+                pre_euler = pred_instances.keypoint_euler[0]
+                gt_nimble_pose_roctor = torch.tensor(
+                    data_sample.meta['nimble_pose'][:, :3]).to(
+                        pre_euler.device)
+                gt_nimble_pose_matirx = batch_rodrigues(
+                    gt_nimble_pose_roctor).reshape(-1, 3, 3)
+                gt_euler = matrix_to_euler_angles(gt_nimble_pose_matirx)
+
+                pre_nimble_pose = adjust_predicted_angles(
+                    pre_euler, gt_euler).unsqueeze(0).cpu().numpy()
+                gt_nimble_pose = gt_euler.unsqueeze(0).cpu().numpy()
+
+                pred_instances.keypoint_euler = pre_nimble_pose
+                pred_instances.gt_keypoint_euler = gt_nimble_pose
+
             if self.nano_2d:
                 data_sample.gt_instances.keypoints = np.concatenate(
                     (data_sample.gt_instances.keypoints[..., :2],

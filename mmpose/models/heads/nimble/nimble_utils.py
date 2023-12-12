@@ -381,7 +381,7 @@ def _index_from_letter(letter: str):
         return 2
 
 
-def matrix_to_euler_angles(matrix, convention: str):
+def matrix_to_euler_angles(matrix, convention='XYZ'):
     """Convert rotations given as rotation matrices to Euler angles in radians.
 
     Args:
