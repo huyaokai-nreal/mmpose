@@ -9,6 +9,8 @@ from pathlib import Path
 # import pytorch3d
 import numpy as np
 import torch
+import torch.nn.functional as F
+from torch import nn
 
 # from pytorch3d.structures.meshes import Meshes
 # import pytorch3d.ops
@@ -359,3 +361,306 @@ def save_textured_nimble(fname, skin_v, tex_img):
         f.writelines(f_uv)
 
     print('save to', fname)
+
+
+def _sqrt_positive_part(x: torch.Tensor) -> torch.Tensor:
+    """Returns torch.sqrt(torch.max(0, x)) but with a zero subgradient where x
+    is 0."""
+    ret = torch.zeros_like(x)
+    positive_mask = x > 0
+    ret[positive_mask] = torch.sqrt(x[positive_mask])
+    return ret
+
+
+def _index_from_letter(letter: str):
+    if letter == 'X':
+        return 0
+    if letter == 'Y':
+        return 1
+    if letter == 'Z':
+        return 2
+
+
+def matrix_to_euler_angles(matrix, convention: str):
+    """Convert rotations given as rotation matrices to Euler angles in radians.
+
+    Args:
+        matrix: Rotation matrices as tensor of shape (..., 3, 3).
+        convention: Convention string of three uppercase letters.
+
+    Returns:
+        Euler angles in radians as tensor of shape (..., 3).
+    """
+    if len(convention) != 3:
+        raise ValueError('Convention must have 3 letters.')
+    if convention[1] in (convention[0], convention[2]):
+        raise ValueError(f'Invalid convention {convention}.')
+    for letter in convention:
+        if letter not in ('X', 'Y', 'Z'):
+            raise ValueError(f'Invalid letter {letter} in convention string.')
+    if matrix.size(-1) != 3 or matrix.size(-2) != 3:
+        raise ValueError(f'Invalid rotation matrix  shape f{matrix.shape}.')
+    i0 = _index_from_letter(convention[0])
+    i2 = _index_from_letter(convention[2])
+    tait_bryan = i0 != i2
+    if tait_bryan:
+        central_angle = torch.asin(matrix[..., i0, i2] *
+                                   (-1.0 if i0 - i2 in [-1, 2] else 1.0))
+    else:
+        central_angle = torch.acos(matrix[..., i0, i0])
+
+    o = (
+        _angle_from_tan(convention[0], convention[1], matrix[..., i2], False,
+                        tait_bryan),
+        central_angle,
+        _angle_from_tan(convention[2], convention[1], matrix[..., i0, :], True,
+                        tait_bryan),
+    )
+    return torch.stack(o, -1)
+
+
+def adjust_predicted_angles(pred_angles, target_angles):
+    # 计算欧拉角的差异
+    angle_diff = pred_angles - target_angles
+
+    # 将差异映射到 [-pi, pi] 范围内
+    angle_diff = (angle_diff + torch.pi) % (2 * torch.pi) - torch.pi
+
+    # 将映射后的差异添加到预测值上
+    adjusted_pred_angles = target_angles + angle_diff
+
+    return adjusted_pred_angles
+
+
+def _angle_from_tan(axis: str, other_axis: str, data, horizontal: bool,
+                    tait_bryan: bool):
+    """Extract the first or third Euler angle from the two members of the
+    matrix which are positive constant times its sine and cosine.
+
+    Args:
+        axis: Axis label "X" or "Y or "Z" for the angle we are finding.
+        other_axis: Axis label "X" or "Y or "Z" for the middle axis in the
+            convention.
+        data: Rotation matrices as tensor of shape (..., 3, 3).
+        horizontal: Whether we are looking for the angle for the third axis,
+            which means the relevant entries are in the same row of the
+            rotation matrix. If not, they are in the same column.
+        tait_bryan: Whether the first and third axes in the convention differ.
+
+    Returns:
+        Euler Angles in radians for each matrix in data as a tensor
+        of shape (...).
+    """
+
+    i1, i2 = {'X': (2, 1), 'Y': (0, 2), 'Z': (1, 0)}[axis]
+    if horizontal:
+        i2, i1 = i1, i2
+    even = (axis + other_axis) in ['XY', 'YZ', 'ZX']
+    if horizontal == even:
+        return torch.atan2(data[..., i1], data[..., i2])
+    if tait_bryan:
+        return torch.atan2(-data[..., i2], data[..., i1])
+    return torch.atan2(data[..., i2], -data[..., i1])
+
+
+def matrix_to_quaternion(matrix: torch.Tensor) -> torch.Tensor:
+    """Convert rotations given as rotation matrices to quaternions.
+
+    Args:
+        matrix: Rotation matrices as tensor of shape (..., 3, 3).
+
+    Returns:
+        quaternions with real part first, as tensor of shape (..., 4).
+    """
+    if matrix.size(-1) != 3 or matrix.size(-2) != 3:
+        raise ValueError(f'Invalid rotation matrix  shape f{matrix.shape}.')
+
+    batch_dim = matrix.shape[:-2]
+    m00, m01, m02, m10, m11, m12, m20, m21, m22 = torch.unbind(
+        matrix.reshape(*batch_dim, 9), dim=-1)
+
+    q_abs = _sqrt_positive_part(
+        torch.stack(
+            [
+                1.0 + m00 + m11 + m22,
+                1.0 + m00 - m11 - m22,
+                1.0 - m00 + m11 - m22,
+                1.0 - m00 - m11 + m22,
+            ],
+            dim=-1,
+        ))
+
+    # we produce the desired quaternion multiplied by each of r, i, j, k
+    quat_by_rijk = torch.stack(
+        [
+            torch.stack([q_abs[..., 0]**2, m21 - m12, m02 - m20, m10 - m01],
+                        dim=-1),
+            torch.stack([m21 - m12, q_abs[..., 1]**2, m10 + m01, m02 + m20],
+                        dim=-1),
+            torch.stack([m02 - m20, m10 + m01, q_abs[..., 2]**2, m12 + m21],
+                        dim=-1),
+            torch.stack([m10 - m01, m20 + m02, m21 + m12, q_abs[..., 3]**2],
+                        dim=-1),
+        ],
+        dim=-2,
+    )
+
+    # We floor here at 0.1 but the exact level is not important;
+    # if q_abs is small,
+    # the candidate won't be picked.
+    # pyre-ignore [16]: `torch.Tensor` has no attribute `new_tensor`.
+    quat_candidates = quat_by_rijk / (
+        2.0 * q_abs[..., None].max(q_abs.new_tensor(0.1)))
+
+    # if not for numerical problems,
+    # quat_candidates[i] should be same (up to a sign),
+    # forall i; we pick the best-conditioned one (with the largest denominator)
+
+    result = quat_candidates[F.one_hot(q_abs.argmax(
+        dim=-1), num_classes=4) > 0.5, :  # pyre-ignore[16]
+                             ].reshape(*batch_dim, 4)
+
+    neg_row_ids = torch.where(result[:, 0] < 0)
+    result[neg_row_ids] *= -1
+
+    return result
+
+
+def _gen_rigid_features():
+    rigid_samples = np.array([
+        [0, 0, 0],
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1],
+        # xy plane
+        [-1, -1, 0],
+        # xz plane
+        [-1, 0, -1],
+        # yz plane
+        [0, -1, -1],
+    ])
+
+    rigid_samples_rescaled = np.empty(rigid_samples.shape)
+    expected_norm = 0.1
+
+    for i in range(len(rigid_samples)):
+        norm = np.linalg.norm(rigid_samples[i])
+        if norm == 0:
+            rigid_samples_rescaled[i] = rigid_samples[i]
+        else:
+            rigid_samples_rescaled[i] = rigid_samples[i] / norm * expected_norm
+
+    rigid_samples_rescaled = torch.from_numpy(rigid_samples_rescaled).float()
+
+    return rigid_samples_rescaled
+
+
+def decode_svd(
+    pred_pts_features: torch.Tensor,
+    rigid_pts_src: torch.Tensor,
+) -> torch.Tensor:
+    batch_size = pred_pts_features.shape[0]
+    rigid_points = pred_pts_features.reshape(pred_pts_features.shape[0], -1, 3)
+
+    from_points = rigid_pts_src.to(rigid_points.device)
+    from_points = (
+        from_points.unsqueeze(0).expand(batch_size, from_points.shape[0],
+                                        from_points.shape[1]).clone())
+
+    wrist_xfs = procrustes_align(from_points,
+                                 rigid_points).to(dtype=torch.float32)
+    return wrist_xfs
+
+
+class SkeletonEncoder(nn.Module):
+
+    def __init__(
+        self,
+        output_feature_map_dim: int,
+    ) -> None:
+        super(SkeletonEncoder, self).__init__()
+        # We have 16 joints. For each joint,
+        # we use joint positions and joint axes as input features.
+        n_skel_features = 96
+        self._layers = nn.Sequential(
+            nn.Linear(n_skel_features, output_feature_map_dim),
+            nn.BatchNorm1d(output_feature_map_dim),
+            nn.ReLU(inplace=True),
+        )
+
+    def forward(self, skeleton_features: torch.Tensor) -> torch.Tensor:
+
+        skel_maps = self._layers(skeleton_features)
+
+        return skel_maps
+
+
+def trans_3d_2_2d(hand3d_point, leftcam_cam_matrix, rightcam_cam_matrix,
+                  lr_rot_matrix, lr_p):
+
+    leftcam_uv_reproj = torch.matmul(hand3d_point,
+                                     leftcam_cam_matrix.permute(0, 2, 1)).to(
+                                         torch.float32)
+    leftcam_uv_reproj = leftcam_uv_reproj[..., :2] / leftcam_uv_reproj[..., 2:]
+    rightcam_uv_reproj = torch.matmul(
+        (hand3d_point - lr_p.unsqueeze(1)),
+        torch.inverse(lr_rot_matrix)).to(torch.float32)
+    rightcam_uv_reproj = torch.matmul(rightcam_uv_reproj,
+                                      rightcam_cam_matrix.permute(0, 2, 1)).to(
+                                          torch.float32)
+    rightcam_uv_reproj = rightcam_uv_reproj[..., :2] / rightcam_uv_reproj[...,
+                                                                          2:]
+    return leftcam_uv_reproj, rightcam_uv_reproj
+
+
+def cal_proportion(uv_coor, leftcam_cam_matrix):
+    B = uv_coor.shape[0]
+    leftcam_x = (uv_coor[:, :, 0] - leftcam_cam_matrix[:, 0, 2].view(
+        (B, 1))) / leftcam_cam_matrix[:, 0, 0].view((B, 1))
+    leftcam_y = (uv_coor[:, :, 1] - leftcam_cam_matrix[:, 1, 2].view(
+        (B, 1))) / leftcam_cam_matrix[:, 1, 1].view((B, 1))
+    leftcam_xy = torch.cat((leftcam_x.unsqueeze(-1), leftcam_y.unsqueeze(-1)),
+                           dim=2)  # (B, 21, 2)
+    return leftcam_xy
+
+
+def procrustes_align(
+    from_points: torch.Tensor,
+    to_points: torch.Tensor,
+) -> torch.Tensor:
+    """Inputs have same shape `(batch_size, n_points, 3)`. Within each sample
+    of the batch, `from_points` and `to_points` implicitly correspond to each
+    other along dim=1.
+
+    Returns:
+    - `rot`, `translation` with shape `(batch_size, 3, 3)`
+    representing transformations for each example in batch
+    """
+    device = from_points.device
+
+    batch_size = from_points.shape[0]
+    from_mean = from_points.mean(dim=1)
+    to_mean = to_points.mean(dim=1)
+
+    from_centered = from_points - from_mean.reshape(-1, 1, 3)
+    to_centered = to_points - to_mean.reshape(-1, 1, 3)
+
+    outer_prod = torch.matmul(
+        torch.transpose(from_centered, 1, 2),
+        to_centered).to(dtype=torch.float32)
+
+    u, _, v = outer_prod.svd()
+    v_m_ut = torch.matmul(v, torch.transpose(u, 1, 2)).to(dtype=torch.float32)
+    w = torch.eye(3, device=device).unsqueeze(0).repeat(batch_size, 1, 1)
+    det = torch.det(v_m_ut)
+    w[:, 2, 2] = det
+
+    xfs = torch.eye(4, device=device).unsqueeze(0).repeat(batch_size, 1, 1)
+
+    xfs[:, 0:3,
+        0:3] = torch.matmul(torch.matmul(v, w), torch.transpose(u, 1, 2))
+    xfs[:, 0:3, 3] = (
+        to_mean -
+        torch.matmul(xfs[:, 0:3, 0:3], from_mean.unsqueeze(-1)).squeeze())
+
+    return xfs

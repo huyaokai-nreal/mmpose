@@ -12,48 +12,6 @@ import trimesh
 from mmpose.models.heads.nimble.nimble_utils import *
 
 
-def procrustes_align(
-    from_points: torch.Tensor,
-    to_points: torch.Tensor,
-) -> torch.Tensor:
-    """Inputs have same shape `(batch_size, n_points, 3)`. Within each sample
-    of the batch, `from_points` and `to_points` implicitly correspond to each
-    other along dim=1.
-
-    Returns:
-    - `rot`, `translation` with shape `(batch_size, 3, 3)`
-    representing transformations for each example in batch
-    """
-    device = from_points.device
-
-    batch_size = from_points.shape[0]
-    from_mean = from_points.mean(dim=1)
-    to_mean = to_points.mean(dim=1)
-
-    from_centered = from_points - from_mean.reshape(-1, 1, 3)
-    to_centered = to_points - to_mean.reshape(-1, 1, 3)
-
-    outer_prod = torch.matmul(
-        torch.transpose(from_centered, 1, 2),
-        to_centered).to(dtype=torch.float32)
-
-    u, _, v = outer_prod.svd()
-    v_m_ut = torch.matmul(v, torch.transpose(u, 1, 2)).to(dtype=torch.float32)
-    w = torch.eye(3, device=device).unsqueeze(0).repeat(batch_size, 1, 1)
-    det = torch.det(v_m_ut)
-    w[:, 2, 2] = det
-
-    xfs = torch.eye(4, device=device).unsqueeze(0).repeat(batch_size, 1, 1)
-
-    xfs[:, 0:3,
-        0:3] = torch.matmul(torch.matmul(v, w), torch.transpose(u, 1, 2))
-    xfs[:, 0:3, 3] = (
-        to_mean -
-        torch.matmul(xfs[:, 0:3, 0:3], from_mean.unsqueeze(-1)).squeeze())
-
-    return xfs
-
-
 class NIMBLELayer(torch.nn.Module):
     __constants__ = ['use_pose_pca', 'shape_ncomp', 'pose_ncomp', 'pm_dict']
 

@@ -4,17 +4,17 @@ from typing import List, Tuple, Union
 import cv2
 import numpy as np
 import torch
+import torch.nn.functional as F
 from mmengine.logging import MessageHub
 from mmengine.model import BaseModule
 from torch import Tensor, nn
 
 from mmpose.models.heads.nimble.nimble_utils import (SkeletonEncoder,
                                                      _gen_rigid_features,
-                                                     adjust_predicted_angles,
                                                      batch_rodrigues,
                                                      cal_proportion,
                                                      decode_svd,
-                                                     matrix_to_euler_angles,
+                                                     matrix_to_quaternion,
                                                      trans_3d_2_2d)
 from mmpose.models.heads.nimble.NIMBLELayer import NIMBLELayer
 from mmpose.models.heads.nimble.simple_NIMBLELayer import sim_NIMBLELayer
@@ -24,14 +24,14 @@ from mmpose.utils.typing import ConfigType, OptSampleList, Predictions
 
 
 @MODELS.register_module()
-class LiftNimbleHead(BaseModule):
+class LiftNimbleHeadStandard(BaseModule):
     """liftHead for getting 3d rotation from pair 2d keypoints."""
 
     def __init__(self,
                  lift_loss: ConfigType,
                  channel_num: int = 55,
                  undistort: bool = False,
-                 use_kp2d_gt=False,
+                 all_use_kp2d_gt=False,
                  kpt2d_with_depth: bool = False,
                  noRt=False,
                  lambda_t: int = -1,
@@ -45,6 +45,10 @@ class LiftNimbleHead(BaseModule):
                  pose_ncomp: int = 60,
                  reg_shape_type: int = 0,
                  skeleton_feature_dim: int = 64,
+                 reproj: bool = False,
+                 use_plane_coord=True,
+                 baseline=0.13,
+                 disparity_input=False,
                  init_cfg: Union[dict, List[dict], None] = None):
         super().__init__(init_cfg)
 
@@ -60,7 +64,7 @@ class LiftNimbleHead(BaseModule):
 
         # define the liftnet model
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
-        self.channel_num = channel_num
+        self.channel_num = 43 if use_plane_coord else 64
         self.lambda_t = lambda_t
         self.kpt2d_with_depth = kpt2d_with_depth
         feat_dim = 2 * self.channel_num
@@ -68,6 +72,8 @@ class LiftNimbleHead(BaseModule):
             feat_dim = feat_dim + 21
         if reg_shape_type > 1:
             feat_dim = feat_dim + skeleton_feature_dim
+        if disparity_input:
+            feat_dim = feat_dim + 21
         self.liftnet = gMLP(d_model=feat_dim, d_ffn=feat_dim * 2, num_layers=3)
         self.rigid_samples = _gen_rigid_features()
 
@@ -95,11 +101,16 @@ class LiftNimbleHead(BaseModule):
         self.lift_loss = MODELS.build(lift_loss)
 
         # define the fllow parameters
+        self.feat_dim = feat_dim
+        self.reproj = reproj
+        self.disparity_input = disparity_input
+        self.use_plane_coord = use_plane_coord
+        self.baseline = baseline
         self.use_svd = use_svd
         self.scale_parameter = 1000
         self.corruption_cam = corruption_cam
         self.undistort = undistort
-        self.use_kp2d_gt = use_kp2d_gt
+        self.all_use_kp2d_gt = all_use_kp2d_gt
         self.noRt = noRt
         self.pre_xyz_type = pre_xyz_type
         self.use_nimble_part_para = use_nimble_part_para
@@ -169,10 +180,7 @@ class LiftNimbleHead(BaseModule):
         return output
 
     def preprocess(self, feats, batch_data_samples):
-
         xy_coord = feats[..., :2]
-        if self.kpt2d_with_depth:
-            depth = feats[..., -1:][::2]
         B = int(len(batch_data_samples) / 2)
         N = 2
         H, W = batch_data_samples[0].input_size
@@ -193,6 +201,9 @@ class LiftNimbleHead(BaseModule):
         nimble_trans = []
         nimble_shape = []
         nimble_info = dict()
+        left_R = []
+        right_R = []
+        baseline_scale = []
 
         uv_coord_im_gt_global = []
 
@@ -203,6 +214,7 @@ class LiftNimbleHead(BaseModule):
                 left_camera = data_sample.meta['ori_camera']
                 left_cam_matrix = left_camera.uv_to_window_matrix()
                 leftcam_cam_matrix.append(left_cam_matrix)
+                left_R.append(data_sample.meta['cam_to_virtual_R'])
                 hand3d_gt.append(data_sample.gt_instances.keypoints3d[0])
                 if 'nimble_pose' in data_sample.meta.keys():
                     nimble_pose.append(data_sample.meta['nimble_pose'])
@@ -216,6 +228,7 @@ class LiftNimbleHead(BaseModule):
                 right_camera = data_sample.meta['ori_camera']
                 right_cam_matrix = right_camera.uv_to_window_matrix()
                 rightcam_cam_matrix.append(right_cam_matrix)
+                right_R.append(data_sample.meta['cam_to_virtual_R'])
                 left_cam_xf = left_camera.camera_to_world_xf
                 right_cam_xf = right_camera.camera_to_world_xf
                 lr_t = np.dot(np.linalg.inv(left_cam_xf),
@@ -223,7 +236,8 @@ class LiftNimbleHead(BaseModule):
                 lr_rot_matrix.append(
                     lr_t[:3, :3])  # lr_rot_matrix 代表的是 右相机向左相机的变换
                 lr_p.append(lr_t[:3, 3])
-
+                baseline_scale.append(data_sample.meta['virtual_baseline'] /
+                                      self.baseline)
             warp_mat = data_sample.metainfo[
                 'warp_mat']  # warp mat 代表的是从原图到crop图像的映射
             inv_warp_mat = cv2.invertAffineTransform(warp_mat).astype(
@@ -236,6 +250,10 @@ class LiftNimbleHead(BaseModule):
             np.array(leftcam_cam_matrix)).cuda().float()
         rightcam_cam_matrix = torch.tensor(
             np.array(rightcam_cam_matrix)).cuda().float()
+
+        left_R = torch.tensor(np.array(left_R)).cuda().float()
+        right_R = torch.tensor(np.array(right_R)).cuda().float()
+        baseline_scale = torch.tensor(np.array(baseline_scale)).cuda().float()
         lr_p = torch.tensor(np.array(lr_p)).cuda().float()
         lr_rot_matrix = torch.tensor(np.array(lr_rot_matrix)).cuda().float()
         hand3d_gt = torch.tensor(np.array(hand3d_gt)).cuda().float()
@@ -248,8 +266,8 @@ class LiftNimbleHead(BaseModule):
                 'nimble_trans': nimble_trans,
                 'nimble_shape': nimble_shape
             }
-        left_rel_depth = hand3d_gt[..., 2:3] - hand3d_gt[:, :1, 2:3]
         left_hand = torch.tensor(np.array(is_left_hands)).cuda().float()
+
         uv_coord_im_gt_global = torch.tensor(
             np.array(uv_coord_im_gt_global)).cuda().float()
         uv_coord_im_gt_global = uv_coord_im_gt_global.view(B, N, K, 2)
@@ -290,25 +308,24 @@ class LiftNimbleHead(BaseModule):
             uv_coord_im_pred_global_distort, left_hand, frame_width)
         # 执行了相同的操作，只是这里是对真值来做的
         uv_coord_im_gt_global = recover_hand(uv_coord_im_gt_global, left_hand,
-                                             frame_width)
+                                             frame_width).view(-1, K,
+                                                               2).clone()
 
-        if self.use_kp2d_gt:
-            uv_coord_im_pred_global = uv_coord_im_gt_global
-            depth = left_rel_depth
+        if self.all_use_kp2d_gt:
+            uv_coord_im_pred_global = uv_coord_im_gt_global.view(-1, K,
+                                                                 2).clone()
 
         # 这里指的是去畸变的过程，把预测的点进行去畸变的操作，得到去畸变后的21个点的uv数值
-        if self.undistort:
-            uv_coord_im_pred_global = \
-                uv_coord_im_pred_global_distort_noflip.clone().view(-1, K, 2)
-            for i, data_sample in enumerate(batch_data_samples):
-                camera_model = data_sample.meta['ori_camera']
-                kpt2d_u = camera_model.undistort(
-                    uv_coord_im_pred_global[i].cpu().numpy())
-                uv_coord_im_pred_global[i] = torch.from_numpy(kpt2d_u).cuda()
-            uv_coord_im_pred_global = uv_coord_im_pred_global.view(B, N, K, 2)
-        else:
-            uv_coord_im_pred_global = \
-                uv_coord_im_pred_global_distort_noflip.clone()
+        uv_coord_im_pred_global = \
+            uv_coord_im_pred_global_distort_noflip.clone().view(-1, K, 2)
+        for i, data_sample in enumerate(batch_data_samples):
+            if data_sample.meta.get('stereo_aug', False):
+                uv_coord_im_pred_global[i] = uv_coord_im_gt_global[i].clone()
+            camera_model = data_sample.meta['ori_camera']
+            kpt2d_u = camera_model.undistort(
+                uv_coord_im_pred_global[i].cpu().numpy())
+            uv_coord_im_pred_global[i] = torch.from_numpy(kpt2d_u).cuda()
+        uv_coord_im_pred_global = uv_coord_im_pred_global.view(B, N, K, 2)
 
         # 这地方可以理解是uv坐标系向相机坐标系的转化，能够得到z方向为1的向量
         leftcam_uv = uv_coord_im_pred_global[:, 0]  # (B, 21, 2)
@@ -328,54 +345,63 @@ class LiftNimbleHead(BaseModule):
             (rightcam_x.unsqueeze(-1), rightcam_y.unsqueeze(-1)),
             dim=2)  # (B, 21, 2)
 
-        # 显式的使用Rt
-        if self.noRt:
-            rightcam_xy_normplane = torch.cat(
-                (rightcam_xy, torch.ones(B, K, 1).cuda()), dim=2)
-            rightcam_xyz1_inworld = (torch.bmm(
-                lr_rot_matrix.view((B, 1, 3, 3)).repeat(1, 21, 1, 1).view(
-                    (B * 21, 3, 3)), rightcam_xy_normplane.view(
-                        (B * K, 3, 1))) + lr_p.view(
-                            (B, 1, 3, 1)).repeat(1, 21, 1, 1).view(
-                                (B * 21, 3, 1))).view((B, 21, 3))
-            # rightcam_xyz1_inworld = (torch.bmm(
-            #     rightcam_xy_normplane.view((B * K, 3, 1)).permute(0, 2, 1),
-            #     lr_rot_matrix.view((B, 1, 3, 3)).repeat(1, 21, 1, 1).view(
-            #         (B * 21, 3, 3)))  + lr_p.view(
-            #                 (B, 1, 3, 1)).repeat(1, 21, 1, 1).view(
-            #                     (B * 21, 3, 1))).view((B, 21, 3))
-            feats = torch.cat(
-                (leftcam_xy.view(B, -1), rightcam_xyz1_inworld.view(
-                    (B, -1)), left_hand.view((B, -1))),
-                dim=1).view(B, self.channel_num * 2, 1,
-                            1).float()  # 21*2+21*3+1
-        # 隐式的使用Rt
+        norm_leftcam_xyz, norm_rightcam_xyz = self.standardize_stereo(
+            leftcam_xy, rightcam_xy, left_R, right_R)
+
+        if self.use_plane_coord:
+            feature1 = torch.cat((norm_leftcam_xyz[:, :, :2].reshape(
+                (B, -1)), left_hand.view(B, -1)),
+                                 dim=1)
+            feature2 = torch.cat((norm_rightcam_xyz[:, :, :2].reshape(
+                (B, -1)), left_hand.view(B, -1)),
+                                 dim=1)
         else:
-            Tmatrix_leftcam = torch.tensor(
-                (0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)).view((1, -1)).cuda()
-            feature1 = torch.cat((leftcam_xy.view(
-                (B, -1)), Tmatrix_leftcam.repeat(B, 1), left_hand.view(
-                    (B, -1))),
-                                 dim=1).view((B, self.channel_num, 1, 1))
-            feature2 = torch.cat((rightcam_xy.view((B, -1)), lr_p.view(
-                (B, -1)), lr_rot_matrix.view((B, -1)), left_hand.view(
-                    (B, -1))),
-                                 dim=1).view((B, self.channel_num, 1, 1))
-            if self.kpt2d_with_depth:
-                feats = torch.torch.cat(
-                    (feature1, feature2, depth.reshape(
-                        (B, 21, 1, 1))), dim=1).float()
-            else:
-                feats = torch.cat((feature1, feature2), dim=1).float()
+            feature1 = torch.cat((norm_leftcam_xyz.view(
+                (B, -1)), left_hand.view(B, -1)),
+                                 dim=1)
+            feature2 = torch.cat((norm_rightcam_xyz.view(
+                (B, -1)), left_hand.view(B, -1)),
+                                 dim=1)
+        feats = torch.cat((feature1, feature2), dim=1).float()
+        if self.disparity_input:
+            disparity = norm_leftcam_xyz[:, :, 0] - norm_rightcam_xyz[:, :, 0]
+            feats = torch.cat((feats, disparity), dim=1).float()
+        feats = feats.reshape(B, self.feat_dim, 1, 1)
 
-        return (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,
-                leftcam_cam_matrix, rightcam_cam_matrix,
+        return (feats, norm_leftcam_xyz, norm_rightcam_xyz, lr_rot_matrix,
+                lr_p, leftcam_cam_matrix, rightcam_cam_matrix,
                 uv_coord_im_pred_global, uv_coord_im_pred_global_distort,
-                hand3d_gt, left_hand, nimble_info)
+                hand3d_gt, left_hand, nimble_info, left_R, right_R,
+                baseline_scale)
 
-    def postprocess(self, output, left_hand, leftcam_xy):
+    def standardize_stereo(self, leftcam_xy, rightcam_xy, left_R, right_R):
+        """transform to standard stereo system."""
+        standard_left_xyz = self.align_monocular_to_parallel_stereo(
+            leftcam_xy, left_R)
+        standard_right_xyz = self.align_monocular_to_parallel_stereo(
+            rightcam_xy, right_R)
+        if self.use_plane_coord:
+            norm_left_xyz = standard_left_xyz / standard_left_xyz[:, :, 2:]
+            norm_right_xyz = standard_right_xyz / standard_right_xyz[:, :, 2:]
+        else:
+            norm_left_xyz = F.normalize(standard_left_xyz, p=2, dim=-1)
+            norm_right_xyz = F.normalize(standard_right_xyz, p=2, dim=-1)
+        return norm_left_xyz, norm_right_xyz
+
+    def align_monocular_to_parallel_stereo(self, cam_xy, rot):
+        """Aligns a monocular camera to a parallel stereo setup using the given
+        rotation matrix."""
+        B, K = cam_xy.shape[:2]
+        cam_xyz = torch.cat((cam_xy, torch.ones(B, K, 1).cuda()),
+                            dim=-1).view(B * K, 3, 1)
+        rot = rot.view(B, 1, 3, 3).repeat(1, 21, 1, 1).view(B * 21, 3, 3)
+        standard_cam_xyz = torch.matmul(rot, cam_xyz).view(B, K, 3)
+        return standard_cam_xyz
+
+    def postprocess(self, output, left_hand, leftcam_xy, baseline_scale):
 
         B = output.shape[0]
+        baseline_scale = baseline_scale.view(B, 1, 1)
 
         pose_len = self.pose_ncomp
         rot_vector = output[:, :pose_len, 0, 0]
@@ -396,27 +422,23 @@ class LiftNimbleHead(BaseModule):
                 new_rot_vector, shape_vector, with_root_pose=False)
             rebuild_joints = bone_joints[:, self.kp_index, :]
             root_rebuild_joints = rebuild_joints[:, 0:1, :]
+
+            mask = left_hand == 1
             rebuild_joints_temp = rebuild_joints - root_rebuild_joints
+            rebuild_joints_temp[mask, :, 0] = -rebuild_joints_temp[mask, :, 0]
+            rebuild_joints_with_scale = \
+                rebuild_joints_temp / self.scale_parameter
 
             matrix_svd = decode_svd(
                 pre_pt_features,
                 self.rigid_samples,
             )
+            nimble_xyz = torch.matmul(
+                rebuild_joints_with_scale, matrix_svd[:, 0:3, 0:3].transpose(
+                    1, 2)) + matrix_svd[:, 0:3, 3].unsqueeze(1)
 
-            mask = left_hand == 1
-            add_matrix = torch.eye(3).unsqueeze(0).expand(
-                rebuild_joints_temp.shape[0], -1,
-                -1).to(rebuild_joints_temp.device)
-            add_matrix[mask, 0, 0] = -add_matrix[mask, 0, 0]
-            root_matrix = torch.matmul(add_matrix, matrix_svd[:, 0:3, 0:3])
-            rebuild_joints_temp = torch.matmul(rebuild_joints_temp,
-                                               root_matrix.transpose(1, 2))
-            rebuild_joints_with_scale = \
-                rebuild_joints_temp / self.scale_parameter
-
-            nimble_xyz = rebuild_joints_with_scale + matrix_svd[:, 0:3,
-                                                                3].unsqueeze(1)
             trans_xyz = matrix_svd[:, 0:3, 3]
+            root_quaternion = matrix_to_quaternion(matrix_svd[:, 0:3, 0:3])
         else:
             trans_vector = output[:, pose_len:pose_len + 3, 0, 0]
             shape_vector = output[:, pose_len + 3:, 0, 0]
@@ -437,14 +459,18 @@ class LiftNimbleHead(BaseModule):
             trans_xyz = trans_vector
 
             root_pose_roctor = rot_vector[:, :3]
-            root_matrix = batch_rodrigues(root_pose_roctor).reshape(-1, 3, 3)
+            root_pose_matirx = batch_rodrigues(root_pose_roctor).reshape(
+                -1, 3, 3)
+            root_quaternion = matrix_to_quaternion(root_pose_matirx)
+
+        nimble_xyz = (nimble_xyz.view(B, 21, 3) *
+                      baseline_scale).reshape(B, 21, 3)
+        trans_xyz = (trans_xyz.view(B, 3) *
+                     baseline_scale[:, :1, 0]).reshape(B, 3)
 
         if self.pre_xyz_type == 0:
-            return nimble_xyz, nimble_xyz, nimble_xyz, trans_xyz, matrix_svd[:,
-                                                                             0:
-                                                                             3,
-                                                                             0:
-                                                                             3]
+            return (nimble_xyz, nimble_xyz, nimble_xyz, trans_xyz,
+                    root_quaternion)
         else:
             nimble_Z = nimble_xyz[:, :, 2:].view((B, 21, 1))
             rebuild_xyz = torch.cat((leftcam_xy * nimble_Z, nimble_Z),
@@ -455,8 +481,8 @@ class LiftNimbleHead(BaseModule):
                 hand3d_pred = (
                     self.corruption_cam * rebuild_xyz +
                     (1 - self.corruption_cam) * nimble_xyz)
-                return hand3d_pred, nimble_xyz, rebuild_xyz, \
-                    trans_xyz, root_matrix
+                return (hand3d_pred, nimble_xyz, rebuild_xyz, trans_xyz,
+                        root_quaternion)
 
     def predict(self,
                 feats: Tuple[Tensor],
@@ -466,7 +492,8 @@ class LiftNimbleHead(BaseModule):
             (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,
              leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global,
              uv_coord_im_pred_global_distort, hand3d_gt, left_hand,
-             nimble_info) = self.preprocess(feats, batch_data_samples)
+             nimble_info, left_R, right_R,
+             baseline_scale) = self.preprocess(feats, batch_data_samples)
 
             if self.reg_shape_type > 1:
                 batch_num = feats.shape[0]
@@ -479,10 +506,17 @@ class LiftNimbleHead(BaseModule):
                 feats = torch.cat((feats, skeleton_feature), dim=1)
             output = self.forward(feats)
 
-        (hand3d_pred, hand3d_nimble_xyz, hand3d_rebuild_xyz, pre_trans_xyz,
-         pre_root_matrix) = self.postprocess(output, left_hand, leftcam_xy)
-
-        return hand3d_nimble_xyz, uv_coord_im_pred_global_distort
+        hand3d_pred = self.postprocess(output, left_hand, leftcam_xy,
+                                       baseline_scale)[1]
+        if self.reproj:
+            camera_model = batch_data_samples[0].meta['ori_camera']
+            leftcam_uv_reproj_distort = camera_model.eye_to_window(
+                hand3d_pred.cpu().numpy())
+            leftcam_uv_reproj_distort = torch.tensor(
+                leftcam_uv_reproj_distort).cuda()
+            return hand3d_pred, leftcam_uv_reproj_distort[:, None, ...]
+        else:
+            return hand3d_pred, uv_coord_im_pred_global_distort
 
     def loss(self,
              feats: Tuple[Tensor],
@@ -494,7 +528,8 @@ class LiftNimbleHead(BaseModule):
             (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,
              leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global,
              uv_coord_im_pred_global_distort, hand3d_gt, left_hand,
-             nimble_info) = self.preprocess(feats, batch_data_samples)
+             nimble_info, left_R, right_R,
+             baseline_scale) = self.preprocess(feats, batch_data_samples)
 
         if self.reg_shape_type > 1:
             batch_num = feats.shape[0]
@@ -508,12 +543,13 @@ class LiftNimbleHead(BaseModule):
         output = self.forward(feats)
 
         # 3d 损失
-        (hand3d_pred, hand3d_nimble_xyz, hand3d_rebuild_xyz, pre_trans_xyz,
-         pre_root_matrix) = self.postprocess(output, left_hand, leftcam_xy)
+        (hand3d_pred, hand3d_nimble_xyz, hand3d_rebuild_xyz, trans_xyz,
+         root_quaternion) = self.postprocess(output, left_hand, leftcam_xy,
+                                             baseline_scale)
 
         # 直接监督rot和trans, 只考虑根节点的处理方式
-        pre_nimble_trans = pre_trans_xyz
-        pre_euler = matrix_to_euler_angles(pre_root_matrix, 'XYZ')
+        pre_nimble_trans = trans_xyz
+        pre_nimble_pose = root_quaternion
         if 'nimble_pose' in nimble_info.keys(
         ) and 'nimble_trans' in nimble_info.keys():
             gt_nimble_trans = nimble_info['nimble_trans']
@@ -521,10 +557,7 @@ class LiftNimbleHead(BaseModule):
                 -1, 60)[:, :3]
             gt_nimble_pose_matirx = batch_rodrigues(
                 gt_nimble_pose_roctor).reshape(-1, 3, 3)
-            gt_euler = matrix_to_euler_angles(gt_nimble_pose_matirx, 'XYZ')
-
-        gt_nimble_pose = gt_euler
-        pre_nimble_pose = adjust_predicted_angles(pre_euler, gt_euler)
+            gt_nimble_pose = matrix_to_quaternion(gt_nimble_pose_matirx)
 
         # 2d重投影损失 这里把pre设置为gt
         leftcam_uv_pre, rightcam_uv_pre = trans_3d_2_2d(

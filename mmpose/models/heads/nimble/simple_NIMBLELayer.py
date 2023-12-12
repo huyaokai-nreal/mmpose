@@ -139,15 +139,20 @@ class sim_NIMBLELayer(torch.nn.Module):
                 self.pose_pm_std[:self.pose_ncomp].reshape(1, -1))
         return real_theta_de
 
-    def return_pose(self, pose_param):
+    def return_pose(self, pose_param, with_root_pose=False):
         if self.use_pose_pca:
             full_pose = self.generate_full_pose(
-                pose_param, normalized=True, with_root=False).view(-1, 20, 3)
+                pose_param, normalized=True,
+                with_root=with_root_pose).view(-1, 20, 3)
         else:
             full_pose = pose_param.view(-1, 20, 3)
         return full_pose
 
-    def forward(self, pose_param, shape_param, init_shape_pose=False):
+    def forward(self,
+                pose_param,
+                shape_param,
+                init_shape_pose=False,
+                with_root_pose=False):
         """Takes points in R^3 and first applies relevant pose and shape blend
         shapes.
 
@@ -155,7 +160,8 @@ class sim_NIMBLELayer(torch.nn.Module):
         """
         if self.use_pose_pca:
             full_pose = self.generate_full_pose(
-                pose_param, normalized=True, with_root=False).view(-1, 20, 3)
+                pose_param, normalized=True,
+                with_root=with_root_pose).view(-1, 20, 3)
         else:
             full_pose = pose_param.view(-1, 20, 3)
 
