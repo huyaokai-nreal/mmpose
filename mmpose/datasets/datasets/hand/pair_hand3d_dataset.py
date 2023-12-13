@@ -157,7 +157,6 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                                 ) @ cam_model_right.camera_to_world_xf
         relative_T = np.linalg.inv(virtual_left_camera.camera_to_world_xf
                                    ) @ virtual_right_camera.camera_to_world_xf
-        right_R = relative_T @ right_R
         virtual_baseline = np.linalg.norm(relative_T[:3, 3])
         return left_R[:3, :3], right_R[:3, :3], virtual_baseline
 
