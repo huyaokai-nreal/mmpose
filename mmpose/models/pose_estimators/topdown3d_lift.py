@@ -222,6 +222,10 @@ class TopdownPoseLiftEstimator(BaseModel):
 
         if len(pre_info) == 4:
             pred, pred_bino_kp2d, parent_matrix, child_vector = pre_info
+        else:
+            pred, pred_bino_kp2d = pre_info
+
+        if 'nimble_pose' in data_samples[0].meta:
             for b in range(pred.shape[0]):
                 keypoints = pred_bino_kp2d[b:b + 1, 0, ...]  # gt为左目信息
                 child_matrix = batch_rodrigues(child_vector[b, :, :]).reshape(
@@ -240,7 +244,6 @@ class TopdownPoseLiftEstimator(BaseModel):
                         gt_keypoint_euler=torch.ones_like(pre_euler).unsqueeze(
                             0)))
         else:
-            pred, pred_bino_kp2d = pre_info
             for b in range(pred.shape[0]):
                 keypoints = pred_bino_kp2d[b:b + 1, 0, ...]  # gt为左目信息
                 batch_pred_instances.append(
@@ -278,8 +281,7 @@ class TopdownPoseLiftEstimator(BaseModel):
                                                                       2:]),
                 axis=-1)
 
-            if ('nimble_pose' in data_sample.meta
-                    and 'keypoint_euler' in pred_instances.keys()):
+            if 'nimble_pose' in data_sample.meta:
                 pre_euler = pred_instances.keypoint_euler[0]
                 gt_nimble_pose_roctor = torch.tensor(
                     data_sample.meta['nimble_pose'][:, :3]).to(
@@ -294,6 +296,69 @@ class TopdownPoseLiftEstimator(BaseModel):
 
                 pred_instances.keypoint_euler = pre_nimble_pose
                 pred_instances.gt_keypoint_euler = gt_nimble_pose
+
+            # pre_3d = pred_instances.keypoints3d
+            # gt_3d = data_sample.gt_instances.keypoints3d
+            # mpjae_error = np.mean(
+            #     np.abs(pre_nimble_pose - gt_nimble_pose),
+            #     axis=-1).mean() * 180 / np.pi
+            # root_mpjae_error = np.mean(
+            #     np.abs(pre_nimble_pose[:, :1, :] - gt_nimble_pose[:, :1, :]),
+            #     axis=-1).mean() * 180 / np.pi
+            # mpjpe_error = np.linalg.norm(
+            #     pre_3d - gt_3d, ord=2, axis=-1).mean() * 1000
+            # root_mpjpe_error = np.linalg.norm(
+            #     pre_3d[:, :1, :] - gt_3d[:, :1, :], ord=2,
+            #     axis=-1).mean() * 1000
+
+            def draw_circle(keypoints1, keypoints2):
+                import matplotlib.pyplot as plt
+                index_child = [
+                    0, 1, 2, 3, 0, 5, 6, 7, 0, 9, 10, 11, 0, 13, 14, 15, 0, 17,
+                    18, 19
+                ]
+                index_parent = [
+                    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+                    18, 19, 20
+                ]
+                x1, y1, z1 = keypoints1[0, :,
+                                        0], keypoints1[0, :,
+                                                       1], keypoints1[0, :,
+                                                                      2]  # gt
+                x2, y2, z2 = keypoints2[0, :,
+                                        0], keypoints2[0, :,
+                                                       1], keypoints2[0, :, 2]
+
+                # 创建 3D 散点图
+                fig = plt.figure()
+                ax = fig.add_subplot(111, projection='3d')
+                ax.scatter(
+                    x1, y1, z1, c='r', marker='o', label='Group 1', s=3)  # 红色
+                ax.scatter(
+                    x2, y2, z2, c='b', marker='o', label='Group 2', s=3)  # 蓝色
+                for i in range(len(index_child)):
+                    ax.plot([x1[index_child[i]], x1[index_parent[i]]],
+                            [y1[index_child[i]], y1[index_parent[i]]],
+                            [z1[index_child[i]], z1[index_parent[i]]],
+                            color='r',
+                            linestyle='-',
+                            linewidth=1)
+                for i in range(len(index_child)):
+                    ax.plot([x2[index_child[i]], x2[index_parent[i]]],
+                            [y2[index_child[i]], y2[index_parent[i]]],
+                            [z2[index_child[i]], z2[index_parent[i]]],
+                            color='b',
+                            linestyle='-',
+                            linewidth=1)
+
+                # 设置坐标轴标签
+                ax.set_xlabel('X轴')
+                ax.set_ylabel('Y轴')
+                ax.set_zlabel('Z轴')
+                # 显示图例
+                ax.legend()
+                # 显示图形
+                plt.show()
 
             if self.nano_2d:
                 data_sample.gt_instances.keypoints = np.concatenate(

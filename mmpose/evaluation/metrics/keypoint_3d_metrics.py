@@ -183,6 +183,7 @@ class MPJPEV2(MPJPE):
         self.mpjae_metric = MPJAEMetric(filter_exceed=filter_exceed)
 
     def process(self, data_batch, data_samples: Sequence[dict]) -> None:
+
         for data_sample in data_samples:
             if 'pred_instances' not in data_sample:
                 raise ValueError(
@@ -264,12 +265,11 @@ class MPJPEV2(MPJPE):
         mpjpe_res = self.mpjpe_metric(res_file)
         stability_res = self.self_stability_metric(res_file)
         pinch_res = self.pinch_metric(res_file)
-
-        if 'keypoints_pose' in results[0].keys():
+        if len(results[0]['keypoints_pose']) > 0:
             mpjae_res = self.mpjae_metric(res_file)
         res = {}
         res.update(mpjpe_res)
-        if 'keypoints_pose' in results[0].keys():
+        if len(results[0]['keypoints_pose']) > 0:
             res.update(mpjae_res)
         res.update(stability_res)
         res.update(pinch_res)
