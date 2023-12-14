@@ -125,8 +125,8 @@ model = dict(
                 dict(type='L1Loss'),  # 3d kpts
                 dict(type='L1Loss'),  # 3d kpts leftcam
                 dict(type='L1Loss'),  # 3d kpts rightcam
-                dict(type='MSELoss', loss_weight=0),  # 2d reprojection left
-                dict(type='MSELoss', loss_weight=0),  # 2d reprojection right
+                dict(type='MSELoss', loss_weight=1),  # 2d reprojection left
+                dict(type='MSELoss', loss_weight=1),  # 2d reprojection right
                 dict(
                     type='PinchLoss',
                     enter_thre=pinch_thre[0] / 1000,
@@ -135,6 +135,7 @@ model = dict(
                     enable_start_epoch=train_cfg['max_epochs'] -
                     20),  # 后20 epoch打开pinch loss
             ]),
+        lambda_t=train_cfg['max_epochs'] // 2,
         use_plane_coord=False,
         baseline=0.12,
         disparity_input=False,

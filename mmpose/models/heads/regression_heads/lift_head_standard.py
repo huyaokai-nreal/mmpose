@@ -293,30 +293,6 @@ class LiftHeadStandard(BaseModule):
 
         return hand3d_pred, leftcam_XYZ, rightcam_XYZ
 
-    def standardize_stereo(self, leftcam_xy, rightcam_xy, left_R, right_R):
-        """transform to standard stereo system."""
-        standard_left_xyz = self.align_monocular_to_parallel_stereo(
-            leftcam_xy, left_R)
-        standard_right_xyz = self.align_monocular_to_parallel_stereo(
-            rightcam_xy, right_R)
-        if self.use_plane_coord:
-            norm_left_xyz = standard_left_xyz / standard_left_xyz[:, :, 2:]
-            norm_right_xyz = standard_right_xyz / standard_right_xyz[:, :, 2:]
-        else:
-            norm_left_xyz = F.normalize(standard_left_xyz, p=2, dim=-1)
-            norm_right_xyz = F.normalize(standard_right_xyz, p=2, dim=-1)
-        return norm_left_xyz, norm_right_xyz
-
-    def align_monocular_to_parallel_stereo(self, cam_xy, rot):
-        """Aligns a monocular camera to a parallel stereo setup using the given
-        rotation matrix."""
-        B, K = cam_xy.shape[:2]
-        cam_xyz = torch.cat((cam_xy, torch.ones(B, K, 1).cuda()),
-                            dim=-1).view(B * K, 3, 1)
-        rot = rot.view(B, 1, 3, 3).repeat(1, 21, 1, 1).view(B * 21, 3, 3)
-        standard_cam_xyz = torch.matmul(rot, cam_xyz).view(B, K, 3)
-        return standard_cam_xyz
-
     def predict(self,
                 feats: Tuple[Tensor],
                 batch_data_samples: OptSampleList,
@@ -354,22 +330,15 @@ class LiftHeadStandard(BaseModule):
         hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
             output, norm_leftcam_xyz, norm_rightcam_xyz, left_R, right_R,
             lr_rot_matrix, lr_p, baseline_scale)
-        leftcam_uv_reproj = torch.matmul(hand3d_pred,
-                                         leftcam_cam_matrix.permute(0, 2, 1))
-        leftcam_uv_reproj = leftcam_uv_reproj[..., :2] / leftcam_uv_reproj[...,
-                                                                           2:]
-
-        rightcam_uv_reproj = torch.matmul(
-            hand3d_pred, lr_rot_matrix) - torch.matmul(
-                lr_rot_matrix.permute(0, 2, 1), lr_p.unsqueeze(-1)).reshape(
-                    (-1, 1, 3))
-        rightcam_uv_reproj = torch.matmul(rightcam_uv_reproj,
-                                          rightcam_cam_matrix.permute(0, 2, 1))
-        rightcam_uv_reproj = rightcam_uv_reproj[..., :2] / rightcam_uv_reproj[
-            ..., 2:]
 
         leftcam_uv_gt = uv_coord_im_pred_global[:, 0]
         rightcam_uv_gt = uv_coord_im_pred_global[:, 1]
+
+        hand3d_pred_tmp = np.array(hand3d_pred.clone().cpu().detach())
+        left_cam_model = batch_data_samples[0].meta['ori_camera']
+        right_cam_model = batch_data_samples[1].meta['ori_camera']
+        leftcam_uv_reproj = self.reporj3D(left_cam_model, hand3d_pred_tmp)
+        rightcam_uv_reproj = self.reporj3D(right_cam_model, hand3d_pred_tmp)
 
         # major_gt = torch.cat(
         #     (hand3d_gt[:, 1:10, :], hand3d_gt[:, 13, :].unsqueeze(1)), dim=1)
@@ -409,3 +378,39 @@ class LiftHeadStandard(BaseModule):
             loss_mse_2d_rightcam=loss_mse_2d_rightcam,
             loss_pinch=loss_pinch)
         return losses_dict
+
+    def standardize_stereo(self, leftcam_xy, rightcam_xy, left_R, right_R):
+        """transform to standard stereo system."""
+        standard_left_xyz = self.align_monocular_to_parallel_stereo(
+            leftcam_xy, left_R)
+        standard_right_xyz = self.align_monocular_to_parallel_stereo(
+            rightcam_xy, right_R)
+        if self.use_plane_coord:
+            norm_left_xyz = standard_left_xyz / standard_left_xyz[:, :, 2:]
+            norm_right_xyz = standard_right_xyz / standard_right_xyz[:, :, 2:]
+        else:
+            norm_left_xyz = F.normalize(standard_left_xyz, p=2, dim=-1)
+            norm_right_xyz = F.normalize(standard_right_xyz, p=2, dim=-1)
+        return norm_left_xyz, norm_right_xyz
+
+    @staticmethod
+    def align_monocular_to_parallel_stereo(cam_xy, rot):
+        """Aligns a monocular camera to a parallel stereo setup using the given
+        rotation matrix."""
+        B, K = cam_xy.shape[:2]
+        cam_xyz = torch.cat((cam_xy, torch.ones(B, K, 1).cuda()),
+                            dim=-1).view(B * K, 3, 1)
+        rot = rot.view(B, 1, 3, 3).repeat(1, 21, 1, 1).view(B * 21, 3, 3)
+        standard_cam_xyz = torch.matmul(rot, cam_xyz).view(B, K, 3)
+        return standard_cam_xyz
+
+    @staticmethod
+    def reporj3D(cam_model, hand3d):
+        B, K = hand3d.shape[:2]
+        cam_uv_reproj_distort = cam_model.world_to_eye(hand3d)
+        cam_uv_reproj_distort = cam_model.eye_to_window(cam_uv_reproj_distort)
+        cam_uv_reproj = cam_model.undistort(cam_uv_reproj_distort).reshape(
+            B, K, -1)
+        cam_uv_reproj = torch.tensor(
+            cam_uv_reproj.copy(), dtype=torch.float32).cuda()
+        return cam_uv_reproj
