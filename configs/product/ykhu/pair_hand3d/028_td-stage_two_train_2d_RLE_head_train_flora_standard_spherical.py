@@ -135,13 +135,14 @@ model = dict(
                     enable_start_epoch=train_cfg['max_epochs'] -
                     20),  # 后20 epoch打开pinch loss
             ]),
-        lambda_t=train_cfg['max_epochs'] // 2,
+        lambda_t=train_cfg['max_epochs'],
         use_plane_coord=False,
         baseline=0.12,
         disparity_input=False,
         rightcam_3d_disable=False,
         kpt3d_output=False,
-        kpt3d_output_delta=False),
+        kpt3d_output_delta=False,
+        use_attention=True),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
@@ -338,10 +339,11 @@ train_pipeline = [
 val_pipeline = [
     dict(
         type='RandomStereoParamAug',
-        baseline_range=[-0.033, -0.032],
-        x_angle_range=[-1, 1],
-        y_angle_range=[-3, 3],
-        z_angle_range=[-1, 1]),
+        # baseline_range=[-0.033, -0.032],
+        # x_angle_range=[-3, 3],
+        # y_angle_range=[-3, 3],
+        # z_angle_range=[-3, 3]
+    ),
     dict(type='GetBBoxCenterScale', padding=1.0),
     dict(type='TopdownAffine', input_size=codec['input_size']),
     dict(type='PackPoseInputs')

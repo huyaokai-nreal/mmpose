@@ -30,6 +30,8 @@ class LiftHeadStandard(BaseModule):
                  rightcam_3d_disable=False,
                  kpt3d_output=False,
                  kpt3d_output_delta=False,
+                 plane_arctan=False,
+                 use_attention=False,
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
                  all_use_kp2d_gt: bool = False,
@@ -56,6 +58,9 @@ class LiftHeadStandard(BaseModule):
         self.last_layer = nn.Sequential(
             nn.Conv2d(feat_dim, feat_dim, kernel_size=1), nn.ReLU(),
             nn.Conv2d(feat_dim, output_num, kernel_size=1))
+        # Ensure that embed_dim is divisible by num_heads
+        self.attention_layer = SelfAttentionModel(
+            embed_dim=3, num_heads=3, hidden_size=64, output_size=3)
         if self.kpt3d_output_delta:
             self.delta_last_layer = nn.Sequential(
                 nn.Conv2d(feat_dim, feat_dim, kernel_size=1), nn.ReLU(),
@@ -65,6 +70,8 @@ class LiftHeadStandard(BaseModule):
         self.reproj = reproj
         self.use_plane_coord = use_plane_coord
         self.baseline = baseline
+        self.plane_arctan = plane_arctan
+        self.use_attention = use_attention
 
     def forward(self, feats: Tuple[Tensor]) -> Tensor:
         liftnet_output = self.liftnet(feats)
@@ -214,6 +221,9 @@ class LiftHeadStandard(BaseModule):
 
         norm_leftcam_xyz, norm_rightcam_xyz = self.standardize_stereo(
             leftcam_xy, rightcam_xy, left_R, right_R)
+        if self.use_attention:
+            norm_leftcam_xyz = self.attention_layer(norm_leftcam_xyz)
+            norm_rightcam_xyz = self.attention_layer(norm_rightcam_xyz)
 
         if self.use_plane_coord:
             feature1 = torch.cat((norm_leftcam_xyz[:, :, :2].reshape(
@@ -392,6 +402,10 @@ class LiftHeadStandard(BaseModule):
         if self.use_plane_coord:
             norm_left_xyz = standard_left_xyz / standard_left_xyz[:, :, 2:]
             norm_right_xyz = standard_right_xyz / standard_right_xyz[:, :, 2:]
+            if self.plane_arctan:
+                norm_left_xyz[:, :, :2] = torch.arctan(norm_left_xyz[:, :, :2])
+                norm_right_xyz[:, :, :2] = torch.arctan(
+                    norm_right_xyz[:, :, :2])
         else:
             norm_left_xyz = F.normalize(standard_left_xyz, p=2, dim=-1)
             norm_right_xyz = F.normalize(standard_right_xyz, p=2, dim=-1)
@@ -432,3 +446,16 @@ class LiftHeadStandard(BaseModule):
         rightcam_uv_reproj = rightcam_uv_reproj[..., :2] / rightcam_uv_reproj[
             ..., 2:]
         return leftcam_uv_reproj, rightcam_uv_reproj
+
+
+class SelfAttentionModel(nn.Module):
+
+    def __init__(self, embed_dim, num_heads, hidden_size, output_size):
+        super(SelfAttentionModel, self).__init__()
+        self.attention1 = nn.MultiheadAttention(embed_dim, num_heads)
+        self.norm = nn.LayerNorm(embed_dim)
+
+    def forward(self, x):
+        output, _ = self.attention1(x, x, x)
+        output = self.norm(x + output)
+        return output
