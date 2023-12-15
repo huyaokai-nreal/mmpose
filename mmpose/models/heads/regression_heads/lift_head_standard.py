@@ -130,6 +130,7 @@ class LiftHeadStandard(BaseModule):
                 right_cam_xf = right_camera.camera_to_world_xf
                 lr_t = np.dot(np.linalg.inv(left_cam_xf),
                               right_cam_xf).astype(np.float32)
+                left_to_right_rt = np.linalg.inv(right_cam_xf)
                 lr_rot_matrix.append(lr_t[:3, :3])
                 lr_p.append(lr_t[:3, 3])
                 baseline_scale.append(data_sample.meta['virtual_baseline'] /
@@ -151,6 +152,8 @@ class LiftHeadStandard(BaseModule):
         baseline_scale = torch.tensor(np.array(baseline_scale)).cuda().float()
         lr_p = torch.tensor(np.array(lr_p)).cuda().float()
         lr_rot_matrix = torch.tensor(np.array(lr_rot_matrix)).cuda().float()
+        left_to_right_rt = torch.tensor(
+            np.array(left_to_right_rt)).cuda().float()
         hand3d_gt = torch.tensor(np.array(hand3d_gt)).cuda().float()
         left_hand = torch.tensor(np.array(is_left_hands)).cuda().float()
         uv_coord_im_gt_global = torch.tensor(
@@ -233,9 +236,10 @@ class LiftHeadStandard(BaseModule):
 
         feats = feats.reshape(B, self.feat_dim, 1, 1)
         return (feats, norm_leftcam_xyz, norm_rightcam_xyz, lr_rot_matrix,
-                lr_p, leftcam_cam_matrix, rightcam_cam_matrix,
-                uv_coord_im_pred_global, uv_coord_im_pred_global_distort,
-                hand3d_gt, left_R, right_R, baseline_scale)
+                lr_p, left_to_right_rt, leftcam_cam_matrix,
+                rightcam_cam_matrix, uv_coord_im_pred_global,
+                uv_coord_im_pred_global_distort, hand3d_gt, left_R, right_R,
+                baseline_scale)
 
     def postprocess(self, output, norm_leftcam_xyz, norm_rightcam_xyz, left_R,
                     right_R, lr_rot_matrix, lr_p, baseline_scale):
@@ -299,9 +303,10 @@ class LiftHeadStandard(BaseModule):
                 test_cfg: ConfigType = {}) -> Predictions:
         with torch.no_grad():
             (feats, norm_leftcam_xyz, norm_rightcam_xyz, lr_rot_matrix, lr_p,
-             leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global,
-             uv_coord_im_pred_global_distort, hand3d_gt, left_R, right_R,
-             baseline_scale) = self.preprocess(feats, batch_data_samples)
+             left_to_right_rt, leftcam_cam_matrix, rightcam_cam_matrix,
+             uv_coord_im_pred_global, uv_coord_im_pred_global_distort,
+             hand3d_gt, left_R, right_R, baseline_scale) = \
+                self.preprocess(feats, batch_data_samples)
         output = self.forward(feats)
         hand3d_pred = self.postprocess(output, norm_leftcam_xyz,
                                        norm_rightcam_xyz, left_R, right_R,
@@ -323,9 +328,10 @@ class LiftHeadStandard(BaseModule):
         """Calculate losses from a batch of inputs and data samples."""
         with torch.no_grad():
             (feats, norm_leftcam_xyz, norm_rightcam_xyz, lr_rot_matrix, lr_p,
-             leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global,
-             uv_coord_im_pred_global_distort, hand3d_gt, left_R, right_R,
-             baseline_scale) = self.preprocess(feats, batch_data_samples)
+             left_to_right_rt, leftcam_cam_matrix, rightcam_cam_matrix,
+             uv_coord_im_pred_global, uv_coord_im_pred_global_distort,
+             hand3d_gt, left_R, right_R, baseline_scale) = \
+                self.preprocess(feats, batch_data_samples)
         output = self.forward(feats)
         hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
             output, norm_leftcam_xyz, norm_rightcam_xyz, left_R, right_R,
@@ -334,11 +340,9 @@ class LiftHeadStandard(BaseModule):
         leftcam_uv_gt = uv_coord_im_pred_global[:, 0]
         rightcam_uv_gt = uv_coord_im_pred_global[:, 1]
 
-        hand3d_pred_tmp = np.array(hand3d_pred.clone().cpu().detach())
-        left_cam_model = batch_data_samples[0].meta['ori_camera']
-        right_cam_model = batch_data_samples[1].meta['ori_camera']
-        leftcam_uv_reproj = self.reporj3D(left_cam_model, hand3d_pred_tmp)
-        rightcam_uv_reproj = self.reporj3D(right_cam_model, hand3d_pred_tmp)
+        leftcam_uv_reproj, rightcam_uv_reproj = \
+            self.trans_3d_2_2d(hand3d_pred, leftcam_cam_matrix,
+                               rightcam_cam_matrix, left_to_right_rt)
 
         # major_gt = torch.cat(
         #     (hand3d_gt[:, 1:10, :], hand3d_gt[:, 13, :].unsqueeze(1)), dim=1)
@@ -405,12 +409,26 @@ class LiftHeadStandard(BaseModule):
         return standard_cam_xyz
 
     @staticmethod
-    def reporj3D(cam_model, hand3d):
-        B, K = hand3d.shape[:2]
-        cam_uv_reproj_distort = cam_model.world_to_eye(hand3d)
-        cam_uv_reproj_distort = cam_model.eye_to_window(cam_uv_reproj_distort)
-        cam_uv_reproj = cam_model.undistort(cam_uv_reproj_distort).reshape(
-            B, K, -1)
-        cam_uv_reproj = torch.tensor(
-            cam_uv_reproj.copy(), dtype=torch.float32).cuda()
-        return cam_uv_reproj
+    def trans_3d_2_2d(hand3d_point, leftcam_cam_matrix, rightcam_cam_matrix,
+                      left_to_right_rt):
+        B = hand3d_point.shape[0]
+        left_to_right_rt = left_to_right_rt.repeat(B, 1, 1)
+        leftcam_uv_reproj = torch.matmul(hand3d_point,
+                                         leftcam_cam_matrix.permute(
+                                             0, 2, 1)).to(torch.float32)
+        leftcam_uv_reproj = leftcam_uv_reproj[..., :2] / leftcam_uv_reproj[...,
+                                                                           2:]
+
+        column_of_ones = torch.ones((B, 21, 1)).to(hand3d_point.device)
+        tensor_with_ones = torch.cat((hand3d_point, column_of_ones), dim=2)
+        rightcam_uv_reproj = torch.matmul(tensor_with_ones,
+                                          left_to_right_rt.permute(
+                                              0, 2, 1)).to(torch.float32)
+        rightcam_uv_reproj = rightcam_uv_reproj[..., :3] / rightcam_uv_reproj[
+            ..., 3:]
+        rightcam_uv_reproj = torch.matmul(rightcam_uv_reproj,
+                                          rightcam_cam_matrix.permute(
+                                              0, 2, 1)).to(torch.float32)
+        rightcam_uv_reproj = rightcam_uv_reproj[..., :2] / rightcam_uv_reproj[
+            ..., 2:]
+        return leftcam_uv_reproj, rightcam_uv_reproj
