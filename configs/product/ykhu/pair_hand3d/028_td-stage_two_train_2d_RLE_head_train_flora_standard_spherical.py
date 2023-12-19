@@ -125,8 +125,8 @@ model = dict(
                 dict(type='L1Loss'),  # 3d kpts
                 dict(type='L1Loss'),  # 3d kpts leftcam
                 dict(type='L1Loss'),  # 3d kpts rightcam
-                dict(type='MSELoss', loss_weight=1),  # 2d reprojection left
-                dict(type='MSELoss', loss_weight=1),  # 2d reprojection right
+                dict(type='MSELoss', loss_weight=0),  # 2d reprojection left
+                dict(type='MSELoss', loss_weight=0),  # 2d reprojection right
                 dict(
                     type='PinchLoss',
                     enter_thre=pinch_thre[0] / 1000,
@@ -135,14 +135,14 @@ model = dict(
                     enable_start_epoch=train_cfg['max_epochs'] -
                     20),  # 后20 epoch打开pinch loss
             ]),
-        lambda_t=train_cfg['max_epochs'],
         use_plane_coord=False,
+        d_model=512,
         baseline=0.12,
         disparity_input=False,
         rightcam_3d_disable=False,
         kpt3d_output=False,
         kpt3d_output_delta=False,
-        use_attention=True),
+        use_attention=False),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
@@ -394,7 +394,7 @@ test_dataloader = val_dataloader
 
 # hooks
 default_hooks = dict(
-    checkpoint=dict(interval=10, save_best='all_mpjpe', rule='less'),
+    checkpoint=dict(interval=5, save_best='all_mpjpe', rule='less'),
     run_time_info=dict(type='RuntimeInfoHookV2'))
 
 # evaluators

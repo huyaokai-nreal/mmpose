@@ -1,4 +1,5 @@
 # Copyright (c) XREAL. All rights reserved.
+import math
 from typing import List, Tuple, Union
 
 import cv2
@@ -32,6 +33,7 @@ class LiftHeadStandard(BaseModule):
                  kpt3d_output_delta=False,
                  plane_arctan=False,
                  use_attention=False,
+                 d_model=512,
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
                  all_use_kp2d_gt: bool = False,
@@ -59,8 +61,9 @@ class LiftHeadStandard(BaseModule):
             nn.Conv2d(feat_dim, feat_dim, kernel_size=1), nn.ReLU(),
             nn.Conv2d(feat_dim, output_num, kernel_size=1))
         # Ensure that embed_dim is divisible by num_heads
-        self.attention_layer = SelfAttentionModel(
-            embed_dim=3, num_heads=3, hidden_size=64, output_size=3)
+        if use_attention:
+            self.attention_layer = SelfAttentionModel(
+                embed_dim=d_model, num_heads=3, hidden_size=64, output_size=3)
         if self.kpt3d_output_delta:
             self.delta_last_layer = nn.Sequential(
                 nn.Conv2d(feat_dim, feat_dim, kernel_size=1), nn.ReLU(),
@@ -72,6 +75,7 @@ class LiftHeadStandard(BaseModule):
         self.baseline = baseline
         self.plane_arctan = plane_arctan
         self.use_attention = use_attention
+        self.pe = PositionalEncoding(d_model)
 
     def forward(self, feats: Tuple[Tensor]) -> Tensor:
         liftnet_output = self.liftnet(feats)
@@ -222,6 +226,8 @@ class LiftHeadStandard(BaseModule):
         norm_leftcam_xyz, norm_rightcam_xyz = self.standardize_stereo(
             leftcam_xy, rightcam_xy, left_R, right_R)
         if self.use_attention:
+            norm_leftcam_xyz = self.pe(norm_leftcam_xyz)
+            norm_rightcam_xyz = self.pe(norm_rightcam_xyz)
             norm_leftcam_xyz = self.attention_layer(norm_leftcam_xyz)
             norm_rightcam_xyz = self.attention_layer(norm_rightcam_xyz)
 
@@ -448,14 +454,35 @@ class LiftHeadStandard(BaseModule):
         return leftcam_uv_reproj, rightcam_uv_reproj
 
 
+@MODELS.register_module()
 class SelfAttentionModel(nn.Module):
 
     def __init__(self, embed_dim, num_heads, hidden_size, output_size):
         super(SelfAttentionModel, self).__init__()
-        self.attention1 = nn.MultiheadAttention(embed_dim, num_heads)
+        self.attention = nn.MultiheadAttention(embed_dim, num_heads)
         self.norm = nn.LayerNorm(embed_dim)
 
     def forward(self, x):
-        output, _ = self.attention1(x, x, x)
+        output, _ = self.attention(x, x, x)
         output = self.norm(x + output)
         return output
+
+
+@MODELS.register_module()
+class PositionalEncoding(nn.Module):
+
+    def __init__(self, d_model, dropout=0.5, max_len=21):
+        super(PositionalEncoding, self).__init__()
+        self.dropout = nn.Dropout(p=dropout)
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len).unsqueeze(1)
+        # To avoid numerical overflow, incorporate exp and log operations.
+        div_term = torch.exp(
+            torch.arange(0, d_model, 2) * -(math.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0)
+
+    def forward(self, x):
+        x = x + torch.tensor(self.pe[:, :x.size(1)], requires_grad=False)
+        return self.dropout(x)
