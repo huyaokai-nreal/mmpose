@@ -63,7 +63,10 @@ class LiftHeadStandard(BaseModule):
         # Ensure that embed_dim is divisible by num_heads
         if use_attention:
             self.attention_layer = SelfAttentionModel(
-                embed_dim=d_model, num_heads=3, hidden_size=64, output_size=3)
+                embed_dim=d_model, num_heads=3)
+            # self.pe = PositionalEncoding(d_model)
+            # self.encode_mlp = nn.Linear(3, d_model)
+            # self.decode_mlp = nn.Linear(d_model, 3)
         if self.kpt3d_output_delta:
             self.delta_last_layer = nn.Sequential(
                 nn.Conv2d(feat_dim, feat_dim, kernel_size=1), nn.ReLU(),
@@ -75,7 +78,7 @@ class LiftHeadStandard(BaseModule):
         self.baseline = baseline
         self.plane_arctan = plane_arctan
         self.use_attention = use_attention
-        self.pe = PositionalEncoding(d_model)
+        self.d_model = d_model
 
     def forward(self, feats: Tuple[Tensor]) -> Tensor:
         liftnet_output = self.liftnet(feats)
@@ -225,13 +228,17 @@ class LiftHeadStandard(BaseModule):
 
         norm_leftcam_xyz, norm_rightcam_xyz = self.standardize_stereo(
             leftcam_xy, rightcam_xy, left_R, right_R)
-        if self.use_attention:
-            norm_leftcam_xyz = self.pe(norm_leftcam_xyz)
-            norm_rightcam_xyz = self.pe(norm_rightcam_xyz)
-            norm_leftcam_xyz = self.attention_layer(norm_leftcam_xyz)
-            norm_rightcam_xyz = self.attention_layer(norm_rightcam_xyz)
 
-        if self.use_plane_coord:
+        if self.use_attention:
+            left_xyz = self.transformer(norm_leftcam_xyz.clone())
+            right_xyz = self.transformer(norm_rightcam_xyz.clone())
+            feature1 = torch.cat((left_xyz.reshape(
+                (B, -1)), left_hand.view(B, -1)),
+                                 dim=1)
+            feature2 = torch.cat((right_xyz.reshape(
+                (B, -1)), left_hand.view(B, -1)),
+                                 dim=1)
+        elif self.use_plane_coord:
             feature1 = torch.cat((norm_leftcam_xyz[:, :, :2].reshape(
                 (B, -1)), left_hand.view(B, -1)),
                                  dim=1)
@@ -453,11 +460,19 @@ class LiftHeadStandard(BaseModule):
             ..., 2:]
         return leftcam_uv_reproj, rightcam_uv_reproj
 
+    def transformer(self, input):
+        B, N = input.shape[:2]
+        # output = self.encode_mlp(input.view(-1,3))
+        # output = self.pe(output.view(B,N,-1))
+        output = self.attention_layer(input)
+        # output = self.decode_mlp(output.view(-1,self.d_model))
+        return output.view(B, N, -1)
+
 
 @MODELS.register_module()
 class SelfAttentionModel(nn.Module):
 
-    def __init__(self, embed_dim, num_heads, hidden_size, output_size):
+    def __init__(self, embed_dim, num_heads):
         super(SelfAttentionModel, self).__init__()
         self.attention = nn.MultiheadAttention(embed_dim, num_heads)
         self.norm = nn.LayerNorm(embed_dim)
@@ -474,15 +489,31 @@ class PositionalEncoding(nn.Module):
     def __init__(self, d_model, dropout=0.5, max_len=21):
         super(PositionalEncoding, self).__init__()
         self.dropout = nn.Dropout(p=dropout)
-        pe = torch.zeros(max_len, d_model)
+        self.pe = torch.zeros(max_len, d_model, requires_grad=False)
         position = torch.arange(0, max_len).unsqueeze(1)
         # To avoid numerical overflow, incorporate exp and log operations.
         div_term = torch.exp(
             torch.arange(0, d_model, 2) * -(math.log(10000.0) / d_model))
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(0)
+        self.pe[:, 0::2] = torch.sin(position * div_term)
+        self.pe[:, 1::2] = torch.cos(position * div_term)
+        self.pe = self.pe.unsqueeze(0).cuda()
 
     def forward(self, x):
-        x = x + torch.tensor(self.pe[:, :x.size(1)], requires_grad=False)
-        return self.dropout(x)
+        return self.dropout(x + self.pe)
+
+
+@MODELS.register_module()
+class TokenPositionalEncoding(nn.Module):
+
+    def __init__(self, d_model):
+        super(TokenPositionalEncoding, self).__init__()
+        self.d_model = d_model
+        self.weight = torch.load(
+            f'configs/product/ykhu/pair_hand3d/weight_3_{d_model}.pt').cuda()
+        self.bias = torch.load(
+            f'configs/product/ykhu/pair_hand3d/bias_{d_model}.pt').cuda()
+        self.coef = math.sqrt(2 / self.d_model)
+
+    def forward(self, x):
+        output = torch.cos(torch.matmul(x, self.weight) + self.bias)
+        return self.coef * output
