@@ -37,28 +37,28 @@ class RandomStereoParamAug(BaseTransform):
 
     def __init__(self,
                  prob=0.5,
-                 baseline_range=[0, 0],
+                 self_baseline_range=[0, 0],
+                 else_baseline_range=[0, 0],
                  x_angle_range=[0, 0],
                  y_angle_range=[0, 0],
-                 z_angle_range=[0, 0]) -> None:
+                 z_angle_range=[0, 0],
+                 add_noise=False) -> None:
         super().__init__()
         self.prob = prob
-        self.baseline_range = deepcopy(baseline_range)
+        self.self_baseline_range = deepcopy(self_baseline_range)
+        self.else_baseline_range = deepcopy(else_baseline_range)
         self.x_angle_range = deepcopy(x_angle_range)
         self.y_angle_range = deepcopy(y_angle_range)
         self.z_angle_range = deepcopy(z_angle_range)
+        self.add_noise = add_noise
 
     def transform(self, results):
         """Add disturbance randomly during training and every other data point
         in test mode for the right camera."""
-        if results['camera_name'] == 'right' and (
-            (not results['meta'].get('test_mode', False) and
-             np.random.rand() <= self.prob) or results['meta']['test_mode']):
+        if results['camera_name'] == 'right':
             cam_model_right = deepcopy(results['meta']['ori_camera'])
             keypoints3d = results['keypoints3d']
-            delta_baseline = np.random.rand() * (
-                self.baseline_range[1] -
-                self.baseline_range[0]) + self.baseline_range[0]
+            delta_baseline = self.choose_baseline()
             x_random_angle = np.random.rand() * (
                 self.x_angle_range[1] -
                 self.x_angle_range[0]) + self.x_angle_range[0]
@@ -77,6 +77,9 @@ class RandomStereoParamAug(BaseTransform):
             right_keypoints = cam_model_right.world_to_eye(keypoints3d[0])
             right_keypoints = cam_model_right.eye_to_window(
                 right_keypoints).reshape(1, -1, 2)
+            if self.add_noise:
+                right_keypoints += np.random.normal(0, 1,
+                                                    (right_keypoints.shape))
             right_bbox = kpt_to_bbox(right_keypoints[0])
             right_bbox = convert_bbox(right_bbox, results['image_width'],
                                       results['image_height'])
@@ -95,6 +98,17 @@ class RandomStereoParamAug(BaseTransform):
             results['meta']['virtual_baseline'] = vir_baseline
             results['meta']['stereo_aug'] = True
         return results
+
+    def choose_baseline(self):
+        if np.random.rand() < self.prob:
+            delta_baseline = np.random.rand() * (
+                self.else_baseline_range[1] -
+                self.else_baseline_range[0]) + self.else_baseline_range[0]
+        else:
+            delta_baseline = np.random.rand() * (
+                self.self_baseline_range[1] -
+                self.self_baseline_range[0]) + self.self_baseline_range[0]
+        return delta_baseline
 
 
 @TRANSFORMS.register_module()

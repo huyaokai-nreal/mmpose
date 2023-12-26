@@ -135,6 +135,8 @@ model = dict(
                     enable_start_epoch=train_cfg['max_epochs'] -
                     20),  # 后20 epoch打开pinch loss
             ]),
+        num_layers=10,
+        d_ffn=440,
         use_plane_coord=False,
         d_model=512,
         baseline=0.135,
@@ -311,7 +313,7 @@ train_pipeline = [
     dict(
         type='RandomStereoParamAug',
         prob=0.1,
-        self_baseline_range=[-0.005, 0.005],
+        self_baseline_range=[0, 0],
         else_baseline_range=[-0.033, -0.032],
         # x_angle_range=[-1, 1],
         # y_angle_range=[-3, 3],
