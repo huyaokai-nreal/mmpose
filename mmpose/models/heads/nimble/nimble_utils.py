@@ -596,15 +596,21 @@ class SkeletonEncoder(nn.Module):
 
 
 def trans_3d_2_2d(hand3d_point, leftcam_cam_matrix, rightcam_cam_matrix,
-                  lr_rot_matrix, lr_p):
-
+                  left_to_right_rt):
+    B = hand3d_point.shape[0]
+    left_to_right_rt = left_to_right_rt.repeat(B, 1, 1)
     leftcam_uv_reproj = torch.matmul(hand3d_point,
                                      leftcam_cam_matrix.permute(0, 2, 1)).to(
                                          torch.float32)
     leftcam_uv_reproj = leftcam_uv_reproj[..., :2] / leftcam_uv_reproj[..., 2:]
-    rightcam_uv_reproj = torch.matmul(
-        (hand3d_point - lr_p.unsqueeze(1)),
-        torch.inverse(lr_rot_matrix)).to(torch.float32)
+
+    column_of_ones = torch.ones((B, 21, 1)).to(hand3d_point.device)
+    tensor_with_ones = torch.cat((hand3d_point, column_of_ones), dim=2)
+    rightcam_uv_reproj = torch.matmul(tensor_with_ones,
+                                      left_to_right_rt.permute(0, 2, 1)).to(
+                                          torch.float32)
+    rightcam_uv_reproj = rightcam_uv_reproj[..., :3] / rightcam_uv_reproj[...,
+                                                                          3:]
     rightcam_uv_reproj = torch.matmul(rightcam_uv_reproj,
                                       rightcam_cam_matrix.permute(0, 2, 1)).to(
                                           torch.float32)

@@ -148,23 +148,7 @@ class sim_NIMBLELayer(torch.nn.Module):
             full_pose = pose_param.view(-1, 20, 3)
         return full_pose
 
-    def forward(self,
-                pose_param,
-                shape_param,
-                init_shape_pose=False,
-                with_root_pose=False):
-        """Takes points in R^3 and first applies relevant pose and shape blend
-        shapes.
-
-        Then performs skinning.
-        """
-        if self.use_pose_pca:
-            full_pose = self.generate_full_pose(
-                pose_param, normalized=True,
-                with_root=with_root_pose).view(-1, 20, 3)
-        else:
-            full_pose = pose_param.view(-1, 20, 3)
-
+    def get_hand_joints(self, shape_param, init_shape_pose):
         # 得到在某个手型下的所有点的位置和关键骨骼点的位置
         if self.reg_shape_type == 0 or init_shape_pose:
             th_v_shaped, jreg_joints = self.generate_hand_shape(
@@ -229,8 +213,34 @@ class sim_NIMBLELayer(torch.nn.Module):
                                 1, :] += jreg_joints_relative[:,
                                                               used_add_index +
                                                               j, :]
+        return jreg_joints
 
+    def forward(self,
+                pose_param,
+                shape_param,
+                init_shape_pose=False,
+                with_root_pose=False):
+        """Takes points in R^3 and first applies relevant pose and shape blend
+        shapes.
+
+        Then performs skinning.
+        """
+        if self.use_pose_pca:
+            full_pose = self.generate_full_pose(
+                pose_param, normalized=True,
+                with_root=with_root_pose).view(-1, 20, 3)
+        else:
+            full_pose = pose_param.view(-1, 20, 3)
+
+        jreg_joints = self.get_hand_joints(shape_param, init_shape_pose)
         bone_joints = self.forward_full(full_pose, jreg_joints)
+
+        return None, bone_joints
+
+    def forward_simple(self, pose_param, shape_param, init_shape_pose=False):
+
+        jreg_joints = self.get_hand_joints(shape_param, init_shape_pose)
+        bone_joints = self.forward_full(pose_param, jreg_joints)
 
         return None, bone_joints
 
