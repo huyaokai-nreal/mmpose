@@ -152,6 +152,7 @@ class MPJPEV2(MPJPE):
                  scale_metric=False,
                  fit_metric=False,
                  openhand_metric=False,
+                 pinch_hard_metric=False,
                  bmk_save_root: str = '',
                  show_bmk_thr: tuple = (0, 10),
                  filter_exceed: bool = False,
@@ -171,10 +172,11 @@ class MPJPEV2(MPJPE):
             show_bmk_thr=show_bmk_thr,
             filter_exceed=filter_exceed)
         self.self_stability_metric = SelfStabilityMetric(reduction='mean')
-        self.pinch_metric = PinchMetric(
+        self.pinch_hard_metric = PinchMetric(
             pinch_thre=pinch_thre,
             fit_metric=fit_metric,
-            filter_exceed=filter_exceed)
+            filter_exceed=filter_exceed,
+            pinch_hard_metric=pinch_hard_metric)
 
     def process(self, data_batch, data_samples: Sequence[dict]) -> None:
         for data_sample in data_samples:
@@ -203,6 +205,9 @@ class MPJPEV2(MPJPE):
                 result.meta['tag'] = data_sample['meta']['tag']
             if 'gesture' in data_sample['meta']:
                 result.meta['gesture'] = data_sample['meta']['gesture']
+                result.meta['tag'] = data_sample['meta']['tag']
+            if 'category_id' in data_sample['meta']:
+                result.meta['category_id'] = data_sample['meta']['category_id']
 
             if 'img_path' in data_sample.keys():
                 result.meta['img_path'] = data_sample['img_path']
@@ -236,7 +241,7 @@ class MPJPEV2(MPJPE):
         self.logger.info(f'eval mpjpe with mode {self.mode}')
         mpjpe_res = self.mpjpe_metric(res_file)
         stability_res = self.self_stability_metric(res_file)
-        pinch_res = self.pinch_metric(res_file)
+        pinch_res = self.pinch_hard_metric(res_file)
         res = {}
         res.update(mpjpe_res)
         res.update(stability_res)

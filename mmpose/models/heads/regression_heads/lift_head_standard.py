@@ -367,11 +367,10 @@ class LiftHeadStandard(BaseModule):
             self.trans_3d_2_2d(hand3d_pred, leftcam_cam_matrix,
                                rightcam_cam_matrix, left_to_right_rt)
 
-        # major_gt = torch.cat(
-        #     (hand3d_gt[:, 1:10, :], hand3d_gt[:, 13, :].unsqueeze(1)), dim=1)
-        # major_pred = torch.cat(
-        #     (hand3d_pred[:, 1:10, :], hand3d_pred[:, 13, :].unsqueeze(1)),
-        #     dim=1)
+        major_gt = torch.cat((hand3d_gt[:, 4:5, :], hand3d_gt[:, 8:9, :]),
+                             dim=1)
+        major_pred = torch.cat(
+            (hand3d_pred[:, 4:5, :], hand3d_pred[:, 8:9, :]), dim=1)
 
         # origin distance, no norm
         dist_pred = torch.norm(
@@ -379,15 +378,16 @@ class LiftHeadStandard(BaseModule):
         dist_gt = torch.norm(hand3d_gt[:, 4, :] - hand3d_gt[:, 8, :], dim=-1)
         pred_for_loss = [
             hand3d_pred, leftcam_XYZ, rightcam_XYZ, leftcam_uv_reproj,
-            rightcam_uv_reproj, dist_pred
+            rightcam_uv_reproj, dist_pred, major_pred
         ]
         targ_for_loss = [
             hand3d_gt, hand3d_gt, hand3d_gt, leftcam_uv_gt, rightcam_uv_gt,
-            dist_gt
+            dist_gt, major_gt
         ]
         losses = self.lift_loss(pred_for_loss, targ_for_loss)
         (loss_mse_3d, loss_mse_3d_leftcam, loss_mse_3d_rightcam,
-         loss_mse_2d_leftcam, loss_mse_2d_rightcam, loss_pinch) = losses
+         loss_mse_2d_leftcam, loss_mse_2d_rightcam, loss_pinch,
+         loss_major) = losses
         if self.lambda_t > 0:
             mh = MessageHub.get_current_instance()
             cur_epoch = mh.get_info('epoch')
@@ -403,7 +403,8 @@ class LiftHeadStandard(BaseModule):
             loss_mse_3d_rightcam=loss_mse_3d_rightcam,
             loss_mse_2d_leftcam=loss_mse_2d_leftcam,
             loss_mse_2d_rightcam=loss_mse_2d_rightcam,
-            loss_pinch=loss_pinch)
+            loss_pinch=loss_pinch,
+            loss_major=loss_major)
         return losses_dict
 
     def standardize_stereo(self, leftcam_xy, rightcam_xy, left_R, right_R):
