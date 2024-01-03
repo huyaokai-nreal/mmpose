@@ -174,7 +174,7 @@ class MPJPEV2(MPJPE):
             show_bmk_thr=show_bmk_thr,
             filter_exceed=filter_exceed)
         self.self_stability_metric = SelfStabilityMetric(reduction='mean')
-        self.pinch_metric = PinchMetric(
+        self.pinch_hard_metric = PinchMetric(
             pinch_thre=pinch_thre,
             fit_metric=fit_metric,
             filter_exceed=filter_exceed,
@@ -264,7 +264,7 @@ class MPJPEV2(MPJPE):
 
         mpjpe_res = self.mpjpe_metric(res_file)
         stability_res = self.self_stability_metric(res_file)
-        pinch_res = self.pinch_metric(res_file)
+        pinch_res = self.pinch_hard_metric(res_file)
         if len(results[0]['keypoints_pose']) > 0:
             mpjae_res = self.mpjae_metric(res_file)
         res = {}

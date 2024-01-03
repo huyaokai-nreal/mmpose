@@ -44,9 +44,10 @@ class LiftNimbleHead(BaseModule):
 
         # define the fix parameters
         self.used_nimble_para = [
-            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 16, 18, 21, 27, 28,
-            30, 33, 39, 40, 42, 45, 51, 52, 54, 57
+            3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 16, 18, 21, 27, 28, 30, 33,
+            39, 40, 42, 45, 51, 52, 54, 57
         ]
+        self.used_nimble_para = [x - 3 for x in self.used_nimble_para]
         self.kp_index = [
             0, 1, 2, 3, 4, 6, 7, 8, 9, 11, 12, 13, 14, 16, 17, 18, 19, 21, 22,
             23, 24
@@ -108,12 +109,13 @@ class LiftNimbleHead(BaseModule):
 
         # define the shape regression type
         self.reg_shape_type = reg_shape_type
-        self.skeleton_feature_dim = skeleton_feature_dim
-        self.skeleton_encoder = SkeletonEncoder(skeleton_feature_dim)
+        if self.reg_shape_type > 1:
+            self.skeleton_feature_dim = skeleton_feature_dim
+            self.skeleton_encoder = SkeletonEncoder(skeleton_feature_dim)
 
     def get_full_pose_with_part_pars(self, pose_reg):
         used_nimble_para = torch.tensor(self.used_nimble_para)
-        pose_out = torch.zeros((pose_reg.shape[0], 60),
+        pose_out = torch.zeros((pose_reg.shape[0], 57),
                                device=pose_reg.device,
                                dtype=torch.float32)
         pose_out[:, used_nimble_para] = pose_reg.to(torch.float32)

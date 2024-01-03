@@ -2,16 +2,18 @@
 import argparse
 import os
 import os.path as osp
-import mmcv
+import pickle
 import random
+
+import mmcv
+import numpy as np
 from loguru import logger
 from mmengine import Config, DictAction
 from mmengine.registry import build_from_cfg
+from tqdm import tqdm
+
 from mmpose.registry import DATASETS, VISUALIZERS
 from mmpose.utils import register_all_modules
-import numpy as np
-from tqdm import tqdm
-import pickle
 
 
 def parse_args():
