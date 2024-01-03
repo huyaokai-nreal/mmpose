@@ -134,11 +134,11 @@ model = dict(
                     loss_weight=1,
                     enable_start_epoch=train_cfg['max_epochs'] -
                     20),  # 后20 epoch打开pinch loss
+                dict(type='L1Loss', loss_weight=0),  # major 3d kpts
             ]),
-        num_layers=10,
         d_ffn=440,
         use_plane_coord=False,
-        d_model=512,
+        d_model=3,
         baseline=0.135,
         disparity_input=False,
         rightcam_3d_disable=False,
@@ -313,12 +313,11 @@ train_pipeline = [
     dict(
         type='RandomStereoParamAug',
         prob=0.1,
-        self_baseline_range=[0, 0],
-        else_baseline_range=[-0.033, -0.032],
+        baseline_range=[-0.033, -0.032],
         # x_angle_range=[-1, 1],
         # y_angle_range=[-3, 3],
-        # z_angle_range=[-1, 1],
-        add_noise=True),
+        # z_angle_range=[-1, 1]
+    ),
     dict(
         type='Albumentation',
         transforms=[
@@ -344,12 +343,11 @@ val_pipeline = [
     dict(
         type='RandomStereoParamAug',
         prob=0,
-        self_baseline_range=[-0.005, 0.005],
-        # else_baseline_range=[-0.033, -0.032],
+        baseline_range=[-0.033, -0.032],
         # x_angle_range=[-3, 3],
         # y_angle_range=[-3, 3],
         # z_angle_range=[-3, 3]
-        add_noise=True),
+    ),
     dict(type='GetBBoxCenterScale', padding=1.0),
     dict(type='TopdownAffine', input_size=codec['input_size']),
     dict(type='PackPoseInputs')
@@ -416,7 +414,9 @@ val_evaluator = [
         scale_metric=False,
         fit_metric=False,
         openhand_metric=False,
-        # bmk_save_root='/home/ykhu/workspace/mmpose/work_dirs/bad_case_liftnet/flora304',
+        pinch_hard_metric=True,
+        bmk_save_root=
+        '/home/ykhu/workspace/mmpose/work_dirs/bad_case_liftnet/pinch',
         # show_bmk_thr=(20, 10000000),
         filter_exceed=filter_exceed),  #bad case mpjpe thr (mm)
     # dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
