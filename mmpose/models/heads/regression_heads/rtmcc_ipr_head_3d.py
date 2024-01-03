@@ -11,8 +11,7 @@ from mmpose.evaluation.functional import keypoint_pck_accuracy
 from mmpose.models.utils.tta import flip_coordinates, flip_heatmaps
 from mmpose.registry import MODELS
 from mmpose.utils.tensor_utils import to_numpy
-from mmpose.utils.typing import (ConfigType, OptConfigType,
-                                 OptSampleList)
+from mmpose.utils.typing import ConfigType, OptConfigType, OptSampleList
 from ...utils.siamcc_to_kpt import SimCCToKeypoint3D
 from ..coord_cls_heads import RTMCCHead3D
 
