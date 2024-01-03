@@ -134,8 +134,9 @@ model = dict(
                     loss_weight=1,
                     enable_start_epoch=train_cfg['max_epochs'] -
                     20),  # 后20 epoch打开pinch loss
-                dict(type='L1Loss', loss_weight=0),  # major 3d kpts
+                dict(type='L1Loss', loss_weight=1),  # major 3d kpts
             ]),
+        num_layers=3,
         d_ffn=440,
         use_plane_coord=False,
         d_model=3,
@@ -415,8 +416,7 @@ val_evaluator = [
         fit_metric=False,
         openhand_metric=False,
         pinch_hard_metric=True,
-        bmk_save_root=
-        '/home/ykhu/workspace/mmpose/work_dirs/bad_case_liftnet/pinch',
+        # bmk_save_root='/home/ykhu/workspace/mmpose/work_dirs/bad_case_liftnet/pinch',
         # show_bmk_thr=(20, 10000000),
         filter_exceed=filter_exceed),  #bad case mpjpe thr (mm)
     # dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),

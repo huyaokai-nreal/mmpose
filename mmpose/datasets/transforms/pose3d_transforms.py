@@ -54,7 +54,9 @@ class RandomStereoParamAug(BaseTransform):
         if results['camera_name'] == 'right' and np.random.rand() < self.prob:
             cam_model_right = deepcopy(results['meta']['ori_camera'])
             keypoints3d = results['keypoints3d']
-            delta_baseline = self.choose_baseline()
+            delta_baseline = np.random.rand() * (
+                self.baseline_range[1] -
+                self.baseline_range[0]) + self.baseline_range[0]
             x_random_angle = np.random.rand() * (
                 self.x_angle_range[1] -
                 self.x_angle_range[0]) + self.x_angle_range[0]
