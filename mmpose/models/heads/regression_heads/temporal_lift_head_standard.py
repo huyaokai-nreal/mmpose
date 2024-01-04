@@ -22,7 +22,7 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
                  use_plane_coord=True,
                  baseline=0.13,
                  corruption_cam: float = 0.5,
-                 perturb_right_use_2d_gt: bool = False,
+                 all_use_kp2d_gt: bool = False,
                  seq_len: int = 4,
                  init_cfg: Union[dict, List[dict], None] = None):
         super().__init__(
@@ -33,7 +33,7 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
             reproj,
             use_plane_coord,
             baseline,
-            all_use_kp2d_gt=False,
+            all_use_kp2d_gt=all_use_kp2d_gt,
             corruption_cam=corruption_cam,
             init_cfg=init_cfg)
         self.seq_len = seq_len
@@ -89,9 +89,10 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
                 test_cfg: ConfigType = {}) -> Predictions:
         with torch.no_grad():
             (feats, norm_leftcam_xyz, norm_rightcam_xyz, lr_rot_matrix, lr_p,
-             leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global,
-             uv_coord_im_pred_global_distort, hand3d_gt, left_R, right_R,
-             baseline_scale) = self.preprocess(feats, batch_data_samples)
+             left_to_right_rt, leftcam_cam_matrix, rightcam_cam_matrix,
+             uv_coord_im_pred_global, uv_coord_im_pred_global_distort,
+             hand3d_gt, left_R, right_R, baseline_scale) = \
+                self.preprocess(feats, batch_data_samples)
         output, mems = self.forward(feats, mems, 1)
         hand3d_pred = self.postprocess(output, norm_leftcam_xyz,
                                        norm_rightcam_xyz, left_R, right_R,
@@ -113,9 +114,10 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
         """Calculate losses from a batch of inputs and data samples."""
         with torch.no_grad():
             (feats, norm_leftcam_xyz, norm_rightcam_xyz, lr_rot_matrix, lr_p,
-             leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global,
-             uv_coord_im_pred_global_distort, hand3d_gt, left_R, right_R,
-             baseline_scale) = self.preprocess(feats, batch_data_samples)
+             left_to_right_rt, leftcam_cam_matrix, rightcam_cam_matrix,
+             uv_coord_im_pred_global, uv_coord_im_pred_global_distort,
+             hand3d_gt, left_R, right_R, baseline_scale) = \
+                self.preprocess(feats, batch_data_samples)
         output, _ = self.forward(feats, None, self.seq_len)
         hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
             output, norm_leftcam_xyz, norm_rightcam_xyz, left_R, right_R,
