@@ -71,16 +71,11 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
         B = feats.shape[0]
         if mems is None:
             mems = torch.zeros(B, 2 * self.channel_num, 1, 1).cuda()
-        feats = feats.view(B, 1, -1)
-        outputs = torch.zeros((B, 1, 42, 1, 1)).cuda()
-        for i in range(1):
-            feat = feats[:, i:i + 1, :].reshape(B, -1, 1, 1)
-            feat_mix = torch.concatenate([feat, mems], dim=1)
-            mems = self.temporal(feat_mix)
-            output = self.last_layer(feat_mix)
-            outputs[:, i, ...] = output
-        outputs = outputs.reshape(B, -1, 1, 1)
-        return outputs, mems
+        feat_mix = torch.concatenate([feats, mems], dim=1)
+        mems = self.temporal(feat_mix)
+        output = self.last_layer(feat_mix)
+        output = output.reshape(B, -1, 1, 1)
+        return output, mems
 
     def predict(self,
                 feats: Tuple[Tensor],
