@@ -186,7 +186,6 @@ class DWPoseDistiller3D(BaseModel, metaclass=ABCMeta):
         """Calculate losses from a batch of inputs and data samples."""
 
         pred_x, pred_y, pred_z = self.student.head.forward(feats)
-        # from IPython import embed;embed()
         gt_x = torch.cat([
             d.gt_instance_labels.keypoint_x_labels for d in batch_data_samples
         ],

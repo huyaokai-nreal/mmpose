@@ -97,7 +97,7 @@ def lmdb2coco(lmdb_root, lmdb_path, json_path):
         'id': 2,
         'name': 'right_hand',
     }]
-    # from IPython import embed; embed()
+
     env = lmdb.open(
         os.path.join(lmdb_root, lmdb_path),
         max_readers=8,
@@ -120,7 +120,6 @@ def lmdb2coco(lmdb_root, lmdb_path, json_path):
             str_id_right = '{:0>8d}'.format(i * 4 + 2)
             str_value_id_right = '{:0>8d}'.format(i * 4 + 3)
             res_right = pasing_lmdb(txn, str_id_right, str_value_id_right)
-            # from IPython import embed; embed()
 
             anno = dict(
                 keypoints_left=res_left['keypoints'].tolist(),

@@ -117,7 +117,6 @@ class sim_NIMBLELayer(torch.nn.Module):
         full_pose_de = nimble_pose[:, 3:]
         batch_size = nimble_pose.shape[0]
         ##### debug
-        # from IPython import embed; embed()
         # randn_pac = torch.rand(batch_size, self.pose_ncomp).cuda()
         # randn_pose = (self.pose_basis[:self.pose_ncomp].T @ randn_pac.T).T + self.pose_mean.unsqueeze(0).repeat(batch_size, 1)
         # full_pose_input = randn_pose
