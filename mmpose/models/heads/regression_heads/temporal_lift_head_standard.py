@@ -74,7 +74,7 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
         feat_mix = torch.concatenate([feats, mems], dim=1)
         mems = self.temporal(feat_mix)
         output = self.last_layer(feat_mix)
-        output = output.reshape(B, -1, 1, 1)
+        output = output.reshape(B, -1, 1, 1) / self.baseline
         return output, mems
 
     def predict(self,
