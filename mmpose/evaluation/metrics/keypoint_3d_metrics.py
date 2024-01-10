@@ -153,6 +153,7 @@ class MPJPEV2(MPJPE):
                  fit_metric=False,
                  openhand_metric=False,
                  pinch_hard_metric=False,
+                 category_metric=False,
                  bmk_save_root: str = '',
                  show_bmk_thr: tuple = (0, 10),
                  filter_exceed: bool = False,
@@ -169,14 +170,16 @@ class MPJPEV2(MPJPE):
             scale_metric=scale_metric,
             fit_metric=fit_metric,
             openhand_metric=openhand_metric,
+            category_metric=category_metric,
             show_bmk_thr=show_bmk_thr,
             filter_exceed=filter_exceed)
         self.self_stability_metric = SelfStabilityMetric(reduction='mean')
-        self.pinch_hard_metric = PinchMetric(
+        self.pinch_metric = PinchMetric(
             pinch_thre=pinch_thre,
             fit_metric=fit_metric,
             filter_exceed=filter_exceed,
-            pinch_hard_metric=pinch_hard_metric)
+            pinch_hard_metric=pinch_hard_metric,
+            category_metric=category_metric)
 
     def process(self, data_batch, data_samples: Sequence[dict]) -> None:
         for data_sample in data_samples:
@@ -241,7 +244,7 @@ class MPJPEV2(MPJPE):
         self.logger.info(f'eval mpjpe with mode {self.mode}')
         mpjpe_res = self.mpjpe_metric(res_file)
         stability_res = self.self_stability_metric(res_file)
-        pinch_res = self.pinch_hard_metric(res_file)
+        pinch_res = self.pinch_metric(res_file)
         res = {}
         res.update(mpjpe_res)
         res.update(stability_res)
