@@ -4,6 +4,7 @@ from .dsnt_attr_head import DSNTAttrHead
 from .dsnt_head import DSNTHead
 from .integral_regression_head import IntegralRegressionHead
 from .lift_head import LiftHead
+from .lift_head_codebook import LiftClassifierHead
 from .lift_head_rot import LiftNimbleHead
 from .lift_head_rot_standard import LiftNimbleHeadStandard
 from .lift_head_standard import LiftHeadStandard
@@ -25,5 +26,5 @@ __all__ = [
     'RTMCCIPRHead', 'AttrMlpHead', 'LiftHead', 'RTMCCIPRHead3D',
     'LiftHeadStandard', 'LiftNimbleHead', 'TemporalLiftHead',
     'TemporalLiftHeadStandard', 'LiftNimbleHeadStandard', 'PCT_Head',
-    'PCT_Tokenizer'
+    'PCT_Tokenizer', 'LiftClassifierHead'
 ]

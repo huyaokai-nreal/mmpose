@@ -2,7 +2,6 @@
 import torch.nn as nn
 from mmengine.model import BaseModule, constant_init, normal_init
 
-from mmpose.models.builder import build_loss
 from mmpose.models.heads.nimble.modules import BasicBlock
 from mmpose.registry import MODELS
 from .pct_tokenizer import PCT_Tokenizer
@@ -38,47 +37,51 @@ class PCT_Head(BaseModule):
         self.tokenizer = PCT_Tokenizer(
             stage_pct=stage_pct, tokenizer=tokenizer, num_joints=num_joints)
 
-        self.loss = build_loss(loss_keypoint)
+        # self.loss = build_loss(loss_keypoint)
 
-    def get_loss(self, p_logits, p_joints, g_logits, joints):
-        """Calculate loss for training classifier.
+    # def get_loss(self, p_logits, p_joints, g_logits, joints):
+    #     """Calculate loss for training classifier.
 
-        Note:
-            batch_size: N
-            num_keypoints: K
-            num_token: M
-            num_token_class: V
+    #     Note:
+    #         batch_size: N
+    #         num_keypoints: K
+    #         num_token: M
+    #         num_token_class: V
 
-        Args:
-            p_logits (torch.Tensor[NxMxV]): Predicted class logits.
-            p_joints(torch.Tensor[NxKx3]): Predicted joints
-                recovered from the predicted class.
-            g_logits(torch.Tensor[NxM]): Groundtruth class labels
-                calculated by the well-trained tokenizer encoder
-                and groundtruth joints.
-            joints(torch.Tensor[NxKx3]): Groundtruth joints.
-        """
+    #     Args:
+    #         p_logits (torch.Tensor[NxMxV]): Predicted class logits.
+    #         p_joints(torch.Tensor[NxKx3]): Predicted joints
+    #             recovered from the predicted class.
+    #         g_logits(torch.Tensor[NxM]): Groundtruth class labels
+    #             calculated by the well-trained tokenizer encoder
+    #             and groundtruth joints.
+    #         joints(torch.Tensor[NxKx3]): Groundtruth joints.
+    #     """
 
-        losses = dict()
+    #     losses = dict()
 
-        losses['token_loss'], losses['kpt_loss'] = self.loss(
-            p_logits, p_joints, g_logits, joints)
+    #     losses['token_loss'], losses['kpt_loss'] = self.loss(
+    #         p_logits, p_joints, g_logits, joints)
 
-        unused_losses = []
-        for name, loss in losses.items():
-            if loss is None:
-                unused_losses.append(name)
-        for unused_loss in unused_losses:
-            losses.pop(unused_loss)
+    #     unused_losses = []
+    #     for name, loss in losses.items():
+    #         if loss is None:
+    #             unused_losses.append(name)
+    #     for unused_loss in unused_losses:
+    #         losses.pop(unused_loss)
 
-        return losses
+    #     return losses
 
-    def forward(self, x, extra_x, joints=None, train=True):
+    def forward(self,
+                x,
+                extra_x,
+                joints=None,
+                cls_logits=None,
+                cls_logits_softmax=None,
+                train=True):
         """Forward function."""
 
         encoding_scores = None
-        cls_logits = None
-        cls_logits_softmax = None
         joints_feat = None
 
         output_joints, cls_label, e_latent_loss = \

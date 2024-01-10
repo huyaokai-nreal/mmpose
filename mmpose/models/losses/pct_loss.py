@@ -63,30 +63,14 @@ class Tokenizer_loss(nn.Module):
 @MODELS.register_module()
 class Classifer_loss(nn.Module):
 
-    def __init__(self, token_loss=1.0, joint_loss=1.0, beta=0.05):
+    def __init__(self, loss_weight=1.0):
         super().__init__()
 
         self.token_loss = nn.CrossEntropyLoss()
-        self.token_loss_w = token_loss
+        self.token_loss_w = loss_weight
 
-        self.joint_loss = JointS1Loss(beta=beta)
-        self.joint_loss_w = joint_loss
+    def forward(self, p_logits, g_logits, target_weight=None):
+        token_loss = self.token_loss(p_logits, g_logits)
+        token_loss *= self.token_loss_w
 
-    def forward(self, p_logits, p_joints, g_logits, joints):
-
-        losses = []
-        if self.token_loss_w > 0:
-            token_loss = self.token_loss(p_logits, g_logits)
-            token_loss *= self.token_loss_w
-            losses.append(token_loss)
-        else:
-            losses.append(None)
-
-        if self.joint_loss_w > 0:
-            joint_loss = self.joint_loss(p_joints, joints)
-            joint_loss *= self.joint_loss_w
-            losses.append(joint_loss)
-        else:
-            losses.append(None)
-
-        return losses
+        return token_loss

@@ -94,36 +94,41 @@ class PCT_Tokenizer(nn.Module):
     def forward(self, joints, joints_feature, cls_logits, train=True):
         """Forward function."""
 
-        if train or self.stage_pct == 'tokenizer':
-            # Encoder of Tokenizer, Get the PCT groundtruth class labels.
-            joints_coord, bs \
-                = joints, joints.shape[0]
-
-            encode_feat = self.start_embed(joints_coord)
-
-            for num_layer in self.encoder:
-                encode_feat = num_layer(encode_feat)
-            encode_feat = self.encoder_layer_norm(encode_feat)
-
-            encode_feat = encode_feat.transpose(2, 1)
-            encode_feat = self.token_mlp(encode_feat).transpose(2, 1)
-            encode_feat = self.feature_embed(encode_feat).flatten(0, 1)
-
-            distances = torch.sum(encode_feat**2, dim=1, keepdim=True) \
-                + torch.sum(self.codebook**2, dim=1) \
-                - 2 * torch.matmul(encode_feat, self.codebook.t())
-
-            encoding_indices = torch.argmin(distances, dim=1)
-            encodings = torch.zeros(
-                encoding_indices.shape[0],
-                self.token_class_num,
-                device=joints.device)
-            encodings.scatter_(1, encoding_indices.unsqueeze(1), 1)
-        else:
+        if cls_logits is not None:
+            part_token_feat = torch.matmul(cls_logits, self.codebook)
             bs = cls_logits.shape[0] // self.token_num
             encoding_indices = None
+        else:
+            if train or self.stage_pct == 'tokenizer':
+                # Encoder of Tokenizer, Get the PCT groundtruth class labels.
+                joints_coord, bs \
+                    = joints, joints.shape[0]
 
-        part_token_feat = torch.matmul(encodings, self.codebook)
+                encode_feat = self.start_embed(joints_coord)
+
+                for num_layer in self.encoder:
+                    encode_feat = num_layer(encode_feat)
+                encode_feat = self.encoder_layer_norm(encode_feat)
+
+                encode_feat = encode_feat.transpose(2, 1)
+                encode_feat = self.token_mlp(encode_feat).transpose(2, 1)
+                encode_feat = self.feature_embed(encode_feat).flatten(0, 1)
+
+                distances = torch.sum(encode_feat**2, dim=1, keepdim=True) \
+                    + torch.sum(self.codebook**2, dim=1) \
+                    - 2 * torch.matmul(encode_feat, self.codebook.t())
+
+                encoding_indices = torch.argmin(distances, dim=1)
+                encodings = torch.zeros(
+                    encoding_indices.shape[0],
+                    self.token_class_num,
+                    device=joints.device)
+                encodings.scatter_(1, encoding_indices.unsqueeze(1), 1)
+            else:
+                bs = cls_logits.shape[0] // self.token_num
+                encoding_indices = None
+
+            part_token_feat = torch.matmul(encodings, self.codebook)
 
         if train and self.stage_pct == 'tokenizer':
             # Updating Codebook using EMA
