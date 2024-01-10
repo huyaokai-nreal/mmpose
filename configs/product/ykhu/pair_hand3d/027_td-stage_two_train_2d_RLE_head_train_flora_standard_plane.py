@@ -8,9 +8,7 @@ from mmpose.configs._base_.datasets.xs3d import \
 
 train_cfg = dict(max_epochs=100, val_interval=5)
 
-# data_root = '/data/AI_DATA'
 data_root = '/data/AI_DATA_WX'
-# data_root = '/data/AI_DATA_LOCAL'
 
 # optimizer
 optim_wrapper = dict(
@@ -25,16 +23,6 @@ optim_wrapper = dict(
         }),
     # clip_grad=dict(max_norm=10, norm_type=2),
 )
-# learning policy
-# param_scheduler = [
-#     dict(  # scheduler
-#         type='MultiStepLR',
-#         begin=0,
-#         end=100,
-#         milestones=[50, 90],
-#         gamma=0.1,
-#         by_epoch=True)
-# ]
 
 param_scheduler = [
     dict(
@@ -102,7 +90,7 @@ model = dict(
         feat_norm_type='softmax',
         in_featuremap_size=(32, 32),
         num_joints=21,
-        output_depth=True,
+        output_depth=False,
         loss=dict(
             type='MultipleLossWrapper',
             losses=[
@@ -134,13 +122,11 @@ model = dict(
                     loss_weight=1,
                     enable_start_epoch=train_cfg['max_epochs'] -
                     20),  # 后20 epoch打开pinch loss
+                dict(type='L1Loss', loss_weight=0),  # major 3d kpts
             ]),
         use_plane_coord=True,
-        baseline=0.12,
-        disparity_input=True,
-        rightcam_3d_disable=False,
-        kpt3d_output=False,
-        kpt3d_output_delta=False),
+        baseline=0.135,
+        disparity_input=False),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
@@ -149,8 +135,8 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/AI_DATA/data_hand/model/mmpose/td-hand_rsn26_fpn_25d_ipr_right_2d3d_0915data_simu_4x128-100e-128x128/epoch_100.pth'  # 加载2d模型且不更新
-        # '/home/zx_li/workspace/mmpose/work_dirs/027_td-stage_two_train_2d_RLE_head_train_flora_standard_plane/epoch_100.pth'
+        # '/data/AI_DATA/data_hand/model/mmpose/td-hand_rsn26_fpn_25d_ipr_right_2d3d_0915data_simu_4x128-100e-128x128/epoch_100.pth'  # 加载2d模型且不更新
+        '/data/AI_DATA/data_hand/model/mmpose/td-hand_rsn26_fpn_25d_scale_ipr_right_2d3d_1031data_simu_4x128-100e-128x128/epoch_100.pth'  # 20231215 T 2D model
     ))
 
 # base dataset settings
@@ -201,7 +187,6 @@ val_data_list = [
     # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073857__pinch__normal__right__1111__0005__undistort_tar__Flora302.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_074601__pinch__bright__left__1111__0005__undistort_tar__Flora302.json',
     # # flora301
-    # 'data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__left__1000__0007__20230809_090503__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_070648__all__normal__right__1111__0005__undistort_tar__Flora301.json',  # xujian 33684 images, 16842 pair instances
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_071804__all__bright__left__1111__0005__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_072334__pinch__dark__right__1111__0005__undistort_tar__Flora301.json',
@@ -308,11 +293,12 @@ val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 train_pipeline = [
     dict(
         type='RandomStereoParamAug',
-        prob=0.25,
+        prob=0,
         baseline_range=[-0.033, -0.032],
-        x_angle_range=[-1, 1],
-        y_angle_range=[-3, 3],
-        z_angle_range=[-1, 1]),
+        # x_angle_range=[-1, 1],
+        # y_angle_range=[-3, 3],
+        # z_angle_range=[-1, 1]
+    ),
     dict(
         type='Albumentation',
         transforms=[
@@ -337,10 +323,12 @@ train_pipeline = [
 val_pipeline = [
     dict(
         type='RandomStereoParamAug',
+        prob=0,
         baseline_range=[-0.033, -0.032],
-        x_angle_range=[-1, 1],
-        y_angle_range=[-3, 3],
-        z_angle_range=[-1, 1]),
+        # x_angle_range=[-3, 3],
+        # y_angle_range=[-3, 3],
+        # z_angle_range=[-3, 3]
+    ),
     dict(type='GetBBoxCenterScale', padding=1.0),
     dict(type='TopdownAffine', input_size=codec['input_size']),
     dict(type='PackPoseInputs')
@@ -391,7 +379,7 @@ test_dataloader = val_dataloader
 
 # hooks
 default_hooks = dict(
-    checkpoint=dict(interval=10, save_best='all_mpjpe', rule='less'),
+    checkpoint=dict(interval=5, save_best='all_mpjpe', rule='less'),
     run_time_info=dict(type='RuntimeInfoHookV2'))
 
 # evaluators
@@ -407,7 +395,9 @@ val_evaluator = [
         scale_metric=False,
         fit_metric=False,
         openhand_metric=False,
-        # bmk_save_root='/home/ykhu/workspace/mmpose/work_dirs/bad_case_liftnet/flora304',
+        pinch_hard_metric=True,
+        category_metric=True,
+        # bmk_save_root='/home/ykhu/workspace/mmpose/work_dirs/bad_case_liftnet/pinch',
         # show_bmk_thr=(20, 10000000),
         filter_exceed=filter_exceed),  #bad case mpjpe thr (mm)
     # dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
