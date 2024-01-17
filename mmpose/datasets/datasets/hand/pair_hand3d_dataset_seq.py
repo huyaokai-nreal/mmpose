@@ -266,7 +266,7 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         data_info['meta']['flipped'] = False
         return data_info
 
-    def prepare_pair_data(self, idx) -> Any:
+    def prepare_pair_data(self, idx, reset_stereo_aug=True) -> Any:
         data_info = self.get_data_info(idx)
         meta_left = copy.deepcopy(data_info['meta'])
         meta_left['ori_camera'] = copy.deepcopy(data_info['cam_model_left'])
@@ -300,7 +300,8 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
             'flip_pairs': data_info['flip_pairs'],
             'flip_indices': data_info['flip_indices'],
             'keypoints_visible': data_info['keypoints_visible'],
-            'camera_name': 'left'
+            'camera_name': 'left',
+            'reset_stereo_aug': reset_stereo_aug,
         }
 
         data_info_right = {
@@ -323,7 +324,8 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
             'flip_pairs': data_info['flip_pairs'],
             'flip_indices': data_info['flip_indices'],
             'keypoints_visible': data_info['keypoints_visible'],
-            'camera_name': 'right'
+            'camera_name': 'right',
+            'reset_stereo_aug': reset_stereo_aug,
         }
 
         if self.with_mask:
@@ -377,8 +379,8 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         collate_list = []
         seq_idx_list = self.get_seq_idx(idx)
 
-        for idx in seq_idx_list:
-            ppl_left, ppl_right = self.prepare_pair_data(idx)
+        for i, idx in enumerate(seq_idx_list):
+            ppl_left, ppl_right = self.prepare_pair_data(idx, i == 0)
             collate_list.extend([ppl_left, ppl_right])
 
         all_results = default_collate(collate_list)

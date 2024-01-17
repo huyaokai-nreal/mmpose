@@ -48,51 +48,92 @@ class RandomStereoParamAug(BaseTransform):
         self.y_angle_range = deepcopy(y_angle_range)
         self.z_angle_range = deepcopy(z_angle_range)
 
+    def get_random_stereo_aug_params(self):
+        delta_baseline = np.random.rand() * (
+            self.baseline_range[1] -
+            self.baseline_range[0]) + self.baseline_range[0]
+        x_random_angle = np.random.rand() * (
+            self.x_angle_range[1] -
+            self.x_angle_range[0]) + self.x_angle_range[0]
+        y_random_angle = np.random.rand() * (
+            self.y_angle_range[1] -
+            self.y_angle_range[0]) + self.y_angle_range[0]
+        z_random_angle = np.random.rand() * (
+            self.z_angle_range[1] -
+            self.z_angle_range[0]) + self.z_angle_range[0]
+        delta_R = R.from_euler(
+            'ZYX', [z_random_angle, y_random_angle, x_random_angle],
+            degrees=True).as_matrix()
+        return delta_baseline, delta_R
+
+    def get_aug_data(self, results, delta_baseline, delta_R):
+        cam_model_right = deepcopy(results['meta']['ori_camera'])
+        keypoints3d = results['keypoints3d']
+        cam_model_right.camera_to_world_xf[:3, :3] = \
+            cam_model_right.camera_to_world_xf[:3, :3] @ delta_R
+        cam_model_right.camera_to_world_xf[0, 3] += delta_baseline
+        right_keypoints = cam_model_right.world_to_eye(keypoints3d[0])
+        right_keypoints = cam_model_right.eye_to_window(
+            right_keypoints).reshape(1, -1, 2)
+        right_keypoints += np.random.normal(0, 1, (right_keypoints.shape))
+        right_bbox = kpt_to_bbox(right_keypoints[0])
+        right_bbox = convert_bbox(right_bbox, results['image_width'],
+                                  results['image_height'])
+        cam_model_left = deepcopy(cam_model_right)
+        if results['meta']['flipped']:
+            width = results['image_width']
+            left_to_right_hand(right_keypoints, right_bbox, width)
+
+        cam_model_left.camera_to_world_xf = np.eye(4)
+        _, right_R, vir_baseline = PairHand3DDataset.get_virtual_cam(
+            cam_model_left, cam_model_right)
+        results['meta']['ori_camera'] = cam_model_right
+        results['bbox'] = right_bbox
+        results['keypoints'] = right_keypoints
+        results['meta']['cam_to_virtual_R'] = right_R
+        results['meta']['virtual_baseline'] = vir_baseline
+        results['meta']['stereo_aug'] = True
+        return results
+
     def transform(self, results):
         """Add disturbance randomly during training and every other data point
         in test mode for the right camera."""
         if results['camera_name'] == 'right' and np.random.rand() < self.prob:
-            cam_model_right = deepcopy(results['meta']['ori_camera'])
-            keypoints3d = results['keypoints3d']
-            delta_baseline = np.random.rand() * (
-                self.baseline_range[1] -
-                self.baseline_range[0]) + self.baseline_range[0]
-            x_random_angle = np.random.rand() * (
-                self.x_angle_range[1] -
-                self.x_angle_range[0]) + self.x_angle_range[0]
-            y_random_angle = np.random.rand() * (
-                self.y_angle_range[1] -
-                self.y_angle_range[0]) + self.y_angle_range[0]
-            z_random_angle = np.random.rand() * (
-                self.z_angle_range[1] -
-                self.z_angle_range[0]) + self.z_angle_range[0]
-            delta_R = R.from_euler(
-                'ZYX', [z_random_angle, y_random_angle, x_random_angle],
-                degrees=True).as_matrix()
-            cam_model_right.camera_to_world_xf[:3, :3] = \
-                cam_model_right.camera_to_world_xf[:3, :3] @ delta_R
-            cam_model_right.camera_to_world_xf[0, 3] += delta_baseline
-            right_keypoints = cam_model_right.world_to_eye(keypoints3d[0])
-            right_keypoints = cam_model_right.eye_to_window(
-                right_keypoints).reshape(1, -1, 2)
-            right_keypoints += np.random.normal(0, 1, (right_keypoints.shape))
-            right_bbox = kpt_to_bbox(right_keypoints[0])
-            right_bbox = convert_bbox(right_bbox, results['image_width'],
-                                      results['image_height'])
-            cam_model_left = deepcopy(cam_model_right)
-            if results['meta']['flipped']:
-                width = results['image_width']
-                left_to_right_hand(right_keypoints, right_bbox, width)
+            delta_baseline, delta_R = self.get_random_stereo_aug_params()
+            results = self.get_aug_data(results, delta_baseline, delta_R)
+        return results
 
-            cam_model_left.camera_to_world_xf = np.eye(4)
-            _, right_R, vir_baseline = PairHand3DDataset.get_virtual_cam(
-                cam_model_left, cam_model_right)
-            results['meta']['ori_camera'] = cam_model_right
-            results['bbox'] = right_bbox
-            results['keypoints'] = right_keypoints
-            results['meta']['cam_to_virtual_R'] = right_R
-            results['meta']['virtual_baseline'] = vir_baseline
-            results['meta']['stereo_aug'] = True
+
+@TRANSFORMS.register_module()
+class RandomStereoParamAugForClip(RandomStereoParamAug):
+
+    def __init__(self,
+                 prob=0.5,
+                 baseline_range=[0, 0],
+                 x_angle_range=[0, 0],
+                 y_angle_range=[0, 0],
+                 z_angle_range=[0, 0]) -> None:
+        super().__init__(prob, baseline_range, x_angle_range, y_angle_range,
+                         z_angle_range)
+        self.clip_aug_param = dict()
+
+    def transform(self, results):
+        if results['camera_name'] == 'right':
+            if results.get('reset_stereo_aug', False):
+                if np.random.rand() < self.prob:
+                    delta_baseline, delta_R = self.get_random_stereo_aug_params(  # noqa
+                    )
+                    self.clip_aug_param = dict(
+                        delta_baseline=delta_baseline, delta_R=delta_R)
+                    results = self.get_aug_data(results, delta_baseline,
+                                                delta_R)
+                else:
+                    self.clip_aug_param = dict()
+            else:
+                if self.clip_aug_param:
+                    results = self.get_aug_data(
+                        results, self.clip_aug_param['delta_baseline'],
+                        self.clip_aug_param['delta_R'])
         return results
 
 
