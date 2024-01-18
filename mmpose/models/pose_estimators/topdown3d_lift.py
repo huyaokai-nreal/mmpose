@@ -224,8 +224,9 @@ class TopdownPoseLiftEstimator(BaseModel):
             pred, pred_bino_kp2d, parent_matrix, child_vector = pre_info
         else:
             pred, pred_bino_kp2d = pre_info
+            parent_matrix, child_vector = None, None
 
-        if 'nimble_pose' in data_samples[0].meta:
+        if 'nimble_pose' in data_samples[0].meta and parent_matrix is not None:
             for b in range(pred.shape[0]):
                 keypoints = pred_bino_kp2d[b:b + 1, 0, ...]  # gt为左目信息
                 child_matrix = batch_rodrigues(child_vector[b, :, :]).reshape(
@@ -281,7 +282,8 @@ class TopdownPoseLiftEstimator(BaseModel):
                                                                       2:]),
                 axis=-1)
 
-            if 'nimble_pose' in data_sample.meta:
+            if ('nimble_pose' in data_sample.meta
+                    and 'keypoint_euler' in pred_instances):
                 pre_euler = pred_instances.keypoint_euler[0]
                 gt_nimble_pose_roctor = torch.tensor(
                     data_sample.meta['nimble_pose'][:, :3]).to(

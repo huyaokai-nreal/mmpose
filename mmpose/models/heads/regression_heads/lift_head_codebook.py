@@ -16,6 +16,64 @@ from mmpose.registry import MODELS
 from mmpose.utils.typing import ConfigType, OptSampleList, Predictions
 
 
+class GMLPModel(nn.Module):
+
+    def __init__(self, input_size, hidden_dim=512, output_size=2048):
+        super(GMLPModel, self).__init__()
+        self.first_layer = nn.Linear(input_size, hidden_dim // 2)
+        self.first_relu = nn.ReLU()
+        self.second_layer = nn.Linear(hidden_dim // 2, hidden_dim)
+        self.second_relu = torch.nn.ReLU()
+        self.liftnet = gMLP(
+            d_model=hidden_dim, d_ffn=hidden_dim * 2, num_layers=5)
+        self.last_layer = nn.Sequential(
+            nn.Conv2d(hidden_dim, hidden_dim, kernel_size=1),
+            nn.SyncBatchNorm(hidden_dim), nn.ReLU(),
+            nn.Conv2d(hidden_dim, 2 * hidden_dim, kernel_size=1),
+            nn.SyncBatchNorm(2 * hidden_dim), nn.ReLU(),
+            nn.Conv2d(2 * hidden_dim, output_size, kernel_size=1))
+
+    def forward(self, x):
+        x = x.view(x.shape[0] * x.shape[1], -1)
+        x = self.first_layer(x)
+        x = self.first_relu(x)
+        x = self.second_layer(x)
+        x = self.second_relu(x).unsqueeze(-1).unsqueeze(-1)
+
+        x = self.liftnet(x)
+        x = self.last_layer(x)
+        return x
+
+
+class GMLPModel_Large(nn.Module):
+
+    def __init__(self, input_size, hidden_dim=2048, output_size=2048):
+        super(GMLPModel_Large, self).__init__()
+        self.first_layer = nn.Linear(input_size, hidden_dim // 2)
+        self.first_relu = nn.ReLU()
+        self.second_layer = nn.Linear(hidden_dim // 2, hidden_dim)
+        self.second_relu = nn.ReLU()
+        self.liftnet = gMLP(
+            d_model=hidden_dim, d_ffn=hidden_dim * 4, num_layers=5)
+        self.last_layer = nn.Sequential(
+            nn.Conv2d(hidden_dim, hidden_dim, kernel_size=1),
+            nn.SyncBatchNorm(hidden_dim),
+            nn.ReLU(),
+            nn.Conv2d(hidden_dim, output_size, kernel_size=1),
+        )
+
+    def forward(self, x):
+        x = x.view(x.shape[0] * x.shape[1], -1)
+        x = self.first_layer(x)
+        x = self.first_relu(x)
+        x = self.second_layer(x)
+        x = self.second_relu(x).unsqueeze(-1).unsqueeze(-1)
+
+        x = self.liftnet(x)
+        x = self.last_layer(x)
+        return x
+
+
 @MODELS.register_module()
 class LiftClassifierHead(BaseModule):
     """liftHead for getting 3d rotation from pair 2d keypoints."""
@@ -42,13 +100,16 @@ class LiftClassifierHead(BaseModule):
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.channel_num = channel_num
         self.lambda_t = lambda_t
-        self.kpt2d_with_depth = kpt2d_with_depth
+
         feat_dim = 2 * self.channel_num
-        if self.kpt2d_with_depth:
-            feat_dim = feat_dim + 21
+
         self.liftnet = gMLP(d_model=feat_dim, d_ffn=feat_dim * 2, num_layers=3)
-        self.liftnet_classifier = gMLP(
-            d_model=feat_dim, d_ffn=feat_dim * 4, num_layers=3)
+        self.liftnet_classifier = GMLPModel_Large(
+            input_size=33, output_size=classifier_num).cuda()
+        self.flatten_lay1 = nn.Flatten()
+        input_size, output_size = 20 * 8, 60 * 8
+        self.fc_lay1 = nn.Linear(input_size, output_size).cuda()
+
         self.rigid_samples = _gen_rigid_features()
 
         # define the full connection layer
@@ -62,10 +123,7 @@ class LiftClassifierHead(BaseModule):
             nn.Conv2d(feat_dim, feat_dim, kernel_size=1),
             nn.SyncBatchNorm(feat_dim), nn.ReLU(),
             nn.Conv2d(feat_dim, self.output_num, kernel_size=1))
-        self.classifier_layer = nn.Sequential(
-            nn.Conv2d(feat_dim, feat_dim, kernel_size=1),
-            nn.SyncBatchNorm(feat_dim), nn.ReLU(),
-            nn.Conv2d(feat_dim, classifier_num, kernel_size=1))
+
         self.lift_loss = MODELS.build(lift_loss)
 
         # define the fllow parameters
@@ -92,20 +150,22 @@ class LiftClassifierHead(BaseModule):
         self.keypoint_head.init_weights()
         self.keypoint_head.tokenizer.init_weights_self(tokenizer)
 
-    def forward(self, feats: Tuple[Tensor]) -> Tensor:
+    def forward(self, feats: Tuple[Tensor], feta_xy: Tuple[Tensor],
+                feta_cam: Tuple[Tensor]) -> Tensor:
         output = self.liftnet(feats)
         output = self.last_layer(output).view((feats.shape[0], -1, 1, 1))
 
-        rp_feats = feats[:, :, 0, 0].unsqueeze(0).repeat(1, 60, 1).reshape(
-            feats.shape[0] * 60, -1).unsqueeze(-1).unsqueeze(-1)
-        cls_feat = self.liftnet_classifier(rp_feats)
-        cls_logits = self.classifier_layer(cls_feat)
+        fea_reshape_xy = self.flatten_lay1(feta_xy)
+        fea_reshape_xy = self.fc_lay1(fea_reshape_xy)
+        fea_reshape_xy = fea_reshape_xy.view(feta_xy.shape[0], 60, -1)
+        fea_cam = feta_cam.unsqueeze(1).repeat(1, 60, 1)
+        fea_total = torch.cat((fea_reshape_xy, fea_cam), dim=2)
+        cls_logits = self.liftnet_classifier(fea_total)
+
         return cls_logits, output
 
     def preprocess(self, feats, batch_data_samples):
         xy_coord = feats[..., :2]
-        if self.kpt2d_with_depth:
-            depth = feats[..., -1:][::2]
         B = int(len(batch_data_samples) / 2)
         N = 2
         H, W = batch_data_samples[0].input_size
@@ -210,7 +270,6 @@ class LiftClassifierHead(BaseModule):
                 'nimble_rebuild_joint': nimble_rebuild_joint,
                 'error_with_classifier': error_with_classifier
             }
-        left_rel_depth = hand3d_gt[..., 2:3] - hand3d_gt[:, :1, 2:3]
         left_hand = torch.tensor(np.array(is_left_hands)).cuda().float()
         uv_coord_im_gt_global = torch.tensor(
             np.array(uv_coord_im_gt_global)).cuda().float()
@@ -256,7 +315,6 @@ class LiftClassifierHead(BaseModule):
 
         if self.use_kp2d_gt:
             uv_coord_im_pred_global = uv_coord_im_gt_global
-            depth = left_rel_depth
 
         # 这里指的是去畸变的过程，把预测的点进行去畸变的操作，得到去畸变后的21个点的uv数值
         if self.undistort:
@@ -323,15 +381,22 @@ class LiftClassifierHead(BaseModule):
                 (B, -1)), lr_rot_matrix.view((B, -1)), left_hand.view(
                     (B, -1))),
                                  dim=1).view((B, self.channel_num, 1, 1))
-            if self.kpt2d_with_depth:
-                feats = torch.torch.cat(
-                    (feature1, feature2, depth.reshape(
-                        (B, 21, 1, 1))), dim=1).float()
-            else:
-                feats = torch.cat((feature1, feature2), dim=1).float()
 
-        return (feats, leftcam_xy, rightcam_xy, left_to_right_rt,
-                leftcam_cam_matrix, rightcam_cam_matrix,
+            feats = torch.cat((feature1, feature2), dim=1).float()
+
+            feta_xy = torch.cat(
+                (leftcam_xy[:, 1:, :], rightcam_xy[:, 1:, :],
+                 leftcam_xy[:, :1, :].repeat(
+                     1, 20, 1), rightcam_xy[:, :1, :].repeat(1, 20, 1)),
+                dim=2)
+            feta_cam = torch.cat(
+                (Tmatrix_leftcam.repeat(B, 1), lr_p.view(
+                    (B, -1)), lr_rot_matrix.view(
+                        (B, -1)), left_hand.view(B, -1)),
+                dim=1)
+
+        return (feats, feta_xy, feta_cam, leftcam_xy, rightcam_xy,
+                left_to_right_rt, leftcam_cam_matrix, rightcam_cam_matrix,
                 uv_coord_im_pred_global, uv_coord_im_pred_global_distort,
                 hand3d_gt, left_hand, nimble_info)
 
@@ -359,29 +424,39 @@ class LiftClassifierHead(BaseModule):
 
         # decoder the classifier result
         cls_logits = cls_logits[:, :, 0, 0]
-        cls_logits_softmax = cls_logits.clone().softmax(1)
+        cls_logits_softmax = cls_logits.softmax(1)
 
         # get predict result
         pre_root_xyz = matrix_svd[:, 0:3, 3]
         pre_root_matrix = matrix_svd[:, 0:3, 0:3]
         pre_shape_vector = shape_v
-        _, pre_local_xyz_part, _, _ = self.keypoint_head(
+        _, pre_codebook_xyz_part, _, _ = self.keypoint_head(
             None, None, None, cls_logits_softmax=cls_logits_softmax)
-        pre_local_xyz = torch.cat((torch.zeros_like(
-            pre_local_xyz_part[:, :1, :]), pre_local_xyz_part + delta_xyz),
-                                  dim=1)
+        pre_codebook_xyz = torch.cat((torch.zeros_like(
+            pre_codebook_xyz_part[:, :1, :]), pre_codebook_xyz_part),
+                                     dim=1)
+        pre_codebook_delta = torch.cat(
+            (torch.zeros_like(delta_xyz[:, :1, :]), delta_xyz), dim=1)
 
         if not only_pre:
             with torch.no_grad():
                 gt_root_xyz = nimble_info['nimble_trans']
                 gt_root_matrix = batch_rodrigues(
                     nimble_info['nimble_pose'][:, 0, :]).reshape(-1, 3, 3)
-                gt_local_xyz_part = nimble_info['nimble_rebuild_joint']
-                gt_local_xyz = torch.cat((torch.zeros_like(
-                    gt_local_xyz_part[:, :1, :]), gt_local_xyz_part),
-                                         dim=1)
+                gt_codebook_xyz_part = nimble_info[
+                    'nimble_rebuild_joint'] - nimble_info[
+                        'error_with_classifier']
+                gt_codebook_xyz = torch.cat((torch.zeros_like(
+                    gt_codebook_xyz_part[:, :1, :]), gt_codebook_xyz_part),
+                                            dim=1)
+                gt_codebook_delta = torch.cat(
+                    (torch.zeros_like(
+                        nimble_info['error_with_classifier'][:, :1, :]),
+                     nimble_info['error_with_classifier']),
+                    dim=1)
 
-        def get_nimble_3d(root_xyz, root_matrix, local_xyz, shape_vector):
+        def get_nimble_3d(root_xyz, root_matrix, codeboox_xyz, codebook_delta,
+                          shape_vector):
 
             def get_scale_3d(jreg_joints, shape_param):
                 scale_factor = 1 + shape_param[:, 0]
@@ -389,6 +464,7 @@ class LiftClassifierHead(BaseModule):
                                                 1) * jreg_joints
                 return jreg_joints
 
+            local_xyz = codeboox_xyz + codebook_delta
             bone_joints = get_scale_3d(local_xyz, shape_vector)
             rebuild_joints_temp = bone_joints
 
@@ -406,35 +482,42 @@ class LiftClassifierHead(BaseModule):
         if only_pre:
             pre_root_pre_local_xyz = get_nimble_3d(pre_root_xyz,
                                                    pre_root_matrix,
-                                                   pre_local_xyz,
+                                                   pre_codebook_xyz,
+                                                   pre_codebook_delta,
                                                    pre_shape_vector)
-            return pre_root_pre_local_xyz, \
-                pre_root_xyz, pre_root_matrix
+            return pre_root_pre_local_xyz
         else:
-            pre_root__xyz = get_nimble_3d(pre_root_xyz, pre_root_matrix,
-                                          gt_local_xyz, pre_shape_vector)
-            pre_local__xyz = get_nimble_3d(gt_root_xyz, gt_root_matrix,
-                                           pre_local_xyz, pre_shape_vector)
-            pre_all__xyz = get_nimble_3d(pre_root_xyz, pre_root_matrix,
-                                         pre_local_xyz, pre_shape_vector)
-            # gt_nimble_gt_root_gt_shape__xyz = get_nimble_3d(
-            # gt_root_xyz, gt_root_matrix, gt_rot_vector, pre_shape_vector)
-            return (pre_root__xyz, pre_local__xyz, pre_all__xyz, pre_root_xyz,
-                    pre_root_matrix, delta_xyz, cls_logits)
+            predict_root = get_nimble_3d(pre_root_xyz, pre_root_matrix,
+                                         gt_codebook_xyz, gt_codebook_delta,
+                                         pre_shape_vector)
+            predict_codebook = get_nimble_3d(gt_root_xyz, gt_root_matrix,
+                                             pre_codebook_xyz,
+                                             gt_codebook_delta,
+                                             pre_shape_vector)
+            predict_delta = get_nimble_3d(gt_root_xyz, gt_root_matrix,
+                                          gt_codebook_xyz, pre_codebook_delta,
+                                          pre_shape_vector)
+            predict_all = get_nimble_3d(pre_root_xyz, pre_root_matrix,
+                                        pre_codebook_xyz, pre_codebook_delta,
+                                        pre_shape_vector)
+            return (predict_root, predict_codebook, predict_delta, predict_all,
+                    pre_root_xyz, pre_root_matrix, delta_xyz, cls_logits)
 
     def predict(self,
                 feats: Tuple[Tensor],
                 batch_data_samples: OptSampleList,
                 test_cfg: ConfigType = {}) -> Predictions:
+
         with torch.no_grad():
-            (feats, leftcam_xy, rightcam_xy, left_to_right_rt,
-             leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global,
-             uv_coord_im_pred_global_distort, hand3d_gt, left_hand,
+            (feats, feta_xy, feta_cam, leftcam_xy, rightcam_xy,
+             left_to_right_rt, leftcam_cam_matrix, rightcam_cam_matrix,
+             uv_coord_im_pred_global, uv_coord_im_pred_global_distort,
+             hand3d_gt, left_hand,
              nimble_info) = self.preprocess(feats, batch_data_samples)
 
-            cls_logits, output = self.forward(feats)
+            cls_logits, output = self.forward(feats, feta_xy, feta_cam)
 
-        (hand3d_pred, pre_trans_xyz, pre_root_matrix) = self.postprocess(
+        hand3d_pred = self.postprocess(
             cls_logits,
             output,
             left_hand,
@@ -444,6 +527,18 @@ class LiftClassifierHead(BaseModule):
 
         return hand3d_pred, uv_coord_im_pred_global_distort
 
+    def get_class_accuracy(self, output, target, topk):
+
+        maxk = max(topk)
+        batch_size = target.size(0)
+        _, pred = output.topk(maxk, 1, True, True)
+        pred = pred.t()
+        correct = pred.eq(target.reshape(1, -1).expand_as(pred))
+        return [
+            correct[:k].reshape(-1).float().sum(0) * 100. / batch_size
+            for k in topk
+        ]
+
     def loss(self,
              feats: Tuple[Tensor],
              batch_data_samples: OptSampleList,
@@ -451,15 +546,16 @@ class LiftClassifierHead(BaseModule):
         """Calculate losses from a batch of inputs and data samples."""
 
         with torch.no_grad():
-            (feats, leftcam_xy, rightcam_xy, left_to_right_rt,
-             leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global,
-             uv_coord_im_pred_global_distort, hand3d_gt, left_hand,
+            (feats, feta_xy, feta_cam, leftcam_xy, rightcam_xy,
+             left_to_right_rt, leftcam_cam_matrix, rightcam_cam_matrix,
+             uv_coord_im_pred_global, uv_coord_im_pred_global_distort,
+             hand3d_gt, left_hand,
              nimble_info) = self.preprocess(feats, batch_data_samples)
 
-        cls_logits, output = self.forward(feats)
+        cls_logits, output = self.forward(feats, feta_xy, feta_cam)
 
         # 3d 损失
-        (pred_3d_way1, pred_3d_way2, hand3d_pred, pre_trans_xyz,
+        (pred_3d_way1, pred_3d_way2, pred_3d_way3, hand3d_pred, pre_trans_xyz,
          pre_root_matrix, delta_xyz, pre_cls_logits) = \
             self.postprocess(cls_logits, output, left_hand,
                              nimble_info, hand3d_gt, only_pre=False)
@@ -469,7 +565,7 @@ class LiftClassifierHead(BaseModule):
         if 'nimble_pose' in nimble_info.keys(
         ) and 'nimble_trans' in nimble_info.keys():
             gt_nimble_trans = nimble_info['nimble_trans']
-            gt_delta_xyz = nimble_info['error_with_classifier']
+            # gt_delta_xyz = nimble_info['error_with_classifier']
             gt_classifier = nimble_info['classifier_gt']
 
         # pinch 损失
@@ -478,26 +574,35 @@ class LiftClassifierHead(BaseModule):
         dist_gt = torch.norm(hand3d_gt[:, 4, :] - hand3d_gt[:, 8, :], dim=-1)
 
         pred_for_loss = [
-            pred_3d_way1, pred_3d_way2, hand3d_pred, dist_pred,
-            pre_nimble_trans, delta_xyz, pre_cls_logits
+            pred_3d_way1, pred_3d_way2, pred_3d_way3, hand3d_pred, dist_pred,
+            pre_nimble_trans, pre_cls_logits
         ]
 
         targ_for_loss = [
-            hand3d_gt, hand3d_gt, hand3d_gt, dist_gt, gt_nimble_trans,
-            gt_delta_xyz, gt_classifier
+            hand3d_gt, hand3d_gt, hand3d_gt, hand3d_gt, dist_gt,
+            gt_nimble_trans, gt_classifier
         ]
 
         losses = self.lift_loss(pred_for_loss, targ_for_loss)
-        (loss_pre_root, loss_pre_nimble, loss_pre_all, loss_pinch,
-         loss_nimble_trans, loss_delta, loss_classifier) = losses
+        (loss_pre_root, loss_pre_codebook, loss_pre_delta, loss_pre_all,
+         loss_pinch, loss_nimble_trans, loss_classifier) = losses
 
         losses_dict = dict(
             loss_pre_root=loss_pre_root,
-            loss_pre_nimble=loss_pre_nimble,
+            loss_pre_codebook=loss_pre_codebook,
+            loss_pre_delta=loss_pre_delta,
             loss_pre_all=loss_pre_all,
             loss_pinch=loss_pinch,
             loss_nimble_trans=loss_nimble_trans,
-            loss_delta=loss_delta,
             loss_classifier=loss_classifier)
+
+        topk = (1, 2, 5)
+        keypoint_accuracy = \
+            self.get_class_accuracy(pre_cls_logits, gt_classifier, topk)
+        kpt_accs = {}
+        for i in range(len(topk)):
+            kpt_accs['top%s-acc' % str(topk[i])] \
+                = keypoint_accuracy[i]
+        losses_dict.update(kpt_accs)
 
         return losses_dict

@@ -13,7 +13,6 @@ import torch.nn.functional as F
 
 from mmpose.models.builder import build_loss
 from mmpose.models.heads.nimble.modules import MixerLayer
-# from mmpose.models.builder import HEADS
 from mmpose.registry import MODELS
 
 
@@ -170,7 +169,6 @@ class PCT_Tokenizer(nn.Module):
         for num_layer in self.decoder:
             decode_feat = num_layer(decode_feat)
         decode_feat = self.decoder_layer_norm(decode_feat)
-
         recoverd_joints = self.recover_embed(decode_feat)
 
         return recoverd_joints, encoding_indices, e_latent_loss
@@ -189,16 +187,8 @@ class PCT_Tokenizer(nn.Module):
         """
 
         losses = dict()
-
-        # from IPython import embed; embed()
-        # init_root_trans = torch.zeros((joints.shape[0], 1, 3),
-        #                             requires_grad=False).cuda().float()
-        # key1 = torch.cat((init_root_trans, output_joints), dim=1)
-        # key2 = torch.cat((init_root_trans, joints), dim=1)
-
         kpt_loss, e_latent_loss = self.loss(output_joints, joints,
                                             e_latent_loss)
-
         losses['joint_loss'] = kpt_loss
         losses['e_latent_loss'] = e_latent_loss
 
@@ -216,8 +206,8 @@ class PCT_Tokenizer(nn.Module):
             buffers_names.add(name)
 
         if os.path.isfile(pretrained):
-            assert (self.stage_pct == 'classifier'), \
-                'Training tokenizer does not need to load model'
+            # assert (self.stage_pct == 'classifier'), \
+            #     'Training tokenizer does not need to load model'
             pretrained_state_dict = torch.load(
                 pretrained, map_location=lambda storage, loc: storage)
 

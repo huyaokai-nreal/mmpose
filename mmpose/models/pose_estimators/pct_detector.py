@@ -23,16 +23,13 @@ class PCT(BaseModel):
         pretrained (str): Path to the pretrained models.
     """
 
-    def __init__(self, keypoint_head=None, pretrained=None):
+    def __init__(self, keypoint_head=None):
         super().__init__()
         self.stage_pct = keypoint_head['stage_pct']
         assert self.stage_pct in ['tokenizer', 'classifier']
 
-        keypoint_head['loss_keypoint'] \
-            = keypoint_head['tokenizer']['loss_keypoint']
-
         self.keypoint_head = builder.build_head(keypoint_head)
-        self.init_weights_self(pretrained, keypoint_head['tokenizer']['ckpt'])
+        self.init_weights_self(keypoint_head['tokenizer']['ckpt'])
         self.nimble_layer = sim_NIMBLELayer(
             device='cuda',
             shape_ncomp=20,
@@ -40,7 +37,7 @@ class PCT(BaseModel):
             use_pose_pca=False,
             reg_shape_type=0)
 
-    def init_weights_self(self, pretrained, tokenizer):
+    def init_weights_self(self, tokenizer):
         """Weight initialization for model."""
         self.keypoint_head.init_weights()
         self.keypoint_head.tokenizer.init_weights_self(tokenizer)
@@ -50,19 +47,13 @@ class PCT(BaseModel):
         nimble_pose = []
         nimble_trans = []
         nimble_shape = []
-        # is_left_hands = []
         for data_sample in left_data_samples:
             nimble_pose.append(data_sample.meta['nimble_pose'])
             nimble_trans.append(data_sample.meta['nimble_translation'])
             nimble_shape.append(data_sample.meta['nimble_shape'])
-            # if data_sample.meta['category_id'] == 1:  # 1: left, 2: right
-            #     is_left_hands.append(1)
-            # else:
-            #     is_left_hands.append(0)
         nimble_pose = torch.tensor(np.array(nimble_pose)).cuda().float()
         nimble_trans = torch.tensor(np.array(nimble_trans)).cuda().float()
         nimble_shape = torch.tensor(np.array(nimble_shape)).cuda().float()
-        # left_hand = torch.tensor(np.array(is_left_hands)).cuda().float()
         zeros_nimble_shape = torch.zeros_like(nimble_shape).cuda().float()
 
         B = nimble_pose.shape[0]
@@ -99,12 +90,9 @@ class PCT(BaseModel):
         p_logits, p_joints, g_logits, e_latent_loss = \
             self.keypoint_head(output, extra_output, joints)
 
-        # if return loss
-        losses = dict()
-        keypoint_losses = \
+        losses = \
             self.keypoint_head.tokenizer.get_loss(
                 p_joints, joints, e_latent_loss)
-        losses.update(keypoint_losses)
 
         return losses
 
