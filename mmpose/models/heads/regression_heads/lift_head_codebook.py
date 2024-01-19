@@ -7,6 +7,7 @@ import torch
 from mmengine.model import BaseModule
 from torch import Tensor, nn
 
+from mmpose.models.heads.nimble.modules import GMLPModel_Large, IMAGE_CLS_Model
 from mmpose.models.heads.nimble.nimble_utils import (_gen_rigid_features,
                                                      batch_rodrigues,
                                                      decode_svd)
@@ -16,61 +17,18 @@ from mmpose.registry import MODELS
 from mmpose.utils.typing import ConfigType, OptSampleList, Predictions
 
 
-class GMLPModel(nn.Module):
+class ChannelIncreaseModel(nn.Module):
 
-    def __init__(self, input_size, hidden_dim=512, output_size=2048):
-        super(GMLPModel, self).__init__()
-        self.first_layer = nn.Linear(input_size, hidden_dim // 2)
-        self.first_relu = nn.ReLU()
-        self.second_layer = nn.Linear(hidden_dim // 2, hidden_dim)
-        self.second_relu = torch.nn.ReLU()
-        self.liftnet = gMLP(
-            d_model=hidden_dim, d_ffn=hidden_dim * 2, num_layers=5)
-        self.last_layer = nn.Sequential(
-            nn.Conv2d(hidden_dim, hidden_dim, kernel_size=1),
-            nn.SyncBatchNorm(hidden_dim), nn.ReLU(),
-            nn.Conv2d(hidden_dim, 2 * hidden_dim, kernel_size=1),
-            nn.SyncBatchNorm(2 * hidden_dim), nn.ReLU(),
-            nn.Conv2d(2 * hidden_dim, output_size, kernel_size=1))
+    def __init__(self, in_channels, out_channels):
+        super(ChannelIncreaseModel, self).__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1)
+        self.relu = nn.ReLU()
+        self.bn = nn.BatchNorm2d(out_channels)
 
     def forward(self, x):
-        x = x.view(x.shape[0] * x.shape[1], -1)
-        x = self.first_layer(x)
-        x = self.first_relu(x)
-        x = self.second_layer(x)
-        x = self.second_relu(x).unsqueeze(-1).unsqueeze(-1)
-
-        x = self.liftnet(x)
-        x = self.last_layer(x)
-        return x
-
-
-class GMLPModel_Large(nn.Module):
-
-    def __init__(self, input_size, hidden_dim=2048, output_size=2048):
-        super(GMLPModel_Large, self).__init__()
-        self.first_layer = nn.Linear(input_size, hidden_dim // 2)
-        self.first_relu = nn.ReLU()
-        self.second_layer = nn.Linear(hidden_dim // 2, hidden_dim)
-        self.second_relu = nn.ReLU()
-        self.liftnet = gMLP(
-            d_model=hidden_dim, d_ffn=hidden_dim * 4, num_layers=5)
-        self.last_layer = nn.Sequential(
-            nn.Conv2d(hidden_dim, hidden_dim, kernel_size=1),
-            nn.SyncBatchNorm(hidden_dim),
-            nn.ReLU(),
-            nn.Conv2d(hidden_dim, output_size, kernel_size=1),
-        )
-
-    def forward(self, x):
-        x = x.view(x.shape[0] * x.shape[1], -1)
-        x = self.first_layer(x)
-        x = self.first_relu(x)
-        x = self.second_layer(x)
-        x = self.second_relu(x).unsqueeze(-1).unsqueeze(-1)
-
-        x = self.liftnet(x)
-        x = self.last_layer(x)
+        x = self.conv(x)
+        x = self.relu(x)
+        x = self.bn(x)
         return x
 
 
@@ -89,26 +47,38 @@ class LiftClassifierHead(BaseModule):
                  classifier_num=2048,
                  lambda_t: int = -1,
                  use_svd: bool = True,
+                 use_image_info: bool = False,
+                 image_backbone=None,
                  init_cfg: Union[dict, List[dict], None] = None):
         super().__init__(init_cfg)
 
         # define the classifier
         self.keypoint_head = MODELS.build(keypoint_classifier)
-        self.init_weights_self(keypoint_classifier['tokenizer']['ckpt'])
 
         # define the liftnet model
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.channel_num = channel_num
         self.lambda_t = lambda_t
+        self.use_image_info = use_image_info
 
         feat_dim = 2 * self.channel_num
 
         self.liftnet = gMLP(d_model=feat_dim, d_ffn=feat_dim * 2, num_layers=3)
-        self.liftnet_classifier = GMLPModel_Large(
-            input_size=33, output_size=classifier_num).cuda()
-        self.flatten_lay1 = nn.Flatten()
-        input_size, output_size = 20 * 8, 60 * 8
-        self.fc_lay1 = nn.Linear(input_size, output_size).cuda()
+
+        if self.use_image_info:
+            self.image_fea_upsample = ChannelIncreaseModel(2, 3)
+            self.image_backbone = MODELS.build(image_backbone)
+            self.image_classifier = IMAGE_CLS_Model(
+                keypoint_classifier['image_size'],
+                keypoint_classifier['in_channels'],
+                keypoint_classifier['cls_head'],
+                keypoint_classifier['tokenizer'])
+        else:
+            self.liftnet_classifier = GMLPModel_Large(
+                input_size=33, output_size=classifier_num).cuda()
+            self.flatten_lay1 = nn.Flatten()
+            input_size, output_size = 20 * 8, 60 * 8
+            self.fc_lay1 = nn.Linear(input_size, output_size).cuda()
 
         self.rigid_samples = _gen_rigid_features()
 
@@ -144,27 +114,45 @@ class LiftClassifierHead(BaseModule):
             pose_ncomp=60,
             use_pose_pca=False,
             reg_shape_type=0)
+        if self.use_image_info:
+            self.init_weights_self(keypoint_classifier['tokenizer']['ckpt'],
+                                   image_backbone['pretrained'])
+        else:
+            self.init_weights_self(keypoint_classifier['tokenizer']['ckpt'])
 
-    def init_weights_self(self, tokenizer):
+    def init_weights_self(self, tokenizer, backbone_pretrain=None):
         """Weight initialization for model."""
         self.keypoint_head.init_weights()
         self.keypoint_head.tokenizer.init_weights_self(tokenizer)
+        if self.use_image_info:
+            self.image_backbone.self_init_weights(backbone_pretrain)
+            self.image_classifier.init_weights()
 
-    def forward(self, feats: Tuple[Tensor], feta_xy: Tuple[Tensor],
-                feta_cam: Tuple[Tensor]) -> Tensor:
+    def forward(self,
+                feats: Tuple[Tensor],
+                feta_xy: Tuple[Tensor],
+                feta_cam: Tuple[Tensor],
+                image_fea=None) -> Tensor:
         output = self.liftnet(feats)
         output = self.last_layer(output).view((feats.shape[0], -1, 1, 1))
 
-        fea_reshape_xy = self.flatten_lay1(feta_xy)
-        fea_reshape_xy = self.fc_lay1(fea_reshape_xy)
-        fea_reshape_xy = fea_reshape_xy.view(feta_xy.shape[0], 60, -1)
-        fea_cam = feta_cam.unsqueeze(1).repeat(1, 60, 1)
-        fea_total = torch.cat((fea_reshape_xy, fea_cam), dim=2)
-        cls_logits = self.liftnet_classifier(fea_total)
+        if self.use_image_info:
+            image_fea = self.image_fea_upsample(image_fea)
+            image_fea = self.image_backbone(image_fea)
+            cls_logits = self.image_classifier(image_fea).unsqueeze(
+                -1).unsqueeze(-1)
+        else:
+            fea_reshape_xy = self.flatten_lay1(feta_xy)
+            fea_reshape_xy = self.fc_lay1(fea_reshape_xy)
+            fea_reshape_xy = fea_reshape_xy.view(feta_xy.shape[0], 60, -1)
+            fea_cam = feta_cam.unsqueeze(1).repeat(1, 60, 1)
+            fea_total = torch.cat((fea_reshape_xy, fea_cam), dim=2)
+            cls_logits = self.liftnet_classifier(fea_total)
 
         return cls_logits, output
 
-    def preprocess(self, feats, batch_data_samples):
+    def preprocess(self, feats, batch_data_samples, image_info):
+
         xy_coord = feats[..., :2]
         B = int(len(batch_data_samples) / 2)
         N = 2
@@ -175,6 +163,11 @@ class LiftClassifierHead(BaseModule):
         uv_coord_im_pred_crop_right = xy_coord * torch.tensor([W, H]).cuda()
         uv_coord_im_pred_crop_right = uv_coord_im_pred_crop_right.view(
             B, N, K, 2)
+        if image_info is not None:
+            image_size = image_info.shape[-1]
+            image_fea = image_info.view(B, N, image_size, image_size)
+        else:
+            image_fea = None
 
         leftcam_cam_matrix = []
         rightcam_cam_matrix = []
@@ -398,7 +391,7 @@ class LiftClassifierHead(BaseModule):
         return (feats, feta_xy, feta_cam, leftcam_xy, rightcam_xy,
                 left_to_right_rt, leftcam_cam_matrix, rightcam_cam_matrix,
                 uv_coord_im_pred_global, uv_coord_im_pred_global_distort,
-                hand3d_gt, left_hand, nimble_info)
+                hand3d_gt, left_hand, nimble_info, image_fea)
 
     def postprocess(self,
                     cls_logits,
@@ -506,16 +499,18 @@ class LiftClassifierHead(BaseModule):
     def predict(self,
                 feats: Tuple[Tensor],
                 batch_data_samples: OptSampleList,
+                image_info=None,
                 test_cfg: ConfigType = {}) -> Predictions:
 
         with torch.no_grad():
             (feats, feta_xy, feta_cam, leftcam_xy, rightcam_xy,
              left_to_right_rt, leftcam_cam_matrix, rightcam_cam_matrix,
              uv_coord_im_pred_global, uv_coord_im_pred_global_distort,
-             hand3d_gt, left_hand,
-             nimble_info) = self.preprocess(feats, batch_data_samples)
+             hand3d_gt, left_hand, nimble_info, image_fea) = \
+                 self.preprocess(feats, batch_data_samples, image_info)
 
-            cls_logits, output = self.forward(feats, feta_xy, feta_cam)
+            cls_logits, output = self.forward(feats, feta_xy, feta_cam,
+                                              image_fea)
 
         hand3d_pred = self.postprocess(
             cls_logits,
@@ -527,21 +522,10 @@ class LiftClassifierHead(BaseModule):
 
         return hand3d_pred, uv_coord_im_pred_global_distort
 
-    def get_class_accuracy(self, output, target, topk):
-
-        maxk = max(topk)
-        batch_size = target.size(0)
-        _, pred = output.topk(maxk, 1, True, True)
-        pred = pred.t()
-        correct = pred.eq(target.reshape(1, -1).expand_as(pred))
-        return [
-            correct[:k].reshape(-1).float().sum(0) * 100. / batch_size
-            for k in topk
-        ]
-
     def loss(self,
              feats: Tuple[Tensor],
              batch_data_samples: OptSampleList,
+             image_info=None,
              train_cfg: ConfigType = {}) -> dict:
         """Calculate losses from a batch of inputs and data samples."""
 
@@ -549,10 +533,10 @@ class LiftClassifierHead(BaseModule):
             (feats, feta_xy, feta_cam, leftcam_xy, rightcam_xy,
              left_to_right_rt, leftcam_cam_matrix, rightcam_cam_matrix,
              uv_coord_im_pred_global, uv_coord_im_pred_global_distort,
-             hand3d_gt, left_hand,
-             nimble_info) = self.preprocess(feats, batch_data_samples)
+             hand3d_gt, left_hand, nimble_info, image_fea) = \
+                 self.preprocess(feats, batch_data_samples, image_info)
 
-        cls_logits, output = self.forward(feats, feta_xy, feta_cam)
+        cls_logits, output = self.forward(feats, feta_xy, feta_cam, image_fea)
 
         # 3d 损失
         (pred_3d_way1, pred_3d_way2, pred_3d_way3, hand3d_pred, pre_trans_xyz,
@@ -606,3 +590,15 @@ class LiftClassifierHead(BaseModule):
         losses_dict.update(kpt_accs)
 
         return losses_dict
+
+    def get_class_accuracy(self, output, target, topk):
+
+        maxk = max(topk)
+        batch_size = target.size(0)
+        _, pred = output.topk(maxk, 1, True, True)
+        pred = pred.t()
+        correct = pred.eq(target.reshape(1, -1).expand_as(pred))
+        return [
+            correct[:k].reshape(-1).float().sum(0) * 100. / batch_size
+            for k in topk
+        ]

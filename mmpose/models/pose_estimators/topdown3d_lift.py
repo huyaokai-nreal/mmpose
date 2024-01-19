@@ -43,6 +43,10 @@ class TopdownPoseLiftEstimator(BaseModel):
         self.kpt2d_with_depth = kpt2d_with_depth
         neck, head = check_and_update_config(neck, head)
         neck, kpt3d_lift = check_and_update_config(neck, kpt3d_lift)
+        if 'use_image_info' in kpt3d_lift and kpt3d_lift['use_image_info']:
+            self.use_image_info = True
+        else:
+            self.use_image_info = False
 
         self.nano_2d = nano_2d
         if neck is not None:
@@ -165,7 +169,10 @@ class TopdownPoseLiftEstimator(BaseModel):
                 depth = outputs[2]
                 depth = (depth - 0.5) * 0.4
                 xy_sigma = torch.cat([xy_sigma, depth], dim=-1)
-        losses = self.kpt3d_lift.loss(xy_sigma, data_samples)
+        if self.use_image_info:
+            losses = self.kpt3d_lift.loss(xy_sigma, data_samples, inputs)
+        else:
+            losses = self.kpt3d_lift.loss(xy_sigma, data_samples, None)
         return losses
 
     @format_data
@@ -217,8 +224,12 @@ class TopdownPoseLiftEstimator(BaseModel):
                     xy_sigma = torch.cat([xy_sigma, depth], dim=-1)
 
         batch_pred_instances = []
-        pre_info = self.kpt3d_lift.predict(
-            xy_sigma, data_samples, test_cfg=self.test_cfg)
+        if self.use_image_info:
+            pre_info = self.kpt3d_lift.predict(
+                xy_sigma, data_samples, inputs, test_cfg=self.test_cfg)
+        else:
+            pre_info = self.kpt3d_lift.predict(
+                xy_sigma, data_samples, test_cfg=self.test_cfg)
 
         if len(pre_info) == 4:
             pred, pred_bino_kp2d, parent_matrix, child_vector = pre_info

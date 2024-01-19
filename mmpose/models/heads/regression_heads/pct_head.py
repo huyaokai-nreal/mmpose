@@ -13,7 +13,10 @@ class PCT_Head(BaseModule):
     def __init__(
         self,
         stage_pct,
+        in_channels,
+        image_size,
         num_joints,
+        cls_head,
         tokenizer=None,
     ):
         super().__init__()
@@ -46,6 +49,10 @@ class PCT_Head(BaseModule):
             return output_joints, encoding_scores
 
     def init_weights(self):
+        if self.stage_pct == 'classifier':
+            self.tokenizer.eval()
+            for name, params in self.tokenizer.named_parameters():
+                params.requires_grad = False
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):

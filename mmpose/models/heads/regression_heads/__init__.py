@@ -9,6 +9,7 @@ from .lift_head_rot import LiftNimbleHead
 from .lift_head_rot_standard import LiftNimbleHeadStandard
 from .lift_head_standard import LiftHeadStandard
 from .pct_head import PCT_Head
+from .pct_swin_v2 import SwinV2TransformerRPE2FC
 from .pct_tokenizer import PCT_Tokenizer
 from .regression_head import RegressionHead
 from .lift_head_rot import LiftNimbleHead
@@ -26,5 +27,5 @@ __all__ = [
     'RTMCCIPRHead', 'AttrMlpHead', 'LiftHead', 'RTMCCIPRHead3D',
     'LiftHeadStandard', 'LiftNimbleHead', 'TemporalLiftHead',
     'TemporalLiftHeadStandard', 'LiftNimbleHeadStandard', 'PCT_Head',
-    'PCT_Tokenizer', 'LiftClassifierHead'
+    'PCT_Tokenizer', 'LiftClassifierHead', 'SwinV2TransformerRPE2FC'
 ]
