@@ -369,6 +369,43 @@ class GenerateAttrLabel(BaseTransform):
 
 
 @TRANSFORMS.register_module()
+class MixTwoHands(BaseTransform):
+
+    def __init__(self, prob) -> None:
+        super().__init__()
+        self.prob = prob
+
+    def transform(self, results: Dict) -> Dict:
+        if np.random.rand() < self.prob:
+            image = results['img'].copy()
+            image_h, image_w = image.shape
+            x1 = int(np.min(results['transformed_keypoints'][..., 0]))
+            y1 = int(np.min(results['transformed_keypoints'][..., 1]))
+            x2 = int(np.max(results['transformed_keypoints'][..., 0]))
+            y2 = int(np.max(results['transformed_keypoints'][..., 1]))
+            crop_image_w = x2 - x1
+            crop_image_h = y2 - y1
+            hand_crop_image = image[y1:y2, x1:x2]
+            flip_image = hand_crop_image[:, ::-1]
+            rand_right_up_y = np.random.randint(0, image_h // 2 - 10)
+            rand_right_up_x = min(
+                np.random.randint(10, image_w // 2), crop_image_w - 10)
+            max_y = min(image_h, rand_right_up_y + crop_image_h)
+            try:
+                image[rand_right_up_y:max_y, 0:rand_right_up_x] = image[
+                    rand_right_up_y:max_y,
+                    0:rand_right_up_x] * 0.5 + flip_image[:max_y -
+                                                          rand_right_up_y,
+                                                          crop_image_w -
+                                                          rand_right_up_x:
+                                                          crop_image_w] * 0.5
+            except:  # noqa
+                return results
+            results['img'] = image
+        return results
+
+
+@TRANSFORMS.register_module()
 class TopdownPCL(BaseTransform):
 
     def __init__(self,

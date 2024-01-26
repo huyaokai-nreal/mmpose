@@ -12,7 +12,8 @@ from .loading import LoadImage, LoadImageFromMultiLMDB
 from .pose3d_transforms import (RandomFlipAroundRoot, RandomStereoParamAug,
                                 RandomStereoParamAugForClip)
 from .topdown_transforms import (AffineTransformConsistency, GenerateAttrLabel,
-                                 RandomBackground, TopdownAffine, TopdownPCL)
+                                 MixTwoHands, RandomBackground, TopdownAffine,
+                                 TopdownPCL)
 
 __all__ = [
     'GetBBoxCenterScale', 'RandomBBoxTransform', 'RandomFlip',
@@ -23,5 +24,5 @@ __all__ = [
     'ChangeImageQuality', 'RandomBackground', 'LoadImageFromMultiLMDB',
     'AffineTransformConsistency', 'TopdownPCL', 'GenerateAttrLabel',
     'RandomFlipAroundRoot', 'KeypointTo25DLabel', 'RandomStereoParamAug',
-    'RandomStereoParamAugForClip'
+    'RandomStereoParamAugForClip', 'MixTwoHands'
 ]
