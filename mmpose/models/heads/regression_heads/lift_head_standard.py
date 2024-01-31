@@ -1,5 +1,4 @@
 # Copyright (c) XREAL. All rights reserved.
-import math
 from typing import List, Tuple, Union
 
 import cv2
@@ -8,6 +7,7 @@ import torch
 import torch.nn.functional as F
 from mmengine.logging import MessageHub
 from mmengine.model import BaseModule
+from nreal_data_tool.utils.affine import from_two_vectors
 from torch import Tensor, nn
 
 from mmpose.models.utils.gmlp import gMLP
@@ -32,8 +32,8 @@ class LiftHeadStandard(BaseModule):
                  kpt3d_output=False,
                  kpt3d_output_delta=False,
                  plane_arctan=False,
-                 use_attention=False,
                  d_model=512,
+                 edge_to_center=False,
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
                  all_use_kp2d_gt: bool = False,
@@ -60,13 +60,6 @@ class LiftHeadStandard(BaseModule):
         self.last_layer = nn.Sequential(
             nn.Conv2d(feat_dim, feat_dim, kernel_size=1), nn.ReLU(),
             nn.Conv2d(feat_dim, output_num, kernel_size=1))
-        # Ensure that embed_dim is divisible by num_heads
-        if use_attention:
-            self.attention_layer = SelfAttentionModel(
-                embed_dim=d_model, num_heads=3)
-            # self.pe = PositionalEncoding(d_model)
-            # self.encode_mlp = nn.Linear(3, d_model)
-            # self.decode_mlp = nn.Linear(d_model, 3)
         if self.kpt3d_output_delta:
             self.delta_last_layer = nn.Sequential(
                 nn.Conv2d(feat_dim, feat_dim, kernel_size=1), nn.ReLU(),
@@ -77,8 +70,9 @@ class LiftHeadStandard(BaseModule):
         self.use_plane_coord = use_plane_coord
         self.baseline = baseline
         self.plane_arctan = plane_arctan
-        self.use_attention = use_attention
         self.d_model = d_model
+        self.edge_to_center = edge_to_center
+        self.center_rot = None
 
     def forward(self, feats: Tuple[Tensor]) -> Tensor:
         liftnet_output = self.liftnet(feats)
@@ -229,16 +223,11 @@ class LiftHeadStandard(BaseModule):
         norm_leftcam_xyz, norm_rightcam_xyz = self.standardize_stereo(
             leftcam_xy, rightcam_xy, left_R, right_R)
 
-        if self.use_attention:
-            left_xyz = self.transformer(norm_leftcam_xyz.clone())
-            right_xyz = self.transformer(norm_rightcam_xyz.clone())
-            feature1 = torch.cat((left_xyz.reshape(
-                (B, -1)), left_hand.view(B, -1)),
-                                 dim=1)
-            feature2 = torch.cat((right_xyz.reshape(
-                (B, -1)), left_hand.view(B, -1)),
-                                 dim=1)
-        elif self.use_plane_coord:
+        if self.edge_to_center:
+            norm_leftcam_xyz, norm_rightcam_xyz = self.kpt_edge_to_center(
+                norm_leftcam_xyz, norm_rightcam_xyz)
+
+        if self.use_plane_coord:
             feature1 = torch.cat((norm_leftcam_xyz[:, :, :2].reshape(
                 (B, -1)), left_hand.view(B, -1)),
                                  dim=1)
@@ -306,9 +295,12 @@ class LiftHeadStandard(BaseModule):
                     B, 21, 1) * baseline_scale / norm_rightcam_xyz[:, :, 2:]
                 rightcam_XYZ = (norm_rightcam_xyz *
                                 rightcam_Z_scale).view(B * K, 3, 1)
-
+        if self.edge_to_center:
+            leftcam_XYZ = self.center_to_edge(leftcam_XYZ)
         leftcam_XYZ = torch.bmm(left_R_inv, leftcam_XYZ).view(B, K, 3)
         if not self.rightcam_3d_disable:
+            if self.edge_to_center:
+                rightcam_XYZ = self.center_to_edge(rightcam_XYZ)
             rightcam_XYZ = torch.bmm(right_R_inv, rightcam_XYZ)
             rightcam_XYZ = (torch.bmm(lr_rot_matrix, rightcam_XYZ) +
                             lr_p).view(B, 21, 3)
@@ -432,7 +424,7 @@ class LiftHeadStandard(BaseModule):
         B, K = cam_xy.shape[:2]
         cam_xyz = torch.cat((cam_xy, torch.ones(B, K, 1).cuda()),
                             dim=-1).view(B * K, 3, 1)
-        rot = rot.view(B, 1, 3, 3).repeat(1, 21, 1, 1).view(B * 21, 3, 3)
+        rot = rot.view(B, 1, 3, 3).repeat(1, K, 1, 1).view(B * K, 3, 3)
         standard_cam_xyz = torch.matmul(rot, cam_xyz).view(B, K, 3)
         return standard_cam_xyz
 
@@ -461,60 +453,34 @@ class LiftHeadStandard(BaseModule):
             ..., 2:]
         return leftcam_uv_reproj, rightcam_uv_reproj
 
-    def transformer(self, input):
-        B, N = input.shape[:2]
-        # output = self.encode_mlp(input.view(-1,3))
-        # output = self.pe(output.view(B,N,-1))
-        output = self.attention_layer(input)
-        # output = self.decode_mlp(output.view(-1,self.d_model))
-        return output.view(B, N, -1)
+    def center_to_edge(self, hand_3d):
+        B = self.center_rot.shape[0]
+        inv_rot = torch.inverse(self.center_rot)
+        inv_rot = inv_rot.view(B, 1, 3, 3).repeat(1, 21, 1,
+                                                  1).view(B * 21, 3, 3)
+        hand_3d = torch.matmul(inv_rot, hand_3d)
+        return hand_3d
 
+    def kpt_edge_to_center(self, norm_leftcam_xyz, norm_rightcam_xyz):
+        B, K = norm_leftcam_xyz.shape[:2]
+        center_rot = []
+        for i in range(norm_leftcam_xyz.shape[0]):
+            left_root = np.array(norm_leftcam_xyz[i][9].clone().cpu())
+            rot = from_two_vectors(left_root, np.array([0, 0, 1]))
+            center_rot.append(rot)
+        center_rot = torch.tensor(np.stack(center_rot)).float().cuda()
+        rot_leftcam_xyz = torch.matmul(
+            center_rot.view(B, 1, 3, 3).repeat(1, K, 1, 1).view(B * K, 3, 3),
+            norm_leftcam_xyz.view(B * K, 3, 1)).view(B, K, 3)
+        rot_rightcam_xyz = torch.matmul(
+            center_rot.view(B, 1, 3, 3).repeat(1, K, 1, 1).view(B * K, 3, 3),
+            norm_rightcam_xyz.view(B * K, 3, 1)).view(B, K, 3)
 
-@MODELS.register_module()
-class SelfAttentionModel(nn.Module):
-
-    def __init__(self, embed_dim, num_heads):
-        super(SelfAttentionModel, self).__init__()
-        self.attention = nn.MultiheadAttention(embed_dim, num_heads)
-        self.norm = nn.LayerNorm(embed_dim)
-
-    def forward(self, x):
-        output, _ = self.attention(x, x, x)
-        output = self.norm(x + output)
-        return output
-
-
-@MODELS.register_module()
-class PositionalEncoding(nn.Module):
-
-    def __init__(self, d_model, dropout=0.5, max_len=21):
-        super(PositionalEncoding, self).__init__()
-        self.dropout = nn.Dropout(p=dropout)
-        self.pe = torch.zeros(max_len, d_model, requires_grad=False)
-        position = torch.arange(0, max_len).unsqueeze(1)
-        # To avoid numerical overflow, incorporate exp and log operations.
-        div_term = torch.exp(
-            torch.arange(0, d_model, 2) * -(math.log(10000.0) / d_model))
-        self.pe[:, 0::2] = torch.sin(position * div_term)
-        self.pe[:, 1::2] = torch.cos(position * div_term)
-        self.pe = self.pe.unsqueeze(0).cuda()
-
-    def forward(self, x):
-        return self.dropout(x + self.pe)
-
-
-@MODELS.register_module()
-class TokenPositionalEncoding(nn.Module):
-
-    def __init__(self, d_model):
-        super(TokenPositionalEncoding, self).__init__()
-        self.d_model = d_model
-        self.weight = torch.load(
-            f'configs/product/ykhu/pair_hand3d/weight_3_{d_model}.pt').cuda()
-        self.bias = torch.load(
-            f'configs/product/ykhu/pair_hand3d/bias_{d_model}.pt').cuda()
-        self.coef = math.sqrt(2 / self.d_model)
-
-    def forward(self, x):
-        output = torch.cos(torch.matmul(x, self.weight) + self.bias)
-        return self.coef * output
+        if self.use_plane_coord:
+            norm_leftcam_xyz = rot_leftcam_xyz / rot_leftcam_xyz[:, :, 2:]
+            norm_rightcam_xyz = rot_rightcam_xyz / rot_rightcam_xyz[:, :, 2:]
+        else:
+            norm_leftcam_xyz = F.normalize(rot_leftcam_xyz, p=2, dim=-1)
+            norm_rightcam_xyz = F.normalize(rot_rightcam_xyz, p=2, dim=-1)
+        self.center_rot = center_rot
+        return norm_leftcam_xyz, norm_rightcam_xyz
