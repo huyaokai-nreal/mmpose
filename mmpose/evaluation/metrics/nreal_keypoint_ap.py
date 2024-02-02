@@ -33,8 +33,7 @@ class NrealKeypointAP(BaseMetric):
             gesture_list=deepcopy(gesture_list),
             logger=self.logger,
             with_tag=with_tag,
-            filter_exceed=filter_exceed,
-            category_metric=category_metric)
+            filter_exceed=filter_exceed)
 
     def process(self, data_batch, data_samples: Sequence[dict]) -> None:
         for data_sample in data_samples:
