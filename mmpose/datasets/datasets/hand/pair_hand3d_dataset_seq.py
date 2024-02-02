@@ -50,7 +50,6 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         self.lmdb_client = LmdbClient()
         self.dataset_info_list = list()
         self.point_type = point_type
-        self.dataset_info_list = list()
         self.dataset_weight_list = dataset_weight_list
         self.dataset_num = len(self.data_file_list)
         self.lmdb_data_root = data_root
@@ -344,10 +343,12 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         return ppl_left, ppl_right
 
     def get_seq_idx(self, idx) -> list:
+        # 随机一个训练文件，随机从一份数据开始取seq_len长度
         seq_idx = np.random.choice(range(len(self.dataset_info_list)))
         seq_list = self.dataset_info_list[seq_idx]
 
         seq_list_cur_idx = np.random.choice(range(len(seq_list)))
+        # import ipdb;ipdb.set_trace()
         if self.test_mode:
             seq_list_cur_idx = idx
         idx_list = []
@@ -377,6 +378,7 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
             Any: Depends on ``self.pipeline``.
         """
         collate_list = []
+        # import ipdb;ipdb.set_trace()
         seq_idx_list = self.get_seq_idx(idx)
 
         for i, idx in enumerate(seq_idx_list):
@@ -385,4 +387,5 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
 
         all_results = default_collate(collate_list)
 
+        # import ipdb;ipdb.set_trace()
         return all_results

@@ -312,6 +312,9 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         filter_annotation_num = 0
         if self.sub_data_index >= 0:
             self.data_file_list = [self.data_file_list[self.sub_data_index]]
+        f301, f302, f303, f304 = 0, 0, 0, 0
+        left, right = 0, 0
+        left_filter, right_filter = 0, 0
         for i, anno_file in enumerate(self.data_file_list):
             coco = COCO(anno_file)
             lmdb_path = osp.join(self.lmdb_data_root,
@@ -329,6 +332,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                 image_list.append(left_img)
                 image_list.append(right_img)
 
+                # import ipdb;ipdb.set_trace()
                 if self.filter_kpt_exceed:
                     left_keypoints = np.array(
                         ann['keypoints_left'])[..., :2].reshape(-1, 2)
@@ -340,9 +344,24 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                         right_keypoints, right_img['width'],
                         right_img['height'])
                     if not left_within_bounds or not right_within_bounds:
+                        if '301' in ann['camera_instance_id']:
+                            f301 += 1
+                        elif '302' in ann['camera_instance_id']:
+                            f302 += 1
+                        elif '303' in ann['camera_instance_id']:
+                            f303 += 1
+                        else:
+                            f304 += 1
+                        if ann['category_id'] == 1:
+                            left_filter += 1
+                        else:
+                            right_filter += 1
                         filter_annotation_num += 1
                         continue
-
+                if ann['category_id'] == 1:
+                    left += 1
+                else:
+                    right += 1
                 data_info = self.parse_data_info(
                     dict(raw_ann_info=ann, raw_img_info=[left_img, right_img]))
                 if self.test_mode:
@@ -383,6 +402,10 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         else:
             logger.info(
                 f'Train PairHandDataset loaded {len(image_list)} images, {len(instance_list)} pair instances, filter {filter_annotation_num} pair instances'  # noqa
+            )
+            logger.info(
+                f'flora301: {f301} flora302: {f302} flora303: {f303} flora304: {f304} '  # noqa
+                f'left: {left} right: {right} left_filter: {left_filter} right_filter: {right_filter} '  # noqa
             )
 
         return instance_list, image_list

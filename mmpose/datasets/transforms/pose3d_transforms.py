@@ -33,6 +33,118 @@ def left_to_right_hand(keypoints, bbox, width):
 
 
 @TRANSFORMS.register_module()
+class RandomStereoParamAugV2(BaseTransform):
+
+    def __init__(self,
+                 prob=0.5,
+                 baseline_range=[0, 0],
+                 x_angle_range=[0, 0],
+                 y_angle_range=[0, 0],
+                 z_angle_range=[0, 0],
+                 right_shift_range=[0, 0],
+                 up_shift_range=[0, 0],
+                 ella_right_aug=False) -> None:
+        super().__init__()
+        self.prob = prob
+        self.baseline_range = deepcopy(baseline_range)
+        self.x_angle_range = deepcopy(x_angle_range)
+        self.y_angle_range = deepcopy(y_angle_range)
+        self.z_angle_range = deepcopy(z_angle_range)
+        self.right_shift_range = deepcopy(right_shift_range)
+        self.up_shift_range = deepcopy(up_shift_range)
+        self.ella_right_aug = ella_right_aug
+        self.current_left_keypoints = None
+
+    def transform(self, results):
+        """Add disturbance randomly during training and every other data point
+        in test mode for the right camera."""
+        # Augment right eye when left eye is augmented with probability.
+        if (np.random.rand() < self.prob and results['camera_name']
+                == 'left') or (self.current_left_keypoints is not None
+                               and results['camera_name'] == 'right'):
+            # uniform train data and Same 3D points for stereo eye reprojection
+            if self.ella_right_aug:
+                if self.current_left_keypoints is not None:
+                    results['keypoints3d'] = self.current_left_keypoints.copy()
+                    self.current_left_keypoints = None
+                else:
+                    keypoints3d = results['keypoints3d']
+                    keypoints3d[0][:, :1] += np.ones((21, 1)) * 0.1
+                    keypoints3d[0][:, 1:2] += np.ones((21, 1)) * -0.3
+                    keypoints3d[0][:, :1] += np.random.uniform(
+                        self.right_shift_range[0], self.right_shift_range[1],
+                        (21, 1))
+                    self.current_left_keypoints = keypoints3d.copy()
+
+            if results['camera_name'] == 'right':
+                cam_model_right = deepcopy(results['meta']['ori_camera'])
+                keypoints3d = results['keypoints3d']
+                delta_baseline = np.random.rand() * (
+                    self.baseline_range[1] -
+                    self.baseline_range[0]) + self.baseline_range[0]
+                x_random_angle = np.random.rand() * (
+                    self.x_angle_range[1] -
+                    self.x_angle_range[0]) + self.x_angle_range[0]
+                y_random_angle = np.random.rand() * (
+                    self.y_angle_range[1] -
+                    self.y_angle_range[0]) + self.y_angle_range[0]
+                z_random_angle = np.random.rand() * (
+                    self.z_angle_range[1] -
+                    self.z_angle_range[0]) + self.z_angle_range[0]
+                delta_R = R.from_euler(
+                    'ZYX', [z_random_angle, y_random_angle, x_random_angle],
+                    degrees=True).as_matrix()
+                cam_model_right.camera_to_world_xf[:3, :3] = \
+                    cam_model_right.camera_to_world_xf[:3, :3] @ delta_R
+                cam_model_right.camera_to_world_xf[0, 3] += delta_baseline
+                right_keypoints = cam_model_right.world_to_eye(keypoints3d[0])
+                right_keypoints = cam_model_right.eye_to_window(
+                    right_keypoints).reshape(1, -1, 2)
+                # random noise
+                right_keypoints += np.random.normal(0, 1,
+                                                    (right_keypoints.shape))
+                right_bbox = kpt_to_bbox(right_keypoints[0])
+                right_bbox = convert_bbox(right_bbox, results['image_width'],
+                                          results['image_height'])
+                cam_model_left = deepcopy(cam_model_right)
+                if results['meta']['flipped']:
+                    width = results['image_width']
+                    left_to_right_hand(right_keypoints, right_bbox, width)
+
+                cam_model_left.camera_to_world_xf = np.eye(4)
+                _, right_R, vir_baseline = PairHand3DDataset.get_virtual_cam(
+                    cam_model_left, cam_model_right)
+                results['meta']['ori_camera'] = cam_model_right
+                results['bbox'] = right_bbox
+                results['keypoints'] = right_keypoints
+                results['meta']['cam_to_virtual_R'] = right_R
+                results['meta']['virtual_baseline'] = vir_baseline
+                results['meta']['stereo_aug'] = True  # ella tag
+
+            # Reprojecting left eye for right-side data augmentation
+            if (results['camera_name'] == 'left' and self.ella_right_aug):
+                cam_model_left = deepcopy(results['meta']['ori_camera'])
+                keypoints3d = results['keypoints3d']
+                left_keypoints = cam_model_left.world_to_eye(keypoints3d[0])
+                left_keypoints = cam_model_left.eye_to_window(
+                    left_keypoints).reshape(1, -1, 2)
+                # random noise
+                left_keypoints += np.random.normal(0, 1,
+                                                   (left_keypoints.shape))
+                left_bbox = kpt_to_bbox(left_keypoints[0])
+                left_bbox = convert_bbox(left_bbox, results['image_width'],
+                                         results['image_height'])
+                if results['meta']['flipped']:
+                    width = results['image_width']
+                    left_to_right_hand(left_keypoints, left_bbox, width)
+                results['bbox'] = left_bbox
+                results['keypoints'] = left_keypoints
+                results['meta']['stereo_aug'] = True  # ella tag
+
+        return results
+
+
+@TRANSFORMS.register_module()
 class RandomStereoParamAug(BaseTransform):
 
     def __init__(self,

@@ -212,11 +212,20 @@ class MPJPEV2(MPJPE):
             if 'category_id' in data_sample['meta']:
                 result.meta['category_id'] = data_sample['meta']['category_id']
 
+            # import ipdb;ipdb.set_trace()
             if 'img_path' in data_sample.keys():
                 result.meta['img_path'] = data_sample['img_path']
-                result.meta['frame_height'] = data_sample['meta'][
-                    'frame_height']
-                result.meta['frame_width'] = data_sample['meta']['frame_width']
+            if 'frame_height' in data_sample['meta']:
+                if data_sample['meta'].get('stereo_aug', False):
+                    result.meta['frame_height'] = data_sample['meta'][
+                        'frame_width']
+                    result.meta['frame_width'] = data_sample['meta'][
+                        'frame_height']
+                else:
+                    result.meta['frame_height'] = data_sample['meta'][
+                        'frame_height']
+                    result.meta['frame_width'] = data_sample['meta'][
+                        'frame_width']
             # get area information
             if 'bbox_scales' in data_sample['gt_instances']:
                 result.area = float(
@@ -250,3 +259,18 @@ class MPJPEV2(MPJPE):
         res.update(stability_res)
         res.update(pinch_res)
         return res
+
+    @staticmethod
+    def compute_iou(gt_bboxes, pred_bboxes):
+        x1 = np.maximum(gt_bboxes[0], pred_bboxes[0])
+        y1 = np.maximum(gt_bboxes[1], pred_bboxes[1])
+        x2 = np.minimum(gt_bboxes[0] + gt_bboxes[2],
+                        pred_bboxes[0] + pred_bboxes[2])
+        y2 = np.minimum(gt_bboxes[1] + gt_bboxes[3],
+                        pred_bboxes[1] + pred_bboxes[3])
+
+        intersection_area = np.maximum(0, x2 - x1) * np.maximum(0, y2 - y1)
+        area_gt = gt_bboxes[2] * gt_bboxes[3]
+        area_pred = pred_bboxes[2] * pred_bboxes[3]
+        ious = intersection_area / (area_gt + area_pred - intersection_area)
+        return ious

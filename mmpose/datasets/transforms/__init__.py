@@ -10,7 +10,8 @@ from .converting import KeypointConverter, KeypointTo25DLabel
 from .formatting import PackPoseInputs
 from .loading import LoadImage, LoadImageFromMultiLMDB
 from .pose3d_transforms import (RandomFlipAroundRoot, RandomStereoParamAug,
-                                RandomStereoParamAugForClip)
+                                RandomStereoParamAugForClip,
+                                RandomStereoParamAugV2)
 from .topdown_transforms import (AffineTransformConsistency, GenerateAttrLabel,
                                  MixTwoHands, RandomBackground, TopdownAffine,
                                  TopdownPCL)
@@ -24,5 +25,5 @@ __all__ = [
     'ChangeImageQuality', 'RandomBackground', 'LoadImageFromMultiLMDB',
     'AffineTransformConsistency', 'TopdownPCL', 'GenerateAttrLabel',
     'RandomFlipAroundRoot', 'KeypointTo25DLabel', 'RandomStereoParamAug',
-    'RandomStereoParamAugForClip', 'MixTwoHands'
+    'RandomStereoParamAugV2', 'RandomStereoParamAugForClip', 'MixTwoHands'
 ]

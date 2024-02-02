@@ -7,6 +7,7 @@ import torch
 import torch.nn.functional as F
 from mmengine.logging import MessageHub
 from mmengine.model import BaseModule
+from nreal_data_tool.utils import kpt_to_bbox
 from nreal_data_tool.utils.affine import from_two_vectors
 from torch import Tensor, nn
 
@@ -33,6 +34,9 @@ class LiftHeadStandard(BaseModule):
                  kpt3d_output_delta=False,
                  plane_arctan=False,
                  d_model=512,
+                 reproj_thre=0,
+                 iou_thre=0,
+                 pad_2d=False,
                  edge_to_center=False,
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
@@ -71,6 +75,9 @@ class LiftHeadStandard(BaseModule):
         self.baseline = baseline
         self.plane_arctan = plane_arctan
         self.d_model = d_model
+        self.reproj_thre = reproj_thre
+        self.iou_thre = iou_thre
+        self.pad_2d = pad_2d
         self.edge_to_center = edge_to_center
         self.center_rot = None
 
@@ -93,7 +100,7 @@ class LiftHeadStandard(BaseModule):
                     uv_coord_im_pred)
         return recover_uv_coord_im_pred
 
-    def preprocess(self, feats, batch_data_samples):
+    def preprocess(self, feats, batch_data_samples, mode):
         xy_coord = feats[..., :2]
         B = int(len(batch_data_samples) / 2)
         N = 2
@@ -185,13 +192,26 @@ class LiftHeadStandard(BaseModule):
 
         frame_width = batch_data_samples[0].meta['frame_width']
         uv_coord_im_pred_global_distort_noflip = self.recover_hand(
-            uv_coord_im_pred_global_distort, left_hand, frame_width)
+            uv_coord_im_pred_global_distort, left_hand,
+            frame_width).view(-1, K, 2)
         uv_coord_im_gt_global = self.recover_hand(uv_coord_im_gt_global,
                                                   left_hand,
                                                   frame_width).view(-1, K, 2)
 
-        uv_coord_im_pred_global = uv_coord_im_pred_global_distort_noflip.view(
-            -1, K, 2).clone()
+        # Pad 2D keypoints exceeding boundaries
+        if self.pad_2d and mode == 'loss':
+            for i in range(len(batch_data_samples)):
+                pred_kpt = uv_coord_im_pred_global_distort_noflip[i]
+                gt_kpt = uv_coord_im_gt_global[i]
+                data_sample = batch_data_samples[i]
+                mask = self.keypoint_within_bounds(
+                    gt_kpt, data_sample.meta['frame_width'],
+                    data_sample.meta['frame_height'])
+                if mask.any():
+                    noise = (4 * torch.rand((mask.sum(), 2)) - 2).cuda()
+                    pred_kpt[:, :2][mask] = gt_kpt[:, :2][mask] + noise
+        uv_coord_im_pred_global = uv_coord_im_pred_global_distort_noflip.clone(
+        )
         if self.all_use_kp2d_gt:
             uv_coord_im_pred_global = uv_coord_im_gt_global.view(-1, K,
                                                                  2).clone()
@@ -250,8 +270,9 @@ class LiftHeadStandard(BaseModule):
         return (feats, norm_leftcam_xyz, norm_rightcam_xyz, lr_rot_matrix,
                 lr_p, left_to_right_rt, leftcam_cam_matrix,
                 rightcam_cam_matrix, uv_coord_im_pred_global,
-                uv_coord_im_pred_global_distort, hand3d_gt, left_R, right_R,
-                baseline_scale)
+                uv_coord_im_gt_global, uv_coord_im_pred_global_distort,
+                uv_coord_im_pred_global_distort_noflip, hand3d_gt, left_R,
+                right_R, baseline_scale)
 
     def postprocess(self, output, norm_leftcam_xyz, norm_rightcam_xyz, left_R,
                     right_R, lr_rot_matrix, lr_p, baseline_scale):
@@ -319,9 +340,10 @@ class LiftHeadStandard(BaseModule):
         with torch.no_grad():
             (feats, norm_leftcam_xyz, norm_rightcam_xyz, lr_rot_matrix, lr_p,
              left_to_right_rt, leftcam_cam_matrix, rightcam_cam_matrix,
-             uv_coord_im_pred_global, uv_coord_im_pred_global_distort,
+             uv_coord_im_pred_global, uv_coord_im_gt_global,
+             uv_coord_im_pred_global_distort, uv_coord_im_pred_global_distort_noflip,  # noqa
              hand3d_gt, left_R, right_R, baseline_scale) = \
-                self.preprocess(feats, batch_data_samples)
+                self.preprocess(feats, batch_data_samples, 'predict')
         output = self.forward(feats)
         hand3d_pred = self.postprocess(output, norm_leftcam_xyz,
                                        norm_rightcam_xyz, left_R, right_R,
@@ -344,9 +366,10 @@ class LiftHeadStandard(BaseModule):
         with torch.no_grad():
             (feats, norm_leftcam_xyz, norm_rightcam_xyz, lr_rot_matrix, lr_p,
              left_to_right_rt, leftcam_cam_matrix, rightcam_cam_matrix,
-             uv_coord_im_pred_global, uv_coord_im_pred_global_distort,
+             uv_coord_im_pred_global, uv_coord_im_gt_global,
+             uv_coord_im_pred_global_distort, uv_coord_im_pred_global_distort_noflip,  # noqa
              hand3d_gt, left_R, right_R, baseline_scale) = \
-                self.preprocess(feats, batch_data_samples)
+                self.preprocess(feats, batch_data_samples, 'loss')
         output = self.forward(feats)
         hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
             output, norm_leftcam_xyz, norm_rightcam_xyz, left_R, right_R,
@@ -376,6 +399,12 @@ class LiftHeadStandard(BaseModule):
             hand3d_gt, hand3d_gt, hand3d_gt, leftcam_uv_gt, rightcam_uv_gt,
             dist_gt, major_gt
         ]
+
+        # filter abnormal GT
+        self.filter_invalid_gt(uv_coord_im_gt_global[::2],
+                               uv_coord_im_pred_global_distort_noflip[::2],
+                               pred_for_loss, targ_for_loss)
+
         losses = self.lift_loss(pred_for_loss, targ_for_loss)
         (loss_mse_3d, loss_mse_3d_leftcam, loss_mse_3d_rightcam,
          loss_mse_2d_leftcam, loss_mse_2d_rightcam, loss_pinch,
@@ -398,6 +427,21 @@ class LiftHeadStandard(BaseModule):
             loss_pinch=loss_pinch,
             loss_major=loss_major)
         return losses_dict
+
+    def filter_invalid_gt(self, gt_kpt, pred_kpt, pred_for_loss,
+                          targ_for_loss):
+        if self.iou_thre and self.reproj_thre:
+            kpt2d_error = ((gt_kpt - pred_kpt)).abs().sum(axis=(1, 2))
+            gt_bbox = [kpt_to_bbox(np.array(kpt.cpu())) for kpt in gt_kpt]
+            pred_bbox = [
+                kpt_to_bbox(np.array(kpt.detach().cpu())) for kpt in pred_kpt
+            ]
+            iou = torch.tensor(
+                self.compute_iou(np.array(gt_bbox),
+                                 np.array(pred_bbox))).cuda()
+            index = (kpt2d_error > self.reproj_thre) & (iou < self.iou_thre)
+            pred_for_loss = [loss[~index] for loss in pred_for_loss]
+            targ_for_loss = [loss[~index] for loss in targ_for_loss]
 
     def standardize_stereo(self, leftcam_xy, rightcam_xy, left_R, right_R):
         """transform to standard stereo system."""
@@ -484,3 +528,30 @@ class LiftHeadStandard(BaseModule):
             norm_rightcam_xyz = F.normalize(rot_rightcam_xyz, p=2, dim=-1)
         self.center_rot = center_rot
         return norm_leftcam_xyz, norm_rightcam_xyz
+
+    @staticmethod
+    def keypoint_within_bounds(keypoint, image_width, image_height):
+        x, y = keypoint[:, 0], keypoint[:, 1]
+        mask = ((0 <= x) & (x < image_width)) & ((0 <= y) & (y < image_height))
+        return ~mask
+
+    @staticmethod
+    def compute_iou(gt_bboxes, pred_bboxes):
+        # 计算交集的坐标范围
+        x1 = np.maximum(gt_bboxes[:, 0], pred_bboxes[:, 0])
+        y1 = np.maximum(gt_bboxes[:, 1], pred_bboxes[:, 1])
+        x2 = np.minimum(gt_bboxes[:, 0] + gt_bboxes[:, 2],
+                        pred_bboxes[:, 0] + pred_bboxes[:, 2])
+        y2 = np.minimum(gt_bboxes[:, 1] + gt_bboxes[:, 3],
+                        pred_bboxes[:, 1] + pred_bboxes[:, 3])
+
+        # 计算交集的面积
+        intersection_area = np.maximum(0, x2 - x1) * np.maximum(0, y2 - y1)
+
+        # 计算各自框的面积
+        area_gt = gt_bboxes[:, 2] * gt_bboxes[:, 3]
+        area_pred = pred_bboxes[:, 2] * pred_bboxes[:, 3]
+
+        # 计算并返回 IoU
+        ious = intersection_area / (area_gt + area_pred - intersection_area)
+        return ious

@@ -24,7 +24,8 @@ class NrealKeypointAP(BaseMetric):
                  prefix: Optional[str] = None,
                  result_dir=None,
                  with_tag: bool = False,
-                 filter_exceed:bool = False) -> None:
+                 filter_exceed: bool = False,
+                 category_metric=False) -> None:
         super().__init__(collect_device, prefix)
         self.result_dir = result_dir
         self.logger = MMLogger.get_current_instance()
@@ -32,7 +33,8 @@ class NrealKeypointAP(BaseMetric):
             gesture_list=deepcopy(gesture_list),
             logger=self.logger,
             with_tag=with_tag,
-            filter_exceed=filter_exceed)
+            filter_exceed=filter_exceed,
+            category_metric=category_metric)
 
     def process(self, data_batch, data_samples: Sequence[dict]) -> None:
         for data_sample in data_samples:
@@ -48,6 +50,10 @@ class NrealKeypointAP(BaseMetric):
             result.gt_keypoints = data_sample['gt_instances']['keypoints'][
                 0].tolist()
             result.keypoints = keypoints[0].tolist()
+            result.gt_keypoints3d = (
+                data_sample['gt_instances']['keypoints3d'][0]).tolist()
+            result.keypoints3d = (
+                data_sample['pred_instances']['keypoints3d'][0]).tolist()
             result.keypoint_visible = data_sample['gt_instances'][
                 'keypoints_visible'].reshape((-1)).tolist()
             result.score = float(np.mean(keypoint_scores))
@@ -55,6 +61,21 @@ class NrealKeypointAP(BaseMetric):
                 result.meta['tag'] = data_sample['meta']['tag']
             if 'gesture' in data_sample['meta']:
                 result.meta['gesture'] = data_sample['meta']['gesture']
+            if 'category_id' in data_sample['meta']:
+                result.meta['category_id'] = data_sample['meta']['category_id']
+            if 'img_path' in data_sample.keys():
+                result.meta['img_path'] = data_sample['img_path']
+            if 'frame_height' in data_sample['meta']:
+                if data_sample['meta'].get('stereo_aug', False):
+                    result.meta['frame_height'] = data_sample['meta'][
+                        'frame_height']
+                    result.meta['frame_width'] = data_sample['meta'][
+                        'frame_width']
+                else:
+                    result.meta['frame_height'] = data_sample['meta'][
+                        'frame_width']
+                    result.meta['frame_width'] = data_sample['meta'][
+                        'frame_height']
             # get area information
             if 'bbox_scales' in data_sample['gt_instances']:
                 result.meta['bbox_scales'] = data_sample['gt_instances'][
