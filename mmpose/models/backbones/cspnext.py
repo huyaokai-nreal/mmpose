@@ -202,7 +202,7 @@ class CSPNeXt(BaseModule):
                 norm_cfg=norm_cfg,
                 act_cfg=act_cfg)
             stage.append(conv_layer)
-            if use_spp:
+            if use_spp and spp_kernel_sizes:
                 spp = SPPBottleneck(
                     out_channels,
                     out_channels,
