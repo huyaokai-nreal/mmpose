@@ -31,6 +31,31 @@ Number = Union[int, float]
 
 
 @TRANSFORMS.register_module()
+class GroupTransformers(BaseTransform):
+
+    def __init__(self, trans_cfg_list, enable_epoch_num) -> None:
+        super().__init__()
+        self.trans_list = []
+        self.enable_epoch_num = enable_epoch_num
+        for cfg in trans_cfg_list:
+            self.trans_list.append(TRANSFORMS.build(cfg))
+
+    def _transform(self, results):
+        for trans in self.trans_list:
+            results = trans(results)
+        return results
+
+    def transform(self, results: Dict) -> Dict:
+        if self.enable_epoch_num > 0:
+            mh = MessageHub.get_current_instance()
+            cur_epoch = mh.get_info('epoch')
+            if cur_epoch is None or cur_epoch >= self.enable_epoch_num:
+                return results
+        results = self._transform(results)
+        return results
+
+
+@TRANSFORMS.register_module()
 class ChangeImageQuality(BaseTransform):
 
     def __init__(self, img_quality=95, prob=0.0) -> None:
