@@ -120,6 +120,10 @@ class LiftHeadStandard(BaseModule):
         lr_rot_matrix = []
         hand3d_gt = []
         is_left_hands = []
+        nimble_pose = []
+        nimble_trans = []
+        nimble_shape = []
+        nimble_info = dict()
 
         uv_coord_im_gt_global = []
 
@@ -132,6 +136,10 @@ class LiftHeadStandard(BaseModule):
                 leftcam_cam_matrix.append(left_cam_matrix)
                 left_R.append(data_sample.meta['cam_to_virtual_R'])
                 hand3d_gt.append(data_sample.gt_instances.keypoints3d[0])
+                if 'nimble_pose' in data_sample.meta.keys():
+                    nimble_pose.append(data_sample.meta['nimble_pose'])
+                    nimble_trans.append(data_sample.meta['nimble_translation'])
+                    nimble_shape.append(data_sample.meta['nimble_shape'])
                 if data_sample.meta['category_id'] == 1:
                     is_left_hands.append(1)
                 else:
@@ -170,6 +178,15 @@ class LiftHeadStandard(BaseModule):
         left_to_right_rt = torch.tensor(
             np.array(left_to_right_rt)).cuda().float()
         hand3d_gt = torch.tensor(np.array(hand3d_gt)).cuda().float()
+        nimble_pose = torch.tensor(np.array(nimble_pose)).cuda().float()
+        nimble_trans = torch.tensor(np.array(nimble_trans)).cuda().float()
+        nimble_shape = torch.tensor(np.array(nimble_shape)).cuda().float()
+        if nimble_pose.shape[0] > 0:
+            nimble_info = {
+                'nimble_pose': nimble_pose,
+                'nimble_trans': nimble_trans,
+                'nimble_shape': nimble_shape
+            }
         left_hand = torch.tensor(np.array(is_left_hands)).cuda().float()
         uv_coord_im_gt_global = torch.tensor(
             np.array(uv_coord_im_gt_global)).cuda().float()
@@ -271,7 +288,8 @@ class LiftHeadStandard(BaseModule):
                 lr_p, left_to_right_rt, leftcam_cam_matrix,
                 rightcam_cam_matrix, uv_coord_im_pred_global,
                 uv_coord_im_gt_global, uv_coord_im_pred_global_distort,
-                uv_coord_im_pred_global_distort_noflip, hand3d_gt, left_R,
+                uv_coord_im_pred_global_distort_noflip, hand3d_gt, 
+                left_hand, nimble_info, left_R,
                 right_R, baseline_scale)
 
     def postprocess(self, output, norm_leftcam_xyz, norm_rightcam_xyz, left_R,
@@ -342,8 +360,8 @@ class LiftHeadStandard(BaseModule):
              left_to_right_rt, leftcam_cam_matrix, rightcam_cam_matrix,
              uv_coord_im_pred_global, uv_coord_im_gt_global,
              uv_coord_im_pred_global_distort, uv_coord_im_pred_global_distort_noflip,  # noqa
-             hand3d_gt, left_R, right_R, baseline_scale) = \
-                self.preprocess(feats, batch_data_samples, 'predict')
+             hand3d_gt, left_hand, nimble_info, left_R, right_R,
+             baseline_scale) = self.preprocess(feats, batch_data_samples, 'predict')
         output = self.forward(feats)
         hand3d_pred = self.postprocess(output, norm_leftcam_xyz,
                                        norm_rightcam_xyz, left_R, right_R,
@@ -368,8 +386,8 @@ class LiftHeadStandard(BaseModule):
              left_to_right_rt, leftcam_cam_matrix, rightcam_cam_matrix,
              uv_coord_im_pred_global, uv_coord_im_gt_global,
              uv_coord_im_pred_global_distort, uv_coord_im_pred_global_distort_noflip,  # noqa
-             hand3d_gt, left_R, right_R, baseline_scale) = \
-                self.preprocess(feats, batch_data_samples, 'loss')
+             hand3d_gt, left_hand, nimble_info, left_R, right_R,
+             baseline_scale) = self.preprocess(feats, batch_data_samples, 'loss')
         output = self.forward(feats)
         hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
             output, norm_leftcam_xyz, norm_rightcam_xyz, left_R, right_R,

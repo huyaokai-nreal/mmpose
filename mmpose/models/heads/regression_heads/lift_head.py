@@ -60,6 +60,7 @@ class LiftHead(BaseModule):
         return output
 
     def preprocess(self, feats, batch_data_samples):
+
         xy_coord = feats[..., :2]
         if self.kpt2d_with_depth:
             depth = feats[..., 2:][::2]
@@ -79,6 +80,10 @@ class LiftHead(BaseModule):
         lr_rot_matrix = []
         hand3d_gt = []
         is_left_hands = []
+        nimble_pose = []
+        nimble_trans = []
+        nimble_shape = []
+        nimble_info = dict()
 
         uv_coord_im_gt_global = []
 
@@ -90,6 +95,10 @@ class LiftHead(BaseModule):
                 left_cam_matrix = left_camera.uv_to_window_matrix()
                 leftcam_cam_matrix.append(left_cam_matrix)
                 hand3d_gt.append(data_sample.gt_instances.keypoints3d[0])
+                if 'nimble_pose' in data_sample.meta.keys():
+                    nimble_pose.append(data_sample.meta['nimble_pose'])
+                    nimble_trans.append(data_sample.meta['nimble_translation'])
+                    nimble_shape.append(data_sample.meta['nimble_shape'])
                 if data_sample.meta['category_id'] == 1:  # 1: left, 2: right
                     is_left_hands.append(1)
                 else:
@@ -102,6 +111,7 @@ class LiftHead(BaseModule):
                 right_cam_xf = right_camera.camera_to_world_xf
                 lr_t = np.dot(np.linalg.inv(left_cam_xf),
                               right_cam_xf).astype(np.float32)
+                left_to_right_rt = np.linalg.inv(right_cam_xf)
                 lr_rot_matrix.append(lr_t[:3, :3])
                 lr_p.append(lr_t[:3, 3])
 
@@ -118,7 +128,18 @@ class LiftHead(BaseModule):
             np.array(rightcam_cam_matrix)).cuda().float()
         lr_p = torch.tensor(np.array(lr_p)).cuda().float()
         lr_rot_matrix = torch.tensor(np.array(lr_rot_matrix)).cuda().float()
+        left_to_right_rt = torch.tensor(
+            np.array(left_to_right_rt)).cuda().float()
         hand3d_gt = torch.tensor(np.array(hand3d_gt)).cuda().float()
+        nimble_pose = torch.tensor(np.array(nimble_pose)).cuda().float()
+        nimble_trans = torch.tensor(np.array(nimble_trans)).cuda().float()
+        nimble_shape = torch.tensor(np.array(nimble_shape)).cuda().float()
+        if nimble_pose.shape[0] > 0:
+            nimble_info = {
+                'nimble_pose': nimble_pose,
+                'nimble_trans': nimble_trans,
+                'nimble_shape': nimble_shape
+            }
         left_rel_depth = hand3d_gt[..., 2:3] - hand3d_gt[:, :1, 2:3]
         left_hand = torch.tensor(np.array(is_left_hands)).cuda().float()
         uv_coord_im_gt_global = torch.tensor(
@@ -164,9 +185,9 @@ class LiftHead(BaseModule):
 
         if self.undistort:
             for i, data_sample in enumerate(batch_data_samples):
-                if data_sample.meta.get('stereo_aug', False):
-                    uv_coord_im_pred_global[i] = uv_coord_im_gt_global[
-                        i].clone()
+                # if data_sample.meta.get('stereo_aug', False):
+                #     uv_coord_im_pred_global[i] = uv_coord_im_gt_global[
+                #         i].clone()
                 camera_model = data_sample.meta['ori_camera']
                 kpt2d_u = camera_model.undistort(
                     uv_coord_im_pred_global[i].cpu().numpy())
@@ -249,10 +270,10 @@ class LiftHead(BaseModule):
             else:
                 feats = torch.cat((feature1, feature2), dim=1).float()
 
-        return (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,
+        return (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p, left_to_right_rt,
                 leftcam_cam_matrix, rightcam_cam_matrix,
                 uv_coord_im_pred_global, uv_coord_im_pred_global_distort,
-                hand3d_gt)
+                hand3d_gt, left_hand, nimble_info)
 
     def postprocess(self, output, leftcam_xy, rightcam_xy, lr_rot_matrix,
                     lr_p):
@@ -281,10 +302,10 @@ class LiftHead(BaseModule):
                 batch_data_samples: OptSampleList,
                 test_cfg: ConfigType = {}) -> Predictions:
         with torch.no_grad():
-            (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,
+            (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p, left_to_right_rt,
              leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global,
              uv_coord_im_pred_global_distort,
-             hand3d_gt) = self.preprocess(feats, batch_data_samples)
+             hand3d_gt, left_hand, nimble_info) = self.preprocess(feats, batch_data_samples)
         output = self.forward(feats)
         hand3d_pred = self.postprocess(output, leftcam_xy, rightcam_xy,
                                        lr_rot_matrix, lr_p)[0]
@@ -309,10 +330,10 @@ class LiftHead(BaseModule):
              train_cfg: ConfigType = {}) -> dict:
         """Calculate losses from a batch of inputs and data samples."""
         with torch.no_grad():
-            (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,
+            (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p, left_to_right_rt,
              leftcam_cam_matrix, rightcam_cam_matrix, uv_coord_im_pred_global,
              uv_coord_im_pred_global_distort,
-             hand3d_gt) = self.preprocess(feats, batch_data_samples)
+             hand3d_gt, left_hand, nimble_info) = self.preprocess(feats, batch_data_samples)
         output = self.forward(feats)
         hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
             output, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p)
