@@ -75,7 +75,6 @@ model = dict(
         out_channels=21,
         input_size=codec['input_size'],
         in_featuremap_size=(4, 4),
-        with_hand_scale=True,
         simcc_split_ratio=2,
         final_layer_kernel_size=3,
         output_sigma=False,
@@ -281,6 +280,8 @@ val_3d_dataset = dict(
     test_mode=True,
     pipeline=val_pipeline,
     flip_left_to_right=True,
+    extern_hand_template_path=
+    '/data/AI_DATA/data_hand/model/mmpose/mean_hand_bones_230824.npz',
     mean_bone_template_path=
     '/data/AI_DATA/data_hand/model/mmpose/mean_hand_bones_230824.npz',
     #point_type='leftcam',

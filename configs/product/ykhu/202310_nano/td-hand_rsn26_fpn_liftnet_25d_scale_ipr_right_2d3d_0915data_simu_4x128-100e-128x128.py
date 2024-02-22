@@ -73,7 +73,6 @@ model = dict(
         out_channels=21,
         input_size=codec['input_size'],
         in_featuremap_size=(4, 4),
-        with_hand_scale=True,
         simcc_split_ratio=2,
         final_layer_kernel_size=3,
         output_sigma=False,

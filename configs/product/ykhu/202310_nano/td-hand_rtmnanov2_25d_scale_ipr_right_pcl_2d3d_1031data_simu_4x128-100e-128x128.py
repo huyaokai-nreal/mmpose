@@ -13,7 +13,7 @@ train_cfg = dict(max_epochs=100, val_interval=5)
 data_root = '/data/AI_DATA_WX'
 # data_root = '/data/AI_DATA_LOCAL'
 test_type = '3d'
-camera_layout = 'monocular'
+camera_layout = 'virtual_binocular'
 base_lr = 1e-4
 # optimizer
 optim_wrapper = dict(
@@ -75,7 +75,6 @@ model = dict(
         out_channels=21,
         input_size=codec['input_size'],
         in_featuremap_size=(4, 4),
-        with_hand_scale=True,
         simcc_split_ratio=2,
         final_layer_kernel_size=3,
         output_sigma=False,
@@ -240,7 +239,6 @@ val_2d_data_list = [
 ]
 val_2d_data_list = [item for sublist in val_2d_data_list for item in sublist]
 val_2d_data_list = [os.path.join(data_root, item) for item in val_2d_data_list]
-print(val_2d_data_list)
 train_dataloader = dict(
     batch_size=128,
     num_workers=8,
@@ -285,6 +283,8 @@ val_3d_dataset = dict(
     pipeline=val_pipeline,
     flip_left_to_right=True,
     mean_bone_template_path=
+    '/data/AI_DATA/data_hand/model/mmpose/mean_hand_bones_230824.npz',
+    extern_hand_template_path=
     '/data/AI_DATA/data_hand/model/mmpose/mean_hand_bones_230824.npz',
     #point_type='leftcam',
     point_type='2.5D' if camera_layout == 'monocular' else '3D',

@@ -12,8 +12,8 @@ train_cfg = dict(max_epochs=100, val_interval=5)
 
 data_root = '/data/AI_DATA_WX'
 # data_root = '/data/AI_DATA_LOCAL'
-test_type = '2d'
-camera_layout = 'monocular'
+test_type = '3d'
+camera_layout = 'ori_binocular'
 base_lr = 1e-4
 # optimizer
 optim_wrapper = dict(
@@ -75,7 +75,6 @@ model = dict(
         out_channels=21,
         input_size=codec['input_size'],
         in_featuremap_size=(4, 4),
-        with_hand_scale=True,
         simcc_split_ratio=2,
         final_layer_kernel_size=3,
         output_sigma=False,

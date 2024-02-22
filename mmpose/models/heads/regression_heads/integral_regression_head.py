@@ -93,14 +93,12 @@ class IntegralRegressionHead(BaseHead):
                  output_fuse_coord: bool = False,
                  output_depth: bool = False,
                  depth_channel: int = 256,
-                 depth_encode_type: str = 'direct',
-                 with_hand_scale=False):
+                 depth_encode_type: str = 'direct'):
 
         if init_cfg is None:
             init_cfg = self.default_init_cfg
 
         super().__init__(init_cfg)
-        self.with_hand_scale = with_hand_scale
         self.depth_encode_type = depth_encode_type
         self.in_channels = in_channels
         self.num_joints = num_joints
@@ -379,10 +377,6 @@ class IntegralRegressionHead(BaseHead):
             batch_coords[..., 2:] = batch_coords[..., 2:].sigmoid()
         batch_coords.unsqueeze_(dim=1)  # (B, N, K, D)
         preds = self.decode(batch_coords)
-        if self.with_hand_scale:
-            for i in range(len(preds)):
-                preds[i].keypoints[..., -1] * batch_data_samples[i].meta.get(
-                    'hand_scale', 1)
         if test_cfg.get('output_heatmaps', False):
             pred_fields = [
                 PixelData(heatmaps=hm) for hm in batch_heatmaps.detach()

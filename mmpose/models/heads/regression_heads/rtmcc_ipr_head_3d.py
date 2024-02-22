@@ -1,6 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from typing import Optional, Sequence, Tuple, Union
-import copy
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -11,9 +11,7 @@ from mmpose.evaluation.functional import keypoint_pck_accuracy
 from mmpose.models.utils.tta import flip_coordinates, flip_heatmaps
 from mmpose.registry import MODELS
 from mmpose.utils.tensor_utils import to_numpy
-from mmpose.utils.typing import ConfigType, InstanceList, OptConfigType, OptSampleList, SampleList
-from mmpose.models.pose_estimators.topdown3d import get_root_depth
-from nreal_data_tool.utils.camera import PinholePlaneCameraModel
+from mmpose.utils.typing import ConfigType, OptConfigType, OptSampleList
 from ...utils.siamcc_to_kpt import SimCCToKeypoint3D
 from ..coord_cls_heads import RTMCCHead3D
 
@@ -92,8 +90,7 @@ class RTMCCIPRHead3D(RTMCCHead3D):
                  decoder: OptConfigType = None,
                  init_cfg: OptConfigType = None,
                  output_sigma: bool = False,
-                 deploy: bool = False,
-                 with_hand_scale: bool = False):
+                 deploy: bool = False):
         super().__init__(in_channels, out_channels, input_size,
                          in_featuremap_size, simcc_split_ratio,
                          final_layer_kernel_size, gau_cfg, loss, decoder,
@@ -104,7 +101,6 @@ class RTMCCIPRHead3D(RTMCCHead3D):
         self.ipr_module = SimCCToKeypoint3D(feat_w=W, feat_h=H, feat_d=D)
         self.output_sigma = output_sigma
         self.deploy = deploy
-        self.with_hand_scale = with_hand_scale
         if self.output_sigma:
             self.gap = nn.AdaptiveAvgPool2d((1, 1))
             self.sigma_conv = nn.Conv2d(
@@ -126,9 +122,7 @@ class RTMCCIPRHead3D(RTMCCHead3D):
         pred_x, pred_y, pred_z = super().forward(feats)
         heatmaps = torch.cat([pred_x, pred_y, pred_z], dim=1)
         raw_feats = feats[-1]
-        pred_x, pred_y, pred_z = self.ipr_module(
-            pred_x, pred_y, pred_z
-        )
+        pred_x, pred_y, pred_z = self.ipr_module(pred_x, pred_y, pred_z)
         pred_z = pred_z
         output = torch.cat([pred_x, pred_y, pred_z], dim=-1)
         if self.output_sigma:
@@ -206,10 +200,6 @@ class RTMCCIPRHead3D(RTMCCHead3D):
             batch_coords[..., 2:] = batch_coords[..., 2:].sigmoid()
         batch_coords.unsqueeze_(dim=1)  # (B, N, K, D)
         preds = self.decode(batch_coords)
-        if self.with_hand_scale:
-            for i in range(len(preds)):
-                preds[i].keypoints[..., -1] *= batch_data_samples[i].meta.get(
-                    'hand_scale', 1)
         if test_cfg.get('output_heatmaps', False):
             pred_fields = [
                 PixelData(heatmaps=hm) for hm in batch_heatmaps.detach()

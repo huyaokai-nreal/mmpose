@@ -173,6 +173,7 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             if left_data_sample.meta.get('norm_depth', False):
                 hand_scale = left_data_sample.meta.get('hand_scale', 1.0)
                 left_gt_instances.keypoints[..., -1] *= hand_scale
+                left_kpt[..., -1] *= hand_scale
             left_pred_instance.keypoints = left_kpt[None, ...].copy()
             if left_data_sample.meta['flipped']:
                 image_width = left_data_sample.meta['frame_width']
@@ -278,6 +279,8 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             left_data_sample.pred_instances = left_pred_instance
             if left_data_sample.meta.get('norm_depth', False):
                 hand_scale = left_data_sample.meta.get('hand_scale', 1.0)
+                left_data_sample.pred_instances.keypoints[...,
+                                                          -1] *= hand_scale
                 left_data_sample.gt_instances.keypoints[
                     ...,
                     -1] = left_data_sample.gt_instances.transformed_keypoints[
@@ -410,6 +413,7 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             if data_sample.meta.get('norm_depth', False):
                 hand_scale = data_sample.meta.get('hand_scale', 1.0)
                 gt_instances.keypoints[..., -1] *= hand_scale
+                pred_instances.keypoints3d *= hand_scale
 
             if pred_fields is not None:
                 if output_keypoint_indices is not None:

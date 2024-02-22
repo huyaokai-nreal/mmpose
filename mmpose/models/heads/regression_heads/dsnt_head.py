@@ -97,7 +97,6 @@ class DSNTHead(IntegralRegressionHead):
             heatmap_loss=True,
             output_depth=False,
             depth_channel=256,
-            with_hand_scale=False,
             depth_encode_type='direct',  # 'heatmap' or 'direct'
             input_size: Optional[Tuple] = None):
 
@@ -106,7 +105,6 @@ class DSNTHead(IntegralRegressionHead):
             in_featuremap_size=in_featuremap_size,
             num_joints=num_joints,
             debias=debias,
-            with_hand_scale=with_hand_scale,
             beta=beta,
             deconv_out_channels=deconv_out_channels,
             deconv_kernel_sizes=deconv_kernel_sizes,
