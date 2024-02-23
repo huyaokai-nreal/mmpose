@@ -125,16 +125,32 @@ model = dict(
                 dict(type='L1Loss', loss_weight=1),  # 3d kpts
                 dict(type='L1Loss', loss_weight=1),  # 3d kpts leftcam
                 dict(type='L1Loss', loss_weight=1),  # 3d kpts rightcam
-                dict(type='MSELoss', loss_weight=0, enable_start_epoch=train_cfg['max_epochs'] - 40),  # 2d reprojection left
-                dict(type='MSELoss', loss_weight=0, enable_start_epoch=train_cfg['max_epochs'] - 40),  # 2d reprojection right
+                dict(
+                    type='MSELoss',
+                    loss_weight=0,
+                    enable_start_epoch=train_cfg['max_epochs'] -
+                    40),  # 2d reprojection left
+                dict(
+                    type='MSELoss',
+                    loss_weight=0,
+                    enable_start_epoch=train_cfg['max_epochs'] -
+                    40),  # 2d reprojection right
                 dict(
                     type='PinchLoss',
                     enter_thre=pinch_thre[0] / 1000,
                     exit_thre=pinch_thre[1] / 1000,
                     loss_weight=2,
-                    enable_start_epoch=0), 
-                dict(type='L1Loss', loss_weight=0, enable_start_epoch=train_cfg['max_epochs'] - 40),  # xyz比例损失
-                dict(type='MSELoss', loss_weight=0, enable_start_epoch=train_cfg['max_epochs'] - 40),  # nimble pose直接监督
+                    enable_start_epoch=0),
+                dict(
+                    type='L1Loss',
+                    loss_weight=0,
+                    enable_start_epoch=train_cfg['max_epochs'] -
+                    40),  # xyz比例损失
+                dict(
+                    type='MSELoss',
+                    loss_weight=0,
+                    enable_start_epoch=train_cfg['max_epochs'] -
+                    40),  # nimble pose直接监督
                 dict(type='MSELoss', loss_weight=5),  # nimble trans直接监督
                 dict(
                     type='MPJPAELoss',
@@ -147,12 +163,13 @@ model = dict(
         kpt2d_with_depth=kpt2d_with_depth,
         undistort=True,
         use_svd=True,
-        lambda_t = train_cfg['max_epochs'],
-        pose_ncomp = 30, 
-        euler_or_quaternion = "euler",
+        lambda_t=train_cfg['max_epochs'],
+        pose_ncomp=30,
+        euler_or_quaternion='euler',
         disparity_input=False,
         use_plane_coord=True,
         baseline=0.135,
+        use_6d_pose_reg=False,
         reproj_thre=440,
         iou_thre=0.5,
         pad_2d=False,
@@ -172,8 +189,7 @@ model = dict(
         #f'/data/AI_DATA/jrchen/git-project/mmpose/work_dirs/pair_hand3d/006_td-stage_two_train_55dim_RLE_head_train_flora_finetune/FT_kp2d_add_ella_pretrain_lift.pth'  # flora kp2d + ella kp3d
         # '/home/zx_li/workspace/mmpose/work_dirs/td-hand_rsn26_fpn_25d_ipr_right_pcl_2d3d_4x128-100e-128x128/epoch_100.pth',
         # 'work_dirs/keypoint25d/01_td-hand_rsn26_fpn_25d_ipr_right_pcl_2d3d_4x128-100e-128x128_Affine/best_all_p-mpjpe_epoch_90.pth'
-        '/data/stliu/mmpose/work_dirs/bone_loss/best_all_mpjpe_epoch_100.pth'
-    ),
+        '/data/stliu/mmpose/work_dirs/bone_loss/best_all_mpjpe_epoch_100.pth'),
 )
 
 # base dataset settings
@@ -181,27 +197,32 @@ dataset_type = 'PairHand3DDatasetSeq'
 data_mode = 'topdown'
 
 import os
+
 train_data_list = []
-train_date_list = [
-    '20230906', '20230907',
-]
+train_date_list = ['20230824', '20230828', '20230906', '20230907']
 train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
-tmp_base_path = "data_hand/hand_keypoint/annotations3d/"
+tmp_base_path = 'data_hand/hand_keypoint/annotations3d/'
 for train_glasses in train_glasses_list:
-    train_floder_path = os.path.join(data_root, tmp_base_path, "Flora_with_nimble_seq")
+    train_floder_path = os.path.join(data_root, tmp_base_path,
+                                     'Flora_with_nimble_seq')
     folder_all_files = os.listdir(train_floder_path)
     for train_date in train_date_list:
-        result_list = [s for s in folder_all_files if train_glasses in s and train_date in s]
-        result_list = [os.path.join(tmp_base_path, "Flora_with_nimble_seq", item) for item in result_list]
+        result_list = [
+            s for s in folder_all_files
+            if train_glasses in s and train_date in s
+        ]
+        result_list = [
+            os.path.join(tmp_base_path, 'Flora_with_nimble_seq', item)
+            for item in result_list
+        ]
         train_data_list += result_list
-        
+
 # train_data_list = ['data_hand/hand_keypoint/annotations3d/Flora_with_nimble_seq/XS__20230906_033122__pinch__bright__right__1111__0022__undistort_tar__Flora304.json']
 
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
-
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_070648__all__normal__right__1111__0005__undistort_tar__Flora301.json',  #
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_071804__all__bright__left__1111__0005__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_072334__pinch__dark__right__1111__0005__undistort_tar__Flora301.json',
@@ -210,7 +231,6 @@ val_data_list = [
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073556__pinch__bright__left__1111__0005__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073857__pinch__normal__right__1111__0005__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_074601__pinch__bright__left__1111__0005__undistort_tar__Flora301.json',
-
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # pipelines
@@ -219,7 +239,6 @@ train_pipeline = [
         type='RandomStereoParamAug',
         prob=0,
     ),
-    
     dict(
         type='Albumentation',
         transforms=[
@@ -278,7 +297,8 @@ val_dataloader = dict(
     num_workers=8,
     persistent_workers=True,
     drop_last=True,
-    sampler=dict(type='DistributedRangeSampler', shuffle=False, round_up=False),
+    sampler=dict(
+        type='DistributedRangeSampler', shuffle=False, round_up=False),
     collate_fn=dict(type='default_collate'),
     dataset=dict(
         type='PairHand3DDataset',
