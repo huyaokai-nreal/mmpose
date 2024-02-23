@@ -59,7 +59,7 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
         outputs = torch.zeros((B, seq_len, 42, 1, 1)).cuda()
         for i in range(seq_len):
             feat = feats[:, i:i + 1, :].reshape(B, -1, 1, 1)
-            feat_mix = torch.concatenate([feat, mems], dim=1)
+            feat_mix = torch.cat([feat, mems], dim=1)
             mems = self.temporal(feat_mix)
             output = self.last_layer(feat_mix)
             outputs[:, i, ...] = output
@@ -71,7 +71,7 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
         B = feats.shape[0]
         if mems is None:
             mems = torch.zeros(B, 2 * self.channel_num, 1, 1).cuda()
-        feat_mix = torch.concatenate([feats, mems], dim=1)
+        feat_mix = torch.cat([feats, mems], dim=1)
         mems = self.temporal(feat_mix)
         output = self.last_layer(feat_mix)
         output = output.reshape(B, -1, 1, 1) / self.baseline
@@ -87,8 +87,8 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
              left_to_right_rt, leftcam_cam_matrix, rightcam_cam_matrix,
              uv_coord_im_pred_global, uv_coord_im_gt_global,
              uv_coord_im_pred_global_distort, uv_coord_im_pred_global_distort_noflip,  # noqa
-             hand3d_gt, left_R, right_R, baseline_scale) = \
-                self.preprocess(feats, batch_data_samples, 'predict')
+             hand3d_gt, left_hand, nimble_info, left_R, right_R,
+             baseline_scale) = self.preprocess(feats, batch_data_samples, 'predict')
         output, mems = self.forward(feats, mems, 1)
         hand3d_pred = self.postprocess(output, norm_leftcam_xyz,
                                        norm_rightcam_xyz, left_R, right_R,
@@ -113,8 +113,8 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
              left_to_right_rt, leftcam_cam_matrix, rightcam_cam_matrix,
              uv_coord_im_pred_global, uv_coord_im_gt_global,
              uv_coord_im_pred_global_distort, uv_coord_im_pred_global_distort_noflip,  # noqa
-             hand3d_gt, left_R, right_R, baseline_scale) = \
-            self.preprocess(feats, batch_data_samples, 'loss') # noqa
+             hand3d_gt, left_hand, nimble_info, left_R, right_R,
+             baseline_scale) = self.preprocess(feats, batch_data_samples, 'loss')
         output, _ = self.forward(feats, None, self.seq_len)
         hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
             output, norm_leftcam_xyz, norm_rightcam_xyz, left_R, right_R,
