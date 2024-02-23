@@ -212,7 +212,6 @@ class MPJPEV2(MPJPE):
             if 'category_id' in data_sample['meta']:
                 result.meta['category_id'] = data_sample['meta']['category_id']
 
-            # import ipdb;ipdb.set_trace()
             if 'img_path' in data_sample.keys():
                 result.meta['img_path'] = data_sample['img_path']
             if 'frame_height' in data_sample['meta']:

@@ -332,7 +332,6 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                 image_list.append(left_img)
                 image_list.append(right_img)
 
-                # import ipdb;ipdb.set_trace()
                 if self.filter_kpt_exceed:
                     left_keypoints = np.array(
                         ann['keypoints_left'])[..., :2].reshape(-1, 2)

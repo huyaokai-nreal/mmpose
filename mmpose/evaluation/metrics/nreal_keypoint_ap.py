@@ -49,10 +49,6 @@ class NrealKeypointAP(BaseMetric):
             result.gt_keypoints = data_sample['gt_instances']['keypoints'][
                 0].tolist()
             result.keypoints = keypoints[0].tolist()
-            result.gt_keypoints3d = (
-                data_sample['gt_instances']['keypoints3d'][0]).tolist()
-            result.keypoints3d = (
-                data_sample['pred_instances']['keypoints3d'][0]).tolist()
             result.keypoint_visible = data_sample['gt_instances'][
                 'keypoints_visible'].reshape((-1)).tolist()
             result.score = float(np.mean(keypoint_scores))
