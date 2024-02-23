@@ -138,32 +138,69 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         meta['left_R'] = left_R
         meta['right_R'] = right_R
         meta['virtual_baseline'] = virtual_baseline
-        meta['gesture'] = ann['gesture']
+        if 'gesture' in ann.keys():
+            meta['gesture'] = ann['gesture']
         meta['tag'] = ann['tag']
-        data_info = {
-            'left_img_id': left_img_id,
-            'right_img_id': right_img_id,
-            'left_img_path': left_img_path,
-            'right_img_path': right_img_path,
-            'left_keypoints': left_keypoints,
-            'right_keypoints': right_keypoints,
-            'keypoints3d': keypoints3d,
-            'cam_info': cam_info,
-            'left_bbox': left_bbox,
-            'right_bbox': right_bbox,
-            'image_width': left_img_w,
-            'image_height': left_img_h,
-            'bbox_score': np.ones(1, dtype=np.float32),
-            'num_keypoints': num_keypoints,
-            'keypoints_visible': keypoints_visible,
-            'iscrowd': ann.get('iscrowd', 0),
-            'segmentation': ann.get('segmentation', None),
-            'id': ann['id'],
-            'cat_id': ann['category_id'],
-            'cam_model_left': cam_model_left,
-            'cam_model_right': cam_model_right,
-            'meta': meta
-        }
+        if 'nimble_pose' in ann.keys():
+            nimble_pose = np.array(ann['nimble_pose'])
+            nimble_translation = np.array(ann['nimble_translation'])
+            nimble_shape = np.array(ann['nimble_shape'])
+            nimble_joints = np.array(ann['nimble_joints'])
+            # nimble_occlusion_cam0 = np.array(ann['nimble_occlusion_cam0'])
+            # nimble_occlusion_cam1 = np.array(ann['nimble_occlusion_cam1'])
+            data_info = {
+                'left_img_id': left_img_id,
+                'right_img_id': right_img_id,
+                'left_img_path': left_img_path,
+                'right_img_path': right_img_path,
+                'left_keypoints': left_keypoints,
+                'right_keypoints': right_keypoints,
+                'keypoints3d': keypoints3d,
+                'nimble_pose': nimble_pose,
+                'nimble_translation': nimble_translation,
+                'nimble_shape': nimble_shape,
+                'nimble_joints': nimble_joints,
+                # 'nimble_occlusion_cam0': nimble_occlusion_cam0,
+                # 'nimble_occlusion_cam1': nimble_occlusion_cam1,
+                'left_bbox': left_bbox,
+                'right_bbox': right_bbox,
+                'image_width': left_img_w,
+                'image_height': left_img_h,
+                'bbox_score': np.ones(1, dtype=np.float32),
+                'num_keypoints': num_keypoints,
+                'keypoints_visible': keypoints_visible,
+                'iscrowd': ann.get('iscrowd', 0),
+                'segmentation': ann.get('segmentation', None),
+                'id': ann['id'],
+                'cat_id': ann['category_id'],
+                'cam_model_left': cam_model_left,
+                'cam_model_right': cam_model_right,
+                'meta': meta
+            }
+        else:
+            data_info = {
+                'left_img_id': left_img_id,
+                'right_img_id': right_img_id,
+                'left_img_path': left_img_path,
+                'right_img_path': right_img_path,
+                'left_keypoints': left_keypoints,
+                'right_keypoints': right_keypoints,
+                'keypoints3d': keypoints3d,
+                'left_bbox': left_bbox,
+                'right_bbox': right_bbox,
+                'image_width': left_img_w,
+                'image_height': left_img_h,
+                'bbox_score': np.ones(1, dtype=np.float32),
+                'num_keypoints': num_keypoints,
+                'keypoints_visible': keypoints_visible,
+                'iscrowd': ann.get('iscrowd', 0),
+                'segmentation': ann.get('segmentation', None),
+                'id': ann['id'],
+                'cat_id': ann['category_id'],
+                'cam_model_left': cam_model_left,
+                'cam_model_right': cam_model_right,
+                'meta': meta
+            }
 
         return data_info
 
@@ -278,6 +315,14 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
             data_info['meta']['right_R'])
         meta_right['virtual_baseline'] = copy.deepcopy(
             data_info['meta']['virtual_baseline'])
+
+        if 'nimble_pose' in data_info.keys():
+            meta_left['nimble_pose'] = data_info['nimble_pose']
+            meta_left['nimble_translation'] = data_info['nimble_translation']
+            meta_left['nimble_shape'] = data_info['nimble_shape']
+            meta_right['nimble_pose'] = data_info['nimble_pose']
+            meta_right['nimble_translation'] = data_info['nimble_translation']
+            meta_right['nimble_shape'] = data_info['nimble_shape']
 
         data_info_left = {
             'img_id': data_info['left_img_id'],
