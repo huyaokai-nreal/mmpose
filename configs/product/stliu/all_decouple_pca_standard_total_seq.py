@@ -189,7 +189,7 @@ model = dict(
         #f'/data/AI_DATA/jrchen/git-project/mmpose/work_dirs/pair_hand3d/006_td-stage_two_train_55dim_RLE_head_train_flora_finetune/FT_kp2d_add_ella_pretrain_lift.pth'  # flora kp2d + ella kp3d
         # '/home/zx_li/workspace/mmpose/work_dirs/td-hand_rsn26_fpn_25d_ipr_right_pcl_2d3d_4x128-100e-128x128/epoch_100.pth',
         # 'work_dirs/keypoint25d/01_td-hand_rsn26_fpn_25d_ipr_right_pcl_2d3d_4x128-100e-128x128_Affine/best_all_p-mpjpe_epoch_90.pth'
-        '/data/stliu/mmpose/work_dirs/bone_loss/best_all_mpjpe_epoch_100.pth'),
+        '/data/stliu/mmpose/work_dirs/bone_loss/best_liftnimble_weight.pth'),
 )
 
 # base dataset settings
