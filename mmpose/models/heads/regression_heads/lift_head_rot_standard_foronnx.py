@@ -74,8 +74,8 @@ class LiftNimbleHeadStandardONNX(LiftNimbleHeadStandard):
     def forward(self, feats: Tuple[Tensor]) -> Tensor:
         output = self.liftnet(feats)
         output = self.last_layer(output).view((feats.shape[0], -1, 1, 1))
-        output = self.simple_feature_layer(output)
-        return output
+        kpt, rot, svd_pt = self.simple_feature_layer(output)
+        return kpt, rot, svd_pt
 
     def simple_feature_layer(self, output):
 
@@ -93,17 +93,16 @@ class LiftNimbleHeadStandardONNX(LiftNimbleHeadStandard):
         root_rebuild_joints = rebuild_joints[:, 0:1, :]
         rebuild_joints_temp = rebuild_joints - root_rebuild_joints
         rebuild_joints_temp = rebuild_joints_temp / self.scale_parameter
-        out_fea = torch.cat(
-            (rebuild_joints_temp, pre_pt_features.unsqueeze(-1)), dim=-1)
-        return out_fea
+        return rebuild_joints_temp, pre_rot_vector, pre_pt_features
 
-    def simple_postprocess(self, output, left_hand, left_R, baseline_scale):
+    def simple_postprocess(self, kpt, rot, svd_pt, left_hand, left_R,
+                           baseline_scale):
 
-        B = output.shape[0]
-        cuda_device = output.device
+        B = kpt.shape[0]
+        cuda_device = kpt.device
 
-        rebuild_joints_temp = output[:, :, :3]
-        pre_pt_features = output[:, :, -1]
+        rebuild_joints_temp = kpt
+        pre_pt_features = svd_pt
         matrix_svd = decode_svd(
             pre_pt_features,
             self.rigid_samples,
@@ -140,8 +139,8 @@ class LiftNimbleHeadStandardONNX(LiftNimbleHeadStandard):
              nimble_info, left_R, right_R,
              baseline_scale) = self.preprocess(feats, batch_data_samples,
                                                'predict')
-            output = self.forward(feats)
+            kpt, rot, svd_pt = self.forward(feats)
 
-        hand3d_pred = self.simple_postprocess(output, left_hand, left_R,
-                                              baseline_scale)
+        hand3d_pred = self.simple_postprocess(kpt, rot, svd_pt, left_hand,
+                                              left_R, baseline_scale)
         return hand3d_pred, uv_coord_im_pred_global_distort

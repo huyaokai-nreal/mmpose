@@ -2,7 +2,7 @@
 from typing import List, Tuple, Union
 
 import torch
-from heads.regression_heads.lift_head_rot_standard_foronnx import \
+from regression_heads.lift_head_rot_standard_foronnx import \
     LiftNimbleHeadStandardONNX
 from torch import Tensor, nn
 
@@ -91,8 +91,8 @@ class TemporalLiftNimbleHeadStandardONNX(LiftNimbleHeadStandardONNX):
         feat_mix = torch.cat([feats, mems], dim=1)
         mems = self.temporal(feat_mix)
         output = self.last_layer(feat_mix)
-        result = self.simple_feature_layer(output)
-        return result, mems
+        kpt, rot, svd_pt = self.simple_feature_layer(output)
+        return kpt, rot, svd_pt, mems
 
     def predict(self,
                 feats: Tuple[Tensor],
@@ -109,8 +109,8 @@ class TemporalLiftNimbleHeadStandardONNX(LiftNimbleHeadStandardONNX):
              baseline_scale) = self.preprocess(feats, batch_data_samples,
                                                'predict')
 
-            output, mems = self.forward(feats, mems)
+            kpt, rot, svd_pt, mems = self.forward(feats, mems)
 
-        hand3d_pred = self.simple_postprocess(output, left_hand, left_R,
-                                              baseline_scale)
+        hand3d_pred = self.simple_postprocess(kpt, rot, svd_pt, left_hand,
+                                              left_R, baseline_scale)
         return hand3d_pred, uv_coord_im_pred_global_distort, mems

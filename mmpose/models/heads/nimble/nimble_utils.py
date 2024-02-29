@@ -203,18 +203,19 @@ def batch_aa2quat(axisang):
     angle = torch.unsqueeze(axisang_norm, -1)
     axisang_normalized = torch.div(axisang, angle)
     angle = angle * 0.5
-    v_cos = torch.cos(angle)
+    v_cos = torch.sin(torch.pi / 2 - angle)
     v_sin = torch.sin(angle)
     quat = torch.cat([v_cos, v_sin * axisang_normalized], dim=1)
     return quat
 
 
 def batch_rodrigues(axisang):
-    axisang_norm = torch.norm(axisang + 1e-8, p=2, dim=1)
+    # axisang_norm = torch.norm(axisang + 1e-8, p=2, dim=1)
+    axisang_norm = torch.sqrt(torch.sum((axisang + 1e-8)**2, dim=1))
     angle = torch.unsqueeze(axisang_norm, -1)
     axisang_normalized = torch.div(axisang, angle)
     angle = angle * 0.5
-    v_cos = torch.cos(angle)
+    v_cos = torch.sin(torch.pi / 2 - angle)
     v_sin = torch.sin(angle)
     quat = torch.cat([v_cos, v_sin * axisang_normalized], dim=1)
     rot_mat = quat2mat(quat)
