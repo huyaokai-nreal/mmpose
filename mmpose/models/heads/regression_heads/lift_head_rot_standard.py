@@ -170,6 +170,29 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         pose_out[:, used_nimble_para] = pose_reg.to(torch.float32)
         return pose_out
 
+    def simple_feature_layer(self, output):
+        pose_len = self.pose_ncomp
+        rot_vector_t = output[:, :pose_len, 0, 0]
+        svd_begin = self.pose_ncomp + self.shape_ncomp
+        shape_v = output[:, pose_len:svd_begin, 0, 0]
+        pre_pt_features = output[:, svd_begin:, 0, 0]
+        pre_rot_vector = self.nimble_layer.generate_full_pose_foronnx(
+            rot_vector_t).view(-1, 20, 3)
+
+        _, bone_joints = self.nimble_layer.forward_simple_foronnx(
+            pre_rot_vector, shape_v)
+        rebuild_joints = bone_joints[:, self.kp_index, :]
+        root_rebuild_joints = rebuild_joints[:, 0:1, :]
+        rebuild_joints_temp = rebuild_joints - root_rebuild_joints
+        rebuild_joints_temp = rebuild_joints_temp / self.scale_parameter
+        return rebuild_joints_temp, pre_rot_vector, pre_pt_features
+
+    def _forward(self, feats: Tuple[Tensor]) -> Tensor:
+        output = self.liftnet(feats)
+        output = self.last_layer(output).view((feats.shape[0], -1, 1, 1))
+        kpt, rot, svd_pt = self.simple_feature_layer(output)
+        return kpt, rot, svd_pt
+
     def forward(self, feats: Tuple[Tensor]) -> Tensor:
         output = self.liftnet(feats)
         output = self.last_layer(output).view((feats.shape[0], -1, 1, 1))

@@ -7,7 +7,6 @@ from .lift_head import LiftHead
 from .lift_head_codebook import LiftClassifierHead
 from .lift_head_rot import LiftNimbleHead
 from .lift_head_rot_standard import LiftNimbleHeadStandard
-from .lift_head_rot_standard_foronnx import LiftNimbleHeadStandardONNX
 from .lift_head_standard import LiftHeadStandard
 from .pct_head import PCT_Head
 from .pct_swin_v2 import SwinV2TransformerRPE2FC
@@ -18,8 +17,6 @@ from .rtmcc_ipr_head import RTMCCIPRHead
 from .rtmcc_ipr_head_3d import RTMCCIPRHead3D
 from .temporal_lift_head import TemporalLiftHead
 from .temporal_lift_head_rot_standard import TemporalLiftNimbleHeadStandard
-from .temporal_lift_head_rot_standard_foronnx import \
-    TemporalLiftNimbleHeadStandardONNX
 from .temporal_lift_head_standard import TemporalLiftHeadStandard
 from .temporal_regression_head import TemporalRegressionHead
 from .trajectory_regression_head import TrajectoryRegressionHead
@@ -29,8 +26,7 @@ __all__ = [
     'TemporalRegressionHead', 'TrajectoryRegressionHead', 'DSNTAttrHead',
     'RTMCCIPRHead', 'AttrMlpHead', 'LiftHead', 'RTMCCIPRHead3D',
     'LiftHeadStandard', 'LiftNimbleHead', 'TemporalLiftHead',
-    'TemporalLiftNimbleHeadStandard', 'LiftNimbleHeadStandardONNX',
-    'TemporalLiftNimbleHeadStandardONNX', 'TemporalLiftHeadStandard',
+    'TemporalLiftNimbleHeadStandard', 'TemporalLiftHeadStandard',
     'LiftNimbleHeadStandard', 'PCT_Head', 'PCT_Tokenizer',
     'LiftClassifierHead', 'SwinV2TransformerRPE2FC'
 ]

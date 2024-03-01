@@ -85,6 +85,22 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             nn.Conv2d(
                 self.channel_num * 2, self.channel_num * 2, kernel_size=1))
 
+    def _forward(
+        self,
+        feats: Tuple[Tensor],
+        mems=None,
+    ) -> Tensor:
+        devices_cuda = feats.device
+        feats = self.liftnet(feats)
+        B = feats.shape[0]
+        if mems is None:
+            mems = torch.zeros(B, 2 * self.channel_num, 1, 1).to(devices_cuda)
+        feat_mix = torch.cat([feats, mems], dim=1)
+        mems = self.temporal(feat_mix)
+        output = self.last_layer(feat_mix)
+        kpt, rot, svd_pt = self.simple_feature_layer(output)
+        return kpt, rot, svd_pt, mems
+
     def forward(self,
                 feats: Tuple[Tensor],
                 mems=None,
