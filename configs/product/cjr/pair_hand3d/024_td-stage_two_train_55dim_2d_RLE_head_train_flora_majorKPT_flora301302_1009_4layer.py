@@ -1,11 +1,12 @@
 # flake8: noqa
 import os
 
-# from configs._base_.datasets.xs3d import datasets_info as kpt3d_datasets_info
+from mmpose.configs._base_.datasets.xs3d import \
+    datasets_info as kpt3d_datasets_info
 
 _base_ = ['../../../_base_/default_runtime.py']
 
-train_cfg = dict(max_epochs=100, val_interval=1)
+train_cfg = dict(max_epochs=100, val_interval=10)
 
 data_root = '/data/AI_DATA'
 # data_root = '/data/AI_DATA_WX'
