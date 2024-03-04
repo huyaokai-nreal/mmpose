@@ -190,18 +190,6 @@ class sim_NIMBLELayer(torch.nn.Module):
                 scale_factor.shape[0], jreg_joints_relative.shape[1],
                 1) * jreg_joints_relative
 
-            # add_one_index = np.array([0,4,9,14,19]);
-            # add_two_index = add_one_index + 1
-            # add_three_index = add_one_index + 2
-            # add_four_index = add_one_index + 3
-            # add_five_index = (add_one_index + 4)[1:]
-            # result = torch.clone(jreg_joints)
-            # jreg_joints[:,add_one_index+1,:] = jreg_joints[:,add_one_index+1,:] + jreg_joints_relative[:,add_one_index,:]
-            # jreg_joints[:,add_two_index+2,:] = jreg_joints[:,add_one_index+2,:] + jreg_joints_relative[:,add_one_index,:] + jreg_joints_relative[:,add_one_index+1,:]
-            # jreg_joints[:,add_two_index+3,:] = jreg_joints[:,add_one_index+3,:] + jreg_joints_relative[:,add_one_index,:] + jreg_joints_relative[:,add_one_index+1,:] + jreg_joints_relative[:,add_one_index+2,:]
-            # jreg_joints[:,add_two_index+4,:] = jreg_joints[:,add_one_index+4,:] + jreg_joints_relative[:,add_one_index,:] + jreg_joints_relative[:,add_one_index+1,:] + jreg_joints_relative[:,add_one_index+2,:] + jreg_joints_relative[:,add_one_index+3,:]
-            # jreg_joints[:,(add_two_index+5)[1:],:] = jreg_joints[:,add_one_index+4,:] + jreg_joints_relative[:,add_one_index,:] + jreg_joints_relative[:,add_one_index+1,:] + jreg_joints_relative[:,add_one_index+2,:] + jreg_joints_relative[:,add_one_index+3,:]
-
             add_one_index = np.array([0, 4, 9, 14, 19])
             for i in range(5):
                 if i == 4:
@@ -297,63 +285,3 @@ class sim_NIMBLELayer(torch.nn.Module):
 
     # nlayer = sim_NIMBLELayer(device, use_pose_pca=False, pose_ncomp=57, shape_ncomp=20)
     # bone_joints= nlayer.forward(pose_param, shape_param)
-    '''
-    function for onnx
-    '''
-
-    def generate_full_pose_foronnx(self,
-                                   theta,
-                                   normalized=True,
-                                   with_root=False):
-        # theta : B, N
-
-        batch_size = theta.shape[0]
-        real_theta = theta
-        root_rot = torch.zeros([batch_size, 3]).to(theta.device)
-
-        pose_ncomp = real_theta.shape[-1]
-        theta_real_denorm = real_theta * self.pose_pm_std[:pose_ncomp].reshape(
-            1, -1) + self.pose_pm_mean[:pose_ncomp].reshape(1, -1)
-
-        full_pose = (self.pose_basis[:pose_ncomp].permute(
-            1, 0) @ theta_real_denorm.permute(1, 0)).permute(
-                1, 0) + self.pose_mean.unsqueeze(0).repeat(batch_size, 1)
-        full_pose = torch.cat([root_rot, full_pose],
-                              dim=1).view(batch_size, -1, 3)
-
-        return full_pose
-
-    def get_hand_joints_foronnx(self, shape_param):
-        betas = torch.zeros_like(shape_param)
-        batch_size, shape_ncomp = betas.shape
-        shape_ncomp = min(20, self.shape_ncomp)
-        betas = betas[:, :shape_ncomp]
-
-        betas_real = betas * self.shape_pm_std[:shape_ncomp].reshape(
-            1, -1) + self.shape_pm_mean[:shape_ncomp].reshape(1, -1)
-
-        th_v_shaped = (self.shape_basis[:shape_ncomp].permute(
-            1, 0) @ betas_real.permute(1, 0)).view(-1, 3, batch_size).permute(
-                2, 0, 1) + self.th_verts.unsqueeze(0).repeat(batch_size, 1, 1)
-        rebuild_jreg_bone_joints_tmp = self.jreg_bone.unsqueeze(0).repeat(
-            batch_size, 1, 1).unsqueeze(-1) * th_v_shaped.reshape(
-                batch_size, 25, 100, -1)
-        jreg_joints = torch.sum(rebuild_jreg_bone_joints_tmp, dim=2)
-
-        scale_factor = 1 + shape_param[:, 0]
-        root_jreg_joints = jreg_joints[:, 0:1, :]
-        jreg_joints_relative = jreg_joints - root_jreg_joints
-        jreg_joints = scale_factor.view(
-            scale_factor.shape[0], 1,
-            1) * jreg_joints_relative + root_jreg_joints
-        return jreg_joints
-
-    def forward_simple_foronnx(self,
-                               pose_param,
-                               shape_param,
-                               init_shape_pose=False):
-
-        jreg_joints = self.get_hand_joints_foronnx(shape_param)
-        bone_joints = self.forward_full(pose_param, jreg_joints)
-
-        return None, bone_joints

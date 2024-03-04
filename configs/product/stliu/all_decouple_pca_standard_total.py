@@ -70,7 +70,7 @@ standard_stereo = True  # 是否转换标准双目
 # model settings
 backbone_out_channels = [64, 96, 128, 160]
 model = dict(
-    type='TopdownPoseLiftEstimator',
+    type='TopdownPoseLiftNimbleEstimator',
     data_preprocessor=dict(
         type='PoseDataPreprocessor', mean=[0.449 * 255], std=[0.226 * 255]),
     backbone=dict(

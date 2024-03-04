@@ -231,66 +231,36 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             meta['right_R'] = right_R
             meta['virtual_baseline'] = virtual_baseline
 
+        data_info = {
+            'left_img_id': left_img_id,
+            'right_img_id': right_img_id,
+            'left_img_path': left_img_path,
+            'right_img_path': right_img_path,
+            'left_keypoints': left_keypoints,
+            'right_keypoints': right_keypoints,
+            'keypoints3d': keypoints3d,
+            'left_bbox': left_bbox,
+            'right_bbox': right_bbox,
+            'image_width': left_img_w,
+            'image_height': left_img_h,
+            'bbox_score': np.ones(1, dtype=np.float32),
+            'num_keypoints': num_keypoints,
+            'keypoints_visible': keypoints_visible,
+            'iscrowd': ann.get('iscrowd', 0),
+            'segmentation': ann.get('segmentation', None),
+            'id': ann['id'],
+            'cat_id': ann['category_id'],
+            'cam_model_left': cam_model_left,
+            'cam_model_right': cam_model_right,
+            'meta': meta
+        }
+
         if 'nimble_pose' in ann.keys():
-            nimble_pose = np.array(ann['nimble_pose'])
-            nimble_translation = np.array(ann['nimble_translation'])
-            nimble_shape = np.array(ann['nimble_shape'])
-            nimble_joints = np.array(ann['nimble_joints'])
-            nimble_occlusion_cam0 = np.array(ann['nimble_occlusion_cam0'])
-            nimble_occlusion_cam1 = np.array(ann['nimble_occlusion_cam1'])
-            data_info = {
-                'left_img_id': left_img_id,
-                'right_img_id': right_img_id,
-                'left_img_path': left_img_path,
-                'right_img_path': right_img_path,
-                'left_keypoints': left_keypoints,
-                'right_keypoints': right_keypoints,
-                'keypoints3d': keypoints3d,
-                'nimble_pose': nimble_pose,
-                'nimble_translation': nimble_translation,
-                'nimble_shape': nimble_shape,
-                'nimble_joints': nimble_joints,
-                'nimble_occlusion_cam0': nimble_occlusion_cam0,
-                'nimble_occlusion_cam1': nimble_occlusion_cam1,
-                'left_bbox': left_bbox,
-                'right_bbox': right_bbox,
-                'image_width': left_img_w,
-                'image_height': left_img_h,
-                'bbox_score': np.ones(1, dtype=np.float32),
-                'num_keypoints': num_keypoints,
-                'keypoints_visible': keypoints_visible,
-                'iscrowd': ann.get('iscrowd', 0),
-                'segmentation': ann.get('segmentation', None),
-                'id': ann['id'],
-                'cat_id': ann['category_id'],
-                'cam_model_left': cam_model_left,
-                'cam_model_right': cam_model_right,
-                'meta': meta
-            }
-        else:
-            data_info = {
-                'left_img_id': left_img_id,
-                'right_img_id': right_img_id,
-                'left_img_path': left_img_path,
-                'right_img_path': right_img_path,
-                'left_keypoints': left_keypoints,
-                'right_keypoints': right_keypoints,
-                'keypoints3d': keypoints3d,
-                'left_bbox': left_bbox,
-                'right_bbox': right_bbox,
-                'image_width': left_img_w,
-                'image_height': left_img_h,
-                'bbox_score': np.ones(1, dtype=np.float32),
-                'num_keypoints': num_keypoints,
-                'keypoints_visible': keypoints_visible,
-                'iscrowd': ann.get('iscrowd', 0),
-                'segmentation': ann.get('segmentation', None),
-                'id': ann['id'],
-                'cat_id': ann['category_id'],
-                'cam_model_left': cam_model_left,
-                'cam_model_right': cam_model_right,
-                'meta': meta
-            }
+            data_info['nimble_pose'] = np.array(ann['nimble_pose'])
+            data_info['nimble_translation'] = np.array(
+                ann['nimble_translation'])
+            data_info['nimble_shape'] = np.array(ann['nimble_shape'])
+            data_info['nimble_joints'] = np.array(ann['nimble_joints'])
 
         return data_info
 

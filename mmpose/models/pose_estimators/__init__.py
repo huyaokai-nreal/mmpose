@@ -7,10 +7,11 @@ from .pose_lifter import PoseLifter
 from .topdown import TopdownPoseEstimator
 from .topdown3d import TopdownPose3DEstimator
 from .topdown3d_lift import TopdownPoseLiftEstimator
+from .topdown3d_liftnimble import TopdownPoseLiftNimbleEstimator
 
 __all__ = [
     'TopdownPoseEstimator', 'BottomupPoseEstimator', 'TopdownPose3DEstimator',
     'PoseLifter', 'PoseAttr', 'TopdownPoseLiftEstimator',
     'TopdownPoseEstimator', 'BottomupPoseEstimator', 'PoseLifter',
-    'DWPoseDistiller'
+    'DWPoseDistiller', 'TopdownPoseLiftNimbleEstimator'
 ]

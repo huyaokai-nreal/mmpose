@@ -71,7 +71,7 @@ kpt2d_with_depth = False  # liftnet 是否使用2.5d的深度信息
 # model settings
 backbone_out_channels = [64, 96, 128, 160]
 model = dict(
-    type='TopdownPoseLiftEstimatorSeq',
+    type='TopdownPoseLiftNimbleEstimatorSeq',
     data_preprocessor=dict(
         type='PoseDataPreprocessor', mean=[0.449 * 255], std=[0.226 * 255]),
     backbone=dict(

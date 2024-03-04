@@ -176,10 +176,10 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         svd_begin = self.pose_ncomp + self.shape_ncomp
         shape_v = output[:, pose_len:svd_begin, 0, 0]
         pre_pt_features = output[:, svd_begin:, 0, 0]
-        pre_rot_vector = self.nimble_layer.generate_full_pose_foronnx(
-            rot_vector_t).view(-1, 20, 3)
+        pre_rot_vector = self.nimble_layer.generate_full_pose(
+            rot_vector_t, normalized=True, with_root=False).view(-1, 20, 3)
 
-        _, bone_joints = self.nimble_layer.forward_simple_foronnx(
+        _, bone_joints = self.nimble_layer.forward_simple(
             pre_rot_vector, shape_v)
         rebuild_joints = bone_joints[:, self.kp_index, :]
         root_rebuild_joints = rebuild_joints[:, 0:1, :]
