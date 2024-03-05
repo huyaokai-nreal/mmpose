@@ -102,17 +102,6 @@ model = dict(
         in_featuremap_size=(32, 32),
         num_joints=21,
         output_depth=True,
-        loss=dict(
-            type='MultipleLossWrapper',
-            losses=[
-                dict(
-                    type='RLELoss',
-                    use_target_weight=False,
-                    flow_model_pretrain_path=
-                    '/data/AI_DATA/data_hand/model/mmpose/td-hand_rsn50_pre_ipr_rle_lscale_wholedata_4xb64-100e-128x128/epoch_100.pth'
-                ),
-                dict(type='KeypointMSELoss', use_target_weight=True)
-            ]),
         decoder=codec,
         deploy=False,
         output_sigma=False),
