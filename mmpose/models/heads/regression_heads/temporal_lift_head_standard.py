@@ -24,6 +24,7 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
                  corruption_cam: float = 0.5,
                  all_use_kp2d_gt: bool = False,
                  seq_len: int = 4,
+                 pad_2d=False,
                  init_cfg: Union[dict, List[dict], None] = None):
         super().__init__(
             lift_loss,
@@ -35,6 +36,7 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
             baseline,
             all_use_kp2d_gt=all_use_kp2d_gt,
             corruption_cam=corruption_cam,
+            pad_2d=pad_2d,
             init_cfg=init_cfg)
         self.seq_len = seq_len
         self.last_layer = nn.Sequential(
