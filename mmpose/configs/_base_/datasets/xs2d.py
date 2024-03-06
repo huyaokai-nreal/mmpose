@@ -69,5 +69,8 @@ datasets_info = {
             'data_hand/hand_keypoint/annotations/hand_test_flora_keypoint_decoration_2_231208_1k__1__binocular__lmdb.json',
             'data_hand/hand_keypoint/annotations/hand_test_flora_keypoint_decoration_3_231208_1k__1__binocular__lmdb.json',
         ],
+        'near_two_hands': [
+            'data_hand/hand_keypoint/annotations/hand_test_flora_near_two_hands_240202_2k_1__binocular__lmdb.json',
+        ]
     }
 }
