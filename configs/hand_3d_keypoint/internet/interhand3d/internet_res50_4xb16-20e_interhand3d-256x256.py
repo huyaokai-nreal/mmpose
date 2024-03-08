@@ -3,6 +3,7 @@ _base_ = ['../../../_base_/default_runtime.py']
 # visualization
 vis_backends = [
     dict(type='LocalVisBackend'),
+    dict(type='TensorboardVisBackend'),
 ]
 visualizer = dict(
     type='Pose3dLocalVisualizer', vis_backends=vis_backends, name='visualizer')
@@ -58,7 +59,8 @@ model = dict(
     backbone=dict(
         type='ResNet',
         depth=50,
-        init_cfg=dict(type='Pretrained', checkpoint='torchvision://resnet50')),
+        init_cfg=dict(type='Pretrained', checkpoint='torchvision://resnet50')
+        ),
     head=dict(
         type='InternetHead',
         keypoint_head_cfg=dict(
@@ -84,7 +86,7 @@ model = dict(
 # base dataset settings
 dataset_type = 'InterHand3DDataset'
 data_mode = 'topdown'
-data_root = 'data/interhand2.6m/'
+data_root = '/data/AI_DATA/InterHand2.6M/'
 
 # pipelines
 train_pipeline = [
@@ -116,61 +118,57 @@ val_pipeline = [
 # data loaders
 train_dataloader = dict(
     batch_size=16,
-    num_workers=1,
+    num_workers=8,
     persistent_workers=True,
     drop_last=False,
     sampler=dict(type='DefaultSampler', shuffle=True),
     dataset=dict(
         type=dataset_type,
-        ann_file='annotations/all/InterHand2.6M_train_data.json',
-        camera_param_file='annotations/all/InterHand2.6M_train_camera.json',
-        joint_file='annotations/all/InterHand2.6M_train_joint_3d.json',
+        ann_file='annotations/train/InterHand2.6M_train_data.json',
+        camera_param_file='annotations/train/InterHand2.6M_train_camera.json',
+        joint_file='annotations/train/InterHand2.6M_train_joint_3d.json',
         use_gt_root_depth=True,
         rootnet_result_file=None,
         data_mode=data_mode,
         data_root=data_root,
-        data_prefix=dict(img='images/train/'),
+        data_prefix=dict(img='InterHand2.6M_5fps_batch1/images/train/'),
         pipeline=train_pipeline,
     ))
 val_dataloader = dict(
-    batch_size=16,
-    num_workers=1,
+    batch_size=128,
+    num_workers=8,
     persistent_workers=True,
     drop_last=False,
     sampler=dict(type='DefaultSampler', shuffle=False, round_up=False),
     dataset=dict(
         type=dataset_type,
-        ann_file='annotations/machine_annot/InterHand2.6M_val_data.json',
-        camera_param_file='annotations/machine_annot/'
-        'InterHand2.6M_val_camera.json',
-        joint_file='annotations/machine_annot/InterHand2.6M_val_joint_3d.json',
+        ann_file='annotations/val/InterHand2.6M_val_data.json',
+        camera_param_file='annotations/val/InterHand2.6M_val_camera.json',
+        joint_file='annotations/val/InterHand2.6M_val_joint_3d.json',
         use_gt_root_depth=True,
         rootnet_result_file=None,
         data_mode=data_mode,
         data_root=data_root,
-        data_prefix=dict(img='images/val/'),
+        data_prefix=dict(img='InterHand2.6M_5fps_batch1/images/val/'),
         pipeline=val_pipeline,
         test_mode=True,
     ))
 test_dataloader = dict(
-    batch_size=16,
-    num_workers=1,
+    batch_size=128,
+    num_workers=8,
     persistent_workers=True,
     drop_last=False,
     sampler=dict(type='DefaultSampler', shuffle=False, round_up=False),
     dataset=dict(
         type=dataset_type,
-        ann_file='annotations/all/'
-        'InterHand2.6M_test_data.json',
-        camera_param_file='annotations/all/'
-        'InterHand2.6M_test_camera.json',
-        joint_file='annotations/all/'
-        'InterHand2.6M_test_joint_3d.json',
+        ann_file='annotations/test/InterHand2.6M_test_data.json',
+        camera_param_file='annotations/test/InterHand2.6M_test_camera.json',
+        joint_file='annotations/test/InterHand2.6M_test_joint_3d.json',
         use_gt_root_depth=True,
         rootnet_result_file=None,
         data_mode=data_mode,
         data_root=data_root,
-        data_prefix=dict(img='images/test/'),
+        data_prefix=dict(img='InterHand2.6M_5fps_batch1/images/test/'),
         pipeline=val_pipeline,
         test_mode=True,
     ))
