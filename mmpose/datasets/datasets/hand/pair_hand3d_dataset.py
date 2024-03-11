@@ -49,7 +49,8 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                  mean_bone_template_path='',
                  extern_hand_template_path='',
                  filter_kpt_exceed=False,
-                 standard_stereo=False):
+                 standard_stereo=False,
+                 sample_interval=1):
         self.flip_left_to_right = flip_left_to_right
         self.data_ratio = data_ratio
         self.data_file_list = data_file_list
@@ -66,6 +67,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         self.hand_bones_list = list()
         self.mean_bone_template_path = mean_bone_template_path
         self.filter_kpt_exceed = filter_kpt_exceed
+        self.sample_interval = sample_interval
         self.standard_stereo = standard_stereo
         if dataset_weight_list:
             assert len(dataset_weight_list) == len(data_file_list)
@@ -293,7 +295,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                 self.cams_info[k] = BinocularCameraInstance.from_dict(v)
             keypoints3d_list = []
             ann_ids = coco.getAnnIds()
-            for ann_id in ann_ids:
+            for ann_id in ann_ids[::self.sample_interval]:
                 ann = coco.loadAnns(ann_id)[0]
                 left_img_id = int(ann['image_id'].split('_')[0])
                 right_img_id = int(ann['image_id'].split('_')[1])
