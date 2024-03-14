@@ -8,7 +8,7 @@ from mmpose.configs._base_.datasets.xs3d import \
     datasets_info as kpt3d_datasets_info
 
 # runtime
-train_cfg = dict(max_epochs=100, val_interval=10)
+train_cfg = dict(max_epochs=100, val_interval=5)
 
 data_root = '/data/AI_DATA_WX'
 # data_root = '/data/AI_DATA_LOCAL'
@@ -52,58 +52,54 @@ codec2d = dict(
     depth_bound=0.4)
 
 # model settings
-backbone_out_channels = [64, 96, 128, 160]
 model = dict(
     type='TopdownPose3DEstimator',
     data_preprocessor=dict(
         type='PoseDataPreprocessor', mean=[0.449 * 255], std=[0.226 * 255]),
     backbone=dict(
-        type='ResNet',
-        depth=26,
-        in_channels=1,
-        stem_channels=64,
-        base_channels=32,
-        expansion=1,
-        out_indices=(0, 1, 2, 3),
-        zero_init_residual=False,
-        bias_in_conv=False,
-        out_channels=backbone_out_channels),
-    neck=dict(
-        type='FPN',
-        in_channels=backbone_out_channels,
-        out_channels=192,
-        num_outs=4,
-        upsample_cfg=dict(mode='bilinear', align_corners=True),
-        upsample_style='rsn',
+        type='CSPNeXt',
+        arch='P5',
+        image_channel=1,
+        expand_ratio=0.5,
+        deepen_factor=0.167,
+        spp_kernel_sizes=(3, 5, 7),
+        widen_factor=0.375,
+        out_indices=(4, ),
+        channel_attention=False,
         norm_cfg=dict(type='BN'),
-        reverse_output=True,
-        apply_fpn_conv=False),
+        act_cfg=dict(type='ReLU'),
+    ),
     head=dict(
-        type='DSNTHead',
-        in_channels=192,
-        deconv_out_channels=(),
-        feat_norm_type='softmax',
-        in_featuremap_size=(32, 32),
-        num_joints=21,
-        consistency_loss=False,
-        heatmap_loss=False,
-        output_depth=True,
-        deploy_output=['feat', 'depth'],
-        input_size=128,
+        type='RTMCCIPRHead3D',
+        in_channels=384,
+        out_channels=21,
+        input_size=codec['input_size'],
+        in_featuremap_size=(4, 4),
+        simcc_split_ratio=2,
+        final_layer_kernel_size=3,
+        output_sigma=False,
+        gau_cfg=dict(
+            hidden_dims=128,
+            s=128,
+            expansion_factor=2,
+            dropout_rate=0.,
+            drop_path=0.,
+            act_fn='ReLU',
+            use_rel_bias=False,
+            pos_enc=False),
         loss=dict(
             type='MultipleLossWrapper',
             losses=[
-                dict(type='L1Loss', use_target_weight=False, loss_weight=1),
-                dict(type='L1Loss', use_target_weight=False, loss_weight=1)
+                dict(type='L1Loss', use_target_weight=False),
+                dict(type='L1Loss', use_target_weight=False),
             ]),
-        decoder=codec,
-        deploy=False,
-        output_sigma=False),
+        decoder=codec),
     test_cfg=dict(flip_test=False, ),
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/AI_DATA/data_hand/model/mmpose/td-hand_rsn26_fpn_25d_scale_ipr_dh_right_2d3d_0915data_4x128-100e-128x128/epoch_50.pth'
+        # '/data/AI_DATA/data_hand/model/mmpose/td-hand_rtmnanov2_25d_right_pcl_2d3d_4x128-50e-128x128/epoch_100.pth'
+        '/data/AI_DATA/data_hand/model/mmpose/td-hand_rtmnanov2_25d_scale_ipr_right_2d3d_0915data_simu_4x128-100e-128x128/epoch_100.pth'
     ),
     root_mode='optimize' if test_type == '3d' else 'gt',
     camera_layout=camera_layout)
@@ -120,7 +116,7 @@ visualizer = dict(
 default_hooks = dict(
     #visualization=dict(
     #    type='PoseVisualizationHook', enable=True, draw_3d=True),
-    checkpoint=dict(save_best='all_p-mpjpe', rule='less'))
+    checkpoint=dict(save_best='all_mpjpe', rule='less'))
 # base dataset settings
 backend_args = dict(backend='local')
 train_pipeline = [
@@ -186,6 +182,7 @@ val_pipeline = [
     dict(type='KeypointTo25DLabel', norm_depth=True),
     dict(type='GetBBoxCenterScale', padding=1.0),
     dict(type='TopdownAffine', input_size=codec['input_size'][:2]),
+    # dict(type='TopdownPCL', input_size=codec['input_size'][:2]),
     dict(type='GenerateTarget', encoder=codec),
     dict(type='PackPoseInputs')
 ]
@@ -209,7 +206,6 @@ for data_date in train_date_list:
     for glasses in train_glasses_list:
         train_data_list += kpt3d_datasets_info['train_data'][data_date].get(
             glasses, [])
-
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 train_2d_datasets = ['ella', 'flora', 'quest_system']
@@ -232,13 +228,11 @@ for data_date in val_date_list:
     for glasses in val_glasses_list:
         val_data_list += kpt3d_datasets_info['test_data'][data_date].get(
             glasses, [])
-val_data_list = [os.path.join(data_root, item) for item in val_data_list]
-
 val_2d_datasets = ['flora_static_finegrain', 'flora_dynamic']
-#val_2d_datasets = ['ella']
 #val_2d_datasets = ['flora_black']
 #val_2d_datasets = ['flora_decoration']
-val_2d_datasets = ['near_two_hands']
+#val_2d_datasets = ['ella']
+#val_2d_datasets = ['near_two_hands']
 val_2d_data_list = [
     kpt2d_datasets_info['test_data'][key] for key in val_2d_datasets
 ]
@@ -302,8 +296,8 @@ val_2d_dataset = dict(
     flip_left_to_right=True,
     data_root=data_root)
 val_dataloader = dict(
-    batch_size=32,
-    num_workers=1,
+    batch_size=64,
+    num_workers=8,
     persistent_workers=True,
     drop_last=False,
     sampler=dict(type='DefaultSampler', shuffle=False, round_up=False),
@@ -315,8 +309,12 @@ test_dataloader = val_dataloader
 val_evaluator = [dict(type='EPE'), dict(type='NrealKeypointAP', with_tag=True)]
 if test_type == '3d':
     val_evaluator += [
-        dict(type='MPJPEV2', mode=['mpjpe', 'p-mpjpe'], with_tag=True)
+        dict(
+            type='MPJPEV2',
+            mode='mpjpe',
+            scale_metric=False,
+            with_tag=True,
+        ),
+        dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
     ]
-
 test_evaluator = val_evaluator
-find_unused_parameters = True
