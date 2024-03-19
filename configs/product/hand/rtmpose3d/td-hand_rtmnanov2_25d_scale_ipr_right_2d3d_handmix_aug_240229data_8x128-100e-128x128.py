@@ -228,6 +228,7 @@ for data_date in val_date_list:
     for glasses in val_glasses_list:
         val_data_list += kpt3d_datasets_info['test_data'][data_date].get(
             glasses, [])
+val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 val_2d_datasets = ['flora_static_finegrain', 'flora_dynamic']
 #val_2d_datasets = ['flora_black']
 #val_2d_datasets = ['flora_decoration']
