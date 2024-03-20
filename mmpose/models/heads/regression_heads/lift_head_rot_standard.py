@@ -268,7 +268,7 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
                                                           -1).to(cuda_device)
             add_matrix[mask, 0, 0] = -add_matrix[mask, 0, 0]
             root_matrix = torch.matmul(torch.inverse(left_R), root_matrix)
-            root_matrix = torch.matmul(add_matrix, root_matrix)
+            root_matrix = torch.matmul(root_matrix, add_matrix)
             rebuild_joints_temp = torch.matmul(rebuild_joints_temp,
                                                root_matrix.transpose(1, 2))
             rebuild_joints_with_scale = \
@@ -465,10 +465,12 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             bone_3d_gt = (hand3d_gt - hand3d_gt[:, self.joint_parents, :]
                           )[:, self.non_root_indices].reshape(-1, 3)
 
-            bone_3d_pre_vector = bone_3d_pre / torch.norm(
-                bone_3d_pre, dim=1, keepdim=True)
-            bone_3d_gt_vector = bone_3d_gt / torch.norm(
-                bone_3d_gt, dim=1, keepdim=True)
+            bone_3d_pre_norms = torch.sqrt(
+                torch.sum(bone_3d_pre**2, dim=1, keepdim=True) + 1e-8)
+            bone_3d_pre_vector = bone_3d_pre / bone_3d_pre_norms
+            bone_3d_gt_norms = torch.sqrt(
+                torch.sum(bone_3d_gt**2, dim=1, keepdim=True) + 1e-8)
+            bone_3d_gt_vector = bone_3d_gt / bone_3d_gt_norms
 
             squared_diff = (bone_3d_pre_vector - bone_3d_gt_vector)**2
             bone_loss = torch.mean(torch.sum(squared_diff,

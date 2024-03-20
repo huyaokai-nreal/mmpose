@@ -242,8 +242,6 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                 right_img_id = int(ann['image_id'].split('_')[1])
                 left_img = coco.loadImgs(left_img_id)[0]
                 right_img = coco.loadImgs(right_img_id)[0]
-                image_list.append(left_img)
-                image_list.append(right_img)
 
                 if self.filter_kpt_exceed:
                     left_keypoints = np.array(
@@ -302,10 +300,13 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                 data_info['meta']['template_bones_id'] = len(
                     self.hand_bones_list)
                 instance_list.append(data_info)
+                image_list.append(left_img)
+                image_list.append(right_img)
 
-            keypoints3d_list = np.concatenate(keypoints3d_list, axis=0)
-            mean_bones = self._get_mean_hand_bones(keypoints3d_list)
-            self.hand_bones_list.append(mean_bones)
+            if len(keypoints3d_list) > 0:
+                keypoints3d_list = np.concatenate(keypoints3d_list, axis=0)
+                mean_bones = self._get_mean_hand_bones(keypoints3d_list)
+                self.hand_bones_list.append(mean_bones)
         logger: MMLogger = MMLogger.get_current_instance()
         if self.test_mode:
             logger.info(
