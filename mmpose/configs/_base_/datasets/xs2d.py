@@ -71,6 +71,9 @@ datasets_info = {
         ],
         'near_two_hands': [
             'data_hand/hand_keypoint/annotations/hand_test_flora_near_two_hands_240202_2k_1__binocular__lmdb.json',
+        ],
+        'dark_light': [
+            'data_hand/hand_keypoint/annotations/hand_test_flora_dark_light_240315_3k__1__binocular__lmdb.json'
         ]
     }
 }
