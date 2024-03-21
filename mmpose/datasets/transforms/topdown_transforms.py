@@ -369,6 +369,24 @@ class GenerateAttrLabel(BaseTransform):
 
 
 @TRANSFORMS.register_module()
+class RandomDownSampleImage(BaseTransform):
+
+    def __init__(self, prob, min_ratio) -> None:
+        super().__init__()
+        self.prob = prob
+        self.min_ratio = min_ratio
+
+    def transform(self, results: Dict) -> Dict:
+        if np.random.rand() < self.prob:
+            sample_ratio = np.random.uniform(self.min_ratio, 1)
+            h, w = results['img'].shape[:2]
+            down_image = cv2.resize(results['img'], (int(
+                w * sample_ratio), int(h * sample_ratio)), cv2.INTER_AREA)
+            results['img'] = cv2.resize(down_image, (w, h), cv2.INTER_CUBIC)
+        return results
+
+
+@TRANSFORMS.register_module()
 class MixTwoHands(BaseTransform):
 
     def __init__(self, prob) -> None:

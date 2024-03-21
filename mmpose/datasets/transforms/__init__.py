@@ -13,7 +13,8 @@ from .pose3d_transforms import (RandomFlipAroundRoot, RandomStereoParamAug,
                                 RandomStereoParamAugForClip,
                                 RandomStereoParamAugV2)
 from .topdown_transforms import (AffineTransformConsistency, GenerateAttrLabel,
-                                 MixTwoHands, RandomBackground, TopdownAffine,
+                                 MixTwoHands, RandomBackground,
+                                 RandomDownSampleImage, TopdownAffine,
                                  TopdownPCL)
 
 __all__ = [
@@ -26,5 +27,5 @@ __all__ = [
     'AffineTransformConsistency', 'TopdownPCL', 'GenerateAttrLabel',
     'RandomFlipAroundRoot', 'KeypointTo25DLabel', 'RandomStereoParamAug',
     'RandomStereoParamAugV2', 'RandomStereoParamAugForClip', 'MixTwoHands',
-    'GroupTransformers'
+    'GroupTransformers', 'RandomDownSampleImage'
 ]
