@@ -110,9 +110,12 @@ model = dict(
         lift_loss=dict(
             type='MultipleLossWrapper',
             losses=[
-                dict(type='L1Loss', loss_weight=1),  # 3d kpts
-                dict(type='L1Loss', loss_weight=1),  # 3d kpts leftcam
-                dict(type='L1Loss', loss_weight=1),  # 3d kpts rightcam
+                dict(type='L1Loss', use_target_weight=True,
+                     loss_weight=1),  # 3d kpts
+                dict(type='L1Loss', use_target_weight=True,
+                     loss_weight=1),  # 3d kpts leftcam
+                dict(type='L1Loss', use_target_weight=True,
+                     loss_weight=1),  # 3d kpts rightcam
                 dict(
                     type='MSELoss',
                     loss_weight=0,
@@ -127,7 +130,7 @@ model = dict(
                     type='PinchLoss',
                     enter_thre=pinch_thre[0] / 1000,
                     exit_thre=pinch_thre[1] / 1000,
-                    loss_weight=2,
+                    loss_weight=3,
                     enable_start_epoch=train_cfg['max_epochs'] -
                     20),  # 后20 epoch打开pinch loss
                 dict(
@@ -197,6 +200,8 @@ train_data_list += [
 ]
 
 # train_data_list = [train_data_sin for train_data_sin in train_data_list if '__20240220_' in train_data_sin and ('Flora302' in train_data_sin or 'Flora303' in train_data_sin)]
+# train_data_list = [train_data_sin for train_data_sin in train_data_list if '__20230824_' in train_data_sin]
+# train_data_list = ['/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_060805__all__normal__left__1111__0006__undistort_tar__Flora301.json']
 
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
