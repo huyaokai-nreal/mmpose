@@ -65,7 +65,7 @@ codec = dict(
     blur_kernel_size=5,
 )
 
-pinch_thre = [20, 40]  # pinch双阈值，单位：mm
+pinch_thre = [15, 35]  # pinch双阈值，单位：mm
 kpt2d_with_depth = False  # liftnet 是否使用2.5d的深度信息
 
 # model settings
@@ -122,9 +122,12 @@ model = dict(
         lift_loss=dict(
             type='MultipleLossWrapper',
             losses=[
-                dict(type='L1Loss', loss_weight=1),  # 3d kpts
-                dict(type='L1Loss', loss_weight=1),  # 3d kpts leftcam
-                dict(type='L1Loss', loss_weight=1),  # 3d kpts rightcam
+                dict(type='L1Loss', use_target_weight=True,
+                     loss_weight=1),  # 3d kpts
+                dict(type='L1Loss', use_target_weight=True,
+                     loss_weight=1),  # 3d kpts leftcam
+                dict(type='L1Loss', use_target_weight=True,
+                     loss_weight=1),  # 3d kpts rightcam
                 dict(
                     type='MSELoss',
                     loss_weight=0,
@@ -139,7 +142,7 @@ model = dict(
                     type='PinchLoss',
                     enter_thre=pinch_thre[0] / 1000,
                     exit_thre=pinch_thre[1] / 1000,
-                    loss_weight=2,
+                    loss_weight=3,
                     enable_start_epoch=0),
                 dict(
                     type='L1Loss',
@@ -189,37 +192,32 @@ model = dict(
         #f'/data/AI_DATA/jrchen/git-project/mmpose/work_dirs/pair_hand3d/006_td-stage_two_train_55dim_RLE_head_train_flora_finetune/FT_kp2d_add_ella_pretrain_lift.pth'  # flora kp2d + ella kp3d
         # '/home/zx_li/workspace/mmpose/work_dirs/td-hand_rsn26_fpn_25d_ipr_right_pcl_2d3d_4x128-100e-128x128/epoch_100.pth',
         # 'work_dirs/keypoint25d/01_td-hand_rsn26_fpn_25d_ipr_right_pcl_2d3d_4x128-100e-128x128_Affine/best_all_p-mpjpe_epoch_90.pth'
-        '/data/stliu/mmpose/work_dirs/bone_loss/best_liftnimble_weight.pth'),
+        '/data/stliu/mmpose/work_dirs/new_dataset/best_weight/best_mpjpe_nimblepca.pth'),
 )
 
 # base dataset settings
 dataset_type = 'PairHand3DDatasetSeq'
 data_mode = 'topdown'
 
-import os
-
 train_data_list = []
-train_date_list = ['20230824', '20230828', '20230906', '20230907']
-train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
-tmp_base_path = 'data_hand/hand_keypoint/annotations3d/'
-for train_glasses in train_glasses_list:
-    train_floder_path = os.path.join(data_root, tmp_base_path,
-                                     'Flora_with_nimble_seq')
-    folder_all_files = os.listdir(train_floder_path)
-    for train_date in train_date_list:
-        result_list = [
-            s for s in folder_all_files
-            if train_glasses in s and train_date in s
-        ]
-        result_list = [
-            os.path.join(tmp_base_path, 'Flora_with_nimble_seq', item)
-            for item in result_list
-        ]
-        train_data_list += result_list
+annotations3d_base_path = '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/'
+annotations3d_fixed_base_path = '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/'
 
-# train_data_list = ['data_hand/hand_keypoint/annotations3d/Flora_with_nimble_seq/XS__20230906_033122__pinch__bright__right__1111__0022__undistort_tar__Flora304.json']
+annotations3d_file_list = os.listdir(annotations3d_base_path)
+annotations3d_fixed_file_list = os.listdir(annotations3d_fixed_base_path)
+train_data_list += [
+    os.path.join(annotations3d_base_path, annotations3d_file_sin)
+    for annotations3d_file_sin in annotations3d_file_list
+]
+train_data_list += [
+    os.path.join(annotations3d_fixed_base_path, annotations3d_fixed_file_sin)
+    for annotations3d_fixed_file_sin in annotations3d_fixed_file_list
+]
 
-train_data_list = [os.path.join(data_root, item) for item in train_data_list]
+# train_data_list = [train_data_sin for train_data_sin in train_data_list if '__20240220_' in train_data_sin and ('Flora302' in train_data_sin or 'Flora303' in train_data_sin)]
+# train_data_list = [train_data_sin for train_data_sin in train_data_list if '__20230824_' in train_data_sin]
+# train_data_list = ['/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_060805__all__normal__left__1111__0006__undistort_tar__Flora301.json']
+
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [

@@ -174,8 +174,8 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
 
         B = output.shape[0]
         # 3d 损失
-        (pred_3d_way1, pred_3d_way2, hand3d_pred, pre_trans_xyz,
-         pre_root_matrix,
+        (pred_3d_way1, pred_3d_way2, hand3d_pred, hand3d_part_gt,
+         pre_trans_xyz, pre_root_matrix,
          pre_rot_vector) = self.postprocess(output, left_hand, leftcam_xy,
                                             left_R, nimble_info, hand3d_gt,
                                             baseline_scale, False)
@@ -244,7 +244,17 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             hand3d_gt
         ]
 
-        losses = self.lift_loss(pred_for_loss, targ_for_loss)
+        weight_ini = torch.ones((1, 21, 3))
+        weight_ini[0, :9, :] = 2
+        weight_ini[0, 4, :], weight_ini[0, 8, :] = 4, 4
+        weight_ini = weight_ini.repeat(hand3d_gt.shape[0], 1,
+                                       1).to(hand3d_gt.device)
+        weight_for_loss = [
+            weight_ini, weight_ini, weight_ini, None, None, None, None, None,
+            None, None
+        ]
+
+        losses = self.lift_loss(pred_for_loss, targ_for_loss, weight_for_loss)
         (loss_pre_root, loss_pre_nimble, loss_pre_all, loss_mse_2d_leftcam,
          loss_mse_2d_rightcam, loss_pinch, loss_scale, loss_nimble_pose,
          loss_nimble_trans, loss_smooth) = losses
@@ -257,16 +267,38 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             bone_3d_gt = (hand3d_gt - hand3d_gt[:, self.joint_parents, :]
                           )[:, self.non_root_indices].reshape(-1, 3)
 
-            bone_3d_pre_vector = bone_3d_pre / torch.norm(
-                bone_3d_pre, dim=1, keepdim=True)
-            bone_3d_gt_vector = bone_3d_gt / torch.norm(
-                bone_3d_gt, dim=1, keepdim=True)
+            bone_3d_pre_vector = self.cal_normalize_vector(bone_3d_pre)
+            bone_3d_gt_vector = self.cal_normalize_vector(bone_3d_gt)
 
             squared_diff = (bone_3d_pre_vector - bone_3d_gt_vector)**2
             bone_loss = torch.mean(torch.sum(squared_diff,
                                              dim=1)) * bone_loss_weight
+
+            # 局部子骨骼监督
+            major_bone_loss_weight = 0.3
+            local_bone_3d_pre = (
+                pred_3d_way2 -
+                pred_3d_way2[:, self.joint_parents, :])[:,
+                                                        self.non_root_indices]
+            local_bone_3d_pre = local_bone_3d_pre[:, :8, :].reshape(-1, 3)
+            local_bone_3d_gt = (hand3d_part_gt -
+                                hand3d_part_gt[:, self.joint_parents, :]
+                                )[:, self.non_root_indices]
+            local_bone_3d_gt = local_bone_3d_gt[:, :8, :].reshape(-1, 3)
+
+            local_bone_3d_pre_vector = self.cal_normalize_vector(
+                local_bone_3d_pre)
+            local_bone_3d_gt_vector = self.cal_normalize_vector(
+                local_bone_3d_gt)
+
+            local_squared_diff = (local_bone_3d_pre_vector -
+                                  local_bone_3d_gt_vector)**2
+            major_bone_loss = torch.mean(torch.sum(
+                local_squared_diff, dim=1)) * major_bone_loss_weight
+
         else:
             bone_loss = torch.tensor(0.0, device=loss_pre_root.device)
+            major_bone_loss = torch.tensor(0.0, device=loss_pre_root.device)
 
         if self.lambda_t > 0:
             mh = MessageHub.get_current_instance()
@@ -292,6 +324,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             loss_mse_2d_leftcam=loss_mse_2d_leftcam,
             loss_mse_2d_rightcam=loss_mse_2d_rightcam,
             bone_loss=bone_loss,
+            major_bone_loss=major_bone_loss,
             loss_pinch=loss_pinch,
             loss_proportion=loss_scale,
             loss_nimble_pose=loss_nimble_pose,
@@ -299,3 +332,9 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             loss_smooth=loss_smooth)
 
         return losses_dict
+
+    def cal_normalize_vector(self, vector):
+        vector_norms = torch.sqrt(
+            torch.sum(vector**2, dim=1, keepdim=True) + 1e-8)
+        normalized_vector = vector / vector_norms
+        return normalized_vector

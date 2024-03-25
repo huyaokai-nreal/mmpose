@@ -454,7 +454,7 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
 
         weight_ini = torch.ones((1, 21, 3))
         weight_ini[0, :9, :] = 2
-        weight_ini[0, 4, :], weight_ini[0, 8, :] = 3, 3
+        weight_ini[0, 4, :], weight_ini[0, 8, :] = 4, 4
         weight_ini = weight_ini.repeat(hand3d_gt.shape[0], 1,
                                        1).to(hand3d_gt.device)
         weight_for_loss = [
@@ -490,7 +490,7 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
                                              dim=1)) * bone_loss_weight
 
             # 局部子骨骼监督
-            major_bone_loss_weight = 0.15
+            major_bone_loss_weight = 0.3
             local_bone_3d_pre = (
                 pred_3d_way2 -
                 pred_3d_way2[:, self.joint_parents, :])[:,

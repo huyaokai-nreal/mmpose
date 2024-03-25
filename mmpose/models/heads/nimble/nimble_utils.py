@@ -420,6 +420,92 @@ def matrix_to_euler_angles(matrix, convention='XYZ'):
     return torch.stack(o, -1)
 
 
+def euler_angles_to_matrix(euler_angles, convention='XYZ'):
+    """Convert Euler angles given in radians to rotation matrices.
+
+    Args:
+        euler_angles: Euler angles in radians as tensor of shape (..., 3).
+        convention: Convention string of three uppercase letters.
+
+    Returns:
+        Rotation matrices as tensor of shape (..., 3, 3).
+    """
+    if len(convention) != 3:
+        raise ValueError('Convention must have 3 letters.')
+    if convention[1] in (convention[0], convention[2]):
+        raise ValueError(f'Invalid convention {convention}.')
+    for letter in convention:
+        if letter not in ('X', 'Y', 'Z'):
+            raise ValueError(f'Invalid letter {letter} in convention string.')
+
+    sin_angles = torch.sin(euler_angles)
+    cos_angles = torch.cos(euler_angles)
+
+    matrix = torch.zeros((*euler_angles.shape[:-1], 3, 3),
+                         dtype=euler_angles.dtype,
+                         device=euler_angles.device)
+
+    if convention == 'XYZ':
+        i0, i1, i2 = 0, 1, 2
+    elif convention == 'YXZ':
+        i0, i1, i2 = 1, 0, 2
+    elif convention == 'ZXY':
+        i0, i1, i2 = 2, 0, 1
+
+    if convention == 'XYZ':
+        matrix[..., 0, 0] = cos_angles[..., i1] * cos_angles[..., i2]
+        matrix[..., 0, 1] = cos_angles[..., i1] * sin_angles[..., i2]
+        matrix[..., 0, 2] = -sin_angles[..., i1]
+        matrix[..., 1,
+               0] = sin_angles[..., i0] * sin_angles[..., i1] * cos_angles[
+                   ..., i2] - cos_angles[..., i0] * sin_angles[..., i2]
+        matrix[..., 1,
+               1] = sin_angles[..., i0] * sin_angles[..., i1] * sin_angles[
+                   ..., i2] + cos_angles[..., i0] * cos_angles[..., i2]
+        matrix[..., 1, 2] = sin_angles[..., i0] * cos_angles[..., i1]
+        matrix[..., 2,
+               0] = cos_angles[..., i0] * sin_angles[..., i1] * cos_angles[
+                   ..., i2] + sin_angles[..., i0] * sin_angles[..., i2]
+        matrix[..., 2,
+               1] = cos_angles[..., i0] * sin_angles[..., i1] * sin_angles[
+                   ..., i2] - sin_angles[..., i0] * cos_angles[..., i2]
+        matrix[..., 2, 2] = cos_angles[..., i0] * cos_angles[..., i1]
+
+    elif convention == 'YXZ':
+        matrix[..., 0, 0] = cos_angles[..., i1] * cos_angles[..., i2]
+        matrix[..., 0,
+               1] = sin_angles[..., i0] * sin_angles[..., i1] * cos_angles[
+                   ..., i2] - cos_angles[..., i0] * sin_angles[..., i2]
+        matrix[..., 0,
+               2] = cos_angles[..., i0] * sin_angles[..., i1] * cos_angles[
+                   ..., i2] + sin_angles[..., i0] * sin_angles[..., i2]
+        matrix[..., 1, 0] = cos_angles[..., i1] * sin_angles[..., i2]
+        matrix[..., 1,
+               1] = sin_angles[..., i0] * sin_angles[..., i1] * sin_angles[
+                   ..., i2] + cos_angles[..., i0] * cos_angles[..., i2]
+        matrix[..., 1,
+               2] = cos_angles[..., i0] * sin_angles[..., i1] * sin_angles[
+                   ..., i2] - sin_angles[..., i0] * cos_angles[..., i2]
+        matrix[..., 2, 0] = -sin_angles[..., i1]
+        matrix[..., 2, 1] = sin_angles[..., i0] * cos_angles[..., i1]
+        matrix[..., 2, 2] = cos_angles[..., i0] * cos_angles[..., i1]
+    elif convention == 'ZXY':
+        matrix[..., 0, 0] = cos_angles[..., i1] * cos_angles[
+            ..., i2] - sin_angles[..., i0] * sin_angles[..., i2]
+        matrix[..., 0, 1] = -cos_angles[..., i0] * sin_angles[..., i2]
+        matrix[..., 0,
+               2] = cos_angles[..., i2] * sin_angles[..., i1] + sin_angles[
+                   ..., i0] * cos_angles[..., i1] * sin_angles[..., i2]
+        matrix[..., 1, 0] = cos_angles[..., i1] * sin_angles[
+            ..., i2] + sin_angles[..., i0] * cos_angles[..., i2]
+        matrix[..., 1, 1] = cos_angles[..., i0] * cos_angles[..., i2]
+        matrix[..., 1, 2] = sin_angles[..., i1]
+        matrix[..., 2, 0] = -sin_angles[..., i1] * cos_angles[..., i2]
+        matrix[..., 2, 1] = sin_angles[..., i1] * sin_angles[..., i2]
+        matrix[..., 2, 2] = cos_angles[..., i1]
+    return matrix
+
+
 def adjust_predicted_angles(pred_angles, target_angles):
     # 计算欧拉角的差异
     angle_diff = pred_angles - target_angles
@@ -616,13 +702,13 @@ def quaternion_to_angle_axis(quaternion: torch.Tensor) -> torch.Tensor:
     q3: torch.Tensor = quaternion[..., 3]
     sin_squared_theta: torch.Tensor = q1 * q1 + q2 * q2 + q3 * q3
 
-    sin_theta: torch.Tensor = torch.sqrt(sin_squared_theta)
+    sin_theta: torch.Tensor = torch.sqrt(sin_squared_theta + 1e-8)
     cos_theta: torch.Tensor = quaternion[..., 0]
     two_theta: torch.Tensor = 2.0 * torch.where(
         cos_theta < 0.0, torch.atan2(-sin_theta, -cos_theta),
         torch.atan2(sin_theta, cos_theta))
 
-    k_pos: torch.Tensor = two_theta / sin_theta
+    k_pos: torch.Tensor = two_theta / (sin_theta + 1e-8)
     k_neg: torch.Tensor = 2.0 * torch.ones_like(sin_theta)
     k: torch.Tensor = torch.where(sin_squared_theta > 0.0, k_pos, k_neg)
 
@@ -714,7 +800,7 @@ def rotation_matrix_to_quaternion(rotation_matrix, eps=1e-6):
 
     q = q0 * mask_c0 + q1 * mask_c1 + q2 * mask_c2 + q3 * mask_c3
     q /= torch.sqrt(t0_rep * mask_c0 + t1_rep * mask_c1 +  # noqa
-                    t2_rep * mask_c2 + t3_rep * mask_c3)  # noqa
+                    t2_rep * mask_c2 + t3_rep * mask_c3 + 1e-8)  # noqa
     q *= 0.5
     return q
 
@@ -795,29 +881,30 @@ def trans_3d_2_2d(hand3d_point, leftcam_cam_matrix, rightcam_cam_matrix,
     leftcam_uv_reproj = torch.matmul(hand3d_point,
                                      leftcam_cam_matrix.permute(0, 2, 1)).to(
                                          torch.float32)
-    leftcam_uv_reproj = leftcam_uv_reproj[..., :2] / leftcam_uv_reproj[..., 2:]
+    leftcam_uv_reproj = leftcam_uv_reproj[..., :2] / (
+        leftcam_uv_reproj[..., 2:] + 1e-8)
 
     column_of_ones = torch.ones((B, 21, 1)).to(hand3d_point.device)
     tensor_with_ones = torch.cat((hand3d_point, column_of_ones), dim=2)
     rightcam_uv_reproj = torch.matmul(tensor_with_ones,
                                       left_to_right_rt.permute(0, 2, 1)).to(
                                           torch.float32)
-    rightcam_uv_reproj = rightcam_uv_reproj[..., :3] / rightcam_uv_reproj[...,
-                                                                          3:]
+    rightcam_uv_reproj = rightcam_uv_reproj[..., :3] / (
+        rightcam_uv_reproj[..., 3:] + 1e-8)
     rightcam_uv_reproj = torch.matmul(rightcam_uv_reproj,
                                       rightcam_cam_matrix.permute(0, 2, 1)).to(
                                           torch.float32)
-    rightcam_uv_reproj = rightcam_uv_reproj[..., :2] / rightcam_uv_reproj[...,
-                                                                          2:]
+    rightcam_uv_reproj = rightcam_uv_reproj[..., :2] / (
+        rightcam_uv_reproj[..., 2:] + 1e-8)
     return leftcam_uv_reproj, rightcam_uv_reproj
 
 
 def cal_proportion(uv_coor, leftcam_cam_matrix):
     B = uv_coor.shape[0]
     leftcam_x = (uv_coor[:, :, 0] - leftcam_cam_matrix[:, 0, 2].view(
-        (B, 1))) / leftcam_cam_matrix[:, 0, 0].view((B, 1))
+        (B, 1))) / (leftcam_cam_matrix[:, 0, 0] + 1e-8).view((B, 1))
     leftcam_y = (uv_coor[:, :, 1] - leftcam_cam_matrix[:, 1, 2].view(
-        (B, 1))) / leftcam_cam_matrix[:, 1, 1].view((B, 1))
+        (B, 1))) / (leftcam_cam_matrix[:, 1, 1] + 1e-8).view((B, 1))
     leftcam_xy = torch.cat((leftcam_x.unsqueeze(-1), leftcam_y.unsqueeze(-1)),
                            dim=2)  # (B, 21, 2)
     return leftcam_xy
