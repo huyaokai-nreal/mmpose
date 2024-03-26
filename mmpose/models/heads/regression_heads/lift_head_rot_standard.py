@@ -168,6 +168,7 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
 
     def simple_feature_layer(self, output, left_hand):
         B = output.shape[0]
+        cuda_device = output.device
         pose_len = self.pose_ncomp
         rot_vector_t = output[:, :pose_len, 0, 0]
         svd_begin = self.pose_ncomp + self.shape_ncomp
@@ -180,12 +181,15 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             pre_local_matrix = self.nimble_layer.generate_pose_matrix(
                 rot_vector_t, normalized=True, with_root=False)
 
+        mask = left_hand == 1
+        hand_matrix = torch.eye(3).unsqueeze(0).expand(B, -1,
+                                                       -1).to(cuda_device)
+        hand_matrix[mask, 0, 0] = -1
         _, bone_joints = self.nimble_layer.forward_simple(
             pre_local_matrix, shape_v)
         rebuild_joints = bone_joints[:, self.kp_index, :]
         root_rebuild_joints = rebuild_joints[:, 0:1, :]
         rebuild_joints_temp = rebuild_joints - root_rebuild_joints
-
         rebuild_joints_temp = rebuild_joints_temp / self.scale_parameter
         return rebuild_joints_temp, pre_local_matrix, pre_pt_features
 
