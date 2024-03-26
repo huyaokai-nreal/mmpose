@@ -12,7 +12,7 @@ train_cfg = dict(max_epochs=100, val_interval=10)
 
 data_root = '/data/AI_DATA_WX'
 # data_root = '/data/AI_DATA_LOCAL'
-test_type = '3d'
+test_type = '2d'
 camera_layout = 'monocular'
 base_lr = 1e-4
 # optimizer
@@ -88,7 +88,7 @@ model = dict(
         consistency_loss=False,
         heatmap_loss=False,
         output_depth=True,
-        deploy_output=['feat', 'depth'],
+        deploy_output=['kpt'],
         input_size=128,
         loss=dict(
             type='MultipleLossWrapper',
@@ -239,6 +239,7 @@ val_2d_datasets = ['flora_static_finegrain', 'flora_dynamic']
 #val_2d_datasets = ['flora_black']
 #val_2d_datasets = ['flora_decoration']
 val_2d_datasets = ['near_two_hands']
+val_2d_datasets = ['dark_light']
 val_2d_data_list = [
     kpt2d_datasets_info['test_data'][key] for key in val_2d_datasets
 ]

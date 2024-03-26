@@ -381,7 +381,7 @@ class RandomDownSampleImage(BaseTransform):
             sample_ratio = np.random.uniform(self.min_ratio, 1)
             h, w = results['img'].shape[:2]
             down_image = cv2.resize(results['img'], (int(
-                w * sample_ratio), int(h * sample_ratio)), cv2.INTER_AREA)
+                w * sample_ratio), int(h * sample_ratio)), cv2.INTER_NEAREST)
             results['img'] = cv2.resize(down_image, (w, h), cv2.INTER_CUBIC)
         return results
 

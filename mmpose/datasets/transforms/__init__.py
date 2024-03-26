@@ -2,10 +2,11 @@
 from .bottomup_transforms import (BottomupGetHeatmapMask, BottomupRandomAffine,
                                   BottomupResize)
 from .common_transforms import (Albumentation, ChangeImageQuality,
-                                GenerateTarget, GetBBoxCenterScale,
-                                GetNegtiveBBox, GroupTransformers,
-                                PhotometricDistortion, RandomBBoxTransform,
-                                RandomFlip, RandomHalfBody)
+                                GenerateNoiseDarkImage, GenerateTarget,
+                                GetBBoxCenterScale, GetNegtiveBBox,
+                                GroupTransformers, PhotometricDistortion,
+                                RandomBBoxTransform, RandomFlip,
+                                RandomHalfBody)
 from .converting import KeypointConverter, KeypointTo25DLabel
 from .formatting import PackPoseInputs
 from .loading import LoadImage, LoadImageFromMultiLMDB
@@ -27,5 +28,5 @@ __all__ = [
     'AffineTransformConsistency', 'TopdownPCL', 'GenerateAttrLabel',
     'RandomFlipAroundRoot', 'KeypointTo25DLabel', 'RandomStereoParamAug',
     'RandomStereoParamAugV2', 'RandomStereoParamAugForClip', 'MixTwoHands',
-    'GroupTransformers', 'RandomDownSampleImage'
+    'GroupTransformers', 'RandomDownSampleImage', 'GenerateNoiseDarkImage'
 ]

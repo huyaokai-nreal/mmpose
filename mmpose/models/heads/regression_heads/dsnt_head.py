@@ -98,7 +98,8 @@ class DSNTHead(IntegralRegressionHead):
             output_depth=False,
             depth_channel=256,
             depth_encode_type='direct',  # 'heatmap' or 'direct'
-            input_size: Optional[Tuple] = None):
+            input_size: Optional[Tuple] = None,
+            distill_feat: bool = False):
 
         super().__init__(
             in_channels=in_channels,
@@ -129,6 +130,7 @@ class DSNTHead(IntegralRegressionHead):
         self.input_size = input_size
         self.heatmap_loss = heatmap_loss
         self.output_depth = output_depth
+        self.distill_feat = distill_feat
 
     def loss(self,
              inputs: Tuple[Tensor],
@@ -163,17 +165,40 @@ class DSNTHead(IntegralRegressionHead):
         ])
         outputs = self.forward(inputs)
         pred_coords, pred_heatmaps = outputs[:2]
-        input_list = [pred_coords]
-        target_list = [label_2d]
+        if self.distill_feat:
+            noise_pred_coords = pred_coords[1::2]
+            clear_pred_coords = pred_coords[::2]
+            input_list = [
+                torch.cat([clear_pred_coords, noise_pred_coords], dim=0)
+            ]
+            target_list = [torch.cat([label_2d, label_2d], dim=0)]
+        else:
+            input_list = [pred_coords]
+            target_list = [label_2d]
         if self.output_depth:
             label_depth = torch.cat(label_depth_list)
             label_depth_id = torch.tensor(
                 label_depth_id_list, dtype=torch.int32).cuda()
             pred_depth = outputs[2]
-            valid_depth_pred = torch.index_select(pred_depth, 0,
-                                                  label_depth_id)
-            input_list.append(valid_depth_pred)
-            target_list.append(label_depth)
+            if self.distill_feat:
+                noise_pred_depth = pred_depth[1::2]
+                clear_pred_depth = pred_depth[::2]
+                valid_clear_pred_depth = torch.index_select(
+                    clear_pred_depth, 0, label_depth_id)
+                valid_noise_pred_depth = torch.index_select(
+                    noise_pred_depth, 0, label_depth_id)
+                input_list.append(
+                    torch.cat([valid_clear_pred_depth, valid_noise_pred_depth],
+                              dim=0))
+                target_list.append(
+                    torch.cat([label_depth, label_depth], dim=0))
+
+            else:
+                valid_depth_pred = torch.index_select(pred_depth, 0,
+                                                      label_depth_id)
+
+                input_list.append(valid_depth_pred)
+                target_list.append(label_depth)
         if self.heatmap_loss:
             gt_heatmaps = torch.stack(
                 [d.gt_fields.heatmaps for d in batch_data_samples])
@@ -202,8 +227,6 @@ class DSNTHead(IntegralRegressionHead):
                                                                      1, :, :]
             input_list.append(pred_coords_1)
             target_list.append(pred_coords_2)
-
-        # calculate losses
         losses = dict()
 
         loss_list = self.loss_module(input_list, target_list, keypoint_weights)
@@ -225,14 +248,33 @@ class DSNTHead(IntegralRegressionHead):
         if pred_coords.size(-1) == 4:
             pred_coords = pred_coords[:, :, :2]
         # calculate accuracy
-        _, avg_acc, _ = keypoint_pck_accuracy(
-            pred=to_numpy(pred_coords),
-            gt=to_numpy(label_2d),
-            mask=np.abs(to_numpy(keypoint_weights)) > 0,
-            thr=0.05,
-            norm_factor=np.ones((pred_coords.size(0), 2), dtype=np.float32))
-
-        acc_pose = torch.tensor(avg_acc).cuda()
-        losses.update(acc_pose=acc_pose)
+        if self.distill_feat:
+            _, clear_avg_acc, _ = keypoint_pck_accuracy(
+                pred=to_numpy(pred_coords[::2]),
+                gt=to_numpy(label_2d),
+                mask=np.abs(to_numpy(keypoint_weights)) > 0,
+                thr=0.05,
+                norm_factor=np.ones((label_2d.size(0), 2), dtype=np.float32))
+            _, noise_avg_acc, _ = keypoint_pck_accuracy(
+                pred=to_numpy(pred_coords[1::2]),
+                gt=to_numpy(label_2d),
+                mask=np.abs(to_numpy(keypoint_weights)) > 0,
+                thr=0.05,
+                norm_factor=np.ones((label_2d.size(0), 2), dtype=np.float32))
+            clear_acc_pose = torch.tensor(clear_avg_acc).cuda()
+            losses.update(clear_acc_pose=clear_acc_pose)
+            noise_acc_pose = torch.tensor(noise_avg_acc).cuda()
+            losses.update(noise_acc_pose=noise_acc_pose)
+            losses.update(acc_gap=clear_acc_pose - noise_acc_pose)
+        else:
+            _, avg_acc, _ = keypoint_pck_accuracy(
+                pred=to_numpy(pred_coords),
+                gt=to_numpy(label_2d),
+                mask=np.abs(to_numpy(keypoint_weights)) > 0,
+                thr=0.05,
+                norm_factor=np.ones((pred_coords.size(0), 2),
+                                    dtype=np.float32))
+            acc_pose = torch.tensor(avg_acc).cuda()
+            losses.update(acc_pose=acc_pose)
 
         return losses

@@ -123,15 +123,15 @@ class JSDiscretLoss(nn.Module):
         size_average (bool): Option to average the loss by the batch_size.
     """
 
-    def __init__(
-        self,
-        use_target_weight=True,
-        size_average: bool = True,
-    ):
+    def __init__(self,
+                 use_target_weight=True,
+                 size_average: bool = True,
+                 loss_weight=1.0):
         super(JSDiscretLoss, self).__init__()
         self.use_target_weight = use_target_weight
         self.size_average = size_average
         self.kl_loss = nn.KLDivLoss(reduction='none')
+        self.loss_weight = loss_weight
 
     def kl(self, p, q):
         """Kullback-Leibler Divergence."""
@@ -171,7 +171,7 @@ class JSDiscretLoss(nn.Module):
 
         if self.size_average:
             loss /= len(gt_hm)
-        return loss
+        return loss * self.loss_weight
 
 
 @MODELS.register_module()
