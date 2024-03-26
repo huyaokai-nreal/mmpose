@@ -177,15 +177,14 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         # 3d 损失
         (pred_3d_way1, pred_3d_way2, hand3d_pred, hand3d_part_gt,
          pre_trans_xyz, pre_root_matrix,
-         pre_rot_vector) = self.postprocess(output, left_hand, leftcam_xy,
-                                            left_R, nimble_info, hand3d_gt,
-                                            baseline_scale, False)
+         pre_local_matrix) = self.postprocess(output, left_hand, leftcam_xy,
+                                              left_R, nimble_info, hand3d_gt,
+                                              baseline_scale, False)
 
         # 直接监督rot和trans, 只考虑根节点的处理方式
         pre_nimble_trans = pre_trans_xyz
-        pre_child_vector = pre_rot_vector[:, 1:, :].reshape(-1, 3)
-        pre_child_matrix = batch_rodrigues(pre_child_vector).reshape(
-            B, -1, 3, 3)
+        # pre_child_vector = pre_rot_vector[:, 1:, :].reshape(-1, 3)
+        pre_child_matrix = pre_local_matrix.reshape(B, -1, 3, 3)
         pre_matrix = torch.cat(
             (pre_root_matrix.unsqueeze(1), pre_child_matrix),
             dim=1).reshape(-1, 3, 3)
