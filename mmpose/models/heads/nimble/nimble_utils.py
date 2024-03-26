@@ -163,7 +163,7 @@ def quat2aa(quats):
     norm = _sin.clone()
     norm[norm < 1e-7] = 1
     axis = xyz / norm.unsqueeze(-1)
-    angle = torch.atan2(_sin, _cos) * 2
+    angle = torch.atan(_sin / (_cos + 1e-6)) * 2
     return axis * angle.unsqueeze(-1)
 
 
@@ -234,6 +234,26 @@ def th_posemap_axisang_2output(pose_vectors):
 
     # rot_mats = torch.stack(rot_mats, 1).view(-1, 15 *9)
     rot_mats = torch.cat(rot_mats, 1)
+    pose_maps = subtract_flat_id(rot_mats)
+    return pose_maps, rot_mats
+
+
+def convert_vector2matrix(pose_vectors):
+    rot_nb = int(pose_vectors.shape[1] / 3)
+    rot_mats = []
+    for joint_idx in range(rot_nb - 1):
+        joint_idx_val = joint_idx + 1
+        axis_ang = pose_vectors[:, joint_idx_val * 3:(joint_idx_val + 1) * 3]
+        rot_mat = batch_rodrigues(axis_ang)
+        rot_mats.append(rot_mat)
+
+    # rot_mats = torch.stack(rot_mats, 1).view(-1, 15 *9)
+    rot_mats = torch.cat(rot_mats, 1)
+    return rot_mats
+
+
+def th_posemap_axisang_2output_usematrix(pose_matrix):
+    rot_mats = pose_matrix.reshape(pose_matrix.shape[0], -1)
     pose_maps = subtract_flat_id(rot_mats)
     return pose_maps, rot_mats
 
@@ -544,10 +564,10 @@ def _angle_from_tan(axis: str, other_axis: str, data, horizontal: bool,
         i2, i1 = i1, i2
     even = (axis + other_axis) in ['XY', 'YZ', 'ZX']
     if horizontal == even:
-        return torch.atan2(data[..., i1], data[..., i2])
+        return torch.atan(data[..., i1] / (data[..., i2] + 1e-6))
     if tait_bryan:
-        return torch.atan2(-data[..., i2], data[..., i1])
-    return torch.atan2(data[..., i2], -data[..., i1])
+        return torch.atan(-data[..., i2] / (data[..., i1] + 1e-6))
+    return torch.atan(data[..., i2] / (-data[..., i1] + 1e-6))
 
 
 def matrix_to_quaternion(matrix: torch.Tensor) -> torch.Tensor:
@@ -627,14 +647,15 @@ def rotation_matrix_to_angle_axis(rotation_matrix):
         >>> input = torch.rand(2, 3, 4)  # Nx4x4
         >>> output = tgm.rotation_matrix_to_angle_axis(input)  # Nx3
     """
-    if rotation_matrix.shape[1:] == (3, 3):
-        hom_mat = torch.tensor([0, 0, 1]).float()
-        rot_mat = rotation_matrix.reshape(-1, 3, 3)
-        batch_size, device = rot_mat.shape[0], rot_mat.device
-        hom_mat = hom_mat.view(1, 3, 1)
-        hom_mat = hom_mat.repeat(batch_size, 1, 1).contiguous()
-        hom_mat = hom_mat.to(device)
-        rotation_matrix = torch.cat([rot_mat, hom_mat], dim=-1)
+
+    # if rotation_matrix.shape[1:] == (3, 3):
+    hom_mat = torch.tensor([0, 0, 1]).float()
+    rot_mat = rotation_matrix.reshape(-1, 3, 3)
+    batch_size, device = rot_mat.shape[0], rot_mat.device
+    hom_mat = hom_mat.view(1, 3, 1)
+    hom_mat = hom_mat.repeat(batch_size, 1, 1).contiguous()
+    hom_mat = hom_mat.to(device)
+    rotation_matrix = torch.cat([rot_mat, hom_mat], dim=-1)
 
     quaternion = rotation_matrix_to_quaternion(rotation_matrix)
     aa = quaternion_to_angle_axis(quaternion)
@@ -657,6 +678,12 @@ def rot6d_to_rotmat(x):
     rot_mats = torch.stack([b1, b2, b3], dim=-1)
 
     return rot_mats
+
+
+def rot6D_to_matirx(rot6D):
+    batch_size = rot6D.shape[0]
+    pred_matrix = rot6d_to_rotmat(rot6D).view(batch_size, -1, 3, 3)
+    return pred_matrix
 
 
 def rot6D_to_angular(rot6D):
@@ -705,8 +732,8 @@ def quaternion_to_angle_axis(quaternion: torch.Tensor) -> torch.Tensor:
     sin_theta: torch.Tensor = torch.sqrt(sin_squared_theta + 1e-8)
     cos_theta: torch.Tensor = quaternion[..., 0]
     two_theta: torch.Tensor = 2.0 * torch.where(
-        cos_theta < 0.0, torch.atan2(-sin_theta, -cos_theta),
-        torch.atan2(sin_theta, cos_theta))
+        cos_theta < 0.0, torch.atan(-sin_theta / (-cos_theta + 1e-6)),
+        torch.atan(sin_theta / (cos_theta + 1e-6)))
 
     k_pos: torch.Tensor = two_theta / (sin_theta + 1e-8)
     k_neg: torch.Tensor = 2.0 * torch.ones_like(sin_theta)

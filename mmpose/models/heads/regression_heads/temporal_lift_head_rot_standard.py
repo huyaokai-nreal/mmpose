@@ -89,14 +89,15 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         mems=None,
     ) -> Tensor:
         devices_cuda = feats.device
-        feats = self.liftnet(feats)
         B = feats.shape[0]
+        out_feats = self.liftnet(feats)
         if mems is None:
             mems = torch.zeros(B, 2 * self.channel_num, 1, 1).to(devices_cuda)
-        feat_mix = torch.cat([feats, mems], dim=1)
+        feat_mix = torch.cat([out_feats, mems], dim=1)
         mems = self.temporal(feat_mix)
         output = self.last_layer(feat_mix)
-        kpt, rot, svd_pt = self.simple_feature_layer(output)
+        kpt, rot, svd_pt = self.simple_feature_layer(output, feats[:, -1, 0,
+                                                                   0])
         return kpt, rot, svd_pt, mems
 
     def forward(self,

@@ -87,7 +87,7 @@ class sim_NIMBLELayer(torch.nn.Module):
 
         return th_v_shaped, rebuild_jreg_bone_joints
 
-    def generate_full_pose(self, theta, normalized=True, with_root=False):
+    def generate_pose_matrix(self, theta, normalized=True, with_root=False):
         # theta : B, N
 
         batch_size = theta.shape[0]
@@ -112,7 +112,9 @@ class sim_NIMBLELayer(torch.nn.Module):
         full_pose = torch.cat([root_rot, full_pose],
                               dim=1).view(batch_size, -1, 3)
 
-        return full_pose
+        local_matrix = convert_vector2matrix(full_pose.view(batch_size, -1))
+
+        return local_matrix
 
     def convert_rot_to_pca(self, nimble_pose):
         full_pose_de = nimble_pose[:, 3:]
@@ -139,14 +141,14 @@ class sim_NIMBLELayer(torch.nn.Module):
                 self.pose_pm_std[:self.pose_ncomp].reshape(1, -1))
         return real_theta_de
 
-    def return_pose(self, pose_param, with_root_pose=False):
-        if self.use_pose_pca:
-            full_pose = self.generate_full_pose(
-                pose_param, normalized=True,
-                with_root=with_root_pose).view(-1, 20, 3)
-        else:
-            full_pose = pose_param.view(-1, 20, 3)
-        return full_pose
+    # def return_pose(self, pose_param, with_root_pose=False):
+    #     if self.use_pose_pca:
+    #         full_pose = self.generate_full_pose(
+    #             pose_param, normalized=True,
+    #             with_root=with_root_pose).view(-1, 20, 3)
+    #     else:
+    #         full_pose = pose_param.view(-1, 20, 3)
+    #     return full_pose
 
     def get_hand_joints(self, shape_param, init_shape_pose):
         # 得到在某个手型下的所有点的位置和关键骨骼点的位置
@@ -203,43 +205,44 @@ class sim_NIMBLELayer(torch.nn.Module):
                                                               j, :]
         return jreg_joints
 
-    def forward(self,
-                pose_param,
-                shape_param,
-                init_shape_pose=False,
-                with_root_pose=False):
-        """Takes points in R^3 and first applies relevant pose and shape blend
-        shapes.
+    # def forward(self,
+    #             pose_param,
+    #             shape_param,
+    #             init_shape_pose=False,
+    #             with_root_pose=False):
+    #     """Takes points in R^3 and first applies relevant pose and shape blend
+    #     shapes.
 
-        Then performs skinning.
-        """
-        if self.use_pose_pca:
-            full_pose = self.generate_full_pose(
-                pose_param, normalized=True,
-                with_root=with_root_pose).view(-1, 20, 3)
-        else:
-            full_pose = pose_param.view(-1, 20, 3)
+    #     Then performs skinning.
+    #     """
+    #     if self.use_pose_pca:
+    #         full_pose = self.generate_full_pose(
+    #             pose_param, normalized=True,
+    #             with_root=with_root_pose).view(-1, 20, 3)
+    #     else:
+    #         full_pose = pose_param.view(-1, 20, 3)
+
+    #     jreg_joints = self.get_hand_joints(shape_param, init_shape_pose)
+    #     bone_joints = self.forward_full(full_pose, jreg_joints)
+
+    #     return None, bone_joints
+
+    def forward_simple(self, pose_matrix, shape_param, init_shape_pose=False):
 
         jreg_joints = self.get_hand_joints(shape_param, init_shape_pose)
-        bone_joints = self.forward_full(full_pose, jreg_joints)
+        bone_joints = self.forward_full(pose_matrix, jreg_joints)
 
         return None, bone_joints
 
-    def forward_simple(self, pose_param, shape_param, init_shape_pose=False):
-
-        jreg_joints = self.get_hand_joints(shape_param, init_shape_pose)
-        bone_joints = self.forward_full(pose_param, jreg_joints)
-
-        return None, bone_joints
-
-    def forward_full(self, pose, joints, global_scale=None):
-        batch_size = pose.shape[0]
+    def forward_full(self, local_pose_matrix, joints, global_scale=None):
+        batch_size = local_pose_matrix.shape[0]
 
         # Convert axis-angle representation to rotation matrix rep.
-        th_pose_map, th_rot_map = th_posemap_axisang_2output(
-            pose.view(batch_size, -1))
-        th_full_pose = pose.view(batch_size, -1, 3)
-        root_rot = batch_rodrigues(th_full_pose[:, 0]).view(batch_size, 3, 3)
+        th_pose_map, th_rot_map = th_posemap_axisang_2output_usematrix(
+            local_pose_matrix)
+        # root_rot = batch_rodrigues(th_full_pose[:, 0]).view(batch_size, 3, 3)
+        root_rot = torch.eye(3, 3).unsqueeze(0).repeat(batch_size, 1, 1).to(
+            local_pose_matrix.device)
 
         th_j = joints
 

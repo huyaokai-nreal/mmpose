@@ -7,8 +7,9 @@ from torch import Tensor, nn
 
 from mmpose.models.heads.nimble.nimble_utils import (
     SkeletonEncoder, _gen_rigid_features, adjust_predicted_angles,
-    batch_rodrigues, cal_proportion, decode_svd, matrix_to_euler_angles,
-    matrix_to_quaternion, rot6D_to_angular, trans_3d_2_2d)
+    batch_rodrigues, cal_proportion, convert_vector2matrix, decode_svd,
+    euler_angles_to_matrix, matrix_to_euler_angles, matrix_to_quaternion,
+    rot6D_to_matirx, trans_3d_2_2d)
 from mmpose.models.heads.nimble.simple_NIMBLELayer import sim_NIMBLELayer
 from mmpose.models.heads.regression_heads.lift_head_standard import \
     LiftHeadStandard
@@ -47,6 +48,7 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
                  corruption_cam: float = 0.5,
                  use_bone_loss: bool = True,
                  use_6d_pose_reg: bool = False,
+                 direct_pose_reg: bool = False,
                  all_use_kp2d_gt: bool = False,
                  init_cfg: Union[dict, List[dict], None] = None):
         super().__init__(
@@ -104,6 +106,8 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             self.pose_ncomp = len(self.used_nimble_para)
         if use_6d_pose_reg:
             self.pose_ncomp = 19 * 6
+        if direct_pose_reg:
+            self.pose_ncomp = 21
         output_num = self.shape_ncomp + self.pose_ncomp + 3
         if use_svd:
             self.output_num = output_num + 18  # 21 - 3
@@ -136,6 +140,7 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         self.use_nimble_part_para = use_nimble_part_para
         self.euler_or_quaternion = euler_or_quaternion
         self.use_6d_pose_reg = use_6d_pose_reg
+        self.direct_pose_reg = direct_pose_reg
         if self.euler_or_quaternion not in ['euler', 'quaternion']:
             raise ValueError('must in two pose way')
 
@@ -152,6 +157,11 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         if self.reg_shape_type > 1:
             self.skeleton_feature_dim = skeleton_feature_dim
             self.skeleton_encoder = SkeletonEncoder(skeleton_feature_dim)
+
+        self.direct_pose_reg_index = [
+            3, 4, 6, 7, 9, 15, 16, 18, 21, 27, 28, 30, 33, 39, 40, 42, 45, 51,
+            52, 54, 57
+        ]
 
         self.joint_parents = [
             0, 0, 1, 2, 3, 0, 5, 6, 7, 0, 9, 10, 11, 0, 13, 14, 15, 0, 17, 18,
@@ -170,27 +180,40 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         pose_out[:, used_nimble_para] = pose_reg.to(torch.float32)
         return pose_out
 
-    def simple_feature_layer(self, output):
+    def simple_feature_layer(self, output, left_hand):
+        B = output.shape[0]
+        cuda_device = output.device
         pose_len = self.pose_ncomp
         rot_vector_t = output[:, :pose_len, 0, 0]
         svd_begin = self.pose_ncomp + self.shape_ncomp
         shape_v = output[:, pose_len:svd_begin, 0, 0]
         pre_pt_features = output[:, svd_begin:, 0, 0]
-        pre_rot_vector = self.nimble_layer.generate_full_pose(
-            rot_vector_t, normalized=True, with_root=False).view(-1, 20, 3)
+        if self.use_6d_pose_reg:
+            pre_local_matrix = rot6D_to_matirx(rot_vector_t.reshape(
+                -1, 6)).reshape(B, 19, -1)
+        else:
+            pre_local_matrix = self.nimble_layer.generate_pose_matrix(
+                rot_vector_t, normalized=True, with_root=False)
 
+        mask = left_hand == 1
+        hand_matrix = torch.eye(3).unsqueeze(0).expand(B, -1,
+                                                       -1).to(cuda_device)
+        hand_matrix[mask, 0, 0] = -1
         _, bone_joints = self.nimble_layer.forward_simple(
-            pre_rot_vector, shape_v)
+            pre_local_matrix, shape_v)
         rebuild_joints = bone_joints[:, self.kp_index, :]
         root_rebuild_joints = rebuild_joints[:, 0:1, :]
         rebuild_joints_temp = rebuild_joints - root_rebuild_joints
+        rebuild_joints_temp = torch.matmul(rebuild_joints_temp,
+                                           hand_matrix.transpose(1, 2))
         rebuild_joints_temp = rebuild_joints_temp / self.scale_parameter
-        return rebuild_joints_temp, pre_rot_vector, pre_pt_features
+        return rebuild_joints_temp, pre_local_matrix, pre_pt_features
 
     def _forward(self, feats: Tuple[Tensor]) -> Tensor:
         output = self.liftnet(feats)
         output = self.last_layer(output).view((feats.shape[0], -1, 1, 1))
-        kpt, rot, svd_pt = self.simple_feature_layer(output)
+        kpt, rot, svd_pt = self.simple_feature_layer(output, feats[:, -1, 0,
+                                                                   0])
         return kpt, rot, svd_pt
 
     def forward(self, feats: Tuple[Tensor]) -> Tensor:
@@ -228,14 +251,19 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         pre_root_xyz = matrix_svd[:, 0:3, 3]
         pre_root_matrix = matrix_svd[:, 0:3, 0:3]
         if self.use_6d_pose_reg:
-            tmp_rot_vector = rot6D_to_angular(rot_vector_t.reshape(
+            pre_local_matrix = rot6D_to_matirx(rot_vector_t.reshape(
                 -1, 6)).reshape(B, 19, -1)
-            tmp_root_rot = torch.zeros((B, 1, 3), device=cuda_device)
-            pre_rot_vector = torch.cat((tmp_root_rot, tmp_rot_vector), dim=1)
+        elif self.direct_pose_reg:
+            rot_vector_t = torch.mul(rot_vector_t, torch.pi)
+            pre_euler_value = torch.zeros((B, 60), device=cuda_device)
+            pre_euler_value[:, self.direct_pose_reg_index] = rot_vector_t.to(
+                torch.float32)
+            pre_euler_value = pre_euler_value.reshape(-1, 3)
+            pre_local_matrix = euler_angles_to_matrix(pre_euler_value).reshape(
+                B, 20, -1)[:, 1:, :]
         else:
-            pre_rot_vector = self.nimble_layer.generate_full_pose(
-                rot_vector_t, normalized=True,
-                with_root=False).view(-1, 20, 3)
+            pre_local_matrix = self.nimble_layer.generate_pose_matrix(
+                rot_vector_t, normalized=True, with_root=False)
         pre_shape_vector = shape_v
 
         if not only_pre:
@@ -246,19 +274,22 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
                 gt_root_matrix = batch_rodrigues(
                     nimble_info['nimble_pose'][:, 0, :]).reshape(-1, 3, 3)
                 gt_root_matrix = torch.matmul(left_R, gt_root_matrix)
+
                 init_root_rot = torch.zeros((B, 1, 3),
                                             requires_grad=True,
                                             device=cuda_device)
                 gt_rot_vector = torch.cat(
                     (init_root_rot, nimble_info['nimble_pose'][:, 1:, :]),
                     dim=1)
+                gt_local_matrix = convert_vector2matrix(
+                    gt_rot_vector.view(B, -1))
                 # gt_shape_vector = nimble_info['nimble_shape']
 
-        def get_nimble_3d(root_xyz, root_matrix, rot_vector, shape_vector,
+        def get_nimble_3d(root_xyz, root_matrix, local_matrix, shape_vector,
                           baseline_scale, left_R):
 
             _, bone_joints = self.nimble_layer.forward_simple(
-                rot_vector, shape_vector)
+                local_matrix, shape_vector)
             rebuild_joints = bone_joints[:, self.kp_index, :]
             root_rebuild_joints = rebuild_joints[:, 0:1, :]
             rebuild_joints_temp = rebuild_joints - root_rebuild_joints
@@ -283,24 +314,25 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
 
         if only_pre:
             pre_nimble_pre_root_pre_shape__xyz = get_nimble_3d(
-                pre_root_xyz, pre_root_matrix, pre_rot_vector,
+                pre_root_xyz, pre_root_matrix, pre_local_matrix,
                 pre_shape_vector, baseline_scale, left_R)
 
             return pre_nimble_pre_root_pre_shape__xyz, \
-                pre_root_xyz, pre_root_matrix, pre_rot_vector
+                pre_root_xyz, pre_root_matrix, pre_local_matrix
         else:
             pre_root__xyz = get_nimble_3d(pre_root_xyz, pre_root_matrix,
-                                          gt_rot_vector, pre_shape_vector,
+                                          gt_local_matrix, pre_shape_vector,
                                           baseline_scale, left_R)
             pre_nimble__xyz = get_nimble_3d(gt_root_xyz, gt_root_matrix,
-                                            pre_rot_vector, pre_shape_vector,
+                                            pre_local_matrix, pre_shape_vector,
                                             baseline_scale, left_R)
             pre_all__xyz = get_nimble_3d(pre_root_xyz, pre_root_matrix,
-                                         pre_rot_vector, pre_shape_vector,
+                                         pre_local_matrix, pre_shape_vector,
                                          baseline_scale, left_R)
             gt_all__xyz = get_nimble_3d(gt_root_xyz, gt_root_matrix,
-                                        gt_rot_vector, pre_shape_vector,
+                                        gt_local_matrix, pre_shape_vector,
                                         baseline_scale, left_R)
+
             pre_root_xyz = torch.bmm(
                 pre_root_xyz.unsqueeze(1),
                 torch.inverse(left_R).permute(0, 2, 1)) * baseline_scale
@@ -308,7 +340,7 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
                 torch.inverse(left_R), pre_root_matrix)
 
             return (pre_root__xyz, pre_nimble__xyz, pre_all__xyz, gt_all__xyz,
-                    pre_root_xyz[:, 0, :], pre_root_matrix, pre_rot_vector)
+                    pre_root_xyz[:, 0, :], pre_root_matrix, pre_local_matrix)
 
     def predict(self,
                 feats: Tuple[Tensor],
@@ -385,15 +417,14 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         # 3d 损失
         (pred_3d_way1, pred_3d_way2, hand3d_pred, hand3d_part_gt,
          pre_trans_xyz, pre_root_matrix,
-         pre_rot_vector) = self.postprocess(output, left_hand, leftcam_xy,
-                                            left_R, nimble_info, hand3d_gt,
-                                            baseline_scale, False)
+         pre_local_matrix) = self.postprocess(output, left_hand, leftcam_xy,
+                                              left_R, nimble_info, hand3d_gt,
+                                              baseline_scale, False)
 
         # 直接监督rot和trans, 只考虑根节点的处理方式
         pre_nimble_trans = pre_trans_xyz
-        pre_child_vector = pre_rot_vector[:, 1:, :].reshape(-1, 3)
-        pre_child_matrix = batch_rodrigues(pre_child_vector).reshape(
-            B, -1, 3, 3)
+        # pre_child_vector = pre_rot_vector[:, 1:, :].reshape(-1, 3)
+        pre_child_matrix = pre_local_matrix.reshape(B, -1, 3, 3)
         pre_matrix = torch.cat(
             (pre_root_matrix.unsqueeze(1), pre_child_matrix),
             dim=1).reshape(-1, 3, 3)

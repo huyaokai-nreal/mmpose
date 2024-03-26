@@ -128,10 +128,22 @@ train_data_list = [
     'data_hand/hand_keypoint/annotations/XS__20230904__1111__0021__undistort_tar_flir__30__binocular__lmdb.json',
     'data_hand/hand_keypoint/annotations/XS__20230831__1111__0002__undistort_tar_flir__30__binocular__lmdb.json',
     'data_hand/hand_keypoint/annotations/XS__20230830__1111__0019__undistort_tar_flir__30__binocular__lmdb.json',
-    'data_hand/hand_keypoint/annotations/XS__20230831__1111__0020__undistort_tar_flir__30__binocular__lmdb.json'
+    'data_hand/hand_keypoint/annotations/XS__20230831__1111__0020__undistort_tar_flir__30__binocular__lmdb.json',
+    'data_hand/hand_keypoint/annotations/XS__20230906__1111__0022__undistort_tar_flir__30__binocular__lmdb.json',
+    'data_hand/hand_keypoint/annotations/XS__20230907__1111__0011__undistort_tar_flir__30__binocular__lmdb.json',
+    'data_hand/hand_keypoint/annotations/XS__20240220__1111__0006__undistort_tar_flir__30__binocular__lmdb.json',
+    'data_hand/hand_keypoint/annotations/XS__20240220__1111__0007__undistort_tar_flir__30__binocular__lmdb.json',
+    'data_hand/hand_keypoint/annotations/XS__20240220__1111__0027__undistort_tar_flir__30__binocular__lmdb.json',
+    'data_hand/hand_keypoint/annotations/XS__20240220__1111__0028__undistort_tar_flir__30__binocular__lmdb.json',
+    'data_hand/hand_keypoint/annotations/XS__20240220__1111__0029__undistort_tar_flir__30__binocular__lmdb.json',
+    'data_hand/hand_keypoint/annotations/XS__20240229__1111__0008__undistort_tar_flir__30__binocular__lmdb.json',
+    'data_hand/hand_keypoint/annotations/XS__20240229__1111__0010__undistort_tar_flir__30__binocular__lmdb.json',
+    'data_hand/hand_keypoint/annotations/XS__20240229__1111__0014__undistort_tar_flir__30__binocular__lmdb.json',
+    'data_hand/hand_keypoint/annotations/XS__20240229__1111__0025__undistort_tar_flir__30__binocular__lmdb.json',
+    'data_hand/hand_keypoint/annotations/XS__20240229__1111__0029__undistort_tar_flir__30__binocular__lmdb.json',
 ]
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
-studio_data_num = 15
+studio_data_num = 27
 studio_data_weight = 0.9
 dataset_weight_list = [
     (1 - studio_data_weight) / (len(train_data_list) - studio_data_num)

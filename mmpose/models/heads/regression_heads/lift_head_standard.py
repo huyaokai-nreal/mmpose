@@ -182,6 +182,11 @@ class LiftHeadStandard(BaseModule):
                 leftcam_cam_matrix.append(left_cam_matrix)
                 left_R.append(data_sample.meta['cam_to_virtual_R'])
                 hand3d_gt.append(data_sample.gt_instances.keypoints3d[0])
+                if 'nimble_pose' in data_sample.meta.keys() and not np.equal(
+                        data_sample.meta['nimble_pose'].any(), None):
+                    nimble_pose.append(data_sample.meta['nimble_pose'])
+                    nimble_trans.append(data_sample.meta['nimble_translation'])
+                    nimble_shape.append(data_sample.meta['nimble_shape'])
                 if data_sample.meta['category_id'] == 1:
                     is_left_hands.append(1)
                 else:
@@ -218,6 +223,15 @@ class LiftHeadStandard(BaseModule):
         left_to_right_rt = torch.tensor(
             np.array(left_to_right_rt)).cuda().float()
         hand3d_gt = torch.tensor(np.array(hand3d_gt)).cuda().float()
+        if len(nimble_pose) > 0:
+            nimble_info = {
+                'nimble_pose':
+                torch.tensor(np.array(nimble_pose)).cuda().float(),
+                'nimble_trans':
+                torch.tensor(np.array(nimble_trans)).cuda().float(),
+                'nimble_shape':
+                torch.tensor(np.array(nimble_shape)).cuda().float()
+            }
         left_hand = torch.tensor(np.array(is_left_hands)).cuda().float()
         uv_coord_im_gt_global = torch.tensor(
             np.array(uv_coord_im_gt_global)).cuda().float()
@@ -341,7 +355,7 @@ class LiftHeadStandard(BaseModule):
             'right_R': right_R,
             'baseline_scale': baseline_scale,
             'hand_scale': hand_scale,
-            'nimble_info': None
+            'nimble_info': nimble_info
         }
 
     def postprocess(self, hand3d_standard, left_to_right_rt, left_R,

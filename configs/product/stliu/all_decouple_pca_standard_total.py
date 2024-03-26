@@ -156,6 +156,7 @@ model = dict(
         use_plane_coord=True,
         baseline=0.135,
         use_6d_pose_reg=False,
+        direct_pose_reg=False,
         reproj_thre=440,
         iou_thre=0.5,
         pad_2d=False,
@@ -215,14 +216,12 @@ val_data_list = [
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073857__pinch__normal__right__1111__0005__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_074601__pinch__bright__left__1111__0005__undistort_tar__Flora301.json',
 
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix_with_nimble/XS__20230830_070648__all__normal__right__1111__0005__undistort_tar__Flora301_update.json',  #
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix_with_nimble/XS__20230830_071804__all__bright__left__1111__0005__undistort_tar__Flora301_update.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix_with_nimble/XS__20230830_072334__pinch__dark__right__1111__0005__undistort_tar__Flora301_update.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix_with_nimble/XS__20230830_072715__pinch__normal__left__1111__0005__undistort_tar__Flora301_update.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix_with_nimble/XS__20230830_073026__pinch__bright__right__1111__0005__undistort_tar__Flora301_update.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix_with_nimble/XS__20230830_073556__pinch__bright__left__1111__0005__undistort_tar__Flora301_update.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix_with_nimble/XS__20230830_073857__pinch__normal__right__1111__0005__undistort_tar__Flora301_update.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix_with_nimble/XS__20230830_074601__pinch__bright__left__1111__0005__undistort_tar__Flora301_update.json',
+    # 'data_hand/hand_keypoint/annotations3d/manual_fix_kpt/XS__20240229_083647__pinch__normal__right__1110__0025__undistort_tar__Flora301.json',
+    # 'data_hand/hand_keypoint/annotations3d/manual_fix_kpt/XS__20240229_083322__pinch__normal__left__1110__0025__undistort_tar__Flora301.json',
+    # 'data_hand/hand_keypoint/annotations3d/manual_fix_kpt/XS__20240229_083322__pinch__normal__left__1110__0025__undistort_tar__Flora302.json',
+    # 'data_hand/hand_keypoint/annotations3d/manual_fix_kpt/XS__20240229_083647__pinch__normal__right__1110__0025__undistort_tar__Flora302.json',
+    # 'data_hand/hand_keypoint/annotations3d/manual_fix_kpt/XS__20240229_083322__pinch__normal__left__1110__0025__undistort_tar__Flora303.json',
+    # 'data_hand/hand_keypoint/annotations3d/manual_fix_kpt/XS__20240229_083647__pinch__normal__right__1110__0025__undistort_tar__Flora303.json',
 
     # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230904_093420__all__dark__left__1111__0021__undistort_tar__Flora301.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230904_094228__pinch__dark__left__1111__0021__undistort_tar__Flora301.json',
