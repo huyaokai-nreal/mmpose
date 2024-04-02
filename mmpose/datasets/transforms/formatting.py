@@ -163,8 +163,9 @@ class PackPoseInputs(BaseTransform):
         """
         # Pack image(s) for 2d pose estimation
         if 'img' in results:
-            img = results['img']
-            inputs_tensor = image_to_tensor(img)
+            inputs_tensor = results['img']
+            # img = results['img']
+            # inputs_tensor = image_to_tensor(img)
         # Pack keypoints for 3d pose-lifting
         elif 'lifting_target' in results and 'keypoints' in results:
             if 'keypoint_labels' in results:

@@ -12,6 +12,7 @@ from .hand_transforms import HandRandomFlip
 from .loading import LoadImage
 from .mix_img_transforms import Mosaic, YOLOXMixUp
 from .pose3d_transforms import RandomFlipAroundRoot
+from .topdown_pcl_ume import TopdownPCLUme
 from .topdown_transforms import TopdownAffine
 
 __all__ = [
@@ -22,5 +23,5 @@ __all__ = [
     'GenerateTarget', 'KeypointConverter', 'RandomFlipAroundRoot',
     'FilterAnnotations', 'YOLOXHSVRandomAug', 'YOLOXMixUp', 'Mosaic',
     'BottomupRandomCrop', 'BottomupRandomChoiceResize', 'HandRandomFlip',
-    'SingleHandConverter'
+    'SingleHandConverter', 'TopdownPCLUme'
 ]
