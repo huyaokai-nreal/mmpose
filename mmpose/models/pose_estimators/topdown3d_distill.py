@@ -67,10 +67,10 @@ class TopdownPose3DDistillEstimator(TopdownPoseEstimator):
     @format_data
     def loss(self, inputs, data_samples: SampleList) -> dict:
         feats = self.extract_feat(inputs)
-        feats_t = self.extract_feat_with_teacher(inputs[::2])
-        loss_align = self.align_loss.forward(feats[-1][1::2], feats_t[-1])
-
-        losses = dict(loss_align=loss_align)
+        # feats_t = self.extract_feat_with_teacher(inputs[::2])
+        # loss_align = self.align_loss.forward(feats[-1][1::2], feats_t[-1])
+        # losses = dict(loss_align=loss_align)
+        losses = dict()
         if self.with_head:
             losses.update(
                 self.head.loss(feats, data_samples, train_cfg=self.train_cfg))

@@ -71,13 +71,14 @@ class RTMCCHead3D(RTMCCHead):
                      type='KLDiscretLoss', use_target_weight=True),
                  decoder: OptConfigType = None,
                  init_cfg: OptConfigType = None,
-                 with_root_net: bool = False):
+                 with_root_net: bool = False,
+                 with_gau: bool = False):
         if init_cfg is None:
             init_cfg = self.default_init_cfg
         super().__init__(in_channels, out_channels, input_size,
                          in_featuremap_size, simcc_split_ratio,
                          final_layer_kernel_size, gau_cfg, loss, decoder,
-                         init_cfg)
+                         init_cfg, with_gau)
         D = int(self.input_size[2] * self.simcc_split_ratio)
         self.cls_z = nn.Linear(gau_cfg['hidden_dims'], D, bias=False)
         self.with_root_net = with_root_net
@@ -108,9 +109,8 @@ class RTMCCHead3D(RTMCCHead):
         feats = torch.flatten(feats, 2)
 
         feats = self.mlp(feats)  # -> B, K, hidden
-
-        feats = self.gau(feats)
-
+        if self.with_gau:
+            feats = self.gau(feats)
         pred_x = self.cls_x(feats)
         pred_y = self.cls_y(feats)
         pred_z = self.cls_z(feats)

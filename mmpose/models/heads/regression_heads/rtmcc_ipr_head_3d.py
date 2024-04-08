@@ -90,15 +90,29 @@ class RTMCCIPRHead3D(RTMCCHead3D):
                  decoder: OptConfigType = None,
                  init_cfg: OptConfigType = None,
                  output_sigma: bool = False,
-                 deploy: bool = False):
-        super().__init__(in_channels, out_channels, input_size,
-                         in_featuremap_size, simcc_split_ratio,
-                         final_layer_kernel_size, gau_cfg, loss, decoder,
-                         init_cfg)
+                 deploy: bool = False,
+                 with_gau: bool = False,
+                 deploy_output='kpt',
+                 map_type='softmax'):
+        super().__init__(
+            in_channels,
+            out_channels,
+            input_size,
+            in_featuremap_size,
+            simcc_split_ratio,
+            final_layer_kernel_size,
+            gau_cfg,
+            loss,
+            decoder,
+            init_cfg,
+            with_gau=with_gau)
         W = int(self.input_size[0] * self.simcc_split_ratio)
         H = int(self.input_size[1] * self.simcc_split_ratio)
         D = int(self.input_size[2] * self.simcc_split_ratio)
-        self.ipr_module = SimCCToKeypoint3D(feat_w=W, feat_h=H, feat_d=D)
+        self.ipr_module = SimCCToKeypoint3D(
+            feat_w=W, feat_h=H, feat_d=D, map_type=map_type)
+        self.with_gau = with_gau
+        self.deploy_output = deploy_output
         self.output_sigma = output_sigma
         self.deploy = deploy
         if self.output_sigma:
@@ -119,11 +133,10 @@ class RTMCCIPRHead3D(RTMCCHead3D):
             pred_x (Tensor): 1d representation of x.
             pred_y (Tensor): 1d representation of y.
         """
-        pred_x, pred_y, pred_z = super().forward(feats)
-        heatmaps = torch.cat([pred_x, pred_y, pred_z], dim=1)
+        feat_x, feat_y, feat_z = super().forward(feats)
+        heatmaps = torch.cat([feat_x, feat_y, feat_z], dim=1)
         raw_feats = feats[-1]
-        pred_x, pred_y, pred_z = self.ipr_module(pred_x, pred_y, pred_z)
-        pred_z = pred_z
+        pred_x, pred_y, pred_z = self.ipr_module(feat_x, feat_y, feat_z)
         output = torch.cat([pred_x, pred_y, pred_z], dim=-1)
         if self.output_sigma:
             x = self.gap(raw_feats)
@@ -132,7 +145,10 @@ class RTMCCIPRHead3D(RTMCCHead3D):
                 pred_sigma.size(0), self.out_channels, 3)
             output = torch.cat([output, pred_sigma_reshape], dim=-1)
         if self.deploy:
-            return torch.cat([pred_x, pred_y, pred_z], dim=-1)
+            if self.deploy_output == 'kpt':
+                return pred_x, pred_y, pred_z
+            elif self.deploy_output == 'feat':
+                return feat_x, feat_y, feat_z
         else:
             return output, heatmaps
 

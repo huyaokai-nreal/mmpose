@@ -168,10 +168,8 @@ class DSNTHead(IntegralRegressionHead):
         if self.distill_feat:
             noise_pred_coords = pred_coords[1::2]
             clear_pred_coords = pred_coords[::2]
-            input_list = [
-                torch.cat([clear_pred_coords, noise_pred_coords], dim=0)
-            ]
-            target_list = [torch.cat([label_2d, label_2d], dim=0)]
+            input_list = [clear_pred_coords, noise_pred_coords]
+            target_list = [label_2d, label_2d]
         else:
             input_list = [pred_coords]
             target_list = [label_2d]
@@ -187,12 +185,10 @@ class DSNTHead(IntegralRegressionHead):
                     clear_pred_depth, 0, label_depth_id)
                 valid_noise_pred_depth = torch.index_select(
                     noise_pred_depth, 0, label_depth_id)
-                input_list.append(
-                    torch.cat([valid_clear_pred_depth, valid_noise_pred_depth],
-                              dim=0))
-                target_list.append(
-                    torch.cat([label_depth, label_depth], dim=0))
-
+                input_list.append(valid_clear_pred_depth)
+                input_list.append(valid_noise_pred_depth)
+                target_list.append(label_depth)
+                target_list.append(label_depth)
             else:
                 valid_depth_pred = torch.index_select(pred_depth, 0,
                                                       label_depth_id)
@@ -230,25 +226,18 @@ class DSNTHead(IntegralRegressionHead):
         losses = dict()
 
         loss_list = self.loss_module(input_list, target_list, keypoint_weights)
-
-        loss_kpt2d = loss_list[0]
-        losses.update(loss_reg=loss_kpt2d)
-        if self.output_depth:
-            losses.update(loss_depth=loss_list[1])
-        if self.heatmap_loss:
-            loss_ht = loss_list[1]
-            if self.lambda_t > 0:
-                mh = MessageHub.get_current_instance()
-                cur_epoch = mh.get_info('epoch')
-                if cur_epoch >= self.lambda_t:
-                    loss_ht = 0
-            losses.update(loss_ht=loss_ht)
-        if self.consistency_loss:
-            losses.update(loss_const=loss_list[2])
         if pred_coords.size(-1) == 4:
             pred_coords = pred_coords[:, :, :2]
+
         # calculate accuracy
         if self.distill_feat:
+            loss_clear_kpt2d = loss_list[0]
+            loss_noise_kpt2d = loss_list[1]
+            losses.update(loss_reg_clear=loss_clear_kpt2d)
+            losses.update(loss_reg_noise=loss_noise_kpt2d)
+            if self.output_depth:
+                losses.update(loss_depth_clear=loss_list[2])
+                losses.update(loss_depth_noise=loss_list[3])
             _, clear_avg_acc, _ = keypoint_pck_accuracy(
                 pred=to_numpy(pred_coords[::2]),
                 gt=to_numpy(label_2d),
@@ -267,6 +256,20 @@ class DSNTHead(IntegralRegressionHead):
             losses.update(noise_acc_pose=noise_acc_pose)
             losses.update(acc_gap=clear_acc_pose - noise_acc_pose)
         else:
+            loss_kpt2d = loss_list[0]
+            losses.update(loss_reg=loss_kpt2d)
+            if self.output_depth:
+                losses.update(loss_depth=loss_list[1])
+            if self.heatmap_loss:
+                loss_ht = loss_list[1]
+                if self.lambda_t > 0:
+                    mh = MessageHub.get_current_instance()
+                    cur_epoch = mh.get_info('epoch')
+                    if cur_epoch >= self.lambda_t:
+                        loss_ht = 0
+                losses.update(loss_ht=loss_ht)
+            if self.consistency_loss:
+                losses.update(loss_const=loss_list[2])
             _, avg_acc, _ = keypoint_pck_accuracy(
                 pred=to_numpy(pred_coords),
                 gt=to_numpy(label_2d),

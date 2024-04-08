@@ -34,8 +34,10 @@ class SimCCToKeypoint3D(nn.Module):
     def __init__(self,
                  feat_w: int = 256,
                  feat_h: int = 256,
-                 feat_d: int = 256) -> None:
+                 feat_d: int = 256,
+                 map_type='softmax') -> None:
         super().__init__()
+        self.map_type = map_type
         linspace_x = torch.arange(0.0, 1.0 * feat_w, 1.0) / feat_w
         linspace_y = torch.arange(0.0, 1.0 * feat_h, 1.0) / feat_h
         linspace_z = torch.arange(0.0, 1.0 * feat_d, 1.0) / feat_d
@@ -49,10 +51,23 @@ class SimCCToKeypoint3D(nn.Module):
         heatmaps = F.softmax(featmaps, dim=2)
         return heatmaps
 
+    @staticmethod
+    def _elu_normalize(featmaps):
+        heatmaps = F.elu(featmaps) + 1
+        heatmaps = heatmaps / heatmaps.sum(dim=2, keepdim=True)
+        return heatmaps
+
     def forward(self, x, y, z):
-        x = self._flat_softmax(x)
-        y = self._flat_softmax(y)
-        z = self._flat_softmax(z)
+        if self.map_type == 'softmax':
+            x = self._flat_softmax(x)
+            y = self._flat_softmax(y)
+            z = self._flat_softmax(z)
+        elif self.map_type == 'elu':
+            x = self._elu_normalize(x)
+            y = self._elu_normalize(y)
+            z = self._elu_normalize(z)
+        elif self.map_type == 'raw':
+            pass
         pred_x = x.mul(self.linspace_x)
         pred_y = y.mul(self.linspace_y)
         pred_z = z.mul(self.linspace_z)

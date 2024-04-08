@@ -715,9 +715,15 @@ class GenerateNoiseDarkImage(BaseTransform):
                                  -1, 1)
             result_img = ((target_img * 128 + 128) * alpha).astype('uint8')
             if self.concat_image:
-                results['img'] = [results['img'], result_img]
+                results['img'] = [results['img'].copy(), result_img]
             else:
-                results['img'] = result_img
+                results['img'] = result_img.copy()
+        else:
+            if self.concat_image:
+                results['img'] = [results['img'].copy(), results['img'].copy()]
+            else:
+                results['img'] = results['img'].copy()
+
         return results
 
 

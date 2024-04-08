@@ -55,27 +55,27 @@ class RTMCCHead(BaseHead):
             :attr:`default_init_cfg` for default settings
     """
 
-    def __init__(
-        self,
-        in_channels: Union[int, Sequence[int]],
-        out_channels: int,
-        input_size: Tuple[int, int],
-        in_featuremap_size: Tuple[int, int],
-        simcc_split_ratio: float = 2.0,
-        final_layer_kernel_size: int = 1,
-        gau_cfg: ConfigType = dict(
-            hidden_dims=256,
-            s=128,
-            expansion_factor=2,
-            dropout_rate=0.,
-            drop_path=0.,
-            act_fn='ReLU',
-            use_rel_bias=False,
-            pos_enc=False),
-        loss: ConfigType = dict(type='KLDiscretLoss', use_target_weight=True),
-        decoder: OptConfigType = None,
-        init_cfg: OptConfigType = None,
-    ):
+    def __init__(self,
+                 in_channels: Union[int, Sequence[int]],
+                 out_channels: int,
+                 input_size: Tuple[int, int],
+                 in_featuremap_size: Tuple[int, int],
+                 simcc_split_ratio: float = 2.0,
+                 final_layer_kernel_size: int = 1,
+                 gau_cfg: ConfigType = dict(
+                     hidden_dims=256,
+                     s=128,
+                     expansion_factor=2,
+                     dropout_rate=0.,
+                     drop_path=0.,
+                     act_fn='ReLU',
+                     use_rel_bias=False,
+                     pos_enc=False),
+                 loss: ConfigType = dict(
+                     type='KLDiscretLoss', use_target_weight=True),
+                 decoder: OptConfigType = None,
+                 init_cfg: OptConfigType = None,
+                 with_gau: bool = False):
 
         if init_cfg is None:
             init_cfg = self.default_init_cfg
@@ -108,26 +108,29 @@ class RTMCCHead(BaseHead):
             kernel_size=final_layer_kernel_size,
             stride=1,
             padding=final_layer_kernel_size // 2)
-        self.mlp = nn.Sequential(
-            ScaleNorm(flatten_dims),
-            nn.Linear(flatten_dims, gau_cfg['hidden_dims'], bias=False))
+        self.with_gau = with_gau
+        if self.with_gau:
+            self.mlp = nn.Sequential(
+                ScaleNorm(flatten_dims),
+                nn.Linear(flatten_dims, gau_cfg['hidden_dims'], bias=False))
 
+            self.gau = RTMCCBlock(
+                self.out_channels,
+                gau_cfg['hidden_dims'],
+                gau_cfg['hidden_dims'],
+                s=gau_cfg['s'],
+                expansion_factor=gau_cfg['expansion_factor'],
+                dropout_rate=gau_cfg['dropout_rate'],
+                drop_path=gau_cfg['drop_path'],
+                attn_type='self-attn',
+                act_fn=gau_cfg['act_fn'],
+                use_rel_bias=gau_cfg['use_rel_bias'],
+                pos_enc=gau_cfg['pos_enc'])
+        else:
+            self.mlp = nn.Sequential(
+                nn.Linear(flatten_dims, 128), nn.ReLU(), nn.Linear(128, 128))
         W = int(self.input_size[0] * self.simcc_split_ratio)
         H = int(self.input_size[1] * self.simcc_split_ratio)
-
-        self.gau = RTMCCBlock(
-            self.out_channels,
-            gau_cfg['hidden_dims'],
-            gau_cfg['hidden_dims'],
-            s=gau_cfg['s'],
-            expansion_factor=gau_cfg['expansion_factor'],
-            dropout_rate=gau_cfg['dropout_rate'],
-            drop_path=gau_cfg['drop_path'],
-            attn_type='self-attn',
-            act_fn=gau_cfg['act_fn'],
-            use_rel_bias=gau_cfg['use_rel_bias'],
-            pos_enc=gau_cfg['pos_enc'])
-
         self.cls_x = nn.Linear(gau_cfg['hidden_dims'], W, bias=False)
         self.cls_y = nn.Linear(gau_cfg['hidden_dims'], H, bias=False)
 
@@ -152,8 +155,8 @@ class RTMCCHead(BaseHead):
         feats = torch.flatten(feats, 2)
 
         feats = self.mlp(feats)  # -> B, K, hidden
-
-        feats = self.gau(feats)
+        if self.with_gau:
+            feats = self.gau(feats)
 
         pred_x = self.cls_x(feats)
         pred_y = self.cls_y(feats)
