@@ -91,18 +91,21 @@ data_root = '/data/AI_DATA/InterHand2.6M/'
 
 # pipelines
 train_pipeline = [
-    dict(type='LoadImage'),
-    dict(type='GetBBoxCenterScale'),
-    dict(type='HandRandomFlip', prob=0.5),
-    dict(type='RandomBBoxTransform', rotate_factor=90.0),
-    dict(type='TopdownAffine', input_size=codec['image_size']),
-    dict(type='GenerateTarget', encoder=codec),
+    # dict(type='LoadImage'),
+    # dict(type='GetBBoxCenterScale'),
+    # dict(type='HandRandomFlip', prob=0.5),
+    # dict(type='RandomBBoxTransform', rotate_factor=90.0),
+    # dict(type='TopdownAffine', input_size=codec['image_size']),
+    # dict(type='GenerateTarget', encoder=codec),
     dict(
         type='PackPoseInputs',
-        meta_keys=('id', 'img_id', 'img_path', 'rotation', 'img_shape',
-                   'focal', 'principal_pt', 'input_size', 'input_center',
-                   'input_scale', 'hand_type', 'hand_type_valid', 'flip',
-                   'flip_indices', 'abs_depth'))
+        # meta_keys=('id', 'img_id', 'img_path', 'rotation', 'img_shape',
+        #            'focal', 'principal_pt', 'input_size', 'input_center',
+        #            'input_scale', 'hand_type', 'hand_type_valid', 'flip',
+        #            'flip_indices', 'abs_depth'))
+        meta_keys=('extrinsics_xf', 'intrinsics', 'preds_targets',
+                   'gt_skel_targets', 'hand_idx', 'orig_pose_data',
+                   's_solved_pose_data'))
 ]
 val_pipeline = [
     # dict(type='LoadImage'),
@@ -123,7 +126,8 @@ train_dataloader = dict(
     drop_last=False,
     sampler=dict(type='DefaultSampler', shuffle=True),
     dataset=dict(
-        type=dataset_type,
+        type='Umetrack3DDataset',
+        # type=dataset_type,
         # ann_file='annotations/train/InterHand2.6M_train_data.json',
         ann_file='/data/UmeTrack_data2/UmeTrack_data/torch_data',
         camera_param_file='annotations/train/InterHand2.6M_train_camera.json',
@@ -142,8 +146,10 @@ val_dataloader = dict(
     drop_last=False,
     sampler=dict(type='DefaultSampler', shuffle=False, round_up=False),
     dataset=dict(
-        type=dataset_type,
-        ann_file='annotations/val/InterHand2.6M_val_data.json',
+        # type=dataset_type,
+        type='Umetrack3DDataset',
+        ann_file='/data/UmeTrack_data2/UmeTrack_data/torch_data',
+        # ann_file='annotations/val/InterHand2.6M_val_data.json',
         camera_param_file='annotations/val/InterHand2.6M_val_camera.json',
         joint_file='annotations/val/InterHand2.6M_val_joint_3d.json',
         use_gt_root_depth=True,
@@ -156,8 +162,8 @@ val_dataloader = dict(
     ))
 test_dataloader = dict(
     batch_size=128,
-    num_workers=0,
-    persistent_workers=False,
+    num_workers=8,
+    persistent_workers=True,
     drop_last=False,
     sampler=dict(type='DefaultSampler', shuffle=False, round_up=False),
     dataset=dict(

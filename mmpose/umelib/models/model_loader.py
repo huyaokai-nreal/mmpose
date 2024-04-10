@@ -17,16 +17,17 @@ from . import skeleton_encoder as se
 from . import temporal as tem
 from . import texture_to_coord as t2c
 from .model_opts import ModelOpts
-from .umetrack_model import UmeTrackModel
-from .umetrack_model_origin import (UmeTrackModel_CCF, UmeTrackModel_coord,
-                                    UmeTrackModel_CrossView,
-                                    UmeTrackModel_Fuse, UmeTrackModel_TM,
-                                    UmeTrackModel_TM_New, UmeTrackModel_TM_Res,
-                                    UmeTrackModel_TM_Res_New,
-                                    UmeTrackModel_TM_Res_New_Fine_Tune,
-                                    UmeTrackModel_TM_Res_New_Fine_Tune_wT,
-                                    UmeTrackModel_TM_Res_sv,
-                                    UmeTrackModel_TM_sv)
+from .umetrack_model import UmeTrackModel, UmeTrackModel_coord
+
+# from .umetrack_model_origin import (UmeTrackModel_CCF, UmeTrackModel_coord,
+#                                     UmeTrackModel_CrossView,
+#                                     UmeTrackModel_Fuse, UmeTrackModel_TM,
+#                                     UmeTrackModel_TM_New, UmeTrackModel_TM_Res,
+#                                     UmeTrackModel_TM_Res_New,
+#                                     UmeTrackModel_TM_Res_New_Fine_Tune,
+#                                     UmeTrackModel_TM_Res_New_Fine_Tune_wT,
+#                                     UmeTrackModel_TM_Res_sv,
+#                                     UmeTrackModel_TM_sv)
 
 
 def _get_n_input_channels(model_opts: ModelOpts, use_skel: bool) -> int:
@@ -460,7 +461,7 @@ def create_model():
     return umetrack_model
 
 
-# 训练
+# 训练 #
 def create_model_coord():
     model_opts = ModelOpts()
     feature_extractor = fe.FeatureExtractor((96, 96), ModelOpts())

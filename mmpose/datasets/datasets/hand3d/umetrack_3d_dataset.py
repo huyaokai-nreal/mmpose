@@ -134,7 +134,6 @@ class Umetrack3DDataset(BaseCocoStyleDataset):
             dataset = datasets[Split['TRAIN']]
             shuffle = True
 
-        # import ipdb;ipdb.set_trace()
         sampler = Sampler(
             dataset, shuffle=shuffle, drop_last=True, distrib_info=(0, 1))
         iterable_dataset = AsyncToIterableDataset(
@@ -142,14 +141,13 @@ class Umetrack3DDataset(BaseCocoStyleDataset):
             sampler,
             max_prefetch=64,
         )
-
         iterable_dataset = map_dataset(
             partial(preprocess, crop_size=(96, 96)), iterable_dataset)
         image_list = []
         instance_list = []
         index = 0
         for data in iterable_dataset:
-            if index > 1:
+            if index > 5:
                 break
             # import ipdb;ipdb.set_trace()
             ann = {
@@ -162,7 +160,6 @@ class Umetrack3DDataset(BaseCocoStyleDataset):
                 's_solved_pose_data': data[0].s_solved_pose_data,
             }
             img = data[0].left_images
-            # import ipdb;ipdb.set_trace()
 
             instance_info = self.parse_data_info(
                 dict(raw_ann_info=ann, raw_img_info=img))
