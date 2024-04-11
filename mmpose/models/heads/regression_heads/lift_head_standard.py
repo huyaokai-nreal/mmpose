@@ -12,8 +12,28 @@ from nreal_data_tool.utils.affine import from_two_vectors
 from torch import Tensor, nn
 
 from mmpose.models.utils.gmlp import gMLP
+from mmpose.post_process.temporal_filters import build_filter
 from mmpose.registry import MODELS
-from mmpose.utils.typing import ConfigType, OptSampleList, Predictions
+from mmpose.utils.typing import (ConfigType, OptMultiConfig, OptSampleList,
+                                 Predictions)
+
+
+class UncertaintyModel(nn.Module):
+
+    def __init__(self, feat_dim, out_dim):
+        super().__init__()
+        self.fc1 = nn.Linear(feat_dim, 256)
+        self.fc2 = nn.Linear(256, out_dim)
+        self.dropout = nn.Dropout(0.5)
+        self.norm1 = nn.BatchNorm1d(256)
+        self.norm2 = nn.BatchNorm1d(out_dim)
+
+    def forward(self, x):
+        x = torch.flatten(x, 1)
+        x = self.norm1(F.relu(self.fc1(x)))
+        x = self.dropout(x)
+        x = self.norm2(F.relu(self.fc2(x)))
+        return x
 
 
 @MODELS.register_module()
@@ -29,14 +49,13 @@ class LiftHeadStandard(BaseModule):
                  use_plane_coord=True,
                  baseline=0.13,
                  disparity_input=False,
-                 rightcam_3d_disable=False,
                  kpt3d_output=False,
-                 kpt3d_output_delta=False,
-                 plane_arctan=False,
+                 score_dim=0,
                  d_model=512,
                  reproj_thre=0,
                  iou_thre=0,
                  pad_2d=False,
+                 filter_cfg: OptMultiConfig = None,
                  edge_to_center=False,
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
@@ -48,47 +67,85 @@ class LiftHeadStandard(BaseModule):
         self.channel_num = 43 if use_plane_coord else 64
         self.disparity_input = disparity_input
         self.lambda_t = lambda_t
-        self.rightcam_3d_disable = rightcam_3d_disable
         self.kpt3d_output = kpt3d_output
-        self.kpt3d_output_delta = kpt3d_output_delta
+        self.score_dim = score_dim
         feat_dim = 2 * self.channel_num
         if self.disparity_input:
             feat_dim += 21
         self.liftnet = gMLP(
             d_model=feat_dim, d_ffn=d_ffn, num_layers=num_layers)
         self.corruption_cam = corruption_cam
-        if self.rightcam_3d_disable:
-            output_num = 21
         if self.kpt3d_output:
             output_num = 63
         self.last_layer = nn.Sequential(
             nn.Conv2d(feat_dim, feat_dim, kernel_size=1), nn.ReLU(),
             nn.Conv2d(feat_dim, output_num, kernel_size=1))
-        if self.kpt3d_output_delta:
-            self.delta_last_layer = nn.Sequential(
-                nn.Conv2d(feat_dim, feat_dim, kernel_size=1), nn.ReLU(),
-                nn.Conv2d(feat_dim, 21, kernel_size=1))
+        if self.score_dim:
+            score_feat_dim = feat_dim + output_num
+            self.major_score_layer = nn.Sequential(
+                gMLP(d_model=score_feat_dim, d_ffn=d_ffn, num_layers=3),
+                UncertaintyModel(score_feat_dim, 10),
+            )
+            self.pinch_score_layer = nn.Sequential(
+                gMLP(d_model=score_feat_dim, d_ffn=d_ffn, num_layers=3),
+                UncertaintyModel(score_feat_dim, 2))
+            self.reproj_layer = nn.Sequential(
+                nn.Conv2d(output_num, output_num, kernel_size=1), nn.ReLU(),
+                nn.Conv2d(output_num, output_num, kernel_size=1))
         self.feat_dim = feat_dim
         self.lift_loss = MODELS.build(lift_loss)
         self.reproj = reproj
         self.use_plane_coord = use_plane_coord
         self.baseline = baseline
-        self.plane_arctan = plane_arctan
         self.d_model = d_model
         self.reproj_thre = reproj_thre
         self.iou_thre = iou_thre
         self.pad_2d = pad_2d
         self.edge_to_center = edge_to_center
         self.center_rot = None
+        self.filter_cfg = filter_cfg
+        self.index = 0
+        if filter_cfg is not None:
+            self.smooth = build_filter(filter_cfg)
+        if self.score_dim:
+            for param in self.liftnet.parameters():
+                param.requires_grad = False
+            for param in self.last_layer.parameters():
+                param.requires_grad = False
 
-    def forward(self, feats: Tuple[Tensor]) -> Tensor:
+    def forward(self, feats, virtual_baseline):
+        B, K = feats.shape[0], feats.shape[1] // 2 - 1
+        # 标准双目归一化平面2d
+        norm_leftcam_xyz = torch.cat(
+            (feats[:, :K, 0, 0].reshape(B, K // 2, 2), torch.ones(
+                B, K // 2, 1).cuda()),
+            dim=-1)
+        norm_rightcam_xyz = torch.cat((feats[:, K + 1:-1, 0, 0].reshape(
+            B, K // 2, 2), torch.ones(B, K // 2, 1).cuda()),
+                                      dim=-1)
         liftnet_output = self.liftnet(feats)
         output = self.last_layer(liftnet_output).view(feats.shape[0], -1, 1, 1)
-        if self.kpt3d_output_delta:
-            delta_output = self.delta_last_layer(liftnet_output).view(
+
+        # 标准双目3d点输出
+        hand3d_standard = self.get_standard_kpt3d(output, norm_leftcam_xyz,
+                                                  norm_rightcam_xyz,
+                                                  virtual_baseline)
+        # score output
+        if self.score_dim:
+            left_reproj, right_reproj = self.trans_3d_2_2d(
+                hand3d_standard, virtual_baseline)
+            left_reproj_error = (left_reproj - norm_leftcam_xyz[..., :2]).view(
                 feats.shape[0], -1, 1, 1)
-            output = torch.cat((output, delta_output), dim=1)
-        return output
+            reproj_feats = self.reproj_layer(left_reproj_error)
+            score_feats = torch.cat((reproj_feats, liftnet_output), axis=1)
+            major_score = self.major_score_layer(score_feats).view(
+                feats.shape[0], -1)
+            pinch_score = self.pinch_score_layer(score_feats).view(
+                feats.shape[0], -1)
+            score = torch.cat((major_score, pinch_score), dim=-1)
+        else:
+            score = torch.ones(B, 12)
+        return hand3d_standard, score
 
     @staticmethod
     def recover_hand(uv_coord_im_pred, left_hand, w):
@@ -120,11 +177,7 @@ class LiftHeadStandard(BaseModule):
         lr_rot_matrix = []
         hand3d_gt = []
         is_left_hands = []
-        nimble_pose = []
-        nimble_trans = []
-        nimble_shape = []
-        nimble_info = dict()
-
+        virtual_baseline = []
         uv_coord_im_gt_global = []
 
         all_inv_warp_mat = torch.zeros(B * 2, 3, 2).cuda()
@@ -136,10 +189,6 @@ class LiftHeadStandard(BaseModule):
                 leftcam_cam_matrix.append(left_cam_matrix)
                 left_R.append(data_sample.meta['cam_to_virtual_R'])
                 hand3d_gt.append(data_sample.gt_instances.keypoints3d[0])
-                if 'nimble_pose' in data_sample.meta.keys():
-                    nimble_pose.append(data_sample.meta['nimble_pose'])
-                    nimble_trans.append(data_sample.meta['nimble_translation'])
-                    nimble_shape.append(data_sample.meta['nimble_shape'])
                 if data_sample.meta['category_id'] == 1:
                     is_left_hands.append(1)
                 else:
@@ -156,6 +205,7 @@ class LiftHeadStandard(BaseModule):
                 left_to_right_rt = np.linalg.inv(right_cam_xf)
                 lr_rot_matrix.append(lr_t[:3, :3])
                 lr_p.append(lr_t[:3, 3])
+                virtual_baseline.append(data_sample.meta['virtual_baseline'])
                 baseline_scale.append(data_sample.meta['virtual_baseline'] /
                                       self.baseline)
             warp_mat = data_sample.metainfo['warp_mat']
@@ -163,30 +213,21 @@ class LiftHeadStandard(BaseModule):
                 np.float32)
             inv_warp_mat = torch.from_numpy(inv_warp_mat).cuda()  # (2,3)
             all_inv_warp_mat[i] = inv_warp_mat.transpose(0, 1)  # (3,2)
-
             uv_coord_im_gt_global.append(data_sample.gt_instances.keypoints)
         leftcam_cam_matrix = torch.tensor(
             np.array(leftcam_cam_matrix)).cuda().float()
         rightcam_cam_matrix = torch.tensor(
             np.array(rightcam_cam_matrix)).cuda().float()
-
         left_R = torch.tensor(np.array(left_R)).cuda().float()
         right_R = torch.tensor(np.array(right_R)).cuda().float()
         baseline_scale = torch.tensor(np.array(baseline_scale)).cuda().float()
+        virtual_baseline = torch.tensor(
+            np.array(virtual_baseline)).cuda().float()
         lr_p = torch.tensor(np.array(lr_p)).cuda().float()
         lr_rot_matrix = torch.tensor(np.array(lr_rot_matrix)).cuda().float()
         left_to_right_rt = torch.tensor(
             np.array(left_to_right_rt)).cuda().float()
         hand3d_gt = torch.tensor(np.array(hand3d_gt)).cuda().float()
-        nimble_pose = torch.tensor(np.array(nimble_pose)).cuda().float()
-        nimble_trans = torch.tensor(np.array(nimble_trans)).cuda().float()
-        nimble_shape = torch.tensor(np.array(nimble_shape)).cuda().float()
-        if nimble_pose.shape[0] > 0:
-            nimble_info = {
-                'nimble_pose': nimble_pose,
-                'nimble_trans': nimble_trans,
-                'nimble_shape': nimble_shape
-            }
         left_hand = torch.tensor(np.array(is_left_hands)).cuda().float()
         uv_coord_im_gt_global = torch.tensor(
             np.array(uv_coord_im_gt_global)).cuda().float()
@@ -224,9 +265,9 @@ class LiftHeadStandard(BaseModule):
                 mask = self.keypoint_within_bounds(
                     gt_kpt, data_sample.meta['frame_width'],
                     data_sample.meta['frame_height'])
-                if mask.any():
-                    noise = (4 * torch.rand((mask.sum(), 2)) - 2).cuda()
-                    pred_kpt[:, :2][mask] = gt_kpt[:, :2][mask] + noise
+                if self.pad_2d <= mask.sum() < 21:
+                    noise = (4 * torch.rand((21 - mask.sum(), 2)) - 2).cuda()
+                    pred_kpt[:, :2][~mask] = gt_kpt[:, :2][~mask] + noise
         uv_coord_im_pred_global = uv_coord_im_pred_global_distort_noflip.clone(
         )
         if self.all_use_kp2d_gt:
@@ -284,97 +325,89 @@ class LiftHeadStandard(BaseModule):
             feats = torch.cat((feats, disparity), dim=1).float()
 
         feats = feats.reshape(B, self.feat_dim, 1, 1)
-        return (feats, norm_leftcam_xyz, norm_rightcam_xyz, lr_rot_matrix,
-                lr_p, left_to_right_rt, leftcam_cam_matrix,
-                rightcam_cam_matrix, uv_coord_im_pred_global,
-                uv_coord_im_gt_global, uv_coord_im_pred_global_distort,
-                uv_coord_im_pred_global_distort_noflip, hand3d_gt, 
-                left_hand, nimble_info, left_R,
-                right_R, baseline_scale)
+        return {
+            'feats': feats,
+            'norm_leftcam_xyz': norm_leftcam_xyz,
+            'norm_rightcam_xyz': norm_rightcam_xyz,
+            'lr_rot_matrix': lr_rot_matrix,
+            'lr_p': lr_p,
+            'left_to_right_rt': left_to_right_rt,
+            'leftcam_cam_matrix': leftcam_cam_matrix,
+            'rightcam_cam_matrix': rightcam_cam_matrix,
+            'uv_coord_im_pred_global': uv_coord_im_pred_global,
+            'uv_coord_im_gt_global': uv_coord_im_gt_global,
+            'uv_coord_im_pred_global_distort': uv_coord_im_pred_global_distort,
+            'uv_coord_im_pred_global_distort_noflip':
+            uv_coord_im_pred_global_distort_noflip,
+            'hand3d_gt': hand3d_gt,
+            'left_R': left_R,
+            'right_R': right_R,
+            'baseline_scale': baseline_scale,
+            'virtual_baseline': virtual_baseline,
+            'nimble_info': None
+        }
 
-    def postprocess(self, output, norm_leftcam_xyz, norm_rightcam_xyz, left_R,
-                    right_R, lr_rot_matrix, lr_p, baseline_scale):
-        B, K = norm_leftcam_xyz.shape[:2]
-        if self.kpt3d_output:
-            if self.kpt3d_output_delta:
-                delta_output = output[:, 63:]
-                output = output[:, :63].view(B, K, 3, 1)
-                output = (output * delta_output).view(B, 63, 1, 1)
-            baseline_scale = baseline_scale.view(B, 1, 1)
-            hand3d_pred = (output.view(B, K, 3) *
-                           baseline_scale).reshape(B, K, 3)
-            return hand3d_pred, hand3d_pred, hand3d_pred
+    def postprocess(self, hand3d_standard, left_to_right_rt, left_R,
+                    baseline_scale):
+        B, K = hand3d_standard.shape[:2]
         baseline_scale = baseline_scale.view(B, 1, 1)
-        lr_rot_matrix = lr_rot_matrix.view(B, 1, 3,
-                                           3).repeat(1, 21, 1,
-                                                     1).view(B * 21, 3, 3)
-        lr_p = lr_p.view(B, 1, 3, 1).repeat(1, 21, 1, 1).view(B * 21, 3, 1)
-        left_R_inv = torch.inverse(left_R).view(B, 1, 3, 3).repeat(
-            1, 21, 1, 1).view(B * 21, 3, 3)
-        right_R_inv = torch.inverse(right_R).view(B, 1, 3, 3).repeat(
-            1, 21, 1, 1).view(B * 21, 3, 3)
-        if self.use_plane_coord:
-            leftcam_Z = output[:, :21].view(B, K, 1) * baseline_scale
-            leftcam_XYZ = torch.cat(
-                (norm_leftcam_xyz[:, :, :2] * leftcam_Z, leftcam_Z),
-                dim=2).view(B * K, 3, 1)
-            if not self.rightcam_3d_disable:
-                rightcam_Z = output[:, 21:21 * 2].reshape(
-                    (B, 21, 1)) * baseline_scale
-                rightcam_XYZ = torch.cat(
-                    (norm_rightcam_xyz[:, :, :2] * rightcam_Z, rightcam_Z),
-                    dim=2).view(B * K, 3, 1)
-        else:
-            leftcam_Z_scale = output[:, :21].view(
-                B, K, 1) * baseline_scale / norm_leftcam_xyz[:, :, 2:]
-            leftcam_XYZ = (norm_leftcam_xyz *
-                           leftcam_Z_scale).view(B * K, 3, 1)
-            if not self.rightcam_3d_disable:
-                rightcam_Z_scale = output[:, 21:21 * 2].reshape(
-                    B, 21, 1) * baseline_scale / norm_rightcam_xyz[:, :, 2:]
-                rightcam_XYZ = (norm_rightcam_xyz *
-                                rightcam_Z_scale).view(B * K, 3, 1)
-        if self.edge_to_center:
-            leftcam_XYZ = self.center_to_edge(leftcam_XYZ)
-        leftcam_XYZ = torch.bmm(left_R_inv, leftcam_XYZ).view(B, K, 3)
-        if not self.rightcam_3d_disable:
-            if self.edge_to_center:
-                rightcam_XYZ = self.center_to_edge(rightcam_XYZ)
-            rightcam_XYZ = torch.bmm(right_R_inv, rightcam_XYZ)
-            rightcam_XYZ = (torch.bmm(lr_rot_matrix, rightcam_XYZ) +
-                            lr_p).view(B, 21, 3)
-            hand3d_pred = (
-                self.corruption_cam * leftcam_XYZ +
-                (1 - self.corruption_cam) * rightcam_XYZ)
-        else:
-            hand3d_pred, rightcam_XYZ = leftcam_XYZ, leftcam_XYZ
+        left_to_right_rt = left_to_right_rt.unsqueeze(0)
+        left_R_inv = torch.inverse(left_R).view(B, 1, 3,
+                                                3).repeat(1, K, 1,
+                                                          1).view(B * K, 3, 3)
+        hand_3d = (hand3d_standard * baseline_scale).view(B * K, 3, 1)
+        hand3d_pred = torch.bmm(left_R_inv, hand_3d)
+        left_to_right_rot = left_to_right_rt[:1, :3, :3].repeat(
+            hand3d_pred.shape[0], 1, 1)
+        left_to_right_t = left_to_right_rt[:1, :3,
+                                           -1:].repeat(hand3d_pred.shape[0], 1,
+                                                       1)
+        rightcam_XYZ = (torch.bmm(left_to_right_rot, hand3d_pred) +
+                        left_to_right_t).view(B, K, 3)
+        hand3d_pred = hand3d_pred.view(B, K, 3)
+        return hand3d_pred, hand3d_pred, rightcam_XYZ
 
-        return hand3d_pred, leftcam_XYZ, rightcam_XYZ
+    def get_standard_kpt3d(self, output, norm_leftcam_xyz, norm_rightcam_xyz,
+                           virtual_baseline):
+        B, K = norm_leftcam_xyz.shape[:2]
+        leftcam_Z = output[:, :21].view(B, K, 1)
+        leftcam_XYZ = torch.cat(
+            (norm_leftcam_xyz[:, :, :2] * leftcam_Z, leftcam_Z), dim=2)
+        rightcam_Z = output[:, 21:21 * 2].reshape((B, 21, 1))
+        rightcam_XYZ = torch.cat(
+            (norm_rightcam_xyz[:, :, :2] * rightcam_Z, rightcam_Z), dim=2)
+        virtual_baseline = virtual_baseline.reshape(B, 1, 1).repeat(1, 21, 1)
+        rightcam_XYZ[..., :1] = rightcam_XYZ[..., :1] + virtual_baseline
+        hand3d_pred = (
+            self.corruption_cam * leftcam_XYZ +
+            (1 - self.corruption_cam) * rightcam_XYZ)
+        return hand3d_pred
 
     def predict(self,
                 feats: Tuple[Tensor],
                 batch_data_samples: OptSampleList,
                 test_cfg: ConfigType = {}) -> Predictions:
         with torch.no_grad():
-            (feats, norm_leftcam_xyz, norm_rightcam_xyz, lr_rot_matrix, lr_p,
-             left_to_right_rt, leftcam_cam_matrix, rightcam_cam_matrix,
-             uv_coord_im_pred_global, uv_coord_im_gt_global,
-             uv_coord_im_pred_global_distort, uv_coord_im_pred_global_distort_noflip,  # noqa
-             hand3d_gt, left_hand, nimble_info, left_R, right_R,
-             baseline_scale) = self.preprocess(feats, batch_data_samples, 'predict')
-        output = self.forward(feats)
-        hand3d_pred = self.postprocess(output, norm_leftcam_xyz,
-                                       norm_rightcam_xyz, left_R, right_R,
-                                       lr_rot_matrix, lr_p, baseline_scale)[0]
+            data = self.preprocess(feats, batch_data_samples, 'predict')
+        hand3d_standard, score = self.forward(data['feats'],
+                                              data['virtual_baseline'])
+        hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
+            hand3d_standard, data['left_to_right_rt'], data['left_R'],
+            data['baseline_scale'])
+
         if self.reproj:
             camera_model = batch_data_samples[0].meta['ori_camera']
             leftcam_uv_reproj_distort = camera_model.eye_to_window(
                 hand3d_pred.cpu().numpy())
             leftcam_uv_reproj_distort = torch.tensor(
                 leftcam_uv_reproj_distort).cuda()
-            return hand3d_pred, leftcam_uv_reproj_distort[:, None, ...]
+            return (hand3d_pred, leftcam_uv_reproj_distort[:, None, ...],
+                    score) if self.score_dim else (
+                        hand3d_pred, leftcam_uv_reproj_distort[:, None, ...])
         else:
-            return hand3d_pred, uv_coord_im_pred_global_distort
+            return (hand3d_pred, data['uv_coord_im_pred_global_distort'],
+                    score) if self.score_dim else (
+                        hand3d_pred, data['uv_coord_im_pred_global_distort'])
 
     def loss(self,
              feats: Tuple[Tensor],
@@ -382,69 +415,137 @@ class LiftHeadStandard(BaseModule):
              train_cfg: ConfigType = {}) -> dict:
         """Calculate losses from a batch of inputs and data samples."""
         with torch.no_grad():
-            (feats, norm_leftcam_xyz, norm_rightcam_xyz, lr_rot_matrix, lr_p,
-             left_to_right_rt, leftcam_cam_matrix, rightcam_cam_matrix,
-             uv_coord_im_pred_global, uv_coord_im_gt_global,
-             uv_coord_im_pred_global_distort, uv_coord_im_pred_global_distort_noflip,  # noqa
-             hand3d_gt, left_hand, nimble_info, left_R, right_R,
-             baseline_scale) = self.preprocess(feats, batch_data_samples, 'loss')
-        output = self.forward(feats)
+            data = self.preprocess(feats, batch_data_samples, 'loss')
+        hand3d_standard, score = self.forward(data['feats'],
+                                              data['virtual_baseline'])
         hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
-            output, norm_leftcam_xyz, norm_rightcam_xyz, left_R, right_R,
-            lr_rot_matrix, lr_p, baseline_scale)
+            hand3d_standard, data['left_to_right_rt'], data['left_R'],
+            data['baseline_scale'])
 
-        leftcam_uv_gt = uv_coord_im_pred_global[:, 0]
-        rightcam_uv_gt = uv_coord_im_pred_global[:, 1]
-
-        leftcam_uv_reproj, rightcam_uv_reproj = \
-            self.trans_3d_2_2d(hand3d_pred, leftcam_cam_matrix,
-                               rightcam_cam_matrix, left_to_right_rt)
-
-        major_gt = torch.cat((hand3d_gt[:, 4:5, :], hand3d_gt[:, 8:9, :]),
+        left_reproj, right_reproj = self.trans_3d_2_2d(
+            hand3d_standard, data['virtual_baseline'])
+        major_gt = torch.cat((data['hand3d_gt'][:, 1:10, :],
+                              data['hand3d_gt'][:, 13, :].unsqueeze(1)),
                              dim=1)
         major_pred = torch.cat(
-            (hand3d_pred[:, 4:5, :], hand3d_pred[:, 8:9, :]), dim=1)
+            (hand3d_pred[:, 1:10, :], hand3d_pred[:, 13, :].unsqueeze(1)),
+            dim=1)
 
-        # origin distance, no norm
+        # pinch distance, no norm
         dist_pred = torch.norm(
             hand3d_pred[:, 4, :] - hand3d_pred[:, 8, :], dim=-1)
-        dist_gt = torch.norm(hand3d_gt[:, 4, :] - hand3d_gt[:, 8, :], dim=-1)
+        dist_gt = torch.norm(
+            data['hand3d_gt'][:, 4, :] - data['hand3d_gt'][:, 8, :], dim=-1)
         pred_for_loss = [
-            hand3d_pred, leftcam_XYZ, rightcam_XYZ, leftcam_uv_reproj,
-            rightcam_uv_reproj, dist_pred, major_pred
+            hand3d_pred, leftcam_XYZ, rightcam_XYZ, left_reproj, right_reproj,
+            dist_pred
         ]
         targ_for_loss = [
-            hand3d_gt, hand3d_gt, hand3d_gt, leftcam_uv_gt, rightcam_uv_gt,
-            dist_gt, major_gt
+            data['hand3d_gt'], data['hand3d_gt'], data['hand3d_gt'],
+            data['norm_leftcam_xyz'][..., :2],
+            data['norm_rightcam_xyz'][..., :2], dist_gt
         ]
 
         # filter abnormal GT
-        self.filter_invalid_gt(uv_coord_im_gt_global[::2],
-                               uv_coord_im_pred_global_distort_noflip[::2],
-                               pred_for_loss, targ_for_loss)
+        self.filter_invalid_gt(
+            data['uv_coord_im_gt_global'][::2],
+            data['uv_coord_im_pred_global_distort_noflip'][::2], pred_for_loss,
+            targ_for_loss)
 
         losses = self.lift_loss(pred_for_loss, targ_for_loss)
         (loss_mse_3d, loss_mse_3d_leftcam, loss_mse_3d_rightcam,
-         loss_mse_2d_leftcam, loss_mse_2d_rightcam, loss_pinch,
-         loss_major) = losses
+         loss_mse_2d_leftcam, loss_mse_2d_rightcam, loss_pinch) = losses
         if self.lambda_t > 0:
             mh = MessageHub.get_current_instance()
             cur_epoch = mh.get_info('epoch')
             if cur_epoch <= self.lambda_t:
                 loss_mse_2d_leftcam *= 0
                 loss_mse_2d_rightcam *= 0
-        if self.rightcam_3d_disable or self.kpt3d_output:
-            loss_mse_3d_leftcam *= 0
-            loss_mse_3d_rightcam *= 0
         losses_dict = dict(
             loss_mse_3d=loss_mse_3d,
             loss_mse_3d_leftcam=loss_mse_3d_leftcam,
             loss_mse_3d_rightcam=loss_mse_3d_rightcam,
             loss_mse_2d_leftcam=loss_mse_2d_leftcam,
             loss_mse_2d_rightcam=loss_mse_2d_rightcam,
-            loss_pinch=loss_pinch,
-            loss_major=loss_major)
+            loss_pinch=loss_pinch)
+
+        if self.score_dim:
+            losses_dict['loss_major_score'], losses_dict[
+                'loss_pinch_score_dist'], losses_dict[
+                    'loss_pinch_score_mpjpe'] = self.compute_score_loss(
+                        major_pred, major_gt, dist_pred, dist_gt, score)
         return losses_dict
+
+    @staticmethod
+    def draw_keypoints(img_path, keypoints, color=(0, 0, 0), radius=1):
+        from nreal_data_tool import LmdbClient
+        lmdb_client = LmdbClient()
+        image = lmdb_client.get(img_path)
+        output_image = np.copy(image)
+        for point in keypoints:
+            x, y = int(point[0]), int(point[1])
+            cv2.circle(output_image, (x, y), radius, color, -1)
+
+        return output_image
+
+    @staticmethod
+    def scale_keypoints(hand3d_gt, camera_model, scale):
+        root = hand3d_gt[:1]
+        hand3d_gt_ = (hand3d_gt - root) * scale + root
+        scaled_kpt2d = camera_model.eye_to_window(
+            camera_model.world_to_eye(hand3d_gt_.cpu().numpy()))
+        return scaled_kpt2d, hand3d_gt_
+
+    def compute_score_loss(self, major_pred, major_gt, dist_pred, dist_gt,
+                           score):
+        # from torch.utils.tensorboard import SummaryWriter
+        # writer = SummaryWriter('./train_dir')
+        # import ipdb;ipdb.set_trace()
+        # major score loss
+        major_score = score[:, :10]
+        major_loss = torch.norm(major_pred - major_gt, dim=-1)
+        major_score_loss = ((major_loss) * torch.exp(-1 * major_score) +
+                            2 * major_score).mean()
+
+        # pinch score loss
+        pinch_score = score[:, 10:]
+        pinch_dist_loss = torch.abs(dist_pred - dist_gt).unsqueeze_(-1)
+        pinch_score_dist_loss = (
+            (pinch_dist_loss) *
+            torch.exp(-1 * pinch_score.mean(-1).unsqueeze_(-1)) +
+            2 * pinch_score.mean(-1).unsqueeze_(-1)).mean()
+
+        pinch_pred = torch.cat((major_pred[:, 3:4, :], major_pred[:, 7:8, :]),
+                               dim=1)
+        pinch_gt = torch.cat((major_gt[:, 3:4, :], major_gt[:, 7:8, :]), dim=1)
+        pinch_mpjpe_loss = torch.norm(pinch_pred - pinch_gt, dim=-1)
+        pinch_score_mpjpe_loss = (
+            (pinch_mpjpe_loss) * torch.exp(-1 * pinch_score) +
+            2 * pinch_score).mean()
+
+        # writer.add_scalar("score_min", score.min(), self.index)
+        # writer.add_scalar("score_loss", 3 * score_loss, self.index)
+        # writer.add_scalar("major_score_loss", major_score_loss*3, self.index)
+        # writer.add_scalar("pinch_score_loss", pinch_score_loss*3, self.index)
+        # self.index += 1
+        return (major_score_loss * 3, pinch_score_dist_loss * 4,
+                pinch_score_mpjpe_loss * 4)
+
+    @staticmethod
+    def kpt_to_bbox(kpt, scale_x=1.5, scale_y=1.4):
+        min_x = kpt[:, 0].min()
+        min_y = kpt[:, 1].min()
+        max_x = kpt[:, 0].max()
+        max_y = kpt[:, 1].max()
+        cx = (min_x + max_x) * 0.5
+        cy = (min_y + max_y) * 0.5
+        min_x = (min_x - cx) * scale_x + cx
+        min_y = (min_y - cy) * scale_y + cy
+        max_x = (max_x - cx) * scale_x + cx
+        max_y = (max_y - cy) * scale_y + cy
+        bbox = torch.tensor([min_x, min_y, max_x - min_x, max_y - min_y],
+                            dtype=torch.float32)
+        return bbox
 
     def filter_invalid_gt(self, gt_kpt, pred_kpt, pred_for_loss,
                           targ_for_loss):
@@ -470,10 +571,6 @@ class LiftHeadStandard(BaseModule):
         if self.use_plane_coord:
             norm_left_xyz = standard_left_xyz / standard_left_xyz[:, :, 2:]
             norm_right_xyz = standard_right_xyz / standard_right_xyz[:, :, 2:]
-            if self.plane_arctan:
-                norm_left_xyz[:, :, :2] = torch.arctan(norm_left_xyz[:, :, :2])
-                norm_right_xyz[:, :, :2] = torch.arctan(
-                    norm_right_xyz[:, :, :2])
         else:
             norm_left_xyz = F.normalize(standard_left_xyz, p=2, dim=-1)
             norm_right_xyz = F.normalize(standard_right_xyz, p=2, dim=-1)
@@ -491,29 +588,14 @@ class LiftHeadStandard(BaseModule):
         return standard_cam_xyz
 
     @staticmethod
-    def trans_3d_2_2d(hand3d_point, leftcam_cam_matrix, rightcam_cam_matrix,
-                      left_to_right_rt):
-        B = hand3d_point.shape[0]
-        left_to_right_rt = left_to_right_rt.repeat(B, 1, 1)
-        leftcam_uv_reproj = torch.matmul(hand3d_point,
-                                         leftcam_cam_matrix.permute(
-                                             0, 2, 1)).to(torch.float32)
-        leftcam_uv_reproj = leftcam_uv_reproj[..., :2] / leftcam_uv_reproj[...,
-                                                                           2:]
-
-        column_of_ones = torch.ones((B, 21, 1)).to(hand3d_point.device)
-        tensor_with_ones = torch.cat((hand3d_point, column_of_ones), dim=2)
-        rightcam_uv_reproj = torch.matmul(tensor_with_ones,
-                                          left_to_right_rt.permute(
-                                              0, 2, 1)).to(torch.float32)
-        rightcam_uv_reproj = rightcam_uv_reproj[..., :3] / rightcam_uv_reproj[
-            ..., 3:]
-        rightcam_uv_reproj = torch.matmul(rightcam_uv_reproj,
-                                          rightcam_cam_matrix.permute(
-                                              0, 2, 1)).to(torch.float32)
-        rightcam_uv_reproj = rightcam_uv_reproj[..., :2] / rightcam_uv_reproj[
-            ..., 2:]
-        return leftcam_uv_reproj, rightcam_uv_reproj
+    def trans_3d_2_2d(hand3d, virtual_baseline):
+        B = hand3d.shape[0]
+        left_reproj = hand3d[..., :2] / hand3d[..., 2:]
+        virtual_baseline = virtual_baseline.reshape(B, 1, 1).repeat(1, 21,
+                                                                    1) * -1
+        rightcam_XYZ = hand3d + virtual_baseline
+        right_reproj = rightcam_XYZ[..., :2] / rightcam_XYZ[..., 2:]
+        return left_reproj, right_reproj
 
     def center_to_edge(self, hand_3d):
         B = self.center_rot.shape[0]
@@ -551,7 +633,7 @@ class LiftHeadStandard(BaseModule):
     def keypoint_within_bounds(keypoint, image_width, image_height):
         x, y = keypoint[:, 0], keypoint[:, 1]
         mask = ((0 <= x) & (x < image_width)) & ((0 <= y) & (y < image_height))
-        return ~mask
+        return mask
 
     @staticmethod
     def compute_iou(gt_bboxes, pred_bboxes):

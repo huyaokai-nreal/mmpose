@@ -151,6 +151,7 @@ class MPJPEV2(MPJPE):
                  pinch_thre: list = [20, 40],
                  scale_metric=False,
                  fit_metric=False,
+                 score_metric=False,
                  openhand_metric=False,
                  pinch_hard_metric=False,
                  category_metric=False,
@@ -169,6 +170,7 @@ class MPJPEV2(MPJPE):
             bmk_save_root=bmk_save_root,
             scale_metric=scale_metric,
             fit_metric=fit_metric,
+            score_metric=score_metric,
             openhand_metric=openhand_metric,
             category_metric=category_metric,
             show_bmk_thr=show_bmk_thr,
@@ -192,9 +194,11 @@ class MPJPEV2(MPJPE):
 
             gt = data_sample['gt_instances']
             # [N, K], the scores for all keypoints of all instances
-            keypoint_scores = data_sample['pred_instances']['keypoint_scores']
             # assert keypoint_scores.shape == keypoints3d.shape[:2]
             result = KeypointEvaluationItem(image_id=data_sample['img_id'])
+            keypoint_scores = data_sample['pred_instances']['keypoint_scores']
+            result.meta['keypoints3d_scores'] = data_sample['pred_instances'][
+                'keypoints3d_scores'].tolist()
             result.gt_keypoints3d = (gt['keypoints3d'][0] *
                                      1e3).tolist()  # m -> mm
             result.keypoints3d = (
@@ -235,6 +239,11 @@ class MPJPEV2(MPJPE):
                         'frame_height']
                     result.meta['frame_width'] = data_sample['meta'][
                         'frame_width']
+            if 'ori_camera' in data_sample['meta']:
+                camera_model = data_sample['meta']['ori_camera']
+                reproj_2d = camera_model.eye_to_window(
+                    data_sample['pred_instances']['keypoints3d'][0])
+                result.meta['reproj_keypoints'] = reproj_2d.tolist()
             # get area information
             if 'bbox_scales' in data_sample['gt_instances']:
                 result.area = float(

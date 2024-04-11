@@ -212,17 +212,21 @@ class TopdownPoseLiftEstimator(BaseModel):
                     depth = outputs[2]
                     depth = (depth - 0.5) * 0.4  # 0.4 is the depth bound
                     xy_sigma = torch.cat([xy_sigma, depth], dim=-1)
-        pred, pred_bino_kp2d = self.kpt3d_lift.predict(
+        results = self.kpt3d_lift.predict(
             xy_sigma, data_samples, test_cfg=self.test_cfg)
-
+        pred = results[0]
+        pred_bino_kp2d = results[1]
+        if self.kpt3d_lift.score_dim:
+            score = results[2]
+        else:
+            score = torch.ones((pred.shape[:2]))
         batch_pred_instances = []
-
         for b in range(pred.shape[0]):
             keypoints = pred_bino_kp2d[b:b + 1, 0, ...]  # gt为左目信息
             batch_pred_instances.append(
                 InstanceData(
                     keypoints3d=pred[b:b + 1, ...],
-                    keypoints3d_scores=torch.ones((1, 21)),
+                    keypoints3d_scores=score[b:b + 1],
                     keypoints=keypoints,
                     keypoint_scores=torch.ones((1, 21)),
                 ))
@@ -245,8 +249,6 @@ class TopdownPoseLiftEstimator(BaseModel):
                 batch_pred_instances, batch_pred_fields, batch_data_samples):
             pred_instances.keypoints3d = pred_instances.keypoints3d.cpu(
             ).numpy()
-            pred_instances.keypoints3d_scores = np.ones(
-                (1, pred_instances.keypoints3d.shape[1]))
             pred_instances.keypoints = pred_instances.keypoints.cpu().numpy()
             pred_instances.keypoints = np.concatenate(
                 (pred_instances.keypoints, pred_instances.keypoints3d[...,
@@ -394,16 +396,25 @@ class TopdownPoseLiftEstimatorSeq(TopdownPoseLiftEstimator):
             ] for clip_id in range(clip_num)]
             data_sample_id_list = list(
                 chain.from_iterable(data_sample_id_list))
-            pred, pred_bino_kp2d, mem = self.kpt3d_lift.predict(
-                sub_xy_input, [data_samples[i] for i in data_sample_id_list],
-                mem,
-                test_cfg=self.test_cfg)
+            if self.kpt3d_lift.score_dim:
+                pred, pred_bino_kp2d, mem, score = self.kpt3d_lift.predict(
+                    sub_xy_input,
+                    [data_samples[i] for i in data_sample_id_list],
+                    mem,
+                    test_cfg=self.test_cfg)
+            else:
+                pred, pred_bino_kp2d, mem = self.kpt3d_lift.predict(
+                    sub_xy_input,
+                    [data_samples[i] for i in data_sample_id_list],
+                    mem,
+                    test_cfg=self.test_cfg)
+                score = torch.ones((pred.shape[:2]))
             for b in range(pred.shape[0]):
                 keypoints = pred_bino_kp2d[b:b + 1, 0, ...]  # gt为左目信息
                 batch_pred_instances.append(
                     InstanceData(
                         keypoints3d=pred[b:b + 1, ...],
-                        keypoints3d_scores=torch.ones((1, 21)),
+                        keypoints3d_scores=score[b:b + 1],
                         keypoints=keypoints,
                         keypoint_scores=torch.ones((1, 21)),
                     ))
