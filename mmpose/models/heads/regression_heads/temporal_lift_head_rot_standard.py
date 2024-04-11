@@ -249,9 +249,16 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         weight_ini[0, 4, :], weight_ini[0, 8, :] = 4, 4
         weight_ini = weight_ini.repeat(hand3d_gt.shape[0], 1,
                                        1).to(hand3d_gt.device)
+
+        weight_ini_for_pre_nimble = weight_ini.clone().to(hand3d_gt.device)
+        weight_ini_for_pre_nimble[:, :9, :] = 4
+        weight_ini_for_pre_nimble[:,
+                                  4, :], weight_ini_for_pre_nimble[:,
+                                                                   8, :] = 8, 8
+
         weight_for_loss = [
-            weight_ini, weight_ini, weight_ini, None, None, None, None, None,
-            None, None
+            weight_ini, weight_ini_for_pre_nimble, weight_ini, None, None,
+            None, None, None, None, None
         ]
 
         losses = self.lift_loss(pred_for_loss, targ_for_loss, weight_for_loss)
@@ -261,7 +268,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
 
         # # 子骨骼向量监督
         if self.use_bone_loss:
-            bone_loss_weight = 0.1
+            bone_loss_weight = 0.15
             bone_3d_pre = (hand3d_pred - hand3d_pred[:, self.joint_parents, :]
                            )[:, self.non_root_indices].reshape(-1, 3)
             bone_3d_gt = (hand3d_gt - hand3d_gt[:, self.joint_parents, :]
@@ -275,7 +282,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
                                              dim=1)) * bone_loss_weight
 
             # 局部子骨骼监督
-            major_bone_loss_weight = 0.3
+            major_bone_loss_weight = 0.5
             local_bone_3d_pre = (
                 pred_3d_way2 -
                 pred_3d_way2[:, self.joint_parents, :])[:,

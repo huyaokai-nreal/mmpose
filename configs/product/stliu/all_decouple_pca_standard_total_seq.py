@@ -5,7 +5,7 @@ import os
 
 _base_ = ['../../_base_/default_runtime.py']
 
-train_cfg = dict(max_epochs=50, val_interval=5)
+train_cfg = dict(max_epochs=60, val_interval=3)
 
 data_root = '/data/AI_DATA'
 # data_root = '/data/AI_DATA_WX'
@@ -14,7 +14,7 @@ seq_length = 4
 
 # optimizer
 optim_wrapper = dict(
-    optimizer=dict(type='Adam', lr=5e-4, weight_decay=1e-4),
+    optimizer=dict(type='Adam', lr=2e-4, weight_decay=1e-4),
     paramwise_cfg=dict(
         norm_decay_mult=0,
         bias_decay_mult=0,
@@ -65,7 +65,7 @@ codec = dict(
     blur_kernel_size=5,
 )
 
-pinch_thre = [15, 35]  # pinch双阈值，单位：mm
+pinch_thre = [20, 40]  # pinch双阈值，单位：mm
 kpt2d_with_depth = False  # liftnet 是否使用2.5d的深度信息
 
 # model settings
@@ -154,7 +154,7 @@ model = dict(
                     loss_weight=0,
                     enable_start_epoch=train_cfg['max_epochs'] -
                     40),  # nimble pose直接监督
-                dict(type='MSELoss', loss_weight=5),  # nimble trans直接监督
+                dict(type='MSELoss', loss_weight=20),  # nimble trans直接监督
                 dict(
                     type='MPJPAELoss',
                     seq_length=seq_length,
@@ -192,7 +192,8 @@ model = dict(
         #f'/data/AI_DATA/jrchen/git-project/mmpose/work_dirs/pair_hand3d/006_td-stage_two_train_55dim_RLE_head_train_flora_finetune/FT_kp2d_add_ella_pretrain_lift.pth'  # flora kp2d + ella kp3d
         # '/home/zx_li/workspace/mmpose/work_dirs/td-hand_rsn26_fpn_25d_ipr_right_pcl_2d3d_4x128-100e-128x128/epoch_100.pth',
         # 'work_dirs/keypoint25d/01_td-hand_rsn26_fpn_25d_ipr_right_pcl_2d3d_4x128-100e-128x128_Affine/best_all_p-mpjpe_epoch_90.pth'
-        '/data/stliu/mmpose/work_dirs/new_dataset/best_weight/best_mpjpe_nimblepca.pth'),
+        '/data/stliu/mmpose/work_dirs/new_dataset/best_weight/best_mpjpe_nimblepca.pth'
+    ),
 )
 
 # base dataset settings
@@ -314,7 +315,7 @@ test_dataloader = val_dataloader
 
 # hooks
 default_hooks = dict(
-    checkpoint=dict(interval=5, save_best='all_mpjpe', rule='less'),
+    checkpoint=dict(interval=3, save_best='all_mpjpe', rule='less'),
     run_time_info=dict(type='RuntimeInfoHookV2'))
 
 # evaluators
