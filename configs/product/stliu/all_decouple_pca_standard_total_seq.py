@@ -172,10 +172,10 @@ model = dict(
         disparity_input=False,
         use_plane_coord=True,
         baseline=0.135,
-        use_6d_pose_reg=False,
+        use_6d_pose_reg=True,
         reproj_thre=440,
         iou_thre=0.5,
-        pad_2d=False,
+        pad_2d=0,
         edge_to_center=False),
     test_cfg=dict(
         flip_test=False,
@@ -192,7 +192,7 @@ model = dict(
         #f'/data/AI_DATA/jrchen/git-project/mmpose/work_dirs/pair_hand3d/006_td-stage_two_train_55dim_RLE_head_train_flora_finetune/FT_kp2d_add_ella_pretrain_lift.pth'  # flora kp2d + ella kp3d
         # '/home/zx_li/workspace/mmpose/work_dirs/td-hand_rsn26_fpn_25d_ipr_right_pcl_2d3d_4x128-100e-128x128/epoch_100.pth',
         # 'work_dirs/keypoint25d/01_td-hand_rsn26_fpn_25d_ipr_right_pcl_2d3d_4x128-100e-128x128_Affine/best_all_p-mpjpe_epoch_90.pth'
-        '/data/stliu/mmpose/work_dirs/new_dataset/best_weight/best_mpjpe_nimblepca.pth'
+        '/data/stliu/mmpose/work_dirs/new_dataset/best_weight/best_mpjpe_reg6d.pth'
     ),
 )
 

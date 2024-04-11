@@ -40,7 +40,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
                  disparity_input=False,
                  reproj_thre=0,
                  iou_thre=0,
-                 pad_2d=False,
+                 pad_2d=0,
                  edge_to_center=False,
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
