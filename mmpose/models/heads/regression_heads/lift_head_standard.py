@@ -12,7 +12,6 @@ from nreal_data_tool.utils.affine import from_two_vectors
 from torch import Tensor, nn
 
 from mmpose.models.utils.gmlp import gMLP
-from mmpose.post_process.temporal_filters import build_filter
 from mmpose.registry import MODELS
 from mmpose.utils.typing import (ConfigType, OptMultiConfig, OptSampleList,
                                  Predictions)
@@ -105,8 +104,6 @@ class LiftHeadStandard(BaseModule):
         self.center_rot = None
         self.filter_cfg = filter_cfg
         self.index = 0
-        if filter_cfg is not None:
-            self.smooth = build_filter(filter_cfg)
         if self.score_dim:
             for param in self.liftnet.parameters():
                 param.requires_grad = False
