@@ -871,6 +871,20 @@ datasets_info = {
                 'data_hand/hand_keypoint/annotations3d/manual_fix_kpt/XS__20240229_083647__pinch__normal__right__1110__0025__undistort_tar__Flora303.json',
             ]
         },
+        '20240408': {
+            'Flora301': [
+                'data_hand/hand_keypoint/annotations3d/fit3d_seqsmooth_auto__binocular_coco/XS__20240408_080538__all__normal__left__1110__0030__undistort_tar__Flora301.json',
+                'data_hand/hand_keypoint/annotations3d/fit3d_seqsmooth_auto__binocular_coco/XS__20240408_080847__all__normal__right__1110__0030__undistort_tar__Flora301.json',
+            ],
+            'Flora302': [
+                'data_hand/hand_keypoint/annotations3d/fit3d_seqsmooth_auto__binocular_coco/XS__20240408_080538__all__normal__left__1110__0030__undistort_tar__Flora302.json',
+                'data_hand/hand_keypoint/annotations3d/fit3d_seqsmooth_auto__binocular_coco/XS__20240408_080847__all__normal__right__1110__0030__undistort_tar__Flora302.json',
+            ],
+            'Flora303': [
+                'data_hand/hand_keypoint/annotations3d/fit3d_seqsmooth_auto__binocular_coco/XS__20240408_080538__all__normal__left__1110__0030__undistort_tar__Flora303.json',
+                'data_hand/hand_keypoint/annotations3d/fit3d_seqsmooth_auto__binocular_coco/XS__20240408_080847__all__normal__right__1110__0030__undistort_tar__Flora303.json',
+            ]
+        },
         # 黑人1数据
         '20230911': {
             'Flora301': [
