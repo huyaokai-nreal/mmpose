@@ -663,15 +663,22 @@ def rotation_matrix_to_angle_axis(rotation_matrix):
     return aa
 
 
+def custom_normalize(vector, dim=1, eps=1e-6):
+    # 计算指定维度上的范数
+    vector_norms = torch.sqrt(torch.sum(vector**2, dim=1, keepdim=True) + eps)
+    normalized_vector = vector / vector_norms
+    return normalized_vector
+
+
 def rot6d_to_rotmat(x):
     x = x.view(-1, 3, 2)
 
     # Normalize the first vector
-    b1 = F.normalize(x[:, :, 0], dim=1, eps=1e-6)
+    b1 = custom_normalize(x[:, :, 0], dim=1, eps=1e-6)
 
     dot_prod = torch.sum(b1 * x[:, :, 1], dim=1, keepdim=True)
     # Compute the second vector by finding the orthogonal complement to it
-    b2 = F.normalize(x[:, :, 1] - dot_prod * b1, dim=-1, eps=1e-6)
+    b2 = custom_normalize(x[:, :, 1] - dot_prod * b1, dim=-1, eps=1e-6)
 
     # Finish building the basis by taking the cross product
     b3 = torch.cross(b1, b2, dim=1)

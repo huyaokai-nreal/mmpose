@@ -182,7 +182,6 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
 
     def simple_feature_layer(self, output, left_hand):
         B = output.shape[0]
-        cuda_device = output.device
         pose_len = self.pose_ncomp
         rot_vector_t = output[:, :pose_len, 0, 0]
         svd_begin = self.pose_ncomp + self.shape_ncomp
@@ -195,17 +194,12 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             pre_local_matrix = self.nimble_layer.generate_pose_matrix(
                 rot_vector_t, normalized=True, with_root=False)
 
-        mask = left_hand == 1
-        hand_matrix = torch.eye(3).unsqueeze(0).expand(B, -1,
-                                                       -1).to(cuda_device)
-        hand_matrix[mask, 0, 0] = -1
         _, bone_joints = self.nimble_layer.forward_simple(
             pre_local_matrix, shape_v)
         rebuild_joints = bone_joints[:, self.kp_index, :]
         root_rebuild_joints = rebuild_joints[:, 0:1, :]
         rebuild_joints_temp = rebuild_joints - root_rebuild_joints
-        rebuild_joints_temp = torch.matmul(rebuild_joints_temp,
-                                           hand_matrix.transpose(1, 2))
+
         rebuild_joints_temp = rebuild_joints_temp / self.scale_parameter
         return rebuild_joints_temp, pre_local_matrix, pre_pt_features
 
@@ -340,7 +334,8 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
                 torch.inverse(left_R), pre_root_matrix)
 
             return (pre_root__xyz, pre_nimble__xyz, pre_all__xyz, gt_all__xyz,
-                    pre_root_xyz[:, 0, :], pre_root_matrix, pre_local_matrix)
+                    pre_root_xyz[:, 0, :], pre_root_matrix, pre_local_matrix,
+                    pre_shape_vector)
 
     def predict(self,
                 feats: Tuple[Tensor],
@@ -416,10 +411,10 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         B = output.shape[0]
         # 3d 损失
         (pred_3d_way1, pred_3d_way2, hand3d_pred, hand3d_part_gt,
-         pre_trans_xyz, pre_root_matrix,
-         pre_local_matrix) = self.postprocess(output, left_hand, leftcam_xy,
-                                              left_R, nimble_info, hand3d_gt,
-                                              baseline_scale, False)
+         pre_trans_xyz, pre_root_matrix, pre_local_matrix,
+         pre_shape) = self.postprocess(output, left_hand, leftcam_xy, left_R,
+                                       nimble_info, hand3d_gt, baseline_scale,
+                                       False)
 
         # 直接监督rot和trans, 只考虑根节点的处理方式
         pre_nimble_trans = pre_trans_xyz

@@ -173,6 +173,7 @@ model = dict(
         use_plane_coord=True,
         baseline=0.135,
         use_6d_pose_reg=True,
+        use_shape_smooth=False,
         reproj_thre=440,
         iou_thre=0.5,
         pad_2d=0,

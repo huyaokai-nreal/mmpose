@@ -2,6 +2,7 @@
 from typing import List, Tuple, Union
 
 import torch
+import torch.nn.functional as F
 from mmengine.logging import MessageHub
 from torch import Tensor, nn
 
@@ -45,6 +46,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
                  use_bone_loss: bool = True,
+                 use_shape_smooth=False,
                  use_6d_pose_reg: bool = False,
                  all_use_kp2d_gt: bool = False,
                  seq_len: int = 4,
@@ -82,6 +84,9 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             nn.ReLU(),
             nn.Conv2d(
                 self.channel_num * 2, self.channel_num * 2, kernel_size=1))
+        self.use_shape_smooth = use_shape_smooth
+        if use_shape_smooth:
+            self.shape_loss_func = F.l1_loss
 
     def _forward(
         self,
@@ -176,10 +181,10 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         B = output.shape[0]
         # 3d 损失
         (pred_3d_way1, pred_3d_way2, hand3d_pred, hand3d_part_gt,
-         pre_trans_xyz, pre_root_matrix,
-         pre_local_matrix) = self.postprocess(output, left_hand, leftcam_xy,
-                                              left_R, nimble_info, hand3d_gt,
-                                              baseline_scale, False)
+         pre_trans_xyz, pre_root_matrix, pre_local_matrix,
+         pre_shape) = self.postprocess(output, left_hand, leftcam_xy, left_R,
+                                       nimble_info, hand3d_gt, baseline_scale,
+                                       False)
 
         # 直接监督rot和trans, 只考虑根节点的处理方式
         pre_nimble_trans = pre_trans_xyz
@@ -266,6 +271,16 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
          loss_mse_2d_rightcam, loss_pinch, loss_scale, loss_nimble_pose,
          loss_nimble_trans, loss_smooth) = losses
 
+        if self.use_shape_smooth:
+            pre_shape_reshape = pre_shape.reshape(-1, self.seq_len)
+            mean_shape = torch.mean(
+                pre_shape_reshape,
+                dim=-1).unsqueeze(-1).repeat(1, self.seq_len)
+            smooth_shape_loss = self.shape_loss_func(pre_shape_reshape,
+                                                     mean_shape)
+        else:
+            smooth_shape_loss = torch.tensor(0.0, device=loss_pre_root.device)
+
         # # 子骨骼向量监督
         if self.use_bone_loss:
             bone_loss_weight = 0.15
@@ -336,6 +351,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             loss_proportion=loss_scale,
             loss_nimble_pose=loss_nimble_pose,
             loss_nimble_trans=loss_nimble_trans,
+            smooth_shape_loss=smooth_shape_loss,
             loss_smooth=loss_smooth)
 
         return losses_dict
