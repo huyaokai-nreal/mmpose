@@ -170,7 +170,6 @@ class MPJPEV2(MPJPE):
             bmk_save_root=bmk_save_root,
             scale_metric=scale_metric,
             fit_metric=fit_metric,
-            score_metric=score_metric,
             openhand_metric=openhand_metric,
             category_metric=category_metric,
             show_bmk_thr=show_bmk_thr,
@@ -197,8 +196,6 @@ class MPJPEV2(MPJPE):
             # assert keypoint_scores.shape == keypoints3d.shape[:2]
             result = KeypointEvaluationItem(image_id=data_sample['img_id'])
             keypoint_scores = data_sample['pred_instances']['keypoint_scores']
-            result.meta['keypoints3d_scores'] = data_sample['pred_instances'][
-                'keypoints3d_scores'].tolist()
             result.gt_keypoints3d = (gt['keypoints3d'][0] *
                                      1e3).tolist()  # m -> mm
             result.keypoints3d = (
