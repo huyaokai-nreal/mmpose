@@ -4,9 +4,9 @@ from copy import deepcopy
 import numpy as np
 from mmcv.transforms import BaseTransform
 from nreal_data_tool.utils.bbox import kpt_to_bbox
+from nreal_data_tool.utils.camera import get_virtual_camera_transform
 from scipy.spatial.transform import Rotation as R
 
-from mmpose.datasets.datasets.hand.pair_hand3d_dataset import PairHand3DDataset
 from mmpose.registry import TRANSFORMS
 from mmpose.structures.keypoint import flip_keypoints_custom_center
 
@@ -112,7 +112,7 @@ class RandomStereoParamAugV2(BaseTransform):
                     left_to_right_hand(right_keypoints, right_bbox, width)
 
                 cam_model_left.camera_to_world_xf = np.eye(4)
-                _, right_R, vir_baseline = PairHand3DDataset.get_virtual_cam(
+                _, right_R, vir_baseline = get_virtual_camera_transform(
                     cam_model_left, cam_model_right)
                 results['meta']['ori_camera'] = cam_model_right
                 results['bbox'] = right_bbox
@@ -197,7 +197,7 @@ class RandomStereoParamAug(BaseTransform):
             left_to_right_hand(right_keypoints, right_bbox, width)
 
         cam_model_left.camera_to_world_xf = np.eye(4)
-        _, right_R, vir_baseline = PairHand3DDataset.get_virtual_cam(
+        _, right_R, vir_baseline = get_virtual_camera_transform(
             cam_model_left, cam_model_right)
         results['meta']['ori_camera'] = cam_model_right
         results['bbox'] = right_bbox

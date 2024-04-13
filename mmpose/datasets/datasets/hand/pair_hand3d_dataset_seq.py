@@ -9,7 +9,8 @@ from mmengine.dataset.utils import default_collate
 from mmengine.logging import MMLogger
 from nreal_data_tool import LmdbClient
 from nreal_data_tool.schema.instance import BinocularCameraInstance
-from nreal_data_tool.utils.camera import build_from_BinocularCameraInstance
+from nreal_data_tool.utils.camera import (build_from_BinocularCameraInstance,
+                                          get_virtual_camera_transform)
 from xtcocotools.coco import COCO
 
 from mmpose.datasets.builder import DATASETS
@@ -134,7 +135,7 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         meta = ann.get('meta', dict())
         meta['category_id'] = ann['category_id']
         left_R, right_R, virtual_baseline = \
-            PairHand3DDataset.get_virtual_cam(cam_model_left, cam_model_right) # noqa
+            get_virtual_camera_transform(cam_model_left, cam_model_right) # noqa
         meta['left_R'] = left_R
         meta['right_R'] = right_R
         meta['virtual_baseline'] = virtual_baseline
