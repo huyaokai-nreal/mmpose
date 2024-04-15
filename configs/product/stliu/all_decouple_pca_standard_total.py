@@ -7,8 +7,8 @@ _base_ = ['../../_base_/default_runtime.py']
 
 train_cfg = dict(max_epochs=100, val_interval=5)
 
-data_root = '/data/AI_DATA'
-# data_root = '/data/AI_DATA_WX'
+# data_root = '/data/AI_DATA'
+data_root = '/data/AI_DATA_WX'
 # data_root = '/data/AI_DATA_LOCAL'
 
 # optimizer
@@ -155,7 +155,7 @@ model = dict(
         disparity_input=False,
         use_plane_coord=True,
         baseline=0.135,
-        use_6d_pose_reg=False,
+        use_6d_pose_reg=True,
         direct_pose_reg=False,
         reproj_thre=440,
         iou_thre=0.5,
@@ -186,8 +186,8 @@ dataset_type = 'PairHand3DDataset'
 data_mode = 'topdown'
 
 train_data_list = []
-annotations3d_base_path = '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/'
-annotations3d_fixed_base_path = '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/'
+annotations3d_base_path = '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/'
+annotations3d_fixed_base_path = '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/'
 
 annotations3d_file_list = os.listdir(annotations3d_base_path)
 annotations3d_fixed_file_list = os.listdir(annotations3d_fixed_base_path)
@@ -339,7 +339,7 @@ val_evaluator = [
         # bmk_save_root='/data/stliu/mmpose_new/mmpose/work_dirs/result_20231203/bad_case',
         # show_bmk_thr=(50, 10000000),
         filter_exceed=filter_exceed),  #bad case mpjpe thr (mm)
-    # dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
+    dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
     # dict(type='EPE',filter_exceed=filter_exceed),
     # dict(type='NrealKeypointAP',filter_exceed=filter_exceed)
 ]
