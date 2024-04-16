@@ -124,19 +124,8 @@ model = dict(
                     loss_weight=1,
                 )
             ]),
-        # filter_cfg = dict(
-        #     type='SmoothNetFilter',
-        #     window_size=seq_length,
-        #     output_size=seq_length,
-        #     hidden_size=512,
-        #     res_hidden_size=256,
-        #     num_blocks=3,
-        #     root_index=0
-        # ),
         seq_len=4,
-        use_plane_coord=True,
         baseline=0.135,
-        pad_2d=0,
         score_dim=12,
     ),
     test_cfg=dict(
@@ -148,7 +137,7 @@ model = dict(
         type='Pretrained',
         checkpoint=
         # '/data/AI_DATA/data_hand/model/mmpose/027_td-stage_two_train_2d_RLE_head_train_flora_standard_plane/epoch_100.pth'
-        '/home/ykhu/workspace/mmpose/work_dirs/liftnet/20240103_newaug/seq/hand_liftnetv2_stdv2_sp_convrnn_flora_pretrain_accerror_pinchloss_seq4_8xb32-50e-55_quest_20_40_e50_03152d/best_all_mpjpe_epoch_50.pth'
+        '/home/ykhu/workspace/mmpose/work_dirs/liftnet/seq/hand_liftnetv2_stdv2_sp_convrnn_flora_pretrain_accerror_pinchloss_seq4_8xb32-50e-55_nopad2d/epoch_30.pth'
     ),
 )
 
@@ -161,7 +150,7 @@ import os
 train_data_list = []
 train_date_list = ['20230824', '20230828', '20230906', '20230907']
 train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
-quest_date_list = ['20240220', '20240229']
+quest_date_list = ['20240220', '20240229', '20240401']
 quest_glasses_list = ['Flora301', 'Flora302', 'Flora303']
 
 for data_date in train_date_list:

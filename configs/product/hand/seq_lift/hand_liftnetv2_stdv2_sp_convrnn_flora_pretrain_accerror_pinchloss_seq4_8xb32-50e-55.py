@@ -123,19 +123,9 @@ model = dict(
                     loss_weight=1,
                 )
             ]),
-        # filter_cfg = dict(
-        #     type='SmoothNetFilter',
-        #     window_size=seq_length,
-        #     output_size=seq_length,
-        #     hidden_size=512,
-        #     res_hidden_size=256,
-        #     num_blocks=3,
-        #     root_index=0
-        # ),
         seq_len=4,
-        use_plane_coord=True,
         baseline=0.135,
-        pad_2d=11),
+    ),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
@@ -157,7 +147,7 @@ import os
 train_data_list = []
 train_date_list = ['20230824', '20230828', '20230906', '20230907']
 train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
-quest_date_list = ['20240220', '20240229']
+quest_date_list = ['20240220', '20240229', '20240401']
 quest_glasses_list = ['Flora301', 'Flora302', 'Flora303']
 
 for data_date in train_date_list:
@@ -203,7 +193,7 @@ train_data_list1 = [
     # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081427__pinch__normal__right__1111__0019__undistort_tar__Flora304.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081909__pinch__bright__left__1111__0019__undistort_tar__Flora304.json'
 ]
-train_data_list = train_data_list1
+# train_data_list = train_data_list1
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
@@ -234,7 +224,7 @@ val_data_list = [
     # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073556__pinch__bright__left__1111__0005__undistort_tar__Flora302.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073857__pinch__normal__right__1111__0005__undistort_tar__Flora302.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_074601__pinch__bright__left__1111__0005__undistort_tar__Flora302.json',
-    # # flora301
+    # flora301
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_070648__all__normal__right__1111__0005__undistort_tar__Flora301.json',  # xujian 33684 images, 16842 pair instances
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_071804__all__bright__left__1111__0005__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_072334__pinch__dark__right__1111__0005__undistort_tar__Flora301.json',

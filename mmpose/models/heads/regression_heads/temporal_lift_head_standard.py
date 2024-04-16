@@ -6,8 +6,7 @@ from torch import Tensor, nn
 
 # from mmpose.post_process.temporal_filters import build_filter
 from mmpose.registry import MODELS
-from mmpose.utils.typing import (ConfigType, OptMultiConfig, OptSampleList,
-                                 Predictions)
+from mmpose.utils.typing import ConfigType, OptSampleList, Predictions
 from .lift_head_standard import LiftHeadStandard
 
 
@@ -25,12 +24,9 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
                  iou_thre=0,
                  pad_2d=0,
                  score_dim=0,
-                 edge_to_center=False,
-                 use_plane_coord=True,
                  baseline=0.13,
                  corruption_cam: float = 0.5,
                  all_use_kp2d_gt: bool = False,
-                 filter_cfg: OptMultiConfig = None,
                  seq_len: int = 4,
                  init_cfg: Union[dict, List[dict], None] = None):
         super().__init__(
@@ -39,7 +35,6 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
             d_ffn,
             output_num,
             reproj,
-            use_plane_coord,
             baseline,
             all_use_kp2d_gt=all_use_kp2d_gt,
             corruption_cam=corruption_cam,
@@ -47,8 +42,6 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
             reproj_thre=reproj_thre,
             iou_thre=iou_thre,
             pad_2d=pad_2d,
-            edge_to_center=edge_to_center,
-            filter_cfg=filter_cfg,
             score_dim=score_dim)
         self.seq_len = seq_len
         self.last_layer = nn.Sequential(
@@ -68,9 +61,10 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
             for param in self.temporal.parameters():
                 param.requires_grad = False
 
-    def forward(self, feats, mems, seq_len, virtual_baseline):
+    def forward(self, feats, mems, seq_len):
         B = int(feats.shape[0] / seq_len)
         K = feats.shape[1] // 2 - 1
+        virtual_baseline = (torch.ones(B * seq_len) * self.baseline).cuda()
         # 标准双目归一化平面2d
         norm_leftcam_xyz = torch.cat(
             (feats[:, :K, 0, 0].reshape(B * seq_len, K // 2, 2),
@@ -95,7 +89,7 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
             output = self.last_layer(feat_mix)
             outputs[:, i, ...] = output
         outputs = outputs.reshape(B * seq_len, -1, 1, 1)
-        # mems = torch.zeros(B, 2 * self.channel_num, 1, 1).cuda()
+        mems = torch.zeros(B, 2 * self.channel_num, 1, 1).cuda()
 
         # 标准双目3d点输出
         hand3d_standard = self.get_standard_kpt3d(outputs, norm_leftcam_xyz,
@@ -106,8 +100,13 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
             left_reproj, right_reproj = self.trans_3d_2_2d(
                 hand3d_standard, virtual_baseline)
             left_reproj_error = (left_reproj - norm_leftcam_xyz[..., :2]).view(
-                B * seq_len, -1, 1, 1)
-            reproj_feats = self.reproj_layer(left_reproj_error)
+                hand3d_standard.shape[0], -1, 1, 1)
+            right_reproj_error = (right_reproj -
+                                  norm_rightcam_xyz[..., :2]).view(
+                                      hand3d_standard.shape[0], -1, 1, 1)
+            reproj_error = torch.cat((left_reproj_error, right_reproj_error),
+                                     dim=1)
+            reproj_feats = self.reproj_layer(reproj_error)
             score_feats = torch.cat((reproj_feats, liftnet_output), axis=1)
             major_score = self.major_score_layer(score_feats).view(
                 B * seq_len, -1)
@@ -120,15 +119,48 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
 
     def _forward(self, feats, mems=None):
         feats = self.liftnet(feats)
-        B = feats.shape[0]
+        liftnet_output = feats.clone()
+        B = int(feats.shape[0])
+        virtual_baseline = (torch.ones(B) * self.baseline)
+        K = feats.shape[1] // 2 - 1
+        # 标准双目归一化平面2d
+        norm_leftcam_xyz = torch.cat(
+            (feats[:, :K, 0, 0].reshape(B, K // 2, 2), torch.ones(
+                B, K // 2, 1)),
+            dim=-1)
+        norm_rightcam_xyz = torch.cat((feats[:, K + 1:-1, 0, 0].reshape(
+            B, K // 2, 2), torch.ones(B, K // 2, 1)),
+                                      dim=-1)
+
         if mems is None:
             mems = torch.zeros(B, 2 * self.channel_num, 1, 1)
         feat_mix = torch.cat([feats, mems], dim=1)
         mems = self.temporal(feat_mix)
         output = self.last_layer(feat_mix)
         output = output.reshape(B, -1, 1, 1) / self.baseline
-        return output, mems
-        # return output, mems, liftnet_output
+
+        # 标准双目3d点输出
+        hand3d_standard = self.get_standard_kpt3d(output, norm_leftcam_xyz,
+                                                  norm_rightcam_xyz,
+                                                  virtual_baseline)
+        if self.score_dim:
+            left_reproj, right_reproj = self.trans_3d_2_2d(
+                hand3d_standard, virtual_baseline)
+            left_reproj_error = (left_reproj - norm_leftcam_xyz[..., :2]).view(
+                hand3d_standard.shape[0], -1, 1, 1)
+            right_reproj_error = (right_reproj -
+                                  norm_rightcam_xyz[..., :2]).view(
+                                      hand3d_standard.shape[0], -1, 1, 1)
+            reproj_error = torch.cat((left_reproj_error, right_reproj_error),
+                                     dim=1)
+            reproj_feats = self.reproj_layer(reproj_error)
+            score_feats = torch.cat((reproj_feats, liftnet_output), axis=1)
+            major_score = self.major_score_layer(score_feats).view(B, -1)
+            pinch_score = self.pinch_score_layer(score_feats).view(B, -1)
+            score = torch.cat((major_score, pinch_score), dim=-1)
+        else:
+            score = torch.ones(B, 12)
+        return hand3d_standard, mems, score
 
     def predict(self,
                 feats: Tuple[Tensor],
@@ -137,8 +169,7 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
                 test_cfg: ConfigType = {}) -> Predictions:
         with torch.no_grad():
             data = self.preprocess(feats, batch_data_samples, 'predict')
-        hand3d_standard, mems, score = self.forward(data['feats'], mems, 1,
-                                                    data['virtual_baseline'])
+        hand3d_standard, mems, score = self.forward(data['feats'], mems, 1)
         hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
             hand3d_standard, data['left_to_right_rt'], data['left_R'],
             data['baseline_scale'])
@@ -166,8 +197,7 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
         with torch.no_grad():
             data = self.preprocess(feats, batch_data_samples, 'loss')
         hand3d_standard, _, score = self.forward(data['feats'], None,
-                                                 self.seq_len,
-                                                 data['virtual_baseline'])
+                                                 self.seq_len)
         hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
             hand3d_standard, data['left_to_right_rt'], data['left_R'],
             data['baseline_scale'])
