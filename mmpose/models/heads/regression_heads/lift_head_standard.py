@@ -48,6 +48,7 @@ class LiftHeadStandard(BaseModule):
                  d_model=512,
                  reproj_thre=0,
                  iou_thre=0,
+                 scale_baseline=0,
                  pad_2d=False,
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
@@ -286,6 +287,27 @@ class LiftHeadStandard(BaseModule):
         rightcam_xy = torch.cat(
             (rightcam_x.unsqueeze(-1), rightcam_y.unsqueeze(-1)), dim=2)
 
+        # 实际归一化平面2d 根据aug scale缩放
+        for i, data_sample in enumerate(batch_data_samples[::2]):
+            if data_sample.meta.get('handscale_aug', 0):
+                scale = data_sample.meta['handscale_aug']
+                leftcam_xy[i] = (leftcam_xy[i] -
+                                 leftcam_xy[i, :1]) * scale + leftcam_xy[i, :1]
+                rightcam_xy[i] = (rightcam_xy[i] - rightcam_xy[i, :1]
+                                  ) * scale + rightcam_xy[i, :1]
+
+        # 相机坐标转标准尺寸
+        if self.scale_baseline:
+            bone = torch.norm(hand3d_gt[:, 0] - hand3d_gt[:, 9], dim=-1) * 100
+            hand_scale = bone / self.scale_baseline
+            leftcam_xy = (leftcam_xy[:] - leftcam_xy[:, :1]) / hand_scale.view(
+                128, 1, 1) + leftcam_xy[:, :1]
+            rightcam_xy = (rightcam_xy[:] - rightcam_xy[:, :1]
+                           ) / hand_scale.view(128, 1, 1) + rightcam_xy[:, :1]
+        else:
+            hand_scale = torch.ones(leftcam_xy.shape[0]).cuda()
+
+        # 相机坐标转标准双目
         norm_leftcam_xyz, norm_rightcam_xyz = self.standardize_stereo(
             leftcam_xy, rightcam_xy, left_R, right_R)
 
