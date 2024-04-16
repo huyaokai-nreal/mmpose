@@ -170,6 +170,7 @@ class MPJPEV2(MPJPE):
             bmk_save_root=bmk_save_root,
             scale_metric=scale_metric,
             fit_metric=fit_metric,
+            score_metric=score_metric,
             openhand_metric=openhand_metric,
             category_metric=category_metric,
             show_bmk_thr=show_bmk_thr,
@@ -215,6 +216,12 @@ class MPJPEV2(MPJPE):
             result.keypoints = (
                 data_sample['pred_instances']['keypoints'][0]).tolist()
             result.gt_keypoints = gt['keypoints'][0].tolist()
+            if 'keypoints3d_scores' in data_sample['meta']:
+                result.meta['keypoints3d_scores'] = data_sample[
+                    'pred_instances']['keypoints3d_scores'].tolist()
+            else:
+                result.meta['keypoints3d_scores'] = data_sample[
+                    'pred_instances']['keypoint_scores']
             if 'tag' in data_sample['meta']:
                 result.meta['tag'] = data_sample['meta']['tag']
             if 'gesture' in data_sample['meta']:
@@ -241,6 +248,12 @@ class MPJPEV2(MPJPE):
                 reproj_2d = camera_model.eye_to_window(
                     data_sample['pred_instances']['keypoints3d'][0])
                 result.meta['reproj_keypoints'] = reproj_2d.tolist()
+            if 'keypoints3d_scores' in data_sample['pred_instances']:
+                result.meta['keypoints3d_scores'] = data_sample[
+                    'pred_instances']['keypoints3d_scores'].tolist()
+            else:
+                result.meta['keypoints3d_scores'] = data_sample[
+                    'pred_instances']['keypoint_scores']
             # get area information
             if 'bbox_scales' in data_sample['gt_instances']:
                 result.area = float(

@@ -441,8 +441,6 @@ class TopdownPoseLiftEstimatorSeq(TopdownPoseLiftEstimator):
 
             pred_instances.keypoints3d = pred_instances.keypoints3d.cpu(
             ).numpy()
-            pred_instances.keypoint3d_scores = np.ones(
-                (1, pred_instances.keypoints3d.shape[1]))
             pred_instances.keypoints = pred_instances.keypoints.cpu().numpy()
             pred_instances.keypoint_scores = np.ones(
                 (1, pred_instances.keypoints.shape[1]))
