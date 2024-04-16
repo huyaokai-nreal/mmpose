@@ -70,21 +70,18 @@ class LiftHeadStandard(BaseModule):
             score_feat_dim = feat_dim + output_num * 2
             self.major_score_layer = nn.Sequential(
                 nn.Conv2d(score_feat_dim, score_feat_dim, kernel_size=1),
-                nn.BatchNorm2d(score_feat_dim),
-                nn.ReLU(),
+                nn.BatchNorm2d(score_feat_dim), nn.ReLU(),
                 nn.Conv2d(score_feat_dim, 10, kernel_size=1),
                 nn.BatchNorm2d(10),
-                nn.ReLU(),
+                nn.ReLU()
                 # gMLP(d_model=score_feat_dim, d_ffn=d_ffn, num_layers=1),
                 # UncertaintyModel(score_feat_dim, 10),
             )
             self.pinch_score_layer = nn.Sequential(
                 nn.Conv2d(score_feat_dim, score_feat_dim, kernel_size=1),
-                nn.BatchNorm2d(score_feat_dim),
-                nn.ReLU(),
-                nn.Conv2d(score_feat_dim, 2, kernel_size=1),
-                nn.BatchNorm2d(2),
-                nn.ReLU(),
+                nn.BatchNorm2d(score_feat_dim), nn.ReLU(),
+                nn.Conv2d(score_feat_dim, 2, kernel_size=1), nn.BatchNorm2d(2),
+                nn.ReLU()
                 # gMLP(d_model=score_feat_dim, d_ffn=d_ffn, num_layers=1),
                 # UncertaintyModel(score_feat_dim, 2))
             )
@@ -107,7 +104,6 @@ class LiftHeadStandard(BaseModule):
 
     def forward(self, feats):
         B, K = feats.shape[0], feats.shape[1] // 2 - 1
-        virtual_baseline = (torch.ones(B) * self.baseline).cuda()
         # 标准双目归一化平面2d
         norm_leftcam_xyz = torch.cat(
             (feats[:, :K, 0, 0].reshape(B, K // 2, 2), torch.ones(
@@ -121,12 +117,10 @@ class LiftHeadStandard(BaseModule):
 
         # 标准双目3d点输出
         hand3d_standard = self.get_standard_kpt3d(output, norm_leftcam_xyz,
-                                                  norm_rightcam_xyz,
-                                                  virtual_baseline)
+                                                  norm_rightcam_xyz)
         # score output
         if self.score_dim:
-            left_reproj, right_reproj = self.trans_3d_2_2d(
-                hand3d_standard, virtual_baseline)
+            left_reproj, right_reproj = self.trans_3d_2_2d(hand3d_standard)
             left_reproj_error = (left_reproj - norm_leftcam_xyz[..., :2]).view(
                 hand3d_standard.shape[0], -1, 1, 1)
             right_reproj_error = (right_reproj -
@@ -175,7 +169,6 @@ class LiftHeadStandard(BaseModule):
         lr_rot_matrix = []
         hand3d_gt = []
         is_left_hands = []
-        virtual_baseline = []
         uv_coord_im_gt_global = []
 
         all_inv_warp_mat = torch.zeros(B * 2, 3, 2).cuda()
@@ -203,7 +196,6 @@ class LiftHeadStandard(BaseModule):
                 left_to_right_rt = np.linalg.inv(right_cam_xf)
                 lr_rot_matrix.append(lr_t[:3, :3])
                 lr_p.append(lr_t[:3, 3])
-                virtual_baseline.append(data_sample.meta['virtual_baseline'])
                 baseline_scale.append(data_sample.meta['virtual_baseline'] /
                                       self.baseline)
             warp_mat = data_sample.metainfo['warp_mat']
@@ -219,8 +211,6 @@ class LiftHeadStandard(BaseModule):
         left_R = torch.tensor(np.array(left_R)).cuda().float()
         right_R = torch.tensor(np.array(right_R)).cuda().float()
         baseline_scale = torch.tensor(np.array(baseline_scale)).cuda().float()
-        virtual_baseline = torch.tensor(
-            np.array(virtual_baseline)).cuda().float()
         lr_p = torch.tensor(np.array(lr_p)).cuda().float()
         lr_rot_matrix = torch.tensor(np.array(lr_rot_matrix)).cuda().float()
         left_to_right_rt = torch.tensor(
@@ -326,7 +316,6 @@ class LiftHeadStandard(BaseModule):
             'left_R': left_R,
             'right_R': right_R,
             'baseline_scale': baseline_scale,
-            'virtual_baseline': virtual_baseline,
             'nimble_info': None
         }
 
@@ -352,16 +341,17 @@ class LiftHeadStandard(BaseModule):
         hand3d_pred = hand3d_pred.view(B, K, 3)
         return hand3d_pred, hand3d_pred, rightcam_XYZ
 
-    def get_standard_kpt3d(self, output, norm_leftcam_xyz, norm_rightcam_xyz,
-                           virtual_baseline):
+    def get_standard_kpt3d(self, output, norm_leftcam_xyz, norm_rightcam_xyz):
         B, K = norm_leftcam_xyz.shape[:2]
+        virtual_baseline = (torch.ones(B) *
+                            self.baseline).reshape(B, 1, 1).repeat(1, 21,
+                                                                   1).cuda()
         leftcam_Z = output[:, :21].view(B, K, 1)
         leftcam_XYZ = torch.cat(
             (norm_leftcam_xyz[:, :, :2] * leftcam_Z, leftcam_Z), dim=2)
         rightcam_Z = output[:, 21:21 * 2].reshape((B, 21, 1))
         rightcam_XYZ = torch.cat(
             (norm_rightcam_xyz[:, :, :2] * rightcam_Z, rightcam_Z), dim=2)
-        virtual_baseline = virtual_baseline.reshape(B, 1, 1).repeat(1, 21, 1)
         # 虚拟左目系下的虚拟右目3d点
         rightcam_XYZ[..., :1] = rightcam_XYZ[..., :1] + virtual_baseline
         # 标准双目3d点
@@ -407,8 +397,7 @@ class LiftHeadStandard(BaseModule):
             hand3d_standard, data['left_to_right_rt'], data['left_R'],
             data['baseline_scale'])
 
-        left_reproj, right_reproj = self.trans_3d_2_2d(
-            hand3d_standard, data['virtual_baseline'])
+        left_reproj, right_reproj = self.trans_3d_2_2d(hand3d_standard)
         major_gt = torch.cat((data['hand3d_gt'][:, 1:10, :],
                               data['hand3d_gt'][:, 13, :].unsqueeze(1)),
                              dim=1)
@@ -541,9 +530,9 @@ class LiftHeadStandard(BaseModule):
         standard_cam_xyz = torch.matmul(rot, cam_xyz).view(B, K, 3)
         return standard_cam_xyz
 
-    @staticmethod
-    def trans_3d_2_2d(hand3d_standard, virtual_baseline):
+    def trans_3d_2_2d(self, hand3d_standard):
         B = hand3d_standard.shape[0]
+        virtual_baseline = (torch.ones(B) * self.baseline).cuda()
         left_reproj = hand3d_standard[..., :2] / hand3d_standard[..., 2:]
         virtual_baseline = virtual_baseline.reshape(B, 1, 1).repeat(1, 21,
                                                                     1) * -1

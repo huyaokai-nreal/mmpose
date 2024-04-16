@@ -64,7 +64,6 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
     def forward(self, feats, mems, seq_len):
         B = int(feats.shape[0] / seq_len)
         K = feats.shape[1] // 2 - 1
-        virtual_baseline = (torch.ones(B * seq_len) * self.baseline).cuda()
         # 标准双目归一化平面2d
         norm_leftcam_xyz = torch.cat(
             (feats[:, :K, 0, 0].reshape(B * seq_len, K // 2, 2),
@@ -93,12 +92,10 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
 
         # 标准双目3d点输出
         hand3d_standard = self.get_standard_kpt3d(outputs, norm_leftcam_xyz,
-                                                  norm_rightcam_xyz,
-                                                  virtual_baseline)
+                                                  norm_rightcam_xyz)
         # score output
         if self.score_dim:
-            left_reproj, right_reproj = self.trans_3d_2_2d(
-                hand3d_standard, virtual_baseline)
+            left_reproj, right_reproj = self.trans_3d_2_2d(hand3d_standard)
             left_reproj_error = (left_reproj - norm_leftcam_xyz[..., :2]).view(
                 hand3d_standard.shape[0], -1, 1, 1)
             right_reproj_error = (right_reproj -
@@ -121,7 +118,6 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
         feats = self.liftnet(feats)
         liftnet_output = feats.clone()
         B = int(feats.shape[0])
-        virtual_baseline = (torch.ones(B) * self.baseline)
         K = feats.shape[1] // 2 - 1
         # 标准双目归一化平面2d
         norm_leftcam_xyz = torch.cat(
@@ -141,11 +137,9 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
 
         # 标准双目3d点输出
         hand3d_standard = self.get_standard_kpt3d(output, norm_leftcam_xyz,
-                                                  norm_rightcam_xyz,
-                                                  virtual_baseline)
+                                                  norm_rightcam_xyz)
         if self.score_dim:
-            left_reproj, right_reproj = self.trans_3d_2_2d(
-                hand3d_standard, virtual_baseline)
+            left_reproj, right_reproj = self.trans_3d_2_2d(hand3d_standard)
             left_reproj_error = (left_reproj - norm_leftcam_xyz[..., :2]).view(
                 hand3d_standard.shape[0], -1, 1, 1)
             right_reproj_error = (right_reproj -
@@ -202,8 +196,7 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
             hand3d_standard, data['left_to_right_rt'], data['left_R'],
             data['baseline_scale'])
 
-        left_reproj, right_reproj = self.trans_3d_2_2d(
-            hand3d_standard, data['virtual_baseline'])
+        left_reproj, right_reproj = self.trans_3d_2_2d(hand3d_standard)
         major_gt = torch.cat((data['hand3d_gt'][:, 1:10, :],
                               data['hand3d_gt'][:, 13, :].unsqueeze(1)),
                              dim=1)
