@@ -97,6 +97,7 @@ class LiftHeadStandard(BaseModule):
         self.reproj_thre = reproj_thre
         self.iou_thre = iou_thre
         self.pad_2d = pad_2d
+        self.scale_baseline = scale_baseline
         if self.score_dim:
             for param in self.liftnet.parameters():
                 param.requires_grad = False
@@ -301,9 +302,10 @@ class LiftHeadStandard(BaseModule):
             bone = torch.norm(hand3d_gt[:, 0] - hand3d_gt[:, 9], dim=-1) * 100
             hand_scale = bone / self.scale_baseline
             leftcam_xy = (leftcam_xy[:] - leftcam_xy[:, :1]) / hand_scale.view(
-                128, 1, 1) + leftcam_xy[:, :1]
-            rightcam_xy = (rightcam_xy[:] - rightcam_xy[:, :1]
-                           ) / hand_scale.view(128, 1, 1) + rightcam_xy[:, :1]
+                len(hand_scale), 1, 1) + leftcam_xy[:, :1]
+            rightcam_xy = (rightcam_xy[:] -
+                           rightcam_xy[:, :1]) / hand_scale.view(
+                               len(hand_scale), 1, 1) + rightcam_xy[:, :1]
         else:
             hand_scale = torch.ones(leftcam_xy.shape[0]).cuda()
 
@@ -338,13 +340,15 @@ class LiftHeadStandard(BaseModule):
             'left_R': left_R,
             'right_R': right_R,
             'baseline_scale': baseline_scale,
+            'hand_scale': hand_scale,
             'nimble_info': None
         }
 
     def postprocess(self, hand3d_standard, left_to_right_rt, left_R,
-                    baseline_scale):
+                    baseline_scale, hand_scale):
         B, K = hand3d_standard.shape[:2]
         baseline_scale = baseline_scale.view(B, 1, 1)
+        hand_scale = hand_scale.view(B, 1, 1)
         left_to_right_rt = left_to_right_rt.unsqueeze(0)
         left_R_inv = torch.inverse(left_R).view(B, 1, 3,
                                                 3).repeat(1, K, 1,
@@ -352,6 +356,9 @@ class LiftHeadStandard(BaseModule):
         # 实际左目3d
         hand_3d = (hand3d_standard * baseline_scale).view(B * K, 3, 1)
         hand3d_pred = torch.bmm(left_R_inv, hand_3d)
+        leftcam_XYZ = hand3d_pred.view(B, K, -1)
+        leftcam_XYZ = (leftcam_XYZ -
+                       leftcam_XYZ[:, :1]) * hand_scale + leftcam_XYZ[:, :1]
         # 实际右目3d
         left_to_right_rot = left_to_right_rt[:1, :3, :3].repeat(
             hand3d_pred.shape[0], 1, 1)
@@ -360,8 +367,10 @@ class LiftHeadStandard(BaseModule):
                                                        1)
         rightcam_XYZ = (torch.bmm(left_to_right_rot, hand3d_pred) +
                         left_to_right_t).view(B, K, 3)
+        rightcam_XYZ = (rightcam_XYZ -
+                        rightcam_XYZ[:, :1]) * hand_scale + rightcam_XYZ[:, :1]
         hand3d_pred = hand3d_pred.view(B, K, 3)
-        return hand3d_pred, hand3d_pred, rightcam_XYZ
+        return leftcam_XYZ, leftcam_XYZ, rightcam_XYZ
 
     def get_standard_kpt3d(self, output, norm_leftcam_xyz, norm_rightcam_xyz):
         B, K = norm_leftcam_xyz.shape[:2]
@@ -391,7 +400,7 @@ class LiftHeadStandard(BaseModule):
         hand3d_standard, score = self.forward(data['feats'])
         hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
             hand3d_standard, data['left_to_right_rt'], data['left_R'],
-            data['baseline_scale'])
+            data['baseline_scale'], data['hand_scale'])
 
         if self.reproj:
             camera_model = batch_data_samples[0].meta['ori_camera']
@@ -417,7 +426,7 @@ class LiftHeadStandard(BaseModule):
         hand3d_standard, score = self.forward(data['feats'])
         hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
             hand3d_standard, data['left_to_right_rt'], data['left_R'],
-            data['baseline_scale'])
+            data['baseline_scale'], data['hand_scale'])
 
         left_reproj, right_reproj = self.trans_3d_2_2d(hand3d_standard)
         major_gt = torch.cat((data['hand3d_gt'][:, 1:10, :],
