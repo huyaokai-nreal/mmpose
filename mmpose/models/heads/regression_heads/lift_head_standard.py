@@ -171,6 +171,10 @@ class LiftHeadStandard(BaseModule):
         lr_rot_matrix = []
         hand3d_gt = []
         is_left_hands = []
+        nimble_pose = []
+        nimble_trans = []
+        nimble_shape = []
+        nimble_info = dict()
         uv_coord_im_gt_global = []
 
         all_inv_warp_mat = torch.zeros(B * 2, 3, 2).cuda()
@@ -353,6 +357,8 @@ class LiftHeadStandard(BaseModule):
             'hand3d_gt': hand3d_gt,
             'left_R': left_R,
             'right_R': right_R,
+            'leftcam_xy': leftcam_xy,
+            'left_hand': left_hand,
             'baseline_scale': baseline_scale,
             'hand_scale': hand_scale,
             'nimble_info': nimble_info

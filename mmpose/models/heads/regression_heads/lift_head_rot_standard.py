@@ -36,14 +36,10 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
                  euler_or_quaternion: str = 'euler',
                  use_pose_pca: bool = True,
                  reproj: bool = False,
-                 use_plane_coord=True,
                  baseline=0.13,
-                 disparity_input=False,
-                 plane_arctan=False,
                  reproj_thre=0,
                  iou_thre=0,
                  pad_2d=0,
-                 edge_to_center=False,
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
                  use_bone_loss: bool = True,
@@ -55,14 +51,10 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             lift_loss=lift_loss,
             d_ffn=d_ffn,
             reproj=reproj,
-            use_plane_coord=use_plane_coord,
             baseline=baseline,
-            disparity_input=disparity_input,
-            plane_arctan=plane_arctan,
             reproj_thre=reproj_thre,
             iou_thre=iou_thre,
             pad_2d=pad_2d,
-            edge_to_center=edge_to_center,
             lambda_t=lambda_t,
             all_use_kp2d_gt=all_use_kp2d_gt,
             init_cfg=init_cfg,
@@ -81,7 +73,7 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
 
         # define the liftnet model
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
-        self.channel_num = 43 if use_plane_coord else 64
+        self.channel_num = 43
         self.lambda_t = lambda_t
         self.kpt2d_with_depth = kpt2d_with_depth
         feat_dim = 2 * self.channel_num
@@ -89,8 +81,6 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             feat_dim = feat_dim + 21
         if reg_shape_type > 1:
             feat_dim = feat_dim + skeleton_feature_dim
-        if disparity_input:
-            feat_dim = feat_dim + 21
         self.liftnet = gMLP(d_model=feat_dim, d_ffn=d_ffn, num_layers=3)
         self.rigid_samples = _gen_rigid_features()
 
@@ -123,14 +113,10 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         self.use_bone_loss = use_bone_loss
         self.feat_dim = feat_dim
         self.reproj = reproj
-        self.disparity_input = disparity_input
-        self.use_plane_coord = use_plane_coord
         self.baseline = baseline
-        self.plane_arctan = plane_arctan
         self.reproj_thre = reproj_thre
         self.iou_thre = iou_thre
         self.pad_2d = pad_2d
-        self.edge_to_center = edge_to_center
         self.center_rot = None
         self.use_svd = use_svd
         self.scale_parameter = 1000
@@ -342,34 +328,25 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
                 batch_data_samples: OptSampleList,
                 test_cfg: ConfigType = {}) -> Predictions:
         with torch.no_grad():
-            (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,
-             left_to_right_rt, leftcam_cam_matrix, rightcam_cam_matrix,
-             uv_coord_im_pred_global, uv_coord_im_gt_global,
-             uv_coord_im_pred_global_distort,
-             uv_coord_im_pred_global_distort_noflip, hand3d_gt, left_hand,
-             nimble_info, left_R, right_R,
-             baseline_scale) = self.preprocess(feats, batch_data_samples,
-                                               'predict')
-
-            if self.reg_shape_type > 1:
-                batch_num = feats.shape[0]
-                skeleton_joints_info = self.skeleton_joints_info.repeat(
-                    batch_num, 1).to(feats.device)
-                skeleton_feature = self.skeleton_encoder(
-                    skeleton_joints_info).view(batch_num,
-                                               self.skeleton_feature_dim, 1,
-                                               -1)
-                feats = torch.cat((feats, skeleton_feature), dim=1)
-            output = self.forward(feats)
+            data = self.preprocess(feats, batch_data_samples, 'predict')
+        if self.reg_shape_type > 1:
+            batch_num = data['feats'].shape[0]
+            skeleton_joints_info = self.skeleton_joints_info.repeat(
+                batch_num, 1).to(data['feats'].device)
+            skeleton_feature = self.skeleton_encoder(
+                skeleton_joints_info).view(batch_num,
+                                           self.skeleton_feature_dim, 1, -1)
+            data['feats'] = torch.cat((data['feats'], skeleton_feature), dim=1)
+        output = self.forward(data['feats'])
 
         hand3d_pred = self.postprocess(
             output,
-            left_hand,
-            leftcam_xy,
-            left_R,
-            nimble_info,
-            hand3d_gt,
-            baseline_scale,
+            data['left_hand'],
+            data['leftcam_xy'],
+            data['left_R'],
+            data['nimble_info'],
+            data['hand3d_gt'],
+            data['baseline_scale'],
             only_pre=True)[0]
         if self.reproj:
             camera_model = batch_data_samples[0].meta['ori_camera']
@@ -379,7 +356,7 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
                 leftcam_uv_reproj_distort).cuda()
             return hand3d_pred, leftcam_uv_reproj_distort[:, None, ...]
         else:
-            return hand3d_pred, uv_coord_im_pred_global_distort
+            return hand3d_pred, data['uv_coord_im_pred_global_distort']
 
     def loss(self,
              feats: Tuple[Tensor],
@@ -388,33 +365,27 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         """Calculate losses from a batch of inputs and data samples."""
 
         with torch.no_grad():
-            (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,
-             left_to_right_rt, leftcam_cam_matrix, rightcam_cam_matrix,
-             uv_coord_im_pred_global, uv_coord_im_gt_global,
-             uv_coord_im_pred_global_distort,
-             uv_coord_im_pred_global_distort_noflip, hand3d_gt, left_hand,
-             nimble_info, left_R, right_R,
-             baseline_scale) = self.preprocess(feats, batch_data_samples,
-                                               'loss')
+            data = self.preprocess(feats, batch_data_samples, 'loss')
 
         if self.reg_shape_type > 1:
-            batch_num = feats.shape[0]
+            batch_num = data['feats'].shape[0]
             skeleton_joints_info = self.skeleton_joints_info.repeat(
-                batch_num, 1).to(feats.device)
+                batch_num, 1).to(data['feats'].device)
             skeleton_feature = self.skeleton_encoder(
                 skeleton_joints_info).view(batch_num,
                                            self.skeleton_feature_dim, 1, -1)
-            feats = torch.cat((feats, skeleton_feature), dim=1)
+            data['feats'] = torch.cat((data['feats'], skeleton_feature), dim=1)
 
-        output = self.forward(feats)
+        output = self.forward(data['feats'])
 
         B = output.shape[0]
         # 3d 损失
         (pred_3d_way1, pred_3d_way2, hand3d_pred, hand3d_part_gt,
          pre_trans_xyz, pre_root_matrix, pre_local_matrix,
-         pre_shape) = self.postprocess(output, left_hand, leftcam_xy, left_R,
-                                       nimble_info, hand3d_gt, baseline_scale,
-                                       False)
+         pre_shape) = self.postprocess(output, data['left_hand'],
+                                       data['leftcam_xy'], data['left_R'],
+                                       data['nimble_info'], data['hand3d_gt'],
+                                       data['baseline_scale'], False)
 
         # 直接监督rot和trans, 只考虑根节点的处理方式
         pre_nimble_trans = pre_trans_xyz
@@ -428,10 +399,11 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         elif self.euler_or_quaternion == 'quaternion':
             pre_nimble_pose = matrix_to_quaternion(pre_matrix).reshape(B, -1)
 
-        if 'nimble_pose' in nimble_info.keys(
-        ) and 'nimble_trans' in nimble_info.keys():
-            gt_nimble_trans = nimble_info['nimble_trans']
-            gt_nimble_pose_roctor = nimble_info['nimble_pose'].reshape(-1, 3)
+        if 'nimble_pose' in data['nimble_info'].keys(
+        ) and 'nimble_trans' in data['nimble_info'].keys():
+            gt_nimble_trans = data['nimble_info']['nimble_trans']
+            gt_nimble_pose_roctor = data['nimble_info']['nimble_pose'].reshape(
+                -1, 3)
             gt_nimble_pose_matirx = batch_rodrigues(
                 gt_nimble_pose_roctor).reshape(-1, 3, 3)
             if self.euler_or_quaternion == 'euler':
@@ -446,16 +418,17 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
 
         # 2d重投影损失 这里把pre设置为gt
         leftcam_uv_pre, rightcam_uv_pre = trans_3d_2_2d(
-            hand3d_pred, leftcam_cam_matrix, rightcam_cam_matrix,
-            left_to_right_rt)
-        leftcam_uv_gt, rightcam_uv_gt = trans_3d_2_2d(hand3d_gt,
-                                                      leftcam_cam_matrix,
-                                                      rightcam_cam_matrix,
-                                                      left_to_right_rt)
+            hand3d_pred, data['leftcam_cam_matrix'],
+            data['rightcam_cam_matrix'], data['left_to_right_rt'])
+        leftcam_uv_gt, rightcam_uv_gt = trans_3d_2_2d(
+            data['hand3d_gt'], data['leftcam_cam_matrix'],
+            data['rightcam_cam_matrix'], data['left_to_right_rt'])
 
         # xyz比例约束
-        proportion_xyz_pre = cal_proportion(leftcam_uv_pre, leftcam_cam_matrix)
-        proportion_xyz_gt = cal_proportion(leftcam_uv_gt, leftcam_cam_matrix)
+        proportion_xyz_pre = cal_proportion(leftcam_uv_pre,
+                                            data['leftcam_cam_matrix'])
+        proportion_xyz_gt = cal_proportion(leftcam_uv_gt,
+                                           data['leftcam_cam_matrix'])
 
         # 数据归一化
         leftcam_uv_pre = leftcam_uv_pre / 500
@@ -466,7 +439,8 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         # pinch 损失
         dist_pred = torch.norm(
             hand3d_pred[:, 4, :] - hand3d_pred[:, 8, :], dim=-1)
-        dist_gt = torch.norm(hand3d_gt[:, 4, :] - hand3d_gt[:, 8, :], dim=-1)
+        dist_gt = torch.norm(
+            data['hand3d_gt'][:, 4, :] - data['hand3d_gt'][:, 8, :], dim=-1)
 
         pred_for_loss = [
             pred_3d_way1, pred_3d_way2, hand3d_pred, leftcam_uv_pre,
@@ -474,15 +448,16 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             pre_nimble_trans
         ]
         targ_for_loss = [
-            hand3d_gt, hand3d_gt, hand3d_gt, leftcam_uv_gt, rightcam_uv_gt,
-            dist_gt, proportion_xyz_gt, gt_nimble_pose, gt_nimble_trans
+            data['hand3d_gt'], data['hand3d_gt'], data['hand3d_gt'],
+            leftcam_uv_gt, rightcam_uv_gt, dist_gt, proportion_xyz_gt,
+            gt_nimble_pose, gt_nimble_trans
         ]
 
         weight_ini = torch.ones((1, 21, 3))
         weight_ini[0, :9, :] = 2
         weight_ini[0, 4, :], weight_ini[0, 8, :] = 4, 4
-        weight_ini = weight_ini.repeat(hand3d_gt.shape[0], 1,
-                                       1).to(hand3d_gt.device)
+        weight_ini = weight_ini.repeat(data['hand3d_gt'].shape[0], 1,
+                                       1).to(data['hand3d_gt'].device)
         weight_for_loss = [
             weight_ini,
             weight_ini,
@@ -505,7 +480,8 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             bone_loss_weight = 0.1
             bone_3d_pre = (hand3d_pred - hand3d_pred[:, self.joint_parents, :]
                            )[:, self.non_root_indices].reshape(-1, 3)
-            bone_3d_gt = (hand3d_gt - hand3d_gt[:, self.joint_parents, :]
+            bone_3d_gt = (data['hand3d_gt'] -
+                          data['hand3d_gt'][:, self.joint_parents, :]
                           )[:, self.non_root_indices].reshape(-1, 3)
 
             bone_3d_pre_vector = self.cal_normalize_vector(bone_3d_pre)

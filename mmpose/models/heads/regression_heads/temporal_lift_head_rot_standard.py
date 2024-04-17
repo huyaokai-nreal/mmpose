@@ -36,13 +36,10 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
                  euler_or_quaternion: str = 'euler',
                  use_pose_pca: bool = True,
                  reproj: bool = False,
-                 use_plane_coord=True,
                  baseline=0.13,
-                 disparity_input=False,
                  reproj_thre=0,
                  iou_thre=0,
                  pad_2d=0,
-                 edge_to_center=False,
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
                  use_bone_loss: bool = True,
@@ -58,14 +55,11 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             reproj=reproj,
             pose_ncomp=pose_ncomp,
             euler_or_quaternion=euler_or_quaternion,
-            use_plane_coord=use_plane_coord,
             baseline=baseline,
             use_svd=use_svd,
-            disparity_input=disparity_input,
             reproj_thre=reproj_thre,
             iou_thre=iou_thre,
             pad_2d=pad_2d,
-            edge_to_center=edge_to_center,
             use_bone_loss=use_bone_loss,
             use_6d_pose_reg=use_6d_pose_reg,
             lambda_t=lambda_t,
@@ -130,25 +124,18 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
                 mems=None,
                 test_cfg: ConfigType = {}) -> Predictions:
         with torch.no_grad():
-            (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,
-             left_to_right_rt, leftcam_cam_matrix, rightcam_cam_matrix,
-             uv_coord_im_pred_global, uv_coord_im_gt_global,
-             uv_coord_im_pred_global_distort,
-             uv_coord_im_pred_global_distort_noflip, hand3d_gt, left_hand,
-             nimble_info, left_R, right_R,
-             baseline_scale) = self.preprocess(feats, batch_data_samples,
-                                               'predict')
+            data = self.preprocess(feats, batch_data_samples, 'predict')
 
-        output, mems = self.forward(feats, mems, 1)
+        output, mems = self.forward(data['feats'], mems, 1)
 
         hand3d_pred = self.postprocess(
             output,
-            left_hand,
-            leftcam_xy,
-            left_R,
-            nimble_info,
-            hand3d_gt,
-            baseline_scale,
+            data['left_hand'],
+            data['leftcam_xy'],
+            data['left_R'],
+            data['nimble_info'],
+            data['hand3d_gt'],
+            data['baseline_scale'],
             only_pre=True)[0]
         if self.reproj:
             camera_model = batch_data_samples[0].meta['ori_camera']
@@ -158,7 +145,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
                 leftcam_uv_reproj_distort).cuda()
             return hand3d_pred, leftcam_uv_reproj_distort[:, None, ...], mems
         else:
-            return hand3d_pred, uv_coord_im_pred_global_distort, mems
+            return hand3d_pred, data['uv_coord_im_pred_global_distort'], mems
 
     def loss(self,
              feats: Tuple[Tensor],
@@ -167,24 +154,19 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         """Calculate losses from a batch of inputs and data samples."""
 
         with torch.no_grad():
-            (feats, leftcam_xy, rightcam_xy, lr_rot_matrix, lr_p,
-             left_to_right_rt, leftcam_cam_matrix, rightcam_cam_matrix,
-             uv_coord_im_pred_global, uv_coord_im_gt_global,
-             uv_coord_im_pred_global_distort,
-             uv_coord_im_pred_global_distort_noflip, hand3d_gt, left_hand,
-             nimble_info, left_R, right_R,
-             baseline_scale) = self.preprocess(feats, batch_data_samples,
-                                               'loss')
+            data = self.preprocess(feats, batch_data_samples, 'loss')
 
-        output, _ = self.forward(feats, None, self.seq_len)
+        output, _ = self.forward(data['feats'], None, self.seq_len)
 
         B = output.shape[0]
+        hand3d_gt = data['hand3d_gt']
         # 3d 损失
         (pred_3d_way1, pred_3d_way2, hand3d_pred, hand3d_part_gt,
          pre_trans_xyz, pre_root_matrix, pre_local_matrix,
-         pre_shape) = self.postprocess(output, left_hand, leftcam_xy, left_R,
-                                       nimble_info, hand3d_gt, baseline_scale,
-                                       False)
+         pre_shape) = self.postprocess(output, data['left_hand'],
+                                       data['leftcam_xy'], data['left_R'],
+                                       data['nimble_info'], hand3d_gt,
+                                       data['baseline_scale'], False)
 
         # 直接监督rot和trans, 只考虑根节点的处理方式
         pre_nimble_trans = pre_trans_xyz
@@ -198,10 +180,11 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         elif self.euler_or_quaternion == 'quaternion':
             pre_nimble_pose = matrix_to_quaternion(pre_matrix).reshape(B, -1)
 
-        if 'nimble_pose' in nimble_info.keys(
-        ) and 'nimble_trans' in nimble_info.keys():
-            gt_nimble_trans = nimble_info['nimble_trans']
-            gt_nimble_pose_roctor = nimble_info['nimble_pose'].reshape(-1, 3)
+        if 'nimble_pose' in data['nimble_info'].keys(
+        ) and 'nimble_trans' in data['nimble_info'].keys():
+            gt_nimble_trans = data['nimble_info']['nimble_trans']
+            gt_nimble_pose_roctor = data['nimble_info']['nimble_pose'].reshape(
+                -1, 3)
             gt_nimble_pose_matirx = batch_rodrigues(
                 gt_nimble_pose_roctor).reshape(-1, 3, 3)
             if self.euler_or_quaternion == 'euler':
@@ -215,6 +198,9 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
                     gt_nimble_pose_matirx).reshape(B, -1)
 
         # 2d重投影损失 这里把pre设置为gt
+        leftcam_cam_matrix = data['leftcam_cam_matrix']
+        rightcam_cam_matrix = data['rightcam_cam_matrix']
+        left_to_right_rt = data['left_to_right_rt']
         leftcam_uv_pre, rightcam_uv_pre = trans_3d_2_2d(
             hand3d_pred, leftcam_cam_matrix, rightcam_cam_matrix,
             left_to_right_rt)
