@@ -221,7 +221,7 @@ class MPJPEV2(MPJPE):
                     'pred_instances']['keypoints3d_scores'].tolist()
             else:
                 result.meta['keypoints3d_scores'] = data_sample[
-                    'pred_instances']['keypoint_scores']
+                    'pred_instances']['keypoint_scores'].tolist()
             if 'tag' in data_sample['meta']:
                 result.meta['tag'] = data_sample['meta']['tag']
             if 'gesture' in data_sample['meta']:
@@ -253,7 +253,7 @@ class MPJPEV2(MPJPE):
                     'pred_instances']['keypoints3d_scores'].tolist()
             else:
                 result.meta['keypoints3d_scores'] = data_sample[
-                    'pred_instances']['keypoint_scores']
+                    'pred_instances']['keypoint_scores'].tolist()
             # get area information
             if 'bbox_scales' in data_sample['gt_instances']:
                 result.area = float(
