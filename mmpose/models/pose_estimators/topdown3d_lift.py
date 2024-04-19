@@ -296,8 +296,10 @@ class TopdownPoseLiftEstimator(BaseModel):
         super().train(mode)
         if mode:
             self.backbone.eval()
-            self.neck.eval()
-            self.head.eval()
+            if self.with_neck:
+                self.neck.eval()
+            if self.with_head:
+                self.head.eval()
 
 
 @MODELS.register_module()

@@ -124,7 +124,6 @@ model = dict(
         iou_thre=0.5,
         pad_2d=False,
         reproj=False),
-    nano_2d=True,
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
@@ -452,26 +451,26 @@ gesture_list = [
 ]
 filter_exceed = False
 val_evaluator = [
-    # dict(
-    #     type='MPJPEV2',
-    #     mode='mpjpe',
-    #     # gesture_list=gesture_list,
-    #     scale_metric=False,
-    #     fit_metric=False,
-    #     openhand_metric=False,
-    #     pinch_hard_metric=False,
-    #     category_metric=False,
-    #     # bmk_save_root='/home/ykhu/workspace/mmpose/work_dirs/bad_case_liftnet/2d_input',
-    #     # show_bmk_thr=(20, 10000000),
-    #     result_dir='.',
-    #     pinch_thre=pinch_thre,
-    #     filter_exceed=filter_exceed),  #bad case mpjpe thr (mm)
+    dict(
+        type='MPJPEV2',
+        mode='mpjpe',
+        # gesture_list=gesture_list,
+        scale_metric=False,
+        fit_metric=False,
+        openhand_metric=False,
+        pinch_hard_metric=False,
+        category_metric=False,
+        # bmk_save_root='/home/ykhu/workspace/mmpose/work_dirs/bad_case_liftnet/2d_input',
+        # show_bmk_thr=(20, 10000000),
+        result_dir='.',
+        pinch_thre=pinch_thre,
+        filter_exceed=filter_exceed),  #bad case mpjpe thr (mm)
     # dict(type='MPJPEV2', mode='p-mpjpe', prefix='1',filter_exceed=filter_exceed),
     # dict(type='EPE',filter_exceed=filter_exceed),
-    dict(
-        type='NrealKeypointAP',
-        filter_exceed=filter_exceed,
-        category_metric=True)
+    # dict(
+    #     type='NrealKeypointAP',
+    #     filter_exceed=filter_exceed,
+    #     category_metric=True)
 ]
 test_evaluator = val_evaluator
 
