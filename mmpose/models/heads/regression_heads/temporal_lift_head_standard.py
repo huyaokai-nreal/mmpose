@@ -122,10 +122,10 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
         # 标准双目归一化平面2d
         norm_leftcam_xyz = torch.cat(
             (feats[:, :K, 0, 0].reshape(B, K // 2, 2), torch.ones(
-                B, K // 2, 1)),
+                B, K // 2, 1).cuda()),
             dim=-1)
         norm_rightcam_xyz = torch.cat((feats[:, K + 1:-1, 0, 0].reshape(
-            B, K // 2, 2), torch.ones(B, K // 2, 1)),
+            B, K // 2, 2), torch.ones(B, K // 2, 1).cuda()),
                                       dim=-1)
 
         if mems is None:
@@ -166,7 +166,7 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
         hand3d_standard, mems, score = self.forward(data['feats'], mems, 1)
         hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
             hand3d_standard, data['left_to_right_rt'], data['left_R'],
-            data['baseline_scale'])
+            data['baseline_scale'], data['hand_scale'])
         if self.reproj:
             camera_model = batch_data_samples[0].meta['ori_camera']
             leftcam_uv_reproj_distort = camera_model.eye_to_window(
@@ -194,7 +194,7 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
                                                  self.seq_len)
         hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
             hand3d_standard, data['left_to_right_rt'], data['left_R'],
-            data['baseline_scale'])
+            data['baseline_scale'], data['hand_scale'])
 
         left_reproj, right_reproj = self.trans_3d_2_2d(hand3d_standard)
         major_gt = torch.cat((data['hand3d_gt'][:, 1:10, :],
