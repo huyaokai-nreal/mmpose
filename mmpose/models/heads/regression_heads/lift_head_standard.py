@@ -15,21 +15,37 @@ from mmpose.registry import MODELS
 from mmpose.utils.typing import ConfigType, OptSampleList, Predictions
 
 
+class UncertaintyModelV1(nn.Module):
+
+    def __init__(self, feat_dim, out_dim):
+        super().__init__()
+
+        self.conv1 = nn.Conv2d(feat_dim, feat_dim * 2, kernel_size=1)
+        self.norm1 = nn.BatchNorm2d(feat_dim * 2)
+        self.conv2 = nn.Conv2d(feat_dim * 2, out_dim, kernel_size=1)
+        self.norm2 = nn.BatchNorm2d(out_dim)
+
+    def forward(self, x):
+        x = self.norm1((F.relu(self.conv1(x))))
+        x = self.norm2((F.relu(self.conv2(x))))
+        return x
+
+
 class UncertaintyModel(nn.Module):
 
     def __init__(self, feat_dim, out_dim):
         super().__init__()
-        self.fc1 = nn.Linear(feat_dim, feat_dim)
-        self.fc2 = nn.Linear(feat_dim, out_dim)
+        self.fc1 = nn.Linear(feat_dim, feat_dim * 2)
+        self.fc2 = nn.Linear(feat_dim * 2, out_dim)
         self.dropout = nn.Dropout(0.5)
-        self.norm1 = nn.BatchNorm1d(feat_dim)
+        self.norm1 = nn.BatchNorm1d(feat_dim * 2)
         self.norm2 = nn.BatchNorm1d(out_dim)
 
     def forward(self, x):
         x = torch.flatten(x, 1)
-        x = F.relu(self.norm1(self.fc1(x)))
+        x = self.norm1(F.relu(self.fc1(x)))
         x = self.dropout(x)
-        x = F.relu(self.norm2(self.fc2(x)))
+        x = self.norm2(F.relu(self.fc2(x)))
         return x
 
 
@@ -70,22 +86,14 @@ class LiftHeadStandard(BaseModule):
         if self.score_dim:
             score_feat_dim = feat_dim + output_num * 2
             self.major_score_layer = nn.Sequential(
-                nn.Conv2d(score_feat_dim, score_feat_dim, kernel_size=1),
-                nn.BatchNorm2d(score_feat_dim), nn.ReLU(),
-                nn.Conv2d(score_feat_dim, 10, kernel_size=1),
-                nn.BatchNorm2d(10),
-                nn.ReLU()
-                # gMLP(d_model=score_feat_dim, d_ffn=d_ffn, num_layers=1),
-                # UncertaintyModel(score_feat_dim, 10),
+                gMLP(d_model=score_feat_dim, d_ffn=d_ffn, num_layers=1),
+                UncertaintyModel(score_feat_dim, 10),
             )
             self.pinch_score_layer = nn.Sequential(
-                nn.Conv2d(score_feat_dim, score_feat_dim, kernel_size=1),
-                nn.BatchNorm2d(score_feat_dim), nn.ReLU(),
-                nn.Conv2d(score_feat_dim, 2, kernel_size=1), nn.BatchNorm2d(2),
-                nn.ReLU()
-                # gMLP(d_model=score_feat_dim, d_ffn=d_ffn, num_layers=1),
-                # UncertaintyModel(score_feat_dim, 2))
-            )
+                gMLP(d_model=score_feat_dim, d_ffn=d_ffn, num_layers=1),
+                UncertaintyModel(score_feat_dim, 2))
+            # self.major_score_layer = UncertaintyModel(score_feat_dim, 10)
+            # self.pinch_score_layer = UncertaintyModel(score_feat_dim, 2)
             self.reproj_layer = nn.Sequential(
                 nn.Conv2d(output_num * 2, output_num * 2, kernel_size=1),
                 nn.ReLU(),
@@ -526,24 +534,23 @@ class LiftHeadStandard(BaseModule):
         major_score = score[:, :10]
         major_loss = torch.norm(major_pred - major_gt, dim=-1)
         major_score_loss = ((major_loss) * torch.exp(-1 * major_score) +
-                            2 * major_score).mean()
+                            2 * major_score).mean() * 3
         # pinch score loss
         pinch_score = score[:, 10:]
         pinch_dist_loss = torch.abs(dist_pred - dist_gt).unsqueeze_(-1)
         pinch_score_dist_loss = (
             (pinch_dist_loss) *
             torch.exp(-1 * pinch_score.mean(-1).unsqueeze_(-1)) +
-            2 * pinch_score.mean(-1).unsqueeze_(-1)).mean()
-
+            pinch_score.mean(-1).unsqueeze_(-1)).mean() * 3
         pinch_pred = torch.cat((major_pred[:, 3:4, :], major_pred[:, 7:8, :]),
                                dim=1)
         pinch_gt = torch.cat((major_gt[:, 3:4, :], major_gt[:, 7:8, :]), dim=1)
         pinch_mpjpe_loss = torch.norm(pinch_pred - pinch_gt, dim=-1)
         pinch_score_mpjpe_loss = (
             (pinch_mpjpe_loss) * torch.exp(-1 * pinch_score) +
-            2 * pinch_score).mean()
-        return (major_score_loss * 3, pinch_score_dist_loss * 4,
-                pinch_score_mpjpe_loss * 4)
+            pinch_score).mean() * 3
+        return (major_score_loss, pinch_score_dist_loss,
+                pinch_score_mpjpe_loss)
 
     def filter_invalid_gt(self, gt_kpt, pred_kpt, pred_for_loss,
                           targ_for_loss):
