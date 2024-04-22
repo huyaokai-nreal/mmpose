@@ -88,7 +88,7 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
             output = self.last_layer(feat_mix)
             outputs[:, i, ...] = output
         outputs = outputs.reshape(B * seq_len, -1, 1, 1)
-        mems = torch.zeros(B, 2 * self.channel_num, 1, 1).cuda()
+        # mems = torch.zeros(B, 2 * self.channel_num, 1, 1).cuda()
 
         # 标准双目3d点输出
         hand3d_standard = self.get_standard_kpt3d(outputs, norm_leftcam_xyz,
@@ -117,7 +117,7 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
     def _forward(self, feats, mems=None):
         feats = self.liftnet(feats)
         liftnet_output = feats.clone()
-        B = int(feats.shape[0])
+        B = feats.shape[0]
         K = feats.shape[1] // 2 - 1
         # 标准双目归一化平面2d
         norm_leftcam_xyz = torch.cat(
