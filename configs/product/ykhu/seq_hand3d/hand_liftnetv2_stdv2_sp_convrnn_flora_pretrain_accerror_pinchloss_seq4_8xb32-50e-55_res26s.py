@@ -54,7 +54,6 @@ codec = dict(
 pinch_thre = [20, 40]  # pinch双阈值，单位：mm
 # model settings
 backbone_out_channels = [32, 64, 128, 256]
-model_2d_pth = '/data/AI_DATA/data_hand/model/mmpose/td-hand_rtmtinyv2_26s_25d_scale_ipr_right_2d3d_handmix_dark_small_drop_aug_240401data_8x128-100e-128x128/epoch_100.pth'
 model = dict(
     type='TopdownPoseLiftEstimatorSeq',
     data_preprocessor=dict(
@@ -70,8 +69,7 @@ model = dict(
         strides=(1, 2, 2, 1),
         zero_init_residual=False,
         bias_in_conv=False,
-        out_channels=backbone_out_channels,
-        init_cfg=dict(type='Pretrained', checkpoint=model_2d_pth)),
+        out_channels=backbone_out_channels),
     head=dict(
         type='RTMCCIPRHead3D',
         in_channels=256,
@@ -98,9 +96,7 @@ model = dict(
                 dict(type='L1Loss', use_target_weight=False),
                 dict(type='L1Loss', use_target_weight=False),
             ]),
-        decoder=codec,
-        init_cfg=dict(type='Pretrained', checkpoint=model_2d_pth),
-    ),
+        decoder=codec),
     kpt3d_lift=dict(
         type='TemporalLiftHeadStandard',
         lift_loss=dict(

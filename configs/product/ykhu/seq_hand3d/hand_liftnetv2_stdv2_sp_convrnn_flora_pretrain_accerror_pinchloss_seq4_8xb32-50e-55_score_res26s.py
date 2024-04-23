@@ -70,8 +70,7 @@ model = dict(
         strides=(1, 2, 2, 1),
         zero_init_residual=False,
         bias_in_conv=False,
-        out_channels=backbone_out_channels,
-        init_cfg=dict(type='Pretrained', checkpoint=model_2d_pth)),
+        out_channels=backbone_out_channels),
     head=dict(
         type='RTMCCIPRHead3D',
         in_channels=256,
@@ -98,9 +97,7 @@ model = dict(
                 dict(type='L1Loss', use_target_weight=False),
                 dict(type='L1Loss', use_target_weight=False),
             ]),
-        decoder=codec,
-        init_cfg=dict(type='Pretrained', checkpoint=model_2d_pth),
-    ),
+        decoder=codec),
     kpt3d_lift=dict(
         type='TemporalLiftHeadStandard',
         lift_loss=dict(
