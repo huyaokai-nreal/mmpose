@@ -37,15 +37,18 @@ class UncertaintyModel(nn.Module):
         super().__init__()
         self.fc1 = nn.Linear(feat_dim, feat_dim * 2)
         self.fc2 = nn.Linear(feat_dim * 2, out_dim)
+        # self.fc3 = nn.Linear(feat_dim, out_dim)
         self.dropout = nn.Dropout(0.5)
         self.norm1 = nn.BatchNorm1d(feat_dim * 2)
         self.norm2 = nn.BatchNorm1d(out_dim)
+        # self.norm3 = nn.BatchNorm1d(out_dim)
 
     def forward(self, x):
         x = torch.flatten(x, 1)
         x = self.norm1(F.relu(self.fc1(x)))
         x = self.dropout(x)
         x = self.norm2(F.relu(self.fc2(x)))
+        # x = self.norm3(self.fc3(x))
         return x
 
 
@@ -89,9 +92,9 @@ class LiftHeadStandard(BaseModule):
                 gMLP(d_model=score_feat_dim, d_ffn=d_ffn, num_layers=1),
                 UncertaintyModel(score_feat_dim, 10),
             )
-            self.pinch_score_layer = nn.Sequential(
-                gMLP(d_model=score_feat_dim, d_ffn=d_ffn, num_layers=1),
-                UncertaintyModel(score_feat_dim, 2))
+            # self.pinch_score_layer = nn.Sequential(
+            #     gMLP(d_model=score_feat_dim, d_ffn=d_ffn, num_layers=1),
+            #     UncertaintyModel(score_feat_dim, 2))
             # self.major_score_layer = UncertaintyModel(score_feat_dim, 10)
             # self.pinch_score_layer = UncertaintyModel(score_feat_dim, 2)
             self.reproj_layer = nn.Sequential(
@@ -140,13 +143,14 @@ class LiftHeadStandard(BaseModule):
                                      dim=1)
             reproj_feats = self.reproj_layer(reproj_error)
             score_feats = torch.cat((reproj_feats, liftnet_output), axis=1)
-            major_score = self.major_score_layer(score_feats).view(
+            score = self.major_score_layer(score_feats).view(
                 hand3d_standard.shape[0], -1)
-            pinch_score = self.pinch_score_layer(score_feats).view(
-                hand3d_standard.shape[0], -1)
-            score = torch.cat((major_score, pinch_score), dim=-1)
+            # pinch_score = self.pinch_score_layer(score_feats).view(
+            #     hand3d_standard.shape[0], -1)
+
+            # score = torch.cat((major_score, pinch_score), dim=-1)
         else:
-            score = torch.ones(B, 12)
+            score = torch.ones(B, self.score_dim)
         return hand3d_standard, score
 
     @staticmethod
@@ -503,10 +507,8 @@ class LiftHeadStandard(BaseModule):
             loss_pinch=loss_pinch)
 
         if self.score_dim:
-            losses_dict['loss_major_score'], losses_dict[
-                'loss_pinch_score_dist'], losses_dict[
-                    'loss_pinch_score_mpjpe'] = self.compute_score_loss(
-                        major_pred, major_gt, dist_pred, dist_gt, score)
+            losses_dict['loss_major_score'] = self.compute_score_loss(
+                major_pred, major_gt, dist_pred, dist_gt, score)
         return losses_dict
 
     @staticmethod
@@ -529,8 +531,8 @@ class LiftHeadStandard(BaseModule):
             camera_model.world_to_eye(hand3d_gt_.cpu().numpy()))
         return scaled_kpt2d, hand3d_gt_
 
-    def compute_score_loss(self, major_pred, major_gt, dist_pred, dist_gt,
-                           score):
+    def compute_score_lossv1(self, major_pred, major_gt, dist_pred, dist_gt,
+                             score):
         major_score = score[:, :10]
         major_loss = torch.norm(major_pred - major_gt, dim=-1)
         major_score_loss = ((major_loss) * torch.exp(-1 * major_score) +
@@ -549,6 +551,29 @@ class LiftHeadStandard(BaseModule):
         pinch_score_mpjpe_loss = (
             (pinch_mpjpe_loss) * torch.exp(-1 * pinch_score) +
             pinch_score).mean() * 3
+        return (major_score_loss, pinch_score_dist_loss,
+                pinch_score_mpjpe_loss)
+
+    def compute_score_loss(self, major_pred, major_gt, dist_pred, dist_gt,
+                           score):
+        major_score = score[:, :10]
+        major_loss = torch.norm(major_pred - major_gt, dim=-1)
+        major_score_loss = ((major_loss) * torch.exp(-1 * major_score) +
+                            2 * major_score).mean() * 3
+        pinch_score = torch.cat((score[:, 4:5], score[:, 8:9]), dim=-1)
+        pinch_dist_loss = torch.abs(dist_pred - dist_gt).unsqueeze_(-1)
+        pinch_score_dist_loss = (
+            (pinch_dist_loss) *
+            torch.exp(-1 * pinch_score.mean(-1).unsqueeze_(-1)) +
+            pinch_score.mean(-1).unsqueeze_(-1)).mean() * 3
+        pinch_pred = torch.cat((major_pred[:, 3:4, :], major_pred[:, 7:8, :]),
+                               dim=1)
+        pinch_gt = torch.cat((major_gt[:, 3:4, :], major_gt[:, 7:8, :]), dim=1)
+        pinch_mpjpe_loss = torch.norm(pinch_pred - pinch_gt, dim=-1)
+        pinch_score_mpjpe_loss = (
+            (pinch_mpjpe_loss) * torch.exp(-1 * pinch_score) +
+            pinch_score).mean() * 3
+
         return (major_score_loss, pinch_score_dist_loss,
                 pinch_score_mpjpe_loss)
 

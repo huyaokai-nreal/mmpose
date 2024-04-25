@@ -105,13 +105,12 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
                                      dim=1)
             reproj_feats = self.reproj_layer(reproj_error)
             score_feats = torch.cat((reproj_feats, liftnet_output), axis=1)
-            major_score = self.major_score_layer(score_feats).view(
-                B * seq_len, -1)
-            pinch_score = self.pinch_score_layer(score_feats).view(
-                B * seq_len, -1)
-            score = torch.cat((major_score, pinch_score), dim=-1)
+            score = self.major_score_layer(score_feats).view(B * seq_len, -1)
+            # pinch_score = self.pinch_score_layer(score_feats).view(
+            #     B * seq_len, -1)
+            # score = torch.cat((major_score, pinch_score), dim=-1)
         else:
-            score = torch.ones(B, 12)
+            score = torch.ones(B, self.score_dim)
         return hand3d_standard, mems, score
 
     def _forward(self, feats, mems=None):
@@ -149,11 +148,11 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
                                      dim=1)
             reproj_feats = self.reproj_layer(reproj_error)
             score_feats = torch.cat((reproj_feats, liftnet_output), axis=1)
-            major_score = self.major_score_layer(score_feats).view(B, -1)
-            pinch_score = self.pinch_score_layer(score_feats).view(B, -1)
-            score = torch.cat((major_score, pinch_score), dim=-1)
+            score = self.major_score_layer(score_feats).view(B, -1)
+            # pinch_score = self.pinch_score_layer(score_feats).view(B, -1)
+            # score = torch.cat((major_score, pinch_score), dim=-1)
         else:
-            score = torch.ones(B, 12)
+            score = torch.ones(B, self.score_dim)
         return hand3d_standard, mems, score
 
     def predict(self,
@@ -239,4 +238,6 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
                 'loss_pinch_score_dist'], losses_dict[
                     'loss_pinch_score_mpjpe'] = self.compute_score_loss(
                         major_pred, major_gt, dist_pred, dist_gt, score)
+            # losses_dict['loss_major_score'] = self.compute_score_loss(
+            #             major_pred, major_gt, dist_pred, dist_gt, score)
         return losses_dict
