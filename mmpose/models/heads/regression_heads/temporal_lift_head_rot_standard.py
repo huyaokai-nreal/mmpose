@@ -97,9 +97,9 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         feat_mix = torch.cat([out_feats, mems], dim=1)
         mems = self.temporal(feat_mix)
         output = self.last_layer(feat_mix)
-        kpt, rot, svd_pt = self.simple_feature_layer(output, feats[:, -1, 0,
-                                                                   0])
-        return kpt, rot, svd_pt, mems
+        shape, rot, svd_pt = self.simple_feature_layer(output, feats[:, -1, 0,
+                                                                     0])
+        return shape, rot, svd_pt, mems
 
     def forward(self,
                 feats: Tuple[Tensor],
