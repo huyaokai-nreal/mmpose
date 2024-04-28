@@ -153,7 +153,9 @@ model = dict(
         pose_ncomp=30,
         euler_or_quaternion='euler',
         baseline=0.135,
-        use_6d_pose_reg=True,
+        use_6d_pose_reg=False,
+        use_9d_pose_reg=True,
+        use_pose_loss=False,
         direct_pose_reg=False,
         reproj_thre=440,
         iou_thre=0.5,
@@ -199,7 +201,9 @@ train_data_list += [
 
 # train_data_list = [train_data_sin for train_data_sin in train_data_list if '__20240220_' in train_data_sin and ('Flora302' in train_data_sin or 'Flora303' in train_data_sin)]
 # train_data_list = [train_data_sin for train_data_sin in train_data_list if '__20230824_' in train_data_sin]
-# train_data_list = ['/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_060805__all__normal__left__1111__0006__undistort_tar__Flora301.json']
+train_data_list = [
+    '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_060805__all__normal__left__1111__0006__undistort_tar__Flora301.json'
+]
 
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 

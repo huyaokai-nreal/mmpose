@@ -1,13 +1,13 @@
 # Copyright (c) XREAL. All rights reserved.
 from typing import List, Tuple, Union
 
+import roma
 import torch
 import torch.nn.functional as F
 from mmengine.logging import MessageHub
 from torch import Tensor, nn
 
 from mmpose.models.heads.nimble.nimble_utils import (adjust_predicted_angles,
-                                                     batch_rodrigues,
                                                      cal_proportion,
                                                      matrix_to_euler_angles,
                                                      matrix_to_quaternion,
@@ -43,7 +43,9 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
                  use_bone_loss: bool = True,
+                 use_pose_loss: bool = False,
                  use_shape_smooth=False,
+                 use_9d_pose_reg: bool = False,
                  use_6d_pose_reg: bool = False,
                  all_use_kp2d_gt: bool = False,
                  seq_len: int = 4,
@@ -65,7 +67,8 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             lambda_t=lambda_t,
             all_use_kp2d_gt=all_use_kp2d_gt,
             init_cfg=init_cfg,
-        )
+            use_9d_pose_reg=use_9d_pose_reg,
+            use_pose_loss=use_pose_loss)
         self.seq_len = seq_len
 
         self.last_layer = nn.Sequential(
@@ -170,19 +173,17 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         hand3d_gt = data['hand3d_gt']
         # 3d 损失
         (pred_3d_way1, pred_3d_way2, hand3d_pred, hand3d_part_gt,
-         pre_trans_xyz, pre_root_matrix, pre_local_matrix,
-         pre_shape) = self.postprocess(output, data['left_hand'],
-                                       data['leftcam_xy'], data['left_R'],
-                                       data['nimble_info'], hand3d_gt,
-                                       data['baseline_scale'], False)
+         pre_trans_xyz, pre_shape, gt_all_matrix,
+         pre_all_matrix) = self.postprocess(output, data['left_hand'],
+                                            data['leftcam_xy'], data['left_R'],
+                                            data['nimble_info'],
+                                            data['hand3d_gt'],
+                                            data['baseline_scale'], False)
 
         # 直接监督rot和trans, 只考虑根节点的处理方式
         pre_nimble_trans = pre_trans_xyz
         # pre_child_vector = pre_rot_vector[:, 1:, :].reshape(-1, 3)
-        pre_child_matrix = pre_local_matrix.reshape(B, -1, 3, 3)
-        pre_matrix = torch.cat(
-            (pre_root_matrix.unsqueeze(1), pre_child_matrix),
-            dim=1).reshape(-1, 3, 3)
+        pre_matrix = pre_all_matrix.reshape(-1, 3, 3)
         if self.euler_or_quaternion == 'euler':
             pre_euler = matrix_to_euler_angles(pre_matrix, 'XYZ')
         elif self.euler_or_quaternion == 'quaternion':
@@ -191,10 +192,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         if 'nimble_pose' in data['nimble_info'].keys(
         ) and 'nimble_trans' in data['nimble_info'].keys():
             gt_nimble_trans = data['nimble_info']['nimble_trans']
-            gt_nimble_pose_roctor = data['nimble_info']['nimble_pose'].reshape(
-                -1, 3)
-            gt_nimble_pose_matirx = batch_rodrigues(
-                gt_nimble_pose_roctor).reshape(-1, 3, 3)
+            gt_nimble_pose_matirx = gt_all_matrix.reshape(-1, 3, 3)
             if self.euler_or_quaternion == 'euler':
                 gt_euler = matrix_to_euler_angles(gt_nimble_pose_matirx, 'XYZ')
                 pre_nimble_pose = adjust_predicted_angles(pre_euler,
@@ -318,6 +316,16 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             bone_loss = torch.tensor(0.0, device=loss_pre_root.device)
             major_bone_loss = torch.tensor(0.0, device=loss_pre_root.device)
 
+        if self.use_pose_loss:
+            root_pose_loss_weight = 0.1
+            local_pose_loss_weight = 0.005
+            root_pose_loss = roma.rotmat_geodesic_distance(
+                pre_all_matrix[:, :1, :],
+                gt_all_matrix[:, :1, :]).mean() * root_pose_loss_weight
+            local_pose_loss = roma.rotmat_geodesic_distance(
+                pre_all_matrix[:, 1:, :],
+                gt_all_matrix[:, 1:, :]).mean() * local_pose_loss_weight
+
         if self.lambda_t > 0:
             mh = MessageHub.get_current_instance()
             cur_epoch = mh.get_info('epoch')
@@ -349,7 +357,9 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             loss_nimble_trans=loss_nimble_trans,
             smooth_shape_loss=smooth_shape_loss,
             loss_smooth=loss_smooth,
-            loss_score=loss_score)
+            loss_score=loss_score,
+            root_pose_loss=root_pose_loss,
+            local_pose_loss=local_pose_loss)
 
         return losses_dict
 

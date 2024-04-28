@@ -1,6 +1,7 @@
 # Copyright (c) XREAL. All rights reserved.
 from typing import List, Tuple, Union
 
+import roma
 import torch
 from mmengine.logging import MessageHub
 from torch import Tensor, nn
@@ -9,7 +10,7 @@ from mmpose.models.heads.nimble.nimble_utils import (
     SkeletonEncoder, _gen_rigid_features, adjust_predicted_angles,
     batch_rodrigues, cal_proportion, convert_vector2matrix, decode_svd,
     euler_angles_to_matrix, matrix_to_euler_angles, matrix_to_quaternion,
-    rot6D_to_matirx, trans_3d_2_2d)
+    rot6D_to_matirx, rot9D_to_matirx, trans_3d_2_2d)
 from mmpose.models.heads.nimble.simple_NIMBLELayer import sim_NIMBLELayer
 from mmpose.models.heads.regression_heads.lift_head_standard import \
     LiftHeadStandard
@@ -43,7 +44,9 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
                  use_bone_loss: bool = True,
+                 use_pose_loss: bool = False,
                  use_6d_pose_reg: bool = False,
+                 use_9d_pose_reg: bool = False,
                  direct_pose_reg: bool = False,
                  all_use_kp2d_gt: bool = False,
                  init_cfg: Union[dict, List[dict], None] = None):
@@ -96,6 +99,8 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             self.pose_ncomp = len(self.used_nimble_para)
         if use_6d_pose_reg:
             self.pose_ncomp = 19 * 6
+        if use_9d_pose_reg:
+            self.pose_ncomp = 19 * 9
         if direct_pose_reg:
             self.pose_ncomp = 21
         output_num = self.shape_ncomp + self.pose_ncomp + 3
@@ -126,7 +131,9 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         self.use_nimble_part_para = use_nimble_part_para
         self.euler_or_quaternion = euler_or_quaternion
         self.use_6d_pose_reg = use_6d_pose_reg
+        self.use_9d_pose_reg = use_9d_pose_reg
         self.direct_pose_reg = direct_pose_reg
+        self.use_pose_loss = use_pose_loss
         if self.euler_or_quaternion not in ['euler', 'quaternion']:
             raise ValueError('must in two pose way')
 
@@ -176,6 +183,9 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         if self.use_6d_pose_reg:
             pre_local_matrix = rot6D_to_matirx(rot_vector_t.reshape(
                 -1, 6)).reshape(B, 19, -1)
+        elif self.use_9d_pose_reg:
+            pre_local_matrix = rot9D_to_matirx(rot_vector_t.reshape(
+                -1, 9)).reshape(B, 19, -1)
         else:
             pre_local_matrix = self.nimble_layer.generate_pose_matrix(
                 rot_vector_t, normalized=True, with_root=False)
@@ -220,7 +230,7 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         baseline_scale = baseline_scale.view(B, 1, 1)
 
         pose_len = self.pose_ncomp
-        rot_vector_t = output[:, :pose_len, 0, 0]
+        rot_vector_t = output[:, :pose_len, 0, 0].float()
         if self.use_nimble_part_para:
             rot_vector_t = self.get_full_pose_with_part_pars(rot_vector_t)
         svd_begin = self.pose_ncomp + self.shape_ncomp
@@ -237,6 +247,9 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         if self.use_6d_pose_reg:
             pre_local_matrix = rot6D_to_matirx(rot_vector_t.reshape(
                 -1, 6)).reshape(B, 19, -1)
+        elif self.use_9d_pose_reg:
+            pre_local_matrix = rot9D_to_matirx(rot_vector_t.reshape(
+                -1, 9)).reshape(B, 19, -1)
         elif self.direct_pose_reg:
             rot_vector_t = torch.mul(rot_vector_t, torch.pi)
             pre_euler_value = torch.zeros((B, 60), device=cuda_device)
@@ -266,7 +279,7 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
                     (init_root_rot, nimble_info['nimble_pose'][:, 1:, :]),
                     dim=1)
                 gt_local_matrix = convert_vector2matrix(
-                    gt_rot_vector.view(B, -1))
+                    gt_rot_vector.view(B, -1)).reshape(B, -1, 9)
                 # gt_shape_vector = nimble_info['nimble_shape']
 
         def get_nimble_3d(root_xyz, root_matrix, local_matrix, shape_vector,
@@ -323,9 +336,14 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             pre_root_matrix = torch.matmul(
                 torch.inverse(left_R), pre_root_matrix)
 
+            gt_matrix = torch.cat(
+                (gt_root_matrix.reshape(B, 1, 9), gt_local_matrix), dim=1)
+            pre_matrix = torch.cat(
+                (pre_root_matrix.reshape(B, 1, 9), pre_local_matrix), dim=1)
+
             return (pre_root__xyz, pre_nimble__xyz, pre_all__xyz, gt_all__xyz,
-                    pre_root_xyz[:, 0, :], pre_root_matrix, pre_local_matrix,
-                    pre_shape_vector)
+                    pre_root_xyz[:, 0, :], pre_shape_vector, gt_matrix,
+                    pre_matrix)
 
     def predict(self,
                 feats: Tuple[Tensor],
@@ -385,19 +403,16 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         B = output.shape[0]
         # 3d 损失
         (pred_3d_way1, pred_3d_way2, hand3d_pred, hand3d_part_gt,
-         pre_trans_xyz, pre_root_matrix, pre_local_matrix,
-         pre_shape) = self.postprocess(output, data['left_hand'],
-                                       data['leftcam_xy'], data['left_R'],
-                                       data['nimble_info'], data['hand3d_gt'],
-                                       data['baseline_scale'], False)
+         pre_trans_xyz, pre_shape, gt_all_matrix,
+         pre_all_matrix) = self.postprocess(output, data['left_hand'],
+                                            data['leftcam_xy'], data['left_R'],
+                                            data['nimble_info'],
+                                            data['hand3d_gt'],
+                                            data['baseline_scale'], False)
 
         # 直接监督rot和trans, 只考虑根节点的处理方式
         pre_nimble_trans = pre_trans_xyz
-        # pre_child_vector = pre_rot_vector[:, 1:, :].reshape(-1, 3)
-        pre_child_matrix = pre_local_matrix.reshape(B, -1, 3, 3)
-        pre_matrix = torch.cat(
-            (pre_root_matrix.unsqueeze(1), pre_child_matrix),
-            dim=1).reshape(-1, 3, 3)
+        pre_matrix = pre_all_matrix.reshape(-1, 3, 3)
         if self.euler_or_quaternion == 'euler':
             pre_euler = matrix_to_euler_angles(pre_matrix, 'XYZ')
         elif self.euler_or_quaternion == 'quaternion':
@@ -406,10 +421,7 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         if 'nimble_pose' in data['nimble_info'].keys(
         ) and 'nimble_trans' in data['nimble_info'].keys():
             gt_nimble_trans = data['nimble_info']['nimble_trans']
-            gt_nimble_pose_roctor = data['nimble_info']['nimble_pose'].reshape(
-                -1, 3)
-            gt_nimble_pose_matirx = batch_rodrigues(
-                gt_nimble_pose_roctor).reshape(-1, 3, 3)
+            gt_nimble_pose_matirx = gt_all_matrix.reshape(-1, 3, 3)
             if self.euler_or_quaternion == 'euler':
                 gt_euler = matrix_to_euler_angles(gt_nimble_pose_matirx, 'XYZ')
                 pre_nimble_pose = adjust_predicted_angles(pre_euler,
@@ -538,6 +550,21 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
                 loss_nimble_pose = torch.tensor(
                     0.0, device=loss_nimble_pose.device, requires_grad=False)
 
+        if self.use_pose_loss:
+            root_pose_loss_weight = 0.1
+            local_pose_loss_weight = 0.005
+            root_pose_loss = roma.rotmat_geodesic_distance(
+                pre_all_matrix[:, :1, :],
+                gt_all_matrix[:, :1, :]).mean() * root_pose_loss_weight
+
+            if cur_epoch > 50:
+                local_pose_loss = roma.rotmat_geodesic_distance(
+                    pre_all_matrix[:, 1:, :],
+                    gt_all_matrix[:, 1:, :]).mean() * local_pose_loss_weight
+            else:
+                local_pose_loss = torch.tensor(
+                    0.0, device=root_pose_loss.device)
+
         losses_dict = dict(
             loss_pre_root=loss_pre_root,
             loss_pre_nimble=loss_pre_nimble,
@@ -549,7 +576,9 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             loss_pinch=loss_pinch,
             loss_proportion=loss_scale,
             loss_nimble_pose=loss_nimble_pose,
-            loss_nimble_trans=loss_nimble_trans)
+            loss_nimble_trans=loss_nimble_trans,
+            root_pose_loss=root_pose_loss,
+            local_pose_loss=local_pose_loss)
 
         return losses_dict
 

@@ -687,6 +687,26 @@ def rot6d_to_rotmat(x):
     return rot_mats
 
 
+def rot9D_to_matirx(x, **kwargs):
+    """Maps 9D input vectors onto SO(3) via symmetric orthogonalization.
+
+    x: should have size [batch_size, 9]
+
+    Output has size [batch_size, 3, 3].
+    """
+    batch_size = x.shape[0]
+    x_device = x.device
+    m = x.view(-1, 3, 3)
+    u, s, v = torch.svd(m)
+    vt = torch.transpose(v, 1, 2)
+    device = torch.device('cpu')
+    det = torch.det(torch.matmul(u.to(device), vt.to(device)))
+    det = det.view(-1, 1, 1).to(x_device)
+    vt = torch.cat((vt[:, :2, :], vt[:, -1:, :] * det), 1)
+    pred_matrix = torch.matmul(u, vt).view(batch_size, -1, 3, 3)
+    return pred_matrix
+
+
 def rot6D_to_matirx(rot6D):
     batch_size = rot6D.shape[0]
     pred_matrix = rot6d_to_rotmat(rot6D).view(batch_size, -1, 3, 3)
