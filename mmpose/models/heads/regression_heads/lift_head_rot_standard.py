@@ -564,6 +564,11 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             else:
                 local_pose_loss = torch.tensor(
                     0.0, device=root_pose_loss.device)
+        else:
+            root_pose_loss = torch.tensor(
+                0.0, device=loss_pre_all.device)
+            local_pose_loss = torch.tensor(
+                0.0, device=root_pose_loss.device)
 
         losses_dict = dict(
             loss_pre_root=loss_pre_root,

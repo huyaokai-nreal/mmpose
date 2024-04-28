@@ -325,6 +325,11 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             local_pose_loss = roma.rotmat_geodesic_distance(
                 pre_all_matrix[:, 1:, :],
                 gt_all_matrix[:, 1:, :]).mean() * local_pose_loss_weight
+        else:
+            root_pose_loss = torch.tensor(
+                0.0, device=loss_pre_all.device)
+            local_pose_loss = torch.tensor(
+                0.0, device=root_pose_loss.device)
 
         if self.lambda_t > 0:
             mh = MessageHub.get_current_instance()
