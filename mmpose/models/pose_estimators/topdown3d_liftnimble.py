@@ -451,7 +451,7 @@ class TopdownPoseLiftNimbleEstimatorSeq(TopdownPoseLiftNimbleEstimator):
             ] for clip_id in range(clip_num)]
             data_sample_id_list = list(
                 chain.from_iterable(data_sample_id_list))
-            pred, pred_bino_kp2d, mem = self.kpt3d_lift.predict(
+            pred, pred_bino_kp2d, mem, sigma = self.kpt3d_lift.predict(
                 sub_xy_input, [data_samples[i] for i in data_sample_id_list],
                 mem,
                 test_cfg=self.test_cfg)
@@ -460,7 +460,7 @@ class TopdownPoseLiftNimbleEstimatorSeq(TopdownPoseLiftNimbleEstimator):
                 batch_pred_instances.append(
                     InstanceData(
                         keypoints3d=pred[b:b + 1, ...],
-                        keypoints3d_scores=torch.ones((1, 21)),
+                        keypoints3d_scores=sigma[b:b + 1, ...].mean(-1),
                         keypoints=keypoints,
                         keypoint_scores=torch.ones((1, 21)),
                     ))
