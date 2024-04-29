@@ -91,11 +91,6 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             self.feat_dim * 2, 11 * 3, kernel_size=1)
         self.enhance_lefthand = enhance_lefthand
 
-        self.all_sigma_conv = nn.Conv2d(
-            self.feat_dim * 2, 21 * 3, kernel_size=1)
-        self.major_sigma_conv = nn.Conv2d(
-            self.feat_dim * 2, 11 * 3, kernel_size=1)
-
     def _forward(
         self,
         feats: Tuple[Tensor],

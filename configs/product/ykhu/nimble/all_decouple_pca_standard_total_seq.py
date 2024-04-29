@@ -149,8 +149,15 @@ model = dict(
                     seq_length=seq_length,
                     loss_weight=1,
                 ),
+<<<<<<< HEAD
                 dict(type='RLELoss', dim=3, enable_start_epoch=0),  # all kpt
                 dict(type='RLELoss', dim=3, enable_start_epoch=0),  # major kpt
+=======
+                dict(type='RLELoss', use_target_weight=False,
+                     dim=3),  # all kpt
+                dict(type='RLELoss', use_target_weight=False,
+                     dim=3),  # pinch kpt
+>>>>>>> feat(model):update RLELoss train for nimble 3d
             ]),
         seq_len=4,
         all_use_kp2d_gt=False,
@@ -175,7 +182,11 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
+<<<<<<< HEAD
         '/data/AI_DATA/data_hand/model/mmpose/all_decouple_pca_standard_total_seq/best_reg9d_seq.pth'
+=======
+        '/data/AI_DATA/data_hand/model/mmpose/all_decouple_pca_standard_total_seq/best_reg6d_seq.pth'
+>>>>>>> feat(model):update RLELoss train for nimble 3d
     ),
 )
 
