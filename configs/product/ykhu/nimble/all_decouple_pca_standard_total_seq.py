@@ -149,7 +149,10 @@ model = dict(
                     seq_length=seq_length,
                     loss_weight=1,
                 ),
-                dict(type='RLELoss', use_target_weight=False, dim=3),
+                dict(type='RLELoss', use_target_weight=False,
+                     dim=3),  # all kpt
+                dict(type='RLELoss', use_target_weight=False,
+                     dim=3),  # pinch kpt
             ]),
         seq_len=4,
         all_use_kp2d_gt=False,
@@ -174,7 +177,6 @@ model = dict(
         type='Pretrained',
         checkpoint=
         '/data/AI_DATA/data_hand/model/mmpose/all_decouple_pca_standard_total_seq/best_reg6d_seq.pth'
-        # 'work_dirs/nimble/score/all_decouple_pca_standard_total_seq_rle/epoch_6.pth'
     ),
 )
 
@@ -201,14 +203,13 @@ train_data_list += [
 # train_data_list = [train_data_sin for train_data_sin in train_data_list if '__20230824_' in train_data_sin]
 # train_data_list = [
 #     '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_060805__all__normal__left__1111__0006__undistort_tar__Flora301.json',
-#     '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_062443__all__normal__right__1111__0006__undistort_tar__Flora301.json',
-#     '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_063033__all__normal__right__1111__0007__undistort_tar__Flora301.json',
-#     '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_063544__all__normal__left__1111__0007__undistort_tar__Flora301.json',
-#     '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_064229__all__normal__left__1111__0014__undistort_tar__Flora301.json',
-#     '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_064807__all__normal__right__1111__0014__undistort_tar__Flora301.json',
-#     '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_065401__all__normal__right__1111__0011__undistort_tar__Flora301.json',
-#     '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_070036__all__normal__left__1111__0011__undistort_tar__Flora301.json',
-
+#     # '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_062443__all__normal__right__1111__0006__undistort_tar__Flora301.json',
+#     # '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_063033__all__normal__right__1111__0007__undistort_tar__Flora301.json',
+#     # '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_063544__all__normal__left__1111__0007__undistort_tar__Flora301.json',
+#     # '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_064229__all__normal__left__1111__0014__undistort_tar__Flora301.json',
+#     # '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_064807__all__normal__right__1111__0014__undistort_tar__Flora301.json',
+#     # '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_065401__all__normal__right__1111__0011__undistort_tar__Flora301.json',
+#     # '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_070036__all__normal__left__1111__0011__undistort_tar__Flora301.json',
 # ]
 
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
