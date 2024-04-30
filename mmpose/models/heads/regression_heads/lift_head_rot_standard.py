@@ -552,18 +552,13 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
 
         if self.use_pose_loss:
             root_pose_loss_weight = 0.1
-            local_pose_loss_weight = 0.005
+            local_pose_loss_weight = 0.1
             root_pose_loss = roma.rotmat_geodesic_distance(
-                pre_all_matrix[:, :1, :],
-                gt_all_matrix[:, :1, :]).mean() * root_pose_loss_weight
-
-            if cur_epoch > 50:
-                local_pose_loss = roma.rotmat_geodesic_distance(
-                    pre_all_matrix[:, 1:, :],
-                    gt_all_matrix[:, 1:, :]).mean() * local_pose_loss_weight
-            else:
-                local_pose_loss = torch.tensor(
-                    0.0, device=root_pose_loss.device)
+                pre_all_matrix[:, :1, :].reshape(-1,3,3),
+                gt_all_matrix[:, :1, :].reshape(-1,3,3)).mean() * root_pose_loss_weight
+            local_pose_loss = roma.rotmat_geodesic_distance(
+                pre_all_matrix[:, 1:, :].reshape(-1,3,3),
+                gt_all_matrix[:, 1:, :].reshape(-1,3,3)).mean() * local_pose_loss_weight
         else:
             root_pose_loss = torch.tensor(
                 0.0, device=loss_pre_all.device)
