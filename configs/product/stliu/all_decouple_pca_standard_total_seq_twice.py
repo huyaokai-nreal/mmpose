@@ -5,7 +5,7 @@ import os
 
 _base_ = ['../../_base_/default_runtime.py']
 
-train_cfg = dict(max_epochs=60, val_interval=3)
+train_cfg = dict(max_epochs=30, val_interval=3)
 
 # data_root = '/data/AI_DATA'
 data_root = '/data/AI_DATA_WX'
@@ -167,7 +167,7 @@ model = dict(
         reproj_thre=440,
         iou_thre=0.5,
         pad_2d=0,
-        flow_model_pretrain=pretrained_path,
+        flow_model_pretrain="",
     ),
     test_cfg=dict(
         flip_test=False,

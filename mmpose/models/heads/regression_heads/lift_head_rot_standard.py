@@ -17,7 +17,7 @@ from mmpose.models.heads.regression_heads.lift_head_standard import \
 from mmpose.models.utils.gmlp import gMLP
 from mmpose.registry import MODELS
 from mmpose.utils.typing import ConfigType, OptSampleList, Predictions
-
+from mmpose.models.losses.regression_loss import RLELoss
 
 @MODELS.register_module()
 class LiftNimbleHeadStandard(LiftHeadStandard):
@@ -45,6 +45,7 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
                  corruption_cam: float = 0.5,
                  use_bone_loss: bool = True,
                  use_pose_loss: bool = False,
+                 use_rle_loss: bool = False,
                  use_6d_pose_reg: bool = False,
                  use_9d_pose_reg: bool = False,
                  direct_pose_reg: bool = False,
@@ -112,9 +113,13 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             nn.Conv2d(feat_dim, feat_dim, kernel_size=1),
             nn.SyncBatchNorm(feat_dim), nn.ReLU(),
             nn.Conv2d(feat_dim, self.output_num, kernel_size=1))
+        if use_rle_loss:
+            self.sigma_conv = nn.Conv2d(feat_dim, 21 * 3, kernel_size=1)
+            self.rle_loss_func = RLELoss(dim=3)
         self.lift_loss = MODELS.build(lift_loss)
 
         # define the fllow parameters
+        self.use_rle_loss = use_rle_loss
         self.use_bone_loss = use_bone_loss
         self.feat_dim = feat_dim
         self.reproj = reproj
@@ -212,8 +217,12 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
 
     def forward(self, feats: Tuple[Tensor]) -> Tensor:
         output = self.liftnet(feats)
+        if self.use_rle_loss:
+            sigma = self.sigma_conv(output).reshape(feats.shape[0],21,3)
+        else:
+            sigma = torch.zeros(feats.shape[0],21,3).to(output.device)
         output = self.last_layer(output).view((feats.shape[0], -1, 1, 1))
-        return output
+        return output, sigma
 
     def postprocess(self,
                     output,
@@ -359,7 +368,7 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
                 skeleton_joints_info).view(batch_num,
                                            self.skeleton_feature_dim, 1, -1)
             data['feats'] = torch.cat((data['feats'], skeleton_feature), dim=1)
-        output = self.forward(data['feats'])
+        output, _ = self.forward(data['feats'])
 
         hand3d_pred = self.postprocess(
             output,
@@ -398,7 +407,7 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
                                            self.skeleton_feature_dim, 1, -1)
             data['feats'] = torch.cat((data['feats'], skeleton_feature), dim=1)
 
-        output = self.forward(data['feats'])
+        output, sigma = self.forward(data['feats'])
 
         B = output.shape[0]
         # 3d 损失
@@ -565,6 +574,12 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             local_pose_loss = torch.tensor(
                 0.0, device=root_pose_loss.device)
 
+        if self.use_rle_loss:
+            re_sigma = torch.cat((hand3d_pred, sigma), dim=-1)
+            loss_rle = self.rle_loss_func(re_sigma, data['hand3d_gt'])
+        else:
+            loss_rle = torch.tensor(
+                0.0, device=loss_pre_all.device)
         losses_dict = dict(
             loss_pre_root=loss_pre_root,
             loss_pre_nimble=loss_pre_nimble,
@@ -578,7 +593,8 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             loss_nimble_pose=loss_nimble_pose,
             loss_nimble_trans=loss_nimble_trans,
             root_pose_loss=root_pose_loss,
-            local_pose_loss=local_pose_loss)
+            local_pose_loss=local_pose_loss,
+            loss_rle=loss_rle)
 
         return losses_dict
 

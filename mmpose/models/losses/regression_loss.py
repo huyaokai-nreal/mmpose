@@ -65,7 +65,7 @@ class RLELoss(nn.Module):
         for k, v in state_dict_tmp.items():
             if 'flow_model' in k:
                 state_dict[k.replace('head.loss_module.loss_modules.0.',
-                                     '')] = v
+                                     '').replace('kpt3d_lift.rle_loss_func.', '')] = v
         logger = MMLogger.get_current_instance()
         logger.info(f'load flow weight from {pretrain_path}')
         load_state_dict(self, state_dict, strict=False)
