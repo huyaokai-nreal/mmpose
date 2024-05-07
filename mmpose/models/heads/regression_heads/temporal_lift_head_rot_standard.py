@@ -360,7 +360,10 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             local_pose_loss = torch.tensor(
                 0.0, device=root_pose_loss.device)
         
-        if self.use_rle_loss:
+        mh = MessageHub.get_current_instance()
+        cur_epoch = mh.get_info('epoch')
+        
+        if self.use_rle_loss and cur_epoch > 70:
             re_sigma = torch.cat((hand3d_pred, sigma), dim=-1)
             loss_rle = self.rle_loss_func(re_sigma, hand3d_gt)
         else:
@@ -368,8 +371,6 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
                 0.0, device=loss_pre_all.device)
 
         if self.lambda_t > 0:
-            mh = MessageHub.get_current_instance()
-            cur_epoch = mh.get_info('epoch')
             if cur_epoch <= self.lambda_t:
                 loss_mse_2d_leftcam = torch.tensor(
                     0.0,

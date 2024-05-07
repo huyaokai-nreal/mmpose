@@ -67,7 +67,7 @@ codec = dict(
 
 pinch_thre = [20, 40]  # pinch双阈值，单位：mm
 kpt2d_with_depth = False  # liftnet 是否使用2.5d的深度信息
-pretrained_path = "/data/stliu/mmpose_simliar_wx10/work_dirs/new_dataset/lift_reg9d_rleloss_twice_0430/best_all_mpjpe_epoch_25.pth"
+pretrained_path = "/data/stliu/mmpose_simliar_wx10/work_dirs/best_weight/best_mpjpe_reg9d_0429.pth"
 
 # model settings
 backbone_out_channels = [64, 96, 128, 160]
@@ -162,7 +162,7 @@ model = dict(
         baseline=0.135,
         use_6d_pose_reg=False,
         use_9d_pose_reg=True,
-        use_rle_loss=True,
+        use_rle_loss=False,
         use_shape_smooth=False,
         reproj_thre=440,
         iou_thre=0.5,
