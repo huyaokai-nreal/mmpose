@@ -189,8 +189,9 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             pre_local_matrix = rot6D_to_matirx(rot_vector_t.reshape(
                 -1, 6)).reshape(B, 19, -1)
         elif self.use_9d_pose_reg:
-            pre_local_matrix = rot9D_to_matirx(rot_vector_t.reshape(
-                -1, 9)).reshape(B, 19, -1)
+            # pre_local_matrix = rot9D_to_matirx(rot_vector_t.reshape(
+            #     -1, 9)).reshape(B, 19, -1)
+            pre_local_matrix = rot_vector_t.reshape(B, 19, -1)
         else:
             pre_local_matrix = self.nimble_layer.generate_pose_matrix(
                 rot_vector_t, normalized=True, with_root=False)
