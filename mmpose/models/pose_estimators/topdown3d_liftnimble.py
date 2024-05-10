@@ -460,7 +460,7 @@ class TopdownPoseLiftNimbleEstimatorSeq(TopdownPoseLiftNimbleEstimator):
                 batch_pred_instances.append(
                     InstanceData(
                         keypoints3d=pred[b:b + 1, ...],
-                        keypoints3d_scores=sigma[b:b + 1, ...].mean(-1),
+                        keypoints3d_scores=sigma[b:b + 1, ...],
                         keypoints=keypoints,
                         keypoint_scores=torch.ones((1, 21)),
                     ))

@@ -41,13 +41,15 @@ class RLELoss(nn.Module):
                  q_distribution='laplace',
                  flow_model_pretrain_path='',
                  freeze_flow=False,
-                 dim=2):
+                 dim=2,
+                 enable_start_epoch=-1):
         super(RLELoss, self).__init__()
         self.size_average = size_average
         self.use_target_weight = use_target_weight
         self.residual = residual
         self.q_distribution = q_distribution
         self.dim = dim
+        self.enable_start_epoch = enable_start_epoch
 
         self.flow_model = RealNVP(dim)
         if flow_model_pretrain_path:
@@ -65,7 +67,8 @@ class RLELoss(nn.Module):
         for k, v in state_dict_tmp.items():
             if 'flow_model' in k:
                 state_dict[k.replace('head.loss_module.loss_modules.0.',
-                                     '').replace('kpt3d_lift.rle_loss_func.', '')] = v
+                                     '').replace('kpt3d_lift.rle_loss_func.',
+                                                 '')] = v
         logger = MMLogger.get_current_instance()
         logger.info(f'load flow weight from {pretrain_path}')
         load_state_dict(self, state_dict, strict=False)
@@ -119,6 +122,11 @@ class RLELoss(nn.Module):
         if self.size_average:
             loss /= len(loss)
 
+        if self.enable_start_epoch >= 0:
+            mh = MessageHub.get_current_instance()
+            cur_epoch = mh.get_info('epoch')
+            if cur_epoch < self.enable_start_epoch:
+                return loss * 0
         return loss.sum()
 
 

@@ -5,7 +5,7 @@ import os
 
 _base_ = ['../../../_base_/default_runtime.py']
 
-train_cfg = dict(max_epochs=30, val_interval=1)
+train_cfg = dict(max_epochs=60, val_interval=1)
 
 # data_root = '/data/AI_DATA'
 data_root = '/data/AI_DATA_WX'
@@ -149,10 +149,8 @@ model = dict(
                     seq_length=seq_length,
                     loss_weight=1,
                 ),
-                dict(type='RLELoss', use_target_weight=False,
-                     dim=3),  # all kpt
-                dict(type='RLELoss', use_target_weight=False,
-                     dim=3),  # pinch kpt
+                dict(type='RLELoss', dim=3, enable_start_epoch=0),  # all kpt
+                dict(type='RLELoss', dim=3, enable_start_epoch=0),  # major kpt
             ]),
         seq_len=4,
         all_use_kp2d_gt=False,
@@ -163,7 +161,8 @@ model = dict(
         pose_ncomp=30,
         euler_or_quaternion='euler',
         baseline=0.135,
-        use_6d_pose_reg=True,
+        use_6d_pose_reg=False,
+        use_9d_pose_reg=True,
         use_shape_smooth=False,
         reproj_thre=440,
         iou_thre=0.5,
@@ -176,7 +175,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/AI_DATA/data_hand/model/mmpose/all_decouple_pca_standard_total_seq/best_reg6d_seq.pth'
+        '/data/AI_DATA/data_hand/model/mmpose/all_decouple_pca_standard_total_seq/best_reg9d_seq.pth'
     ),
 )
 
@@ -223,6 +222,13 @@ val_data_list = [
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073556__pinch__bright__left__1111__0005__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073857__pinch__normal__right__1111__0005__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_074601__pinch__bright__left__1111__0005__undistort_tar__Flora301.json',
+
+    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_075055__all__bright__right__1111__0019__undistort_tar__Flora301.json',   # lizuoxin
+    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_075728__all__dark__left__1111__0019__undistort_tar__Flora301.json',
+    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230831_055835__all__dark__left__1111__0002__undistort_tar__Flora301.json',    # haoruitao
+    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230831_060445__all__dark__left__1111__0002__undistort_tar__Flora301.json',
+    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230904_093420__all__dark__left__1111__0021__undistort_tar__Flora301.json',     # panyuehui
+    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230904_095839__all__bright__right__1111__0021__undistort_tar__Flora301.json',
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # pipelines
