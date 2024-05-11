@@ -289,25 +289,6 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
                 dist_gt, proportion_xyz_gt, gt_nimble_pose, gt_nimble_trans,
                 hand3d_gt, hand3d_gt, major_gt
             ]
-        re_all_sigmas = torch.cat((hand3d_pred, all_sigmas), dim=-1)
-        re_major_sigmas = torch.cat(
-            (torch.cat((hand3d_pred[:, :10, :], hand3d_pred[:, 13:14, :]),
-                       dim=1), major_sigmas),
-            dim=-1)
-        pinch_gt = torch.cat((hand3d_gt[:, :10, :], hand3d_gt[:, 13:14, :]),
-                             dim=1)
-
-        pred_for_loss = [
-            pred_3d_way1, pred_3d_way2, hand3d_pred, leftcam_uv_pre,
-            rightcam_uv_pre, dist_pred, proportion_xyz_pre, pre_nimble_pose,
-            pre_nimble_trans, hand3d_pred, re_all_sigmas, re_major_sigmas
-        ]
-        targ_for_loss = [
-            hand3d_gt, hand3d_gt, hand3d_gt, leftcam_uv_gt, rightcam_uv_gt,
-            dist_gt, proportion_xyz_gt, gt_nimble_pose, gt_nimble_trans,
-            hand3d_gt, hand3d_gt, pinch_gt
-        ]
-
         weight_ini = torch.ones((1, 21, 3))
         weight_ini[0, :9, :] = 2
         weight_ini[0, 4, :], weight_ini[0, 8, :] = 4, 4
