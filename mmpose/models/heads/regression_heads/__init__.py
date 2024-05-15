@@ -12,6 +12,7 @@ from .rtmcc_ipr_head import RTMCCIPRHead
 from .rtmcc_ipr_head_3d import RTMCCIPRHead3D
 from .temporal_lift_head import TemporalLiftHead
 from .temporal_lift_head_rot_standard import TemporalLiftNimbleHeadStandard
+from .temporal_lift_head_rot_standard_predict import TemporalLiftNimbleHeadStandardPredict
 from .temporal_lift_head_standard import TemporalLiftHeadStandard
 from .temporal_regression_head import TemporalRegressionHead
 from .trajectory_regression_head import TrajectoryRegressionHead
@@ -32,6 +33,7 @@ __all__ = [
     'LiftNimbleHead',
     'TemporalLiftHead',
     'TemporalLiftNimbleHeadStandard',
+    'TemporalLiftNimbleHeadStandardPredict',
     'TemporalLiftHeadStandard',
     'LiftNimbleHeadStandard',
     # 'PCT_Head', 'PCT_Tokenizer',

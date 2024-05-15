@@ -8,7 +8,7 @@ from .topdown import TopdownPoseEstimator
 from .topdown3d import TopdownPose3DEstimator
 from .topdown3d_distill import TopdownPose3DDistillEstimator
 from .topdown3d_lift import TopdownPoseLiftEstimator
-from .topdown3d_liftnimble import TopdownPoseLiftNimbleEstimator
+from .topdown3d_liftnimble import TopdownPoseLiftNimbleEstimator, TopdownPoseLiftNimbleEstimatorSeqPredict
 
 __all__ = [
     'TopdownPoseEstimator', 'BottomupPoseEstimator', 'TopdownPose3DEstimator',
