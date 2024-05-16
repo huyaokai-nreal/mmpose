@@ -16,7 +16,7 @@ from mmpose.models.heads.regression_heads.lift_head_rot_standard import \
     LiftNimbleHeadStandard
 from mmpose.registry import MODELS
 from mmpose.utils.typing import ConfigType, OptSampleList, Predictions
-from mmpose.models.losses.regression_loss import RLELoss
+from mmpose.models.losses.regression_loss import RLELoss, L1Loss
 
 
 @MODELS.register_module()
@@ -54,6 +54,7 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
                  predict_frame: int=1,
                  flow_model_pretrain = "",
                  enhance_lefthand = True,
+                 predict_local_guest = False,
                  init_cfg: Union[dict, List[dict], None] = None):
         super().__init__(
             lift_loss=lift_loss,
@@ -77,6 +78,7 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
             use_pose_loss=use_pose_loss)
         self.seq_len = seq_len
         self.predict_frame = predict_frame
+        self.predict_local_guest = predict_local_guest
 
         self.last_layer = nn.Sequential(
             nn.Conv2d(self.feat_dim * 2, self.feat_dim, kernel_size=1),
@@ -96,6 +98,9 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
             self.rle_loss_func = RLELoss(dim=3,flow_model_pretrain_path=flow_model_pretrain)
         self.enhance_lefthand = enhance_lefthand
         self.out_list = dict()
+        
+        if self.predict_local_guest:
+            self.l1_loss_func = L1Loss( use_target_weight=True, loss_weight=1.,)
 
     def _forward(
         self,
@@ -212,12 +217,18 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
         leftcam_xy = data['leftcam_xy'][predict_used_index]
         left_R = data['left_R'][predict_used_index]
         hand3d_gt_predict = data['hand3d_gt'][predict_used_index]
-        hand3d_gt_curent = data['hand3d_gt'][curent_used_index]
         baseline_scale = data['baseline_scale'][predict_used_index]
-        
-        nimble_info_pose = torch.cat((data['nimble_info']['nimble_pose'][predict_used_index][:,:1,:], data['nimble_info']['nimble_pose'][curent_used_index][:,1:,:]), dim= 1)
-        nimble_info_shape = data['nimble_info']['nimble_shape'][curent_used_index]
         nimble_info_trans = data['nimble_info']['nimble_trans'][predict_used_index]
+        
+        if self.predict_local_guest:
+            hand3d_gt_curent = data['hand3d_gt'][predict_used_index]
+            nimble_info_shape = data['nimble_info']['nimble_shape'][predict_used_index]
+            nimble_info_pose = data['nimble_info']['nimble_pose'][predict_used_index]
+        else:
+            hand3d_gt_curent = data['hand3d_gt'][curent_used_index]
+            nimble_info_shape = data['nimble_info']['nimble_shape'][curent_used_index]
+            nimble_info_pose = torch.cat((data['nimble_info']['nimble_pose'][predict_used_index][:,:1,:], data['nimble_info']['nimble_pose'][curent_used_index][:,1:,:]), dim= 1)
+            
         new_nimble_info = {
             "nimble_pose":nimble_info_pose, 
             "nimble_shape":nimble_info_shape,
@@ -248,6 +259,7 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
             enhanced_kpt = kpt.clone()
             enhanced_kpt[mask] = enhanced_kpt[mask] * 1.2
             return enhanced_kpt
+
         if self.enhance_lefthand:
             mask = left_hand == 1
             enhanced_hand3d_gt_curent = left_enhanced_fun(hand3d_gt_curent, mask)
@@ -255,6 +267,7 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
             
             enhanced_pre_root__xyz = left_enhanced_fun(pre_root__xyz, mask)
             enhanced_pre_local__xyz = left_enhanced_fun(pre_local__xyz, mask)
+            enhanced_pre_all_xyz = left_enhanced_fun(hand3d_pred, mask)
 
             pred_for_loss = [
                 enhanced_pre_root__xyz, enhanced_pre_local__xyz, dist_pred, 
@@ -295,6 +308,15 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
         losses = self.lift_loss(pred_for_loss, targ_for_loss, weight_for_loss)
         (loss_root_predict, loss_local_curent, loss_pinch, 
          loss_nimble_trans, loss_root_smooth, loss_local_smooth) = losses
+        
+        if self.predict_local_guest:
+            if self.enhance_lefthand:
+                loss_all_predcit = self.l1_loss_func(enhanced_pre_all_xyz, enhanced_hand3d_gt_predict, weight_ini)
+            else:
+                loss_all_predcit = self.l1_loss_func(hand3d_pred, hand3d_gt_predict, weight_ini)
+        else:
+            loss_all_predcit = torch.tensor(0.0, device=loss_root_predict.device)
+            
 
         if self.use_shape_smooth:
             pre_shape_reshape = pre_shape.reshape(-1, self.seq_len)
@@ -308,6 +330,22 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
 
         # # 子骨骼向量监督
         if self.use_bone_loss:
+            if self.predict_local_guest:
+                bone_loss_weight = 0.15
+                bone_3d_pre = (hand3d_pred - hand3d_pred[:, self.joint_parents, :]
+                            )[:, self.non_root_indices].reshape(-1, 3)
+                bone_3d_gt = (hand3d_gt_predict - hand3d_gt_predict[:, self.joint_parents, :]
+                            )[:, self.non_root_indices].reshape(-1, 3)
+
+                bone_3d_pre_vector = self.cal_normalize_vector(bone_3d_pre)
+                bone_3d_gt_vector = self.cal_normalize_vector(bone_3d_gt)
+
+                squared_diff = (bone_3d_pre_vector - bone_3d_gt_vector)**2
+                bone_loss = torch.mean(torch.sum(squared_diff,
+                                                dim=1)) * bone_loss_weight
+            else:
+                bone_loss = torch.tensor(0.0, device=loss_root_predict.device)
+            
             # 局部子骨骼监督
             major_bone_loss_weight = 0.5
             local_bone_3d_pre = (
@@ -347,6 +385,8 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
         losses_dict = dict(
             loss_pre_root=loss_root_predict,
             loss_pre_nimble=loss_local_curent,
+            loss_pre_all=loss_all_predcit,
+            bone_loss=bone_loss,
             major_bone_loss=major_bone_loss,
             loss_pinch=loss_pinch,
             loss_nimble_trans=loss_nimble_trans,
