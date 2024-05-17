@@ -54,6 +54,7 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
                  predict_frame: int=1,
                  flow_model_pretrain = "",
                  enhance_lefthand = True,
+                 enhance_static = True,
                  predict_local_guest = False,
                  init_cfg: Union[dict, List[dict], None] = None):
         super().__init__(
@@ -79,6 +80,8 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
         self.seq_len = seq_len
         self.predict_frame = predict_frame
         self.predict_local_guest = predict_local_guest
+        self.enhance_static = enhance_static
+        self.static_data_date_list = ['20240516','20240517','20240518']
 
         self.last_layer = nn.Sequential(
             nn.Conv2d(self.feat_dim * 2, self.feat_dim, kernel_size=1),
@@ -255,38 +258,52 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
             pre_local__xyz[:, 4, :] - pre_local__xyz[:, 8, :], dim=-1)
         dist_gt = torch.norm(hand3d_gt_curent[:, 4, :] - hand3d_gt_curent[:, 8, :], dim=-1)
 
-        def left_enhanced_fun(kpt, mask):
-            enhanced_kpt = kpt.clone()
-            enhanced_kpt[mask] = enhanced_kpt[mask] * 1.2
-            return enhanced_kpt
-
         if self.enhance_lefthand:
             mask = left_hand == 1
-            enhanced_hand3d_gt_curent = left_enhanced_fun(hand3d_gt_curent, mask)
-            enhanced_hand3d_gt_predict = left_enhanced_fun(hand3d_gt_predict, mask)
-            
-            enhanced_pre_root__xyz = left_enhanced_fun(pre_root__xyz, mask)
-            enhanced_pre_local__xyz = left_enhanced_fun(pre_local__xyz, mask)
-            enhanced_pre_all_xyz = left_enhanced_fun(hand3d_pred, mask)
-
-            pred_for_loss = [
-                enhanced_pre_root__xyz, enhanced_pre_local__xyz, dist_pred, 
-                pre_nimble_trans, pre_root__xyz, pre_local__xyz
-            ]
-            targ_for_loss = [
-                enhanced_hand3d_gt_predict, enhanced_hand3d_gt_curent, 
-                dist_gt,  gt_nimble_trans, hand3d_gt_predict, hand3d_gt_curent
-            ]
-
+            left_weight = 1.2
+            enhanced_left_hand3d_gt_curent = self.enhanced_fun(hand3d_gt_curent, mask, left_weight)
+            enhanced_left_hand3d_gt_predict = self.enhanced_fun(hand3d_gt_predict, mask, left_weight)
+            enhanced_left_pre_root__xyz = self.enhanced_fun(pre_root__xyz, mask, left_weight)
+            enhanced_left_pre_local__xyz = self.enhanced_fun(pre_local__xyz, mask, left_weight)
+            enhanced_left_pre_all_xyz = self.enhanced_fun(hand3d_pred, mask, left_weight)
         else:
-            pred_for_loss = [
-                pre_root__xyz, pre_local__xyz, dist_pred, 
-                pre_nimble_trans, pre_root__xyz, pre_local__xyz
-            ]
-            targ_for_loss = [
-                hand3d_gt_predict, hand3d_gt_curent, dist_gt, 
-                gt_nimble_trans, hand3d_gt_predict, hand3d_gt_curent
-            ]
+            enhanced_left_hand3d_gt_curent = hand3d_gt_curent
+            enhanced_left_hand3d_gt_predict = hand3d_gt_predict
+            enhanced_left_pre_root__xyz = pre_root__xyz
+            enhanced_left_pre_local__xyz = pre_local__xyz
+            enhanced_left_pre_all_xyz = hand3d_pred
+        
+        if self.enhance_static:
+            static_weight = 8
+            static_mask = self.generate_static_mask(batch_data_samples)
+            if self.predict_local_guest:
+                static_mask = static_mask[predict_used_index]
+            else:
+                static_mask = static_mask[curent_used_index]
+            enhanced_static_pre_root__xyz = self.enhanced_fun(pre_root__xyz, static_mask, static_weight)
+            enhanced_static_pre_local__xyz = self.enhanced_fun(pre_local__xyz, static_mask, static_weight)
+            enhanced_static_pre_all_xyz = self.enhanced_fun(hand3d_pred, static_mask, static_weight)
+            enhanced_static_hand3d_gt_predict = self.enhanced_fun(hand3d_gt_predict, static_mask, static_weight)
+            enhanced_static_hand3d_gt_curent = self.enhanced_fun(hand3d_gt_curent, static_mask, static_weight)
+        else:
+            enhanced_static_pre_root__xyz = pre_root__xyz
+            enhanced_static_pre_local__xyz = pre_local__xyz
+            enhanced_static_pre_all_xyz = hand3d_pred
+            enhanced_static_hand3d_gt_predict = hand3d_gt_predict
+            enhanced_static_hand3d_gt_curent = hand3d_gt_curent
+        
+        if self.predict_local_guest:
+            enhanced_static_pre_root__xyz = enhanced_static_pre_all_xyz
+            enhanced_static_pre_local__xyz = enhanced_static_pre_all_xyz
+        
+        pred_for_loss = [
+            enhanced_left_pre_root__xyz, enhanced_left_pre_local__xyz, dist_pred, 
+            pre_nimble_trans, enhanced_static_pre_root__xyz, enhanced_static_pre_local__xyz
+        ]
+        targ_for_loss = [
+            enhanced_left_hand3d_gt_predict, enhanced_left_hand3d_gt_curent, dist_gt, 
+            gt_nimble_trans, enhanced_static_hand3d_gt_predict, enhanced_static_hand3d_gt_curent
+        ]
 
         weight_ini = torch.ones((1, 21, 3))
         weight_ini[0, :9, :] = 2
@@ -310,10 +327,7 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
          loss_nimble_trans, loss_root_smooth, loss_local_smooth) = losses
         
         if self.predict_local_guest:
-            if self.enhance_lefthand:
-                loss_all_predcit = self.l1_loss_func(enhanced_pre_all_xyz, enhanced_hand3d_gt_predict, weight_ini)
-            else:
-                loss_all_predcit = self.l1_loss_func(hand3d_pred, hand3d_gt_predict, weight_ini)
+            loss_all_predcit = self.l1_loss_func(enhanced_left_pre_all_xyz, enhanced_left_hand3d_gt_predict, weight_ini)
         else:
             loss_all_predcit = torch.tensor(0.0, device=loss_root_predict.device)
             
@@ -375,7 +389,7 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
         mh = MessageHub.get_current_instance()
         cur_epoch = mh.get_info('epoch')
 
-        if self.use_rle_loss and cur_epoch > 10:
+        if self.use_rle_loss and cur_epoch > 20:
             re_sigma = torch.cat((hand3d_pred, sigma), dim=-1)
             loss_rle = self.rle_loss_func(re_sigma, hand3d_gt_predict)
         else:
@@ -402,3 +416,19 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
             torch.sum(vector**2, dim=1, keepdim=True) + 1e-8)
         normalized_vector = vector / vector_norms
         return normalized_vector
+
+    def generate_static_mask(self, batch_data_samples):
+        mask = []
+        for batch_sample in batch_data_samples[::2]:
+            data_info = batch_sample.img_path.split("/")[-1].split("__")[1].split("_")[0]
+            if data_info in self.static_data_date_list:
+                mask.append(True)
+            else:
+                mask.append(False)
+        mask = torch.tensor(mask)
+        return mask
+
+    def enhanced_fun(self, kpt, mask, weight):
+        enhanced_kpt = kpt.clone()
+        enhanced_kpt[mask] = enhanced_kpt[mask] * weight
+        return enhanced_kpt

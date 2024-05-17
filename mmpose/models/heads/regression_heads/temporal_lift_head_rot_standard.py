@@ -6,6 +6,7 @@ import torch
 import torch.nn.functional as F
 from mmengine.logging import MessageHub
 from torch import Tensor, nn
+import numpy as np
 
 from mmpose.models.heads.nimble.nimble_utils import (adjust_predicted_angles,
                                                      cal_proportion,
@@ -49,8 +50,9 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
                  use_6d_pose_reg: bool = False,
                  all_use_kp2d_gt: bool = False,
                  seq_len: int = 4,
-                 flow_model_pretrain='',
-                 enhance_lefthand=True,
+                 flow_model_pretrain = "",
+                 enhance_lefthand = True,
+                 enhance_static = True,
                  init_cfg: Union[dict, List[dict], None] = None):
         super().__init__(
             lift_loss=lift_loss,
@@ -90,6 +92,10 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         self.major_sigma_conv = nn.Conv2d(
             self.feat_dim * 2, 11 * 3, kernel_size=1)
         self.enhance_lefthand = enhance_lefthand
+        self.enhance_static = enhance_static
+        self.static_data_date_list = ['20240516','20240517','20240518']
+        # self.out_list = dict()
+            
 
     def _forward(
         self,
@@ -156,6 +162,14 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             data['hand3d_gt'],
             data['baseline_scale'],
             only_pre=True)[0]
+        
+        # for (batch_data_sample,hand3d_pred_sin) in zip(batch_data_samples[::2], hand3d_pred):  
+        #     id_name = int(batch_data_sample.img_path.split("__")[-1])
+        #     self.out_list[id_name] = {
+        #         "kpt3d": hand3d_pred_sin.detach().cpu().numpy(),
+        #     }
+        # np.save("pre_predict_0517_static_raw.npy", self.out_list)
+        
         if self.reproj:
             camera_model = batch_data_samples[0].meta['ori_camera']
             leftcam_uv_reproj_distort = camera_model.eye_to_window(
@@ -241,49 +255,40 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             hand3d_pred[:, 4, :] - hand3d_pred[:, 8, :], dim=-1)
         dist_gt = torch.norm(hand3d_gt[:, 4, :] - hand3d_gt[:, 8, :], dim=-1)
 
-        re_all_sigmas = torch.cat((hand3d_pred, all_sigmas), dim=-1)
-        re_major_sigmas = torch.cat(
-            (torch.cat((hand3d_pred[:, :10, :], hand3d_pred[:, 13:14, :]),
-                       dim=1), major_sigmas),
-            dim=-1)
-        major_gt = torch.cat((hand3d_gt[:, :10, :], hand3d_gt[:, 13:14, :]),
-                             dim=1)
-
-        def left_enhanced_fun(kpt, mask):
-            enhanced_kpt = kpt.clone()
-            enhanced_kpt[mask] = enhanced_kpt[mask] * 1.2
-            return enhanced_kpt
-
         if self.enhance_lefthand:
             mask = data['left_hand'] == 1
-            enhanced_hand3d_gt = left_enhanced_fun(hand3d_gt, mask)
-            enhanced_pred_3d_way1 = left_enhanced_fun(pred_3d_way1, mask)
-            enhanced_pred_3d_way2 = left_enhanced_fun(pred_3d_way2, mask)
-            enhanced_hand3d_pred = left_enhanced_fun(hand3d_pred, mask)
-            pred_for_loss = [
-                enhanced_pred_3d_way1, enhanced_pred_3d_way2,
-                enhanced_hand3d_pred, leftcam_uv_pre, rightcam_uv_pre,
-                dist_pred, proportion_xyz_pre, pre_nimble_pose,
-                pre_nimble_trans, hand3d_pred, re_all_sigmas, re_major_sigmas
-            ]
-            targ_for_loss = [
-                enhanced_hand3d_gt, enhanced_hand3d_gt, enhanced_hand3d_gt,
-                leftcam_uv_gt, rightcam_uv_gt, dist_gt, proportion_xyz_gt,
-                gt_nimble_pose, gt_nimble_trans, hand3d_gt, hand3d_gt, major_gt
-            ]
-
+            left_weight = 1.2
+            enhanced_left_hand3d_gt = self.enhanced_fun(hand3d_gt, mask, left_weight)
+            enhanced_left_pred_3d_way1 = self.enhanced_fun(pred_3d_way1, mask, left_weight)
+            enhanced_left_pred_3d_way2 = self.enhanced_fun(pred_3d_way2, mask, left_weight)
+            enhanced_left_hand3d_pred = self.enhanced_fun(hand3d_pred, mask, left_weight)
         else:
-            pred_for_loss = [
-                pred_3d_way1, pred_3d_way2, hand3d_pred, leftcam_uv_pre,
-                rightcam_uv_pre, dist_pred, proportion_xyz_pre,
-                pre_nimble_pose, pre_nimble_trans, hand3d_pred, re_all_sigmas,
-                re_major_sigmas
-            ]
-            targ_for_loss = [
-                hand3d_gt, hand3d_gt, hand3d_gt, leftcam_uv_gt, rightcam_uv_gt,
-                dist_gt, proportion_xyz_gt, gt_nimble_pose, gt_nimble_trans,
-                hand3d_gt, hand3d_gt, major_gt
-            ]
+            enhanced_left_hand3d_gt = hand3d_gt
+            enhanced_left_pred_3d_way1 = pred_3d_way1
+            enhanced_left_pred_3d_way2 = pred_3d_way2
+            enhanced_left_hand3d_pred = hand3d_pred
+        
+        if self.enhance_static:
+            static_weight = 8
+            static_mask = self.generate_static_mask(batch_data_samples)
+            enhanced_static_hand3d_pred = self.enhanced_fun(hand3d_pred, static_mask, static_weight)
+            enhanced_static_hand3d_gt = self.enhanced_fun(hand3d_gt, static_mask, static_weight)
+        else:
+            enhanced_static_hand3d_pred = hand3d_pred
+            enhanced_static_hand3d_gt = hand3d_gt
+            
+        
+        pred_for_loss = [
+            enhanced_left_pred_3d_way1, enhanced_left_pred_3d_way2, enhanced_left_hand3d_pred, leftcam_uv_pre,
+            rightcam_uv_pre, dist_pred, proportion_xyz_pre, pre_nimble_pose,
+            pre_nimble_trans, enhanced_static_hand3d_pred
+        ]
+        targ_for_loss = [
+            enhanced_left_hand3d_gt, enhanced_left_hand3d_gt, enhanced_left_hand3d_gt, leftcam_uv_gt, rightcam_uv_gt,
+            dist_gt, proportion_xyz_gt, gt_nimble_pose, gt_nimble_trans,
+            enhanced_static_hand3d_gt
+        ]
+
         weight_ini = torch.ones((1, 21, 3))
         weight_ini[0, :9, :] = 2
         weight_ini[0, 4, :], weight_ini[0, 8, :] = 4, 4
@@ -413,3 +418,19 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             torch.sum(vector**2, dim=1, keepdim=True) + 1e-8)
         normalized_vector = vector / vector_norms
         return normalized_vector
+
+    def generate_static_mask(self, batch_data_samples):
+        mask = []
+        for batch_sample in batch_data_samples[::2]:
+            data_info = batch_sample.img_path.split("/")[-1].split("__")[1].split("_")[0]
+            if data_info in self.static_data_date_list:
+                mask.append(True)
+            else:
+                mask.append(False)
+        mask = torch.tensor(mask)
+        return mask
+
+    def enhanced_fun(self, kpt, mask, weight):
+        enhanced_kpt = kpt.clone()
+        enhanced_kpt[mask] = enhanced_kpt[mask] * weight
+        return enhanced_kpt

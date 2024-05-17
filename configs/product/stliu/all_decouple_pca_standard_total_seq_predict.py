@@ -116,14 +116,14 @@ model = dict(
                 dict(type='L1Loss', use_target_weight=True,
                      loss_weight=1),  # 3d kpts
                 dict(type='L1Loss', use_target_weight=True,
-                     loss_weight=1.5),  # 3d kpts leftcam
+                     loss_weight=1.8),  # 3d kpts leftcam
                 dict(
                     type='PinchLoss',
                     enter_thre=pinch_thre[0] / 1000,
                     exit_thre=pinch_thre[1] / 1000,
-                    loss_weight=15,
+                    loss_weight=9,
                     enable_start_epoch=0),
-                dict(type='MSELoss', loss_weight=50),  # nimble trans直接监督
+                dict(type='MSELoss', loss_weight=25),  # nimble trans直接监督
                 dict(
                     type='MPJPAELoss',
                     seq_length=seq_length-predict_frame,
