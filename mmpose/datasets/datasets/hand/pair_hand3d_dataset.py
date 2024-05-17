@@ -15,6 +15,7 @@ from nreal_data_tool.utils.camera import (build_from_BinocularCameraInstance,
 from xtcocotools.coco import COCO
 
 from mmpose.datasets.builder import DATASETS
+from mmpose.datasets.datasets.hand.nimble_hand import get_nimble_bones_length
 from ..base import BaseCocoStyleDataset
 
 
@@ -43,8 +44,6 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                  sub_data_index=-1,
                  data_ratio=-1,
                  point_type='3D',
-                 mean_bone_template_path='',
-                 extern_hand_template_path='',
                  filter_kpt_exceed=False,
                  standard_stereo=False,
                  sample_interval=1):
@@ -62,7 +61,6 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         self.sub_data_index = int(sub_data_index)
         self.cams_info = dict()
         self.hand_bones_list = list()
-        self.mean_bone_template_path = mean_bone_template_path
         self.filter_kpt_exceed = filter_kpt_exceed
         self.sample_interval = sample_interval
         self.standard_stereo = standard_stereo
@@ -80,20 +78,12 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             max_refetch=max_refetch,
             pipeline=pipeline)
         self.data_num = super().__len__()
-        if mean_bone_template_path:
-            logger: MMLogger = MMLogger.get_current_instance()
-            logger.info(
-                f'update bones from template {mean_bone_template_path}')
-            self.__update_bones_with_mean_template()
-        if extern_hand_template_path:
-            logger: MMLogger = MMLogger.get_current_instance()
-            logger.info(
-                f'load extern hand template from {extern_hand_template_path}')
-            mean_bones = np.load(extern_hand_template_path)
-            self.hand_bones_list = [mean_bones] * len(self.hand_bones_list)
+        self.__update_bones_with_mean_template()
+        mean_bones = get_nimble_bones_length()
+        self.hand_bones_list = [mean_bones] * len(self.hand_bones_list)
 
     def __update_bones_with_mean_template(self):
-        mean_bones = np.load(self.mean_bone_template_path)
+        mean_bones = get_nimble_bones_length()
         self.hand_scale_list = []
         for bones in self.hand_bones_list:
             scale = np.mean(bones / mean_bones)
@@ -375,17 +365,15 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         meta_left['ori_camera'] = copy.deepcopy(data_info['cam_model_left'])
         meta_left['template_bones'] = self.hand_bones_list[
             data_info['meta']['template_bones_id']]
-        if self.mean_bone_template_path:
-            meta_left['hand_scale'] = self.hand_scale_list[
-                data_info['meta']['template_bones_id']]
+        meta_left['hand_scale'] = self.hand_scale_list[data_info['meta']
+                                                       ['template_bones_id']]
 
         meta_right = copy.deepcopy(data_info['meta'])
         meta_right['ori_camera'] = copy.deepcopy(data_info['cam_model_right'])
         meta_right['template_bones'] = self.hand_bones_list[
             data_info['meta']['template_bones_id']]
-        if self.mean_bone_template_path:
-            meta_right['hand_scale'] = self.hand_scale_list[
-                data_info['meta']['template_bones_id']]
+        meta_right['hand_scale'] = self.hand_scale_list[data_info['meta']
+                                                        ['template_bones_id']]
 
         if self.standard_stereo:
             meta_left['cam_to_virtual_R'] = copy.deepcopy(
