@@ -3,6 +3,7 @@
 from itertools import zip_longest
 from typing import List, Optional, Tuple
 
+# import numpy as np
 # from dataclasses import dataclass
 # from typing import Dict, List, Tuple
 # import torch
@@ -22,6 +23,7 @@ from typing import List, Optional, Tuple
 # import cv2
 # import numpy as np
 import torch
+from mmengine.structures import InstanceData
 from torch import Tensor
 
 from mmpose.registry import MODELS
@@ -33,12 +35,13 @@ from mmpose.umelib.common.hand import (HandModel, mirrored_hand_model,
                                        scaled_hand_model)
 from mmpose.umelib.common.hand_skinning import skin_landmarks
 from mmpose.umelib.data_utils import bundles
-# from mmpose.umelib.loss.loss import Loss_Pose, Loss_Pose_xv
-from mmpose.umelib.loss.loss import Loss_Pose_xv
+# from mmpose.umelib.loss.loss import Loss, Loss_Pose, Loss_Pose_xv
+# from mmpose.umelib.loss.loss import Loss_Pose_xv
 # from mmpose.models.models_umetrack.model_loader import load_pretrained_model
 # from mmpose.umelib.models.model_loader import (create_model_coord,
 #                                                load_pretrained_model)
-from mmpose.umelib.models.model_loader import create_model_coord
+# from mmpose.umelib.models.model_loader import (create_model,
+#                                                create_model_coord)
 from mmpose.umelib.models.umetrack_model import (InputFrameData,
                                                  InputFrameDesc,
                                                  InputSkeletonData)
@@ -537,9 +540,8 @@ def _unpack_batched_data(
             joint_rest_positions=left_hand_model.
             joint_rest_positions[:, i_frame],  # [n,16,22,3]->[n,22,3]
         )
-        # import ipdb;ipdb.set_trace()
         inference_inputs.append((frame_data, frame_desc, skel_data))
-
+    # import ipdb;ipdb.set_trace()
     return inference_inputs
 
 
@@ -553,6 +555,7 @@ def acc(unknown_output,
         mask=None):
 
     gt_target = target.gt_skel_targets
+    # gt_target = bundles.to device(gt_target, 'cuda')
     # preds_target = target.preds_targets
     gt_keypoints = skin_landmarks(gt_hand_model, gt_target.joint_angles,
                                   gt_target.wrist_xfs)
@@ -615,13 +618,13 @@ def acc(unknown_output,
     total_errors += keypoint_errors
 
     errors.update({'total_keypoints_errors': total_errors / 4})
-
+    # import ipdb;ipdb.set_trace()
     return errors
 
 
 # cur_mode = 'multiv' 多视角模式
 def _train_batch(model, model_input, model_target, cur_mode, criterion):
-    # ipdb.set_trace()
+
     hand_model = mirrored_hand_model(
         model_input.orig_pose_data.left_hand_model,
         model_input.hand_idx == 1,  # right hand is index 1
@@ -634,97 +637,63 @@ def _train_batch(model, model_input, model_target, cur_mode, criterion):
     )
     generic_hand_model = bundles.to_device(generic_hand_model, 'cuda')
 
-    # train_inputs = _unpack_batched_train_data(model_input)
     train_inputs = _unpack_batched_data(model_input, cur_mode)
-
     model_target = bundles.to_device(model_target, 'cuda')
 
     unknown_outputs = []
-    known_outputs_mv = []
-    known_outputs_l = []
-    known_outputs_r = []
-    # masks = []
     model.reset_temporal()  # 重置
     for i_step, step_input in enumerate(train_inputs):
-        # frame_data, frame_desc, skel_input = bundles \
-        #   .to_device(step_input, device)
-        # ipdb.set_trace()
-        # singlev_masks = (
-        #     frame_desc.sample_range[:, 1] - frame_desc.sample_range[:, 0]
-        # ) != 1
-        # frame_data, frame_desc, skel_input = step_input
         frame_data, frame_desc, skel_input = bundles.to_device(
             step_input, 'cuda')
-        cur_output = model(
-            frame_data,
-            frame_desc,
-            skel_input,
-        )
-
-        # self.model.create_model_coord
-        unknown_outputs.append(cur_output['unknown_output'])
-        # masks.append(singlev_masks)
-        known_outputs_mv.append(cur_output['known_output_multiv'])
-        known_outputs_l.append(cur_output['known_output_l'])
-        known_outputs_r.append(cur_output['known_output_r'])
-
-    # masks = torch.stack(masks)
-    unknown_outputs_batched = bundles.collate(unknown_outputs)
-    known_outputs_batched_mv = bundles.collate(known_outputs_mv)
-    known_outputs_batched_l = bundles.collate(known_outputs_l)
-    known_outputs_batched_r = bundles.collate(known_outputs_r)
-
-    # Collate puts the sequence dim as the leading dim.
-    # Do a transpose here to swap the batch dim and sequence dim.
-    # masks = masks.transpose(0,1)
+        # forward
+        cur_output = model(frame_data, frame_desc)
+        unknown_outputs.append(cur_output)
+    unknown_outputs_batched = bundles.collate(unknown_outputs)  # 同一类型p拼为batch
     unknown_outputs_batched = bundles.map_fields(
         lambda t: t.transpose(0, 1) if t is not None else None,
         unknown_outputs_batched,
     )
-    known_outputs_batched_mv = bundles.map_fields(
-        lambda t: t.transpose(0, 1) if t is not None else None,
-        known_outputs_batched_mv,
-    )
-    known_outputs_batched_l = bundles.map_fields(
-        lambda t: t.transpose(0, 1) if t is not None else None,
-        known_outputs_batched_l,
-    )
-    known_outputs_batched_r = bundles.map_fields(
-        lambda t: t.transpose(0, 1) if t is not None else None,
-        known_outputs_batched_r,
-    )
 
     scale = unknown_outputs_batched.skel_scales
     generic_hand_model = scaled_hand_model(generic_hand_model, scale)
+    loss = criterion(unknown_outputs_batched, generic_hand_model, hand_model,
+                     model_target)
 
-    # unknown_outputs_acc = bundles.to_device(
-    #     unknown_outputs_batched,device='cpu')
-    # known_outputs_mv_acc = bundles.to_device(
-    #     known_outputs_batched_mv,device='cpu')
-    # known_outputs_l_acc = bundles.to_device(
-    #     known_outputs_batched_l,device='cpu')
-    # known_outputs_r_acc = bundles.to_device(
-    #     known_outputs_batched_r,device='cpu')
-    # generic_hand_model_acc = bundles.to_device(
-    #     generic_hand_model,device='cpu')
-    # hand_model_acc = bundles.to_device(hand_model,device='cpu')
-    # model_target_acc = bundles.to_device(model_target,device='cpu')
+    return loss
 
-    loss = criterion(unknown_outputs_batched, known_outputs_batched_mv,
-                     known_outputs_batched_l, known_outputs_batched_r,
-                     generic_hand_model, hand_model, model_target)
 
-    errors = acc(unknown_outputs_batched, known_outputs_batched_mv,
-                 known_outputs_batched_l, known_outputs_batched_r,
-                 generic_hand_model, hand_model, model_target)
+def _eval_batch(model, model_input, model_target, cur_mode: str, device: str):
+    hand_model = mirrored_hand_model(
+        model_input.orig_pose_data.left_hand_model,
+        model_input.hand_idx == 1,  # right hand is index 1
+    )
+    hand_model = bundles.to_device(hand_model, device)
 
-    # errors = acc(unknown_outputs_acc, known_outputs_mv_acc,
-    #              known_outputs_l_acc,known_outputs_r_acc,
-    #             generic_hand_model_acc, hand_model_acc,
-    #             model_target_acc)
-    # errors = 0
+    generic_hand_model = mirrored_hand_model(
+        model_input.s_solved_pose_data.left_hand_model,
+        model_input.hand_idx == 1,  # right hand is index 1
+    )
+    generic_hand_model = bundles.to_device(generic_hand_model, device)
 
-    return loss, errors
+    inference_inputs = _unpack_batched_data(model_input, cur_mode)
+    unknown_outputs = []
+    for i_step, step_input in enumerate(inference_inputs):
+        frame_data, frame_desc, skel_input = bundles.to_device(
+            step_input, device)
+        cur_output = model(frame_data, frame_desc)
+        unknown_outputs.append(cur_output)
+    unknown_outputs_batched = bundles.collate(unknown_outputs)
+    unknown_outputs_batched = bundles.map_fields(
+        lambda t: t.transpose(0, 1) if t is not None else None,
+        unknown_outputs_batched,
+    )
+    scale = unknown_outputs_batched.skel_scales
+    generic_hand_model = scaled_hand_model(generic_hand_model, scale)
+    return (
+        unknown_outputs_batched,
+        generic_hand_model,
+        hand_model,
+        model_target)
 
 
 @MODELS.register_module()
@@ -761,178 +730,70 @@ class TopdownUmetrack(BasePoseEstimator):
                  data_preprocessor: OptConfigType = None,
                  init_cfg: OptMultiConfig = None,
                  metainfo: Optional[dict] = None):
-        super().__init__(
-            backbone=backbone,
-            neck=neck,
-            head=head,
-            train_cfg=train_cfg,
-            test_cfg=test_cfg,
-            data_preprocessor=data_preprocessor,
-            init_cfg=init_cfg,
-            metainfo=metainfo)
-
-        # model_name = ('/home/liyilin/workspace/UmeTrack/pretrained_models/'
-        #               'pretrained_weights.torch')
-        # self.model = load_pretrained_model(model_name).cuda()
-        self.model = create_model_coord().cuda()
+        super().__init__(backbone=backbone, init_cfg=init_cfg)
+        self.backbone = MODELS.build(backbone)
 
     def loss(self, inputs: Tensor, data_samples: SampleList) -> dict:
-        """Calculate losses from a batch of inputs and data samples.
-
-        Args:
-            inputs (Tensor): Inputs with shape (N, C, H, W).
-            data_samples (List[:obj:`PoseDataSample`]): The batch
-                data samples.
-
-        Returns:
-            dict: A dictionary of losses.
-        """
-        # import ipdb;ipdb.set_trace()
-        # # parser = argparse.ArgumentParser()
-        # # parser.add_argument(
-        #    '--local_rank', '--local-rank', type=int, default=0)
-        # # args = parser.parse_args()
-        # # if 'LOCAL_RANK' not in os.environ:
-        # #     os.environ['LOCAL_RANK'] = str(args.local_rank)
-        # # log_print = True if args.local_rank == 0 else False
-
-        # # torch.distributed.init_process_group(backend="nccl")
-        # # device = torch.device('cuda', args.local_rank)
-        # # torch.cuda.set_device(device)
-        # device: str = 'cuda' if torch.cuda.device_count() else 'cpu'
-        # device = 'cpu'
-        # # self.model.eval()
-        # # self.model.to(device)
-
-        # self.model = torch.nn.SyncBatchNorm. \
-        #     convert_sync_batchnorm(self.model)
-        # self.model.to(device)
-        criterion = Loss_Pose_xv()
-        # model.to(device)
-
         cur_mode = 'multiv'
-
         ModelInput, ModelTarget = NewClass(inputs, data_samples)
-        loss, errors = _train_batch(
-            self.model,
+        loss = _train_batch(
+            self.backbone,
             ModelInput,
             ModelTarget,
             cur_mode,
-            criterion=criterion,
-            # device = device
+            criterion=self.backbone.loss,
         )
-        import ipdb
-        ipdb.set_trace()
-        # feats = self.extract_feat(inputs)
-        # losses = dict()
-        # if self.with_head:
-        #     losses.update(self.head.loss(feats, data_samples, \
-        #    train_cfg=self.train_cfg))
-        # return losses
-        return loss
+        loss_dict = dict(loss_pose=loss)
+        return loss_dict
 
     def predict(self, inputs: Tensor, data_samples: SampleList) -> SampleList:
-        """Predict results from a batch of inputs and data samples with post-
-        processing.
-
-        Args:
-            inputs (Tensor): Inputs with shape (N, C, H, W)
-            data_samples (List[:obj:`PoseDataSample`]): The batch
-                data samples
-
-        Returns:
-            list[:obj:`PoseDataSample`]: The pose estimation results of the
-            input images. The return value is `PoseDataSample` instances with
-            ``pred_instances`` and ``pred_fields``(optional) field , and
-            ``pred_instances`` usually contains the following keys:
-
-                - keypoints (Tensor): predicted keypoint coordinates in shape
-                    (num_instances, K, D) where K is the keypoint number and D
-                    is the keypoint dimension
-                - keypoint_scores (Tensor): predicted keypoint scores in shape
-                    (num_instances, K)
-        """
-
-        # device: str = 'cuda' if torch.cuda.device_count() else 'cpu'
-        # device = 'cpu'
-        self.model.eval()
-        # self.model.to(device)
-
-        use_skel = True
-
         model_input, model_target = NewClass(inputs, data_samples)
+        cur_mode = 'multiv'
 
-        hand_model = mirrored_hand_model(
-            model_input.orig_pose_data.left_hand_model,
-            model_input.hand_idx == 1,  # right hand is index 1
-        )
-        hand_model = bundles.to_device(hand_model, 'cuda')
-        # import ipdb;ipdb.set_trace()
+        (unknown_outputs_batched, generic_hand_model, hand_model,
+         model_target) = _eval_batch(
+             self.backbone,
+             model_input,
+             model_target,
+             cur_mode,
+             device='cuda',
+         )
 
-        generic_hand_model = mirrored_hand_model(
-            model_input.s_solved_pose_data.left_hand_model,
-            model_input.hand_idx == 1,  # right hand is index 1
-        )
-        generic_hand_model = bundles.to_device(generic_hand_model, 'cuda')
+        regression_target = model_target.gt_skel_targets
+        regression_target = bundles.to_device(regression_target, 'cuda')
 
-        inference_inputs = _unpack_batched_data(model_input, 'multiv')
+        gt_keypoints = skin_landmarks(hand_model,
+                                      regression_target.joint_angles,
+                                      regression_target.wrist_xfs)
 
-        inference_outputs = []
+        batch_gt_instances = []
+        for i in range(gt_keypoints.size(0)):
+            gt_instances = InstanceData(keypoints_cam=gt_keypoints[i], )
+            batch_gt_instances.append(gt_instances)
 
-        # model.reset_temporal()
-        for i_step, step_input in enumerate(inference_inputs):
-            # frame_data, frame_desc, skel_input = bundles.to_device(
-            #     step_input, device)
-            # frame_data, frame_desc, skel_input = step_input
-            frame_data, frame_desc, skel_input = bundles.to_device(
-                step_input, 'cuda')
-
-            if use_skel:
-                cur_output = self.model.regress_pose_use_skeleton(
-                    frame_data,
-                    frame_desc,
-                    skel_input,
-                )
-            else:
-                # assert (cur_mode == 'multiv'
-                #         ), 'Skeleton scale prediction requires multiv data'
-                cur_output = self.model.regress_pose_pred_skel_scale(
-                    frame_data, frame_desc)
-            inference_outputs.append(cur_output)
-        # import ipdb;ipdb.set_trace()
-        inference_outputs_batched = bundles.collate(inference_outputs)
-
-        inference_outputs_batched = bundles.map_fields(
-            lambda t: t.transpose(0, 1) if t is not None else None,
-            inference_outputs_batched,
+        for gt_instances, data_sample in zip_longest(batch_gt_instances,
+                                                     data_samples):
+            data_sample.gt_instances = gt_instances
+        unknown_output_keypoints = skin_landmarks(
+            generic_hand_model,
+            unknown_outputs_batched.joint_angles,
+            unknown_outputs_batched.wrist_xfs,
         )
 
-        if not use_skel:
-            scale = inference_outputs_batched.skel_scales
-            generic_hand_model = scaled_hand_model(generic_hand_model, scale)
+        # keypoints_diff = gt_keypoints - unknown_output_keypoints
+        # keypoint_errors = keypoints_diff.norm(dim=-1).mean(dim=(1, 2))
+        # keypoint_errors_mm = keypoint_errors * 1000
+        # mean_error = keypoint_errors_mm.mean()
+        batch_pred_instances = []
+        for i in range(unknown_output_keypoints.size(0)):
+            pred_instances = InstanceData(
+                unknown_keypoints=unknown_output_keypoints[i], )
+            batch_pred_instances.append(pred_instances)
+        batch_pred_fields = None
 
-        # gt_keypoints = skin_landmarks(hand_model, joint_angles, wrist_xfs)
-
-        if use_skel:
-            output_keypoints = skin_landmarks(
-                hand_model,
-                inference_outputs_batched.joint_angles,
-                inference_outputs_batched.wrist_xfs,
-            )
-        else:
-            # preds_target = model_target.preds_targets
-            # gt_keypoints = skin_landmarks(
-            #     generic_hand_model, preds_target.joint_angles,
-            #     preds_target.wrist_xfs
-            # )
-            output_keypoints = skin_landmarks(
-                generic_hand_model,
-                inference_outputs_batched.joint_angles,
-                inference_outputs_batched.wrist_xfs,
-            )
-        import ipdb
-        ipdb.set_trace()
-        return output_keypoints
+        results = self.add_pred_to_datasample(batch_pred_instances,
+                                              batch_pred_fields, data_samples)
+        return results
 
     def add_pred_to_datasample(self, batch_pred_instances: InstanceList,
                                batch_pred_fields: Optional[PixelDataList],
@@ -953,49 +814,53 @@ class TopdownUmetrack(BasePoseEstimator):
         assert len(batch_pred_instances) == len(batch_data_samples)
         if batch_pred_fields is None:
             batch_pred_fields = []
-        output_keypoint_indices = self.test_cfg.get('output_keypoint_indices',
-                                                    None)
+        # output_keypoint_indices = self.test_cfg.get(
+        #     'output_keypoint_indices',
+        #     None)
 
         for pred_instances, pred_fields, data_sample in zip_longest(
                 batch_pred_instances, batch_pred_fields, batch_data_samples):
 
-            gt_instances = data_sample.gt_instances
+            # gt_instances = data_sample.gt_instances
 
-            # convert keypoint coordinates from input space to image space
-            input_center = data_sample.metainfo['input_center']
-            input_scale = data_sample.metainfo['input_scale']
-            input_size = data_sample.metainfo['input_size']
+            # import ipdb;ipdb.set_trace()
+            # # convert keypoint coordinates from input space to image space
+            # input_center = data_sample.metainfo['input_center']
+            # input_scale = data_sample.metainfo['input_scale']
+            # input_size = data_sample.metainfo['input_size']
 
-            pred_instances.keypoints[..., :2] = \
-                pred_instances.keypoints[..., :2] / input_size * input_scale \
-                + input_center - 0.5 * input_scale
-            if 'keypoints_visible' not in pred_instances:
-                pred_instances.keypoints_visible = \
-                    pred_instances.keypoint_scores
+            # pred_instances.keypoints[..., :2] = \
+            #     pred_instances.keypoints[..., :2] / input_size * \
+            #         input_scale + input_center - 0.5 * input_scale
+            # if 'keypoints_visible' not in pred_instances:
+            #     pred_instances.keypoints_visible = \
+            #         pred_instances.keypoint_scores
 
-            if output_keypoint_indices is not None:
-                # select output keypoints with given indices
-                num_keypoints = pred_instances.keypoints.shape[1]
-                for key, value in pred_instances.all_items():
-                    if key.startswith('keypoint'):
-                        pred_instances.set_field(
-                            value[:, output_keypoint_indices], key)
+            # if output_keypoint_indices is not None:
+            #     # select output keypoints with given indices
+            #     num_keypoints = pred_instances.keypoints.shape[1]
+            #     for key, value in pred_instances.all_items():
+            #         if key.startswith('keypoint'):
+            #             pred_instances.set_field(
+            #                 value[:, output_keypoint_indices], key)
 
-            # add bbox information into pred_instances
-            pred_instances.bboxes = gt_instances.bboxes
-            pred_instances.bbox_scores = gt_instances.bbox_scores
+            # # add bbox information into pred_instances
+            # pred_instances.bboxes = gt_instances.bboxes
+            # pred_instances.bbox_scores = gt_instances.bbox_scores
 
             data_sample.pred_instances = pred_instances
-
-            if pred_fields is not None:
-                if output_keypoint_indices is not None:
-                    # select output heatmap channels with keypoint indices
-                    # when the number of heatmap channel matches num_keypoints
-                    for key, value in pred_fields.all_items():
-                        if value.shape[0] != num_keypoints:
-                            continue
-                        pred_fields.set_field(value[output_keypoint_indices],
-                                              key)
-                data_sample.pred_fields = pred_fields
-
+            # import ipdb;ipdb.set_trace()
+            # import ipdb;ipdb.set_trace()
+            # if pred_fields is not None:
+            #     if output_keypoint_indices is not None:
+            #         # select output heatmap channels with keypoint indices
+            #         # when the number of heatmap channel
+            #         # matches num_keypoints
+            #         for key, value in pred_fields.all_items():
+            #             if value.shape[0] != num_keypoints:
+            #                 continue
+            #             pred_fields.set_field(value[output_keypoint_indices],
+            #                                   key)
+            #     data_sample.pred_fields = pred_fields
+        # import ipdb;ipdb.set_trace()
         return batch_data_samples

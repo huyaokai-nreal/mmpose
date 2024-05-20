@@ -9,6 +9,7 @@ import torch.nn.functional as F
 
 from mmpose.datasets.datasets.utils import parse_pose_metainfo
 from mmpose.registry import MODELS
+from mmpose.umelib.common.hand_skinning import skin_landmarks
 from ..utils.realnvp import RealNVP
 
 
@@ -90,6 +91,44 @@ class RLELoss(nn.Module):
             loss /= len(loss)
 
         return loss.sum()
+
+
+@MODELS.register_module()
+class UmetrackLoss(nn.Module):
+
+    def __init__(self, lambda_theta=0.05, lambda_w=0.5):
+        super(UmetrackLoss, self).__init__()
+        self.criterion = nn.L1Loss()
+        self.lambda_theta = lambda_theta
+        self.lambda_w = lambda_w
+
+        self.lambda_kpt = 21
+
+    def forward(self, unknown_output, generic_hand_model, gt_hand_model,
+                target):
+        gt_target = target.gt_skel_targets
+        preds_target = target.preds_targets
+        gt_keypoints = skin_landmarks(gt_hand_model, gt_target.joint_angles,
+                                      gt_target.wrist_xfs)
+        unknown_gt_keypoints = gt_keypoints
+        unknown_keypoints = skin_landmarks(
+            generic_hand_model,
+            unknown_output.joint_angles,
+            unknown_output.wrist_xfs,
+        )
+
+        unknown_xfs = unknown_output.wrist_xfs[:, :, :, -1]
+        unknown_gt_xfs = preds_target.wrist_xfs[:, :, :, -1]
+
+        unknown_angles = unknown_output.joint_angles
+        unknown_gt_angles = preds_target.joint_angles
+        loss_keypoints = self.criterion(unknown_keypoints,
+                                        unknown_gt_keypoints)
+        loss_xfs = self.criterion(unknown_xfs, unknown_gt_xfs)
+        loss_angles = self.criterion(unknown_angles, unknown_gt_angles)
+        loss = loss_keypoints + self.lambda_theta * loss_angles + \
+            self.lambda_w * loss_xfs
+        return loss
 
 
 @MODELS.register_module()

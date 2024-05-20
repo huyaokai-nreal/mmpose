@@ -12,6 +12,12 @@ import cv2
 import torch
 import torch.nn as nn
 
+from mmpose.registry import MODELS
+from mmpose.umelib.models import feature_extractor as fe
+from mmpose.umelib.models import regressor as reg
+from mmpose.umelib.models import skeleton_encoder as se
+from mmpose.umelib.models import temporal as tem
+from mmpose.umelib.models.model_opts import ModelOpts
 from . import model_utils
 from .ccf_modules import CrossCueFusion
 from .feature_extractor import (FeatureExtractor, FeatureExtractor_New,
@@ -110,6 +116,204 @@ def _get_cam1_extrinsics(frame_data: InputFrameData,
     return frame_data.extrinsics_xf[frame_desc.sample_range[:, 1] - 1].clone()
 
 
+def _get_n_input_channels(model_opts: ModelOpts, use_skel: bool) -> int:
+    n = model_opts.nImageFeatureChannels
+    if use_skel:
+        n = n + model_opts.nSkeletonFeatureChannels
+
+    return n
+
+
+def _create_regressor(
+        model_opts: ModelOpts,
+        feature_sizes=(96, 96),
+        use_skel=False,
+        predict_skel_scale=False,
+):
+    if use_skel:
+        assert model_opts.nSkeletonFeatureChannels != 0
+
+    n_in = _get_n_input_channels(model_opts, use_skel=use_skel)
+    reg_out_indices, n_out = reg.get_output_index_ranges(
+        model_opts, predict_skel_scale=predict_skel_scale)
+    return reg.PoseRegressor(
+        n_channels_in=n_in,
+        n_output_dims=n_out,
+        output_index_ranges=reg_out_indices,
+        n_blocks=model_opts.nPoseRegressionBlocks,
+        n_wrist_rigid_pts=model_opts.nWristRigidPts,
+        feature_map_sizes=feature_sizes,
+    )
+
+
+@MODELS.register_module()
+class UmeTrackModel(nn.Module):
+
+    def __init__(
+        self,
+        # feature_extractor: FeatureExtractor,
+        # temporal: SimpleConvRNN,
+        # skeleton_encoder: SkeletonEncoder,
+        # regressor_k: PoseRegressor,
+        # regressor_u: PoseRegressor,
+        input_size=(96, 96),
+        loss=None,
+    ):
+        super(UmeTrackModel, self).__init__()
+
+        # self._feature_extractor: FeatureExtractor = feature_extractor
+        # self._temporal = temporal
+        # self._skeleton_enc = skeleton_encoder
+        # self._regressor_k = regressor_k
+        # self._regressor_u = regressor_u
+
+        # self.eval()
+
+        self.loss = MODELS.build(loss)
+        model_opts = ModelOpts()
+        self._feature_extractor = fe.FeatureExtractor(input_size, ModelOpts())
+        self._temporal = tem.create_temporal_model(
+            model_opts,
+            self._feature_extractor.output_feature_sizes,
+        )
+        self._skeleton_enc = se.SkeletonEncoder([
+            model_opts.nSkeletonFeatureChannels,
+            *self._feature_extractor.output_feature_sizes
+        ], )
+        self._regressor_k = _create_regressor(
+            model_opts,
+            self._feature_extractor.output_feature_sizes,
+            use_skel=True,
+            predict_skel_scale=False,
+        )
+        self._regressor_u = _create_regressor(
+            model_opts,
+            self._feature_extractor.output_feature_sizes,
+            use_skel=False,
+            predict_skel_scale=True,
+        )
+
+    @torch.jit.export
+    def getInputImageSizes(self) -> Tuple[int, int]:
+        return self._feature_extractor.input_image_sizes
+
+    def _forward_feature_extractor(self, frame_data: InputFrameData,
+                                   sample_range: torch.Tensor) -> torch.Tensor:
+        # Per-view img features
+        per_view_img_features = self._feature_extractor._image_backbone(
+            frame_data.left_images.unsqueeze(1))
+        singlev_scaled_to_orig_xf = model_utils.compute_singlev_xfs(
+            frame_data.intrinsics)
+
+        # The following assumes that the max # views per batch is 2
+        num_views = 2
+        all_multiv = sample_range.shape[
+            0] * num_views == per_view_img_features.shape[0]
+        extrinsics_xf = frame_data.extrinsics_xf
+        if all_multiv:
+            img_features = self._feature_extractor.compute_multiv_features(
+                per_view_img_features.reshape((-1, num_views) +
+                                              per_view_img_features.shape[1:]),
+                singlev_scaled_to_orig_xf.reshape(
+                    (-1, num_views) + singlev_scaled_to_orig_xf.shape[1:]),
+                extrinsics_xf.reshape((-1, num_views) +
+                                      extrinsics_xf.shape[1:]),
+            )
+        else:
+            img_features_list: List[torch.Tensor] = []
+            for r01 in sample_range:
+                r0 = int(r01[0])
+                r1 = int(r01[1])
+                if r1 - r0 == 1:
+                    singlev_features = self._feature_extractor.compute_singlev_features(
+                        per_view_img_features[r0:r1],
+                        singlev_scaled_to_orig_xf[r0:r1])
+                    img_features_list.append(singlev_features)
+                else:
+                    multiv_features = self._feature_extractor.compute_multiv_features(
+                        per_view_img_features[r0:r1].unsqueeze(0),
+                        singlev_scaled_to_orig_xf[r0:r1].unsqueeze(0),
+                        extrinsics_xf[r0:r1].unsqueeze(0),
+                    )
+                    img_features_list.append(multiv_features)
+
+            img_features = torch.cat(img_features_list, dim=0)
+
+        return img_features
+
+    def _forward_feature_extractor_temporal(self, frame_data: InputFrameData,
+                                            frame_desc: InputFrameDesc
+                                            ) -> torch.Tensor:
+        # Fused img features
+        img_features = self._forward_feature_extractor(frame_data,
+                                                       frame_desc.sample_range)
+        extrinsics = _get_cam0_extrinsics(frame_data, frame_desc)
+
+        # Temporal features
+        temporal_features = self._temporal.forward_temporal_features(
+            img_features,
+            extrinsics,
+            frame_desc.memory_idx,
+            frame_desc.use_memory,
+        )
+        return temporal_features
+
+    def regress_pose_use_skeleton(
+        self,
+        frame_data: InputFrameData,
+        frame_desc: InputFrameDesc,
+        skel_data: InputSkeletonData,
+    ) -> Dict[str, torch.Tensor]:
+        temporal_features = self._forward_feature_extractor_temporal(
+            frame_data, frame_desc)
+
+        skel_features = self._skeleton_enc.forward(
+            joint_rotation_axes=skel_data.joint_rotation_axes,
+            joint_rest_positions=skel_data.joint_rest_positions,
+        )
+        if skel_features.shape[0] == 1 and temporal_features.shape[0] > 1:
+            # The caller only passed in a single profile and it should be used
+            # for all the samples.
+            skel_features = skel_features.expand(temporal_features.shape[0],
+                                                 *skel_features.shape[1:])
+
+        # Concatenate along the channel dimension (1)
+        img_skel_features = torch.cat([temporal_features, skel_features],
+                                      dim=1)
+
+        regression_output = self._regressor_k.regress_poses(img_skel_features)
+
+        regression_output.wrist_xfs = _recover_wrist_xfs_in_world(
+            frame_desc.hand_idx,
+            _get_cam0_extrinsics(frame_data, frame_desc),
+            regression_output.wrist_xfs,
+        )
+        return regression_output
+
+    def reset_temporal(self):
+        self._temporal.reset_mem_features()
+
+    def forward(self, frame_data: InputFrameData,
+                frame_desc: InputFrameDesc) -> Dict[str, torch.Tensor]:
+        singlev_masks = (frame_desc.sample_range[:, 1] -
+                         frame_desc.sample_range[:, 0]) != 1
+        assert (singlev_masks.all(
+        )), 'Unsupported: found single-view samples when calibration scale'
+        temporal_features = self._forward_feature_extractor_temporal(
+            frame_data, frame_desc)
+
+        regression_output = self._regressor_u.regress_poses(temporal_features)
+
+        regression_output.wrist_xfs = _recover_wrist_xfs_in_world(
+            frame_desc.hand_idx,
+            _get_cam0_extrinsics(frame_data, frame_desc),
+            regression_output.wrist_xfs,
+        )
+
+        return regression_output
+
+
+'''
 class UmeTrackModel(nn.Module):
 
     def __init__(
@@ -443,9 +647,11 @@ class UmeTrackModel(nn.Module):
             'known_output_r': known_output_r
         }
         return regress_output
+'''
 
 
-class UmeTrackModel_coord(nn.Module):  #训练
+#训练
+class UmeTrackModel_coord(nn.Module):
 
     def __init__(
         self,
@@ -529,11 +735,12 @@ class UmeTrackModel_coord(nn.Module):  #训练
                                        ) -> torch.Tensor:
         # Per-view img features
         img_features = self._feature_extractor._image_backbone(
-            frame_data.left_images.unsqueeze(1))
-        per_view_img_features = self._textture_to_coord(img_features)
+            frame_data.left_images.unsqueeze(1))  ##[batchsize*2,72,6,6]
+        per_view_img_features = self._textture_to_coord(
+            img_features)  #[batchsize*2,72,6,6]
 
         singlev_scaled_to_orig_xf = model_utils.compute_singlev_xfs(
-            frame_data.intrinsics)
+            frame_data.intrinsics)  #[batchsize*2,4,4]
 
         extrinsics_xf = frame_data.extrinsics_xf
 
@@ -553,7 +760,7 @@ class UmeTrackModel_coord(nn.Module):  #训练
             per_view_img_features[1::2].clone(),
             singlev_scaled_to_orig_xf[1::2].clone())
         # img_features = torch.cat([img_features_multiv,img_features_l,img_features_r])
-
+        # import ipdb;ipdb.set_trace()
         return img_features_multiv, img_features_l, img_features_r
 
     def _forward_feature_extractor_temporal(self, frame_data: InputFrameData,
@@ -593,7 +800,7 @@ class UmeTrackModel_coord(nn.Module):  #训练
             frame_desc.memory_idx,
             frame_desc.use_memory,
         )
-
+        # import ipdb;ipdb.set_trace()
         temporal_features_l = self._temporal.forward_temporal_features_l(
             feats_l,
             extrinsics_0,
@@ -668,6 +875,7 @@ class UmeTrackModel_coord(nn.Module):  #训练
         self._temporal.reset_mem_features()
 
     def forward_multiv(
+        # def forward(
         self,
         frame_data: InputFrameData,
         frame_desc: InputFrameDesc,
@@ -752,11 +960,13 @@ class UmeTrackModel_coord(nn.Module):  #训练
             unknown_output.wrist_xfs,
         )
 
-        known_output = self._regressor_k.regress_poses_smv(img_skel_features)
+        known_output = self._regressor_k.regress_poses_smv(
+            img_skel_features
+        )  #______________self._regressor_k.regress_poses_________________________________
         known_output_multiv = known_output[0]
         known_output_l = known_output[1]
         known_output_r = known_output[2]
-
+        # import ipdb;ipdb.set_trace()
         known_output_multiv.wrist_xfs = _recover_wrist_xfs_in_world(
             frame_desc.hand_idx,
             _get_cam0_extrinsics(frame_data, frame_desc),
@@ -772,7 +982,6 @@ class UmeTrackModel_coord(nn.Module):  #训练
             _get_cam1_extrinsics(frame_data, frame_desc),
             known_output_r.wrist_xfs,
         )
-
         regress_output = {
             'unknown_output': unknown_output,
             'known_output_multiv': known_output_multiv,
