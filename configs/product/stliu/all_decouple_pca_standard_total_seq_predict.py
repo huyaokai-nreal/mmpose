@@ -68,7 +68,7 @@ codec = dict(
 pinch_thre = [20, 40]  # pinch双阈值，单位：mm
 predict_frame = 1
 kpt2d_with_depth = False  # liftnet 是否使用2.5d的深度信息
-pretrained_path = "/data/stliu/mmpose_simliar_wx10/work_dirs/new_dataset/lift_reg9d_rleloss_seq_twostage_two/epoch_21.pth"
+pretrained_path = "/data/stliu/mmpose_simliar_wx10/work_dirs/new_dataset/lift_reg9d_rleloss_seq_twostage_two_adddata_weight30/best_all_mpjpe_epoch_1.pth"
 
 # model settings
 backbone_out_channels = [64, 96, 128, 160]
@@ -114,16 +114,16 @@ model = dict(
             type='MultipleLossWrapper',
             losses=[
                 dict(type='L1Loss', use_target_weight=True,
-                     loss_weight=1),  # 3d kpts
+                     loss_weight=1.5),  # 3d kpts
                 dict(type='L1Loss', use_target_weight=True,
                      loss_weight=1.8),  # 3d kpts leftcam
                 dict(
                     type='PinchLoss',
                     enter_thre=pinch_thre[0] / 1000,
                     exit_thre=pinch_thre[1] / 1000,
-                    loss_weight=9,
+                    loss_weight=18,
                     enable_start_epoch=0),
-                dict(type='MSELoss', loss_weight=25),  # nimble trans直接监督
+                dict(type='MSELoss', loss_weight=100),  # nimble trans直接监督
                 dict(
                     type='MPJPAELoss',
                     seq_length=seq_length-predict_frame,
@@ -286,7 +286,7 @@ test_dataloader = val_dataloader
 
 # hooks
 default_hooks = dict(
-    checkpoint=dict(interval=3, save_best='all_mpjpe', rule='less'),
+    checkpoint=dict(interval=1, save_best='all_mpjpe', rule='less'),
     run_time_info=dict(type='RuntimeInfoHookV2'))
 
 # evaluators

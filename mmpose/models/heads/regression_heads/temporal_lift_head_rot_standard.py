@@ -269,7 +269,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             enhanced_left_hand3d_pred = hand3d_pred
         
         if self.enhance_static:
-            static_weight = 8
+            static_weight = 25
             static_mask = self.generate_static_mask(batch_data_samples)
             enhanced_static_hand3d_pred = self.enhanced_fun(hand3d_pred, static_mask, static_weight)
             enhanced_static_hand3d_gt = self.enhanced_fun(hand3d_gt, static_mask, static_weight)

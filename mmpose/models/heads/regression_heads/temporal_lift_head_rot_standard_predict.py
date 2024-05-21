@@ -274,7 +274,7 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
             enhanced_left_pre_all_xyz = hand3d_pred
         
         if self.enhance_static:
-            static_weight = 8
+            static_weight = 25
             static_mask = self.generate_static_mask(batch_data_samples)
             if self.predict_local_guest:
                 static_mask = static_mask[predict_used_index]
