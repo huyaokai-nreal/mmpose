@@ -547,9 +547,9 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             bone_loss = torch.tensor(0.0, device=loss_pre_root.device)
             major_bone_loss = torch.tensor(0.0, device=loss_pre_root.device)
 
+        mh = MessageHub.get_current_instance()
+        cur_epoch = mh.get_info('epoch')
         if self.lambda_t > 0:
-            mh = MessageHub.get_current_instance()
-            cur_epoch = mh.get_info('epoch')
             if cur_epoch <= self.lambda_t:
                 loss_mse_2d_leftcam = torch.tensor(
                     0.0,

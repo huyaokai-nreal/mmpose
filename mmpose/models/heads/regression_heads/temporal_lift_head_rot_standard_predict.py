@@ -34,7 +34,6 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
                  pose_ncomp: int = 60,
                  reg_shape_type: int = 1,
                  skeleton_feature_dim: int = 64,
-                 euler_or_quaternion: str = 'euler',
                  use_pose_pca: bool = True,
                  reproj: bool = False,
                  baseline=0.13,
@@ -45,7 +44,6 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
                  corruption_cam: float = 0.5,
                  use_bone_loss: bool = True,
                  use_pose_loss: bool = False,
-                 use_rle_loss: bool = False,
                  use_shape_smooth=False,
                  use_9d_pose_reg: bool = False,
                  use_6d_pose_reg: bool = False,
@@ -63,14 +61,12 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
             undistort=undistort,
             reproj=reproj,
             pose_ncomp=pose_ncomp,
-            euler_or_quaternion=euler_or_quaternion,
             baseline=baseline,
             use_svd=use_svd,
             reproj_thre=reproj_thre,
             iou_thre=iou_thre,
             pad_2d=pad_2d,
             use_bone_loss=use_bone_loss,
-            use_rle_loss=use_rle_loss,
             use_6d_pose_reg=use_6d_pose_reg,
             use_9d_pose_reg=use_9d_pose_reg,
             lambda_t=lambda_t,
@@ -80,8 +76,6 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
         self.seq_len = seq_len
         self.predict_frame = predict_frame
         self.predict_local_guest = predict_local_guest
-        self.enhance_static = enhance_static
-        self.static_data_date_list = ['20240516','20240517','20240518']
 
         self.last_layer = nn.Sequential(
             nn.Conv2d(self.feat_dim * 2, self.feat_dim, kernel_size=1),
@@ -96,11 +90,20 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
         self.use_shape_smooth = use_shape_smooth
         if use_shape_smooth:
             self.shape_loss_func = F.l1_loss
-        if self.use_rle_loss:
-            self.sigma_conv = nn.Conv2d(self.feat_dim * 2, 21 * 3, kernel_size=1)
-            self.rle_loss_func = RLELoss(dim=3,flow_model_pretrain_path=flow_model_pretrain)
+
+        self.sigma_conv = nn.Conv2d(self.feat_dim, 21 * 3, kernel_size=1)
+        self.rle_loss_func = RLELoss(dim=3,flow_model_pretrain_path=flow_model_pretrain)
         self.enhance_lefthand = enhance_lefthand
-        self.out_list = dict()
+        self.enhance_static = enhance_static
+        self.static_data_date_list = ['20240516','20240517','20240518']
+        
+        for param in self.liftnet.parameters():
+            param.requires_grad = False
+        for param in self.sigma_conv.parameters():
+            param.requires_grad = False
+        for param in self.rle_loss_func.parameters():
+            param.requires_grad = False
+        # self.out_list = dict()
         
         if self.predict_local_guest:
             self.l1_loss_func = L1Loss( use_target_weight=True, loss_weight=1.,)
@@ -120,7 +123,7 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
         output = self.last_layer(feat_mix)
         shape, rot, svd_pt = self.simple_feature_layer(output, feats[:, -1, 0,
                                                                      0])
-        score = self.sigma_conv(feat_mix).sigmoid().mean().reshape(shape.shape)
+        score = self.sigma_conv(out_feats).sigmoid().mean().reshape(shape.shape)
         return shape, rot, svd_pt, mems, score
 
     def forward(self,
@@ -128,23 +131,21 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
                 mems=None,
                 seq_len: int = 1) -> Tensor:
         feats = self.liftnet(feats)
+        sigma = self.sigma_conv(feats)
+        
         B = int(feats.shape[0] / seq_len)
+        sigmas = sigma.reshape(B, seq_len, 21, 3)
         if mems is None:
             mems = torch.zeros(B, 2 * self.channel_num, 1, 1).cuda()
         feats = feats.view(B, seq_len, -1)
         outputs = torch.zeros((B, seq_len, self.output_num, 1, 1)).cuda()
-        sigmas = torch.zeros((B, seq_len, 21 * 3, 1, 1)).cuda()
         for i in range(seq_len):
             feat = feats[:, i:i + 1, :].reshape(B, -1, 1, 1)
             feat_mix = torch.cat([feat, mems], dim=1)
             mems = self.temporal(feat_mix)
             output = self.last_layer(feat_mix)
-            if self.use_rle_loss:
-                sigma = self.sigma_conv(feat_mix)
-                sigmas[:, i, ...] = sigma
             outputs[:, i, ...] = output
         # outputs = outputs.reshape(B * seq_len, -1, 1, 1)
-        # sigmas = sigmas.reshape(B * seq_len, 21, 3)
         return outputs, mems, sigmas
 
     def predict(self,
@@ -159,6 +160,7 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
 
         B = output.shape[0]
         output = output.reshape(B, -1, 1, 1)
+        sigma = sigma.reshape(-1, 21, 3)
         
         hand3d_pred = self.postprocess(
             output,
@@ -177,7 +179,6 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
         #         "kpt3d": hand3d_pred_sin.detach().cpu().numpy(),
         #     }
         # np.save("pre_predict_0516.npy", self.out_list)
-        
         
         if self.reproj:
             camera_model = batch_data_samples[0].meta['ori_camera']
@@ -199,12 +200,11 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
         with torch.no_grad():
             data = self.preprocess(feats, batch_data_samples, 'loss')
         
-        output, mems, sigma = self.forward(data['feats'], None, self.seq_len)
+        output, mems, _ = self.forward(data['feats'], None, self.seq_len)
 
         B = output.shape[0]
         valid_frame = self.seq_len - self.predict_frame
         output = output[:,:valid_frame,...].reshape(B * valid_frame, -1, 1, 1)
-        sigma = sigma[:,:valid_frame,...].reshape(B * valid_frame, 21, 3)
         
         predict_used_index = []
         curent_used_index = []
@@ -331,12 +331,11 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
         else:
             loss_all_predcit = torch.tensor(0.0, device=loss_root_predict.device)
             
-
         if self.use_shape_smooth:
-            pre_shape_reshape = pre_shape.reshape(-1, self.seq_len)
+            pre_shape_reshape = pre_shape.reshape(-1, valid_frame)
             mean_shape = torch.mean(
                 pre_shape_reshape,
-                dim=-1).unsqueeze(-1).repeat(1, self.seq_len)
+                dim=-1).unsqueeze(-1).repeat(1, valid_frame)
             smooth_shape_loss = self.shape_loss_func(pre_shape_reshape,
                                                      mean_shape)
         else:
@@ -389,13 +388,6 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
         mh = MessageHub.get_current_instance()
         cur_epoch = mh.get_info('epoch')
 
-        if self.use_rle_loss and cur_epoch > 20:
-            re_sigma = torch.cat((hand3d_pred, sigma), dim=-1)
-            loss_rle = self.rle_loss_func(re_sigma, hand3d_gt_predict)
-        else:
-            loss_rle = torch.tensor(
-                0.0, device=loss_root_predict.device)
-
         losses_dict = dict(
             loss_pre_root=loss_root_predict,
             loss_pre_nimble=loss_local_curent,
@@ -406,8 +398,7 @@ class TemporalLiftNimbleHeadStandardPredict(LiftNimbleHeadStandard):
             loss_nimble_trans=loss_nimble_trans,
             smooth_shape_loss=smooth_shape_loss,
             loss_root_smooth=loss_root_smooth,
-            loss_local_smooth=loss_local_smooth,
-            loss_rle=loss_rle)
+            loss_local_smooth=loss_local_smooth)
 
         return losses_dict
 
