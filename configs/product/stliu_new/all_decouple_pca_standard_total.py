@@ -338,6 +338,7 @@ val_evaluator = [
         openhand_metric=True,
         pinch_hard_metric=True,
         category_metric=True,
+        score_metric=True,
         # bmk_save_root='/data/stliu/mmpose_new/mmpose/work_dirs/result_20231203/bad_case',
         # show_bmk_thr=(50, 10000000),
         filter_exceed=filter_exceed),  #bad case mpjpe thr (mm)
