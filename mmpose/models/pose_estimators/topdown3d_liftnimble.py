@@ -495,7 +495,7 @@ class TopdownPoseLiftNimbleEstimatorSeq(TopdownPoseLiftNimbleEstimator):
 
             data_sample.pred_instances = pred_instances
         return batch_data_samples
-    
+
 
 @MODELS.register_module()
 class TopdownPoseLiftNimbleEstimatorSeqPredict(TopdownPoseLiftNimbleEstimator):
@@ -511,7 +511,7 @@ class TopdownPoseLiftNimbleEstimatorSeqPredict(TopdownPoseLiftNimbleEstimator):
                  init_cfg: OptMultiConfig = None,
                  metainfo: Optional[dict] = None,
                  seq_len: int = 128,
-                 predict_frame: int =1 ):
+                 predict_frame: int = 1):
         super().__init__(backbone, neck, head, kpt3d_lift, train_cfg, test_cfg,
                          data_preprocessor, init_cfg, metainfo)
         self.seq_len = seq_len
@@ -612,10 +612,168 @@ class TopdownPoseLiftNimbleEstimatorSeqPredict(TopdownPoseLiftNimbleEstimator):
         for i in range(clip_num):
             final_pred_instances += batch_pred_instances[i::clip_num]
         total_num = len(final_pred_instances)
-        new_final_pred_instances = final_pred_instances[:(total_num-self.predict_frame)]
+        new_final_pred_instances = final_pred_instances[:(total_num -
+                                                          self.predict_frame)]
 
-        results = self.add_pred_to_datasample(new_final_pred_instances, None,
-                                              data_samples[2*self.predict_frame:])
+        results = self.add_pred_to_datasample(
+            new_final_pred_instances, None,
+            data_samples[2 * self.predict_frame:])
+        return results
+
+    def add_pred_to_datasample(self, batch_pred_instances: InstanceList,
+                               batch_pred_fields: Optional[PixelDataList],
+                               batch_data_samples_seq: SampleList
+                               ) -> SampleList:
+
+        batch_data_samples = batch_data_samples_seq[::2]
+        assert len(batch_pred_instances) == len(batch_data_samples)
+        if batch_pred_fields is None:
+            batch_pred_fields = []
+
+        for pred_instances, pred_fields, data_sample in zip_longest(
+                batch_pred_instances, batch_pred_fields, batch_data_samples):
+
+            pred_instances.keypoints3d = pred_instances.keypoints3d.cpu(
+            ).numpy()
+            pred_instances.keypoints = pred_instances.keypoints.cpu().numpy()
+            pred_instances.keypoint_scores = np.ones(
+                (1, pred_instances.keypoints.shape[1]))
+
+            data_sample.pred_instances = pred_instances
+        return batch_data_samples
+
+
+@MODELS.register_module()
+class TopdownPoseLiftNimbleEstimatorSeqPredictSmoothNet(
+        TopdownPoseLiftNimbleEstimator):
+
+    def __init__(self,
+                 backbone: ConfigType,
+                 neck: OptConfigType = None,
+                 head: OptConfigType = None,
+                 kpt3d_lift: OptConfigType = None,
+                 train_cfg: OptConfigType = None,
+                 test_cfg: OptConfigType = None,
+                 data_preprocessor: OptConfigType = None,
+                 init_cfg: OptMultiConfig = None,
+                 metainfo: Optional[dict] = None,
+                 seq_len: int = 128,
+                 predict_frame: int = 1,
+                 history_window_len: int = 4):
+        super().__init__(backbone, neck, head, kpt3d_lift, train_cfg, test_cfg,
+                         data_preprocessor, init_cfg, metainfo)
+        self.seq_len = seq_len
+        self.predict_frame = predict_frame
+        self.history_window_len = history_window_len
+
+    def forward(self,
+                inputs: torch.Tensor,
+                data_samples: Optional[OptSampleList] = None,
+                mode: str = 'tensor') -> ForwardResults:
+        if isinstance(inputs, list):
+            inputs = torch.stack(inputs)
+        if mode == 'loss':
+            return self.loss(inputs, data_samples)
+        elif mode == 'predict':
+            # use customed metainfo to override the default metainfo
+            if self.metainfo is not None:
+                for data_sample in data_samples:
+                    data_sample.set_metainfo(self.metainfo)
+            return self.predict(inputs, data_samples)
+        elif mode == 'tensor':
+            logger: MMLogger = MMLogger.get_current_instance()
+            logger.warning(
+                'topdown3d lift only support output 2d kpt for tensor mode')
+            return self._forward(inputs)
+        else:
+            raise RuntimeError(f'Invalid mode "{mode}". '
+                               'Only supports loss, predict and tensor mode.')
+
+    @format_data
+    def predict(self, inputs: Tensor, data_samples: SampleList) -> SampleList:
+        """Predict results from a batch of inputs and data samples with post-
+        processing.
+
+        Args:
+            inputs (Tensor): Inputs with shape (N, C, H, W)
+            data_samples (List[:obj:`PoseDataSample`]): The batch
+                data samples
+
+        Returns:
+            list[:obj:`PoseDataSample`]: The pose estimation results of the
+            input images. The return value is `PoseDataSample` instances with
+            ``pred_instances`` and ``pred_fields``(optional) field , and
+            ``pred_instances`` usually contains the following keys:
+
+                - keypoints (Tensor): predicted keypoint coordinates in shape
+                    (num_instances, K, D) where K is the keypoint number and D
+                    is the keypoint dimension
+                - keypoint_scores (Tensor): predicted keypoint scores in shape
+                    (num_instances, K)
+        """
+        assert self.with_head, (
+            'The model must have head to perform prediction.')
+
+        if self.test_cfg.get('flip_test', False):
+            _feats = self.extract_feat(inputs)
+            _feats_flip = self.extract_feat(inputs.flip(-1))
+            feats = [_feats, _feats_flip]
+        else:
+            feats = self.extract_feat(inputs)
+            outputs = self.head.forward(feats)
+            xy_sigma, heatmap = outputs[:2]
+            if self.kpt2d_with_depth:
+                depth = outputs[2]
+                depth = (depth - 0.5) * 0.4  # 0.4 is the depth bound
+                xy_sigma = torch.cat([xy_sigma, depth], dim=-1)
+        batch_pred_instances = []
+        mem = None
+        assert inputs.shape[
+            0] // 2 % self.seq_len == 0, \
+            f'batch size {inputs.shape[0]//2} can be divided by {self.seq_len}'
+        clip_len = self.seq_len * 2
+        clip_num = inputs.shape[0] // clip_len
+        N = xy_sigma.shape[-2]
+        K = xy_sigma.shape[-1]
+        xy_sigma_input = xy_sigma.reshape(clip_num, clip_len, N, K)
+        history_feats = torch.zeros((1, 193, self.history_window_len)).cuda()
+        for b in range(self.seq_len):
+            sub_xy_input = xy_sigma_input[:, 2 * b:2 * b +
+                                          2, :].reshape(-1, N, K)
+            data_sample_id_list = [[
+                2 * b + clip_id * clip_len, 2 * b + 1 + clip_id * clip_len
+            ] for clip_id in range(clip_num)]
+            data_sample_id_list = list(
+                chain.from_iterable(data_sample_id_list))
+            pred, pred_bino_kp2d, mem, sigma, raw_feats = self.kpt3d_lift.predict(
+                sub_xy_input,
+                history_feats, [data_samples[i] for i in data_sample_id_list],
+                mem,
+                test_cfg=self.test_cfg)
+
+            tmp = history_feats.clone()
+            history_feats[:, :, :-1] = tmp[:, :, 1:]
+            history_feats[:, :, -1:] = raw_feats[:, :, :].permute(0, 2, 1)
+
+            for b in range(pred.shape[0]):
+                keypoints = pred_bino_kp2d[b:b + 1, 0, ...]  # gt为左目信息
+                batch_pred_instances.append(
+                    InstanceData(
+                        keypoints3d=pred[b:b + 1, ...],
+                        keypoints3d_scores=sigma[b:b + 1, ...].mean(-1),
+                        keypoints=keypoints,
+                        keypoint_scores=torch.ones((1, 21)),
+                    ))
+        final_pred_instances = []
+        for i in range(clip_num):
+            final_pred_instances += batch_pred_instances[i::clip_num]
+        total_num = len(final_pred_instances)
+        new_final_pred_instances = final_pred_instances[:(total_num -
+                                                          self.predict_frame)]
+
+        results = self.add_pred_to_datasample(
+            new_final_pred_instances, None,
+            data_samples[2 * self.predict_frame:])
         return results
 
     def add_pred_to_datasample(self, batch_pred_instances: InstanceList,
