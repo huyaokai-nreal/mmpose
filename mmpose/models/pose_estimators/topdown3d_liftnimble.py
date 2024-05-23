@@ -234,7 +234,7 @@ class TopdownPoseLiftNimbleEstimator(BaseModel):
         if len(pre_info) == 4:
             pred, pred_bino_kp2d, parent_matrix, child_vector = pre_info
         else:
-            pred, pred_bino_kp2d = pre_info
+            pred, pred_bino_kp2d, sigmas = pre_info
             parent_matrix, child_vector = None, None
 
         if 'nimble_pose' in data_samples[0].meta and parent_matrix is not None:
@@ -249,7 +249,7 @@ class TopdownPoseLiftNimbleEstimator(BaseModel):
                 batch_pred_instances.append(
                     InstanceData(
                         keypoints3d=pred[b:b + 1, ...],
-                        keypoints3d_scores=torch.ones((1, 21)),
+                        keypoints3d_scores=sigmas[b:b + 1, ...],
                         keypoints=keypoints,
                         keypoint_scores=torch.ones((1, 21)),
                         keypoint_euler=pre_euler.unsqueeze(0),
@@ -261,7 +261,7 @@ class TopdownPoseLiftNimbleEstimator(BaseModel):
                 batch_pred_instances.append(
                     InstanceData(
                         keypoints3d=pred[b:b + 1, ...],
-                        keypoints3d_scores=torch.ones((1, 21)),
+                        keypoints3d_scores=sigmas[b:b + 1, ...],
                         keypoints=keypoints,
                         keypoint_scores=torch.ones((1, 21)),
                     ))
@@ -284,8 +284,8 @@ class TopdownPoseLiftNimbleEstimator(BaseModel):
                 batch_pred_instances, batch_pred_fields, batch_data_samples):
             pred_instances.keypoints3d = pred_instances.keypoints3d.cpu(
             ).numpy()
-            pred_instances.keypoints3d_scores = np.ones(
-                (1, pred_instances.keypoints3d.shape[1]))
+            pred_instances.keypoints3d_scores = \
+                pred_instances.keypoints3d_scores.cpu().numpy()
             pred_instances.keypoints = pred_instances.keypoints.cpu().numpy()
             pred_instances.keypoints = np.concatenate(
                 (pred_instances.keypoints, pred_instances.keypoints3d[...,
@@ -351,8 +351,10 @@ class TopdownPoseLiftNimbleEstimator(BaseModel):
         super().train(mode)
         if mode:
             self.backbone.eval()
-            self.neck.eval()
-            self.head.eval()
+            if self.with_neck:
+                self.neck.eval()
+            if self.with_head:
+                self.head.eval()
 
 
 @MODELS.register_module()
