@@ -489,6 +489,8 @@ class TopdownPoseLiftNimbleEstimatorSeq(TopdownPoseLiftNimbleEstimator):
 
             pred_instances.keypoints3d = pred_instances.keypoints3d.cpu(
             ).numpy()
+            pred_instances.keypoints3d_scores = pred_instances.keypoints3d_scores.cpu(
+            ).numpy()
             pred_instances.keypoints = pred_instances.keypoints.cpu().numpy()
             pred_instances.keypoint_scores = np.ones(
                 (1, pred_instances.keypoints.shape[1]))
@@ -604,7 +606,7 @@ class TopdownPoseLiftNimbleEstimatorSeqPredict(TopdownPoseLiftNimbleEstimator):
                 batch_pred_instances.append(
                     InstanceData(
                         keypoints3d=pred[b:b + 1, ...],
-                        keypoints3d_scores=sigma[b:b + 1, ...].mean(-1),
+                        keypoints3d_scores=sigma[b:b + 1, ...],
                         keypoints=keypoints,
                         keypoint_scores=torch.ones((1, 21)),
                     ))

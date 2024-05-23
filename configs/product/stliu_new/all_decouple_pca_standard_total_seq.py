@@ -70,7 +70,7 @@ codec = dict(
 
 pinch_thre = [20, 40]  # pinch双阈值，单位：mm
 kpt2d_with_depth = False  # liftnet 是否使用2.5d的深度信息
-pretrained_path = "/data/stliu/mmpose_simliar_wx10/work_dirs/new_dataset/lift_reg9d_rleloss_twice_0430/best_all_mpjpe_epoch_45.pth"
+pretrained_path = "/data/stliu/mmpose_simliar_wx10/work_dirs/new_dataset/score_liftnimble_reg9d/best_all_mpjpe_epoch_90.pth"
 
 # model settings
 backbone_out_channels = [64, 96, 128, 160]
@@ -126,7 +126,7 @@ model = dict(
                     enter_thre=pinch_thre[0] / 1000,
                     exit_thre=pinch_thre[1] / 1000,
                     loss_weight=15,
-                    enable_start_epoch=0),
+                    enable_start_epoch=train_cfg['max_epochs'] - 30),
                 dict(type='MSELoss', loss_weight=20),  # nimble trans直接监督
                 dict(
                     type='MPJPAELoss',
@@ -298,6 +298,7 @@ val_evaluator = [
     dict(
         type='MPJPEV2',
         mode=['mpjpe', 'p-mpjpe'],
+        score_metric=True,
         # gesture_list=gesture_list,
         rearrange_result=True,
         result_dir='.'),
