@@ -10,7 +10,7 @@ train_cfg = dict(max_epochs=15, val_interval=1)
 # data_root = '/data/AI_DATA'
 data_root = '/data/AI_DATA_WX'
 # data_root = '/data/AI_DATA_LOCAL'
-seq_length = 8
+seq_length = 16
 
 # optimizer
 optim_wrapper = dict(
@@ -68,72 +68,81 @@ codec = dict(
 pinch_thre = [20, 40]  # pinch双阈值，单位：mm
 predict_frame = 1
 kpt2d_with_depth = False  # liftnet 是否使用2.5d的深度信息
-pretrained_path = "/data/stliu/mmpose_simliar_wx10/work_dirs/new_dataset/lift_reg9d_rleloss_seq_twostage_two_adddata_weight30/best_all_mpjpe_epoch_1.pth"
-
+standard_stereo = True  # 是否转换标准双目
 # model settings
-backbone_out_channels = [64, 96, 128, 160]
+backbone_out_channels = [32, 64, 128, 256]
 model = dict(
     type='TopdownPoseLiftNimbleEstimatorSeqPredict',
     data_preprocessor=dict(
         type='PoseDataPreprocessor', mean=[0.449 * 255], std=[0.226 * 255]),
     backbone=dict(
         type='ResNet',
-        depth=26,
+        depth='26s',
         in_channels=1,
-        stem_channels=64,
+        stem_channels=32,
         base_channels=32,
         expansion=1,
-        out_indices=(0, 1, 2, 3),
+        out_indices=(3, ),
+        strides=(1, 2, 2, 1),
         zero_init_residual=False,
         bias_in_conv=False,
         out_channels=backbone_out_channels),
-    neck=dict(
-        type='FPN',
-        in_channels=backbone_out_channels,
-        out_channels=192,
-        num_outs=4,
-        upsample_cfg=dict(mode='bilinear', align_corners=True),
-        upsample_style='rsn',
-        norm_cfg=dict(type='BN'),
-        reverse_output=True,
-        apply_fpn_conv=False),
     head=dict(
-        type='DSNTHead',
-        in_channels=192,
-        deconv_out_channels=(),
-        feat_norm_type='softmax',
-        in_featuremap_size=(32, 32),
-        num_joints=21,
-        output_depth=True,
-        decoder=codec,
-        deploy=False,
-        output_sigma=False),
+        type='RTMCCIPRHead3D',
+        in_channels=256,
+        out_channels=21,
+        input_size=(128, 128, 128),
+        in_featuremap_size=(8, 8),
+        simcc_split_ratio=2,
+        final_layer_kernel_size=3,
+        deploy_output='feat',
+        output_sigma=False,
+        with_gau=False,
+        gau_cfg=dict(
+            hidden_dims=128,
+            s=128,
+            expansion_factor=2,
+            dropout_rate=0.,
+            drop_path=0.,
+            act_fn='ReLU',
+            use_rel_bias=False,
+            pos_enc=False),
+        loss=dict(
+            type='MultipleLossWrapper',
+            losses=[
+                dict(type='L1Loss', use_target_weight=False),
+                dict(type='L1Loss', use_target_weight=False),
+            ]),
+        decoder=codec),
     kpt3d_lift=dict(
         type='TemporalLiftNimbleHeadStandardPredict',
         lift_loss=dict(
             type='MultipleLossWrapper',
             losses=[
                 dict(type='L1Loss', use_target_weight=True,
-                     loss_weight=1.5),  # 3d kpts
+                     loss_weight=2),  # 3d kpts
                 dict(type='L1Loss', use_target_weight=True,
-                     loss_weight=1.8),  # 3d kpts leftcam
+                     loss_weight=2),  # 3d kpts leftcam
                 dict(
                     type='PinchLoss',
                     enter_thre=pinch_thre[0] / 1000,
                     exit_thre=pinch_thre[1] / 1000,
                     loss_weight=18,
-                    enable_start_epoch=0),
+                    enable_start_epoch=train_cfg['max_epochs'] - 5),
                 dict(type='MSELoss', loss_weight=100),  # nimble trans直接监督
                 dict(
                     type='MPJPAELoss',
-                    seq_length=seq_length-predict_frame,
-                    loss_weight=1,
+                    seq_length=seq_length - predict_frame,
+                    loss_weight=0.6,
                 ),
                 dict(
                     type='MPJPAELoss',
-                    seq_length=seq_length-predict_frame,
-                    loss_weight=1,
-                )
+                    seq_length=seq_length - predict_frame,
+                    loss_weight=0.6,
+                ),
+                dict(type='RLELoss',
+                    dim=3,
+                    enable_start_epoch=train_cfg['max_epochs']//2)
             ]),
         seq_len=seq_length,
         all_use_kp2d_gt=False,
@@ -142,29 +151,27 @@ model = dict(
         use_svd=True,
         lambda_t=train_cfg['max_epochs'],
         pose_ncomp=30,
-        euler_or_quaternion='euler',
         baseline=0.135,
         use_6d_pose_reg=False,
         use_9d_pose_reg=True,
-        use_rle_loss=True,
-        use_shape_smooth=False,
+        use_shape_smooth=True,
         reproj_thre=440,
         iou_thre=0.5,
         pad_2d=0,
         predict_frame=predict_frame,
-        flow_model_pretrain="",
-        predict_local_guest=True
-    ),
+        smooth_window_len=8,
+        predict_way="SmoothNet",   # SmoothNet / RNN
+        fix_sigma_pars=False),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
         shift_heatmap=False,
     ),
     init_cfg=dict(
-        type='Pretrained',
-        checkpoint=pretrained_path
-    ),
+        type='Pretrained', 
+        checkpoint="/data/stliu/mmpose_simliar_wx10/work_dirs/new_dataset/lift_reg9d_rleloss_seq_twostage_two_adddata_weight30/best_all_mpjpe_epoch_1.pth"),
     predict_frame=predict_frame,
+    history_window_len=seq_length,
 )
 
 # base dataset settings
@@ -201,6 +208,9 @@ val_data_list = [
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073556__pinch__bright__left__1111__0005__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073857__pinch__normal__right__1111__0005__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_074601__pinch__bright__left__1111__0005__undistort_tar__Flora301.json',
+
+    # '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/fit3d_seqsmooth_auto__binocular_coco/XS__20240516_070512__all__normal__left__1101__0007__undistort_tar__Flora301.json',
+    # '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/fit3d_seqsmooth_auto__binocular_coco/XS__20240516_065421__all__normal__right__1101__0007__undistort_tar__Flora301.json',
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # pipelines
@@ -244,7 +254,7 @@ val_pipeline = [
 # data loaders
 train_dataloader = dict(
     batch_size=32,
-    num_workers=8,
+    num_workers=4,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
     collate_fn=dict(type='default_collate'),
@@ -264,7 +274,7 @@ train_dataloader = dict(
 )
 val_dataloader = dict(
     batch_size=128,
-    num_workers=8,
+    num_workers=4,
     persistent_workers=True,
     drop_last=True,
     sampler=dict(
@@ -316,7 +326,6 @@ find_unused_parameters = True
 # visualizer
 vis_backends = [
     dict(type='LocalVisBackend'),
-    # this will slow the training process ???
     dict(type='TensorboardVisBackend')
 ]
 

@@ -5,11 +5,12 @@ import os
 
 _base_ = ['../../_base_/default_runtime.py']
 
-train_cfg = dict(max_epochs=100, val_interval=5)
+train_cfg = dict(max_epochs=15, val_interval=1)
 
 # data_root = '/data/AI_DATA'
 data_root = '/data/AI_DATA_WX'
 # data_root = '/data/AI_DATA_LOCAL'
+seq_length = 16
 
 # optimizer
 optim_wrapper = dict(
@@ -64,13 +65,14 @@ codec = dict(
     blur_kernel_size=5,
 )
 
-pinch_thre = [15, 35]  # pinch双阈值，单位：mm
+pinch_thre = [20, 40]  # pinch双阈值，单位：mm
+predict_frame = 1
 kpt2d_with_depth = False  # liftnet 是否使用2.5d的深度信息
 standard_stereo = True  # 是否转换标准双目
 # model settings
 backbone_out_channels = [64, 96, 128, 160]
 model = dict(
-    type='TopdownPoseLiftNimbleEstimator',
+    type='TopdownPoseLiftNimbleEstimatorSeqPredict',
     data_preprocessor=dict(
         type='PoseDataPreprocessor', mean=[0.449 * 255], std=[0.226 * 255]),
     backbone=dict(
@@ -106,83 +108,67 @@ model = dict(
         deploy=False,
         output_sigma=False),
     kpt3d_lift=dict(
-        type='LiftNimbleHeadStandard',
+        type='TemporalLiftNimbleHeadStandardPredict',
         lift_loss=dict(
             type='MultipleLossWrapper',
             losses=[
                 dict(type='L1Loss', use_target_weight=True,
-                     loss_weight=1),  # 3d kpts
+                     loss_weight=2),  # 3d kpts
                 dict(type='L1Loss', use_target_weight=True,
-                     loss_weight=1),  # 3d kpts leftcam
-                dict(type='L1Loss', use_target_weight=True,
-                     loss_weight=1),  # 3d kpts rightcam
-                dict(
-                    type='MSELoss',
-                    loss_weight=0,
-                    enable_start_epoch=train_cfg['max_epochs'] -
-                    40),  # 2d reprojection left
-                dict(
-                    type='MSELoss',
-                    loss_weight=0,
-                    enable_start_epoch=train_cfg['max_epochs'] -
-                    40),  # 2d reprojection right
+                     loss_weight=2),  # 3d kpts leftcam
                 dict(
                     type='PinchLoss',
                     enter_thre=pinch_thre[0] / 1000,
                     exit_thre=pinch_thre[1] / 1000,
-                    loss_weight=3,
-                    enable_start_epoch=train_cfg['max_epochs'] -
-                    20),  # 后20 epoch打开pinch loss
+                    loss_weight=18,
+                    enable_start_epoch=train_cfg['max_epochs'] - 5),
+                dict(type='MSELoss', loss_weight=100),  # nimble trans直接监督
                 dict(
-                    type='L1Loss',
-                    loss_weight=0,
-                    enable_start_epoch=train_cfg['max_epochs'] -
-                    40),  # xyz比例损失
+                    type='MPJPAELoss',
+                    seq_length=seq_length - predict_frame,
+                    loss_weight=0.6,
+                ),
                 dict(
-                    type='MSELoss',
-                    loss_weight=0,
-                    enable_start_epoch=train_cfg['max_epochs'] -
-                    40),  # nimble pose直接监督
-                dict(type='MSELoss', loss_weight=5),  # nimble trans直接监督
+                    type='MPJPAELoss',
+                    seq_length=seq_length - predict_frame,
+                    loss_weight=0.6,
+                ),
+                dict(type='RLELoss',
+                    dim=3,
+                    enable_start_epoch=train_cfg['max_epochs']//2)
             ]),
+        seq_len=seq_length,
         all_use_kp2d_gt=False,
         kpt2d_with_depth=kpt2d_with_depth,
         undistort=True,
         use_svd=True,
         lambda_t=train_cfg['max_epochs'],
         pose_ncomp=30,
-        euler_or_quaternion='euler',
         baseline=0.135,
         use_6d_pose_reg=False,
         use_9d_pose_reg=True,
-        use_pose_loss=False,
-        use_rle_loss=True,
-        direct_pose_reg=False,
+        use_shape_smooth=True,
         reproj_thre=440,
         iou_thre=0.5,
-        pad_2d=0),
+        pad_2d=0,
+        predict_frame=predict_frame,
+        smooth_window_len=8,
+        predict_way="SmoothNet",   # SmoothNet / RNN
+        fix_sigma_pars=False
+    ),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
         shift_heatmap=False,
     ),
-    init_cfg=dict(
-        type='Pretrained',
-        checkpoint=
-        # '/home/zx_li/workspace/mmpose/work_dirs/td-hand_res26_fpn_sk_weightdata_4xb64-50e_0919data-128x128/epoch_50.pth'
-        # '/data/AI_DATA/data_hand/model/mmpose/td-hand_res26_fpn_skpre_flow_wd_ipr_rle_weightdata_0919_4xb64-50e-128x128/epoch_50.pth'  # ella kp2d
-        # '/home/jrchen/git-project/mmpose/work_dirs/pair_hand3d/003_td-stage_two_train_55dim_l1/epoch_60_new.pth'
-        # '/home/jrchen/git-project/mmpose/work_dirs/hand_2d_keypoint/td-hand_res26_fpn_skpre_flow_wd_ipr_rle_weightdata_0919_4xb64-50e-128x128_pretrainmodel/epoch_30_FT.pth'
-        #f'/data/AI_DATA/jrchen/git-project/mmpose/work_dirs/pair_hand3d/006_td-stage_two_train_55dim_RLE_head_train_flora_finetune/FT_kp2d_add_ella_pretrain_lift.pth'  # flora kp2d + ella kp3d
-        # '/home/zx_li/workspace/mmpose/work_dirs/td-hand_rsn26_fpn_25d_ipr_right_pcl_2d3d_4x128-100e-128x128/epoch_100.pth',
-        # 'work_dirs/keypoint25d/01_td-hand_rsn26_fpn_25d_ipr_right_pcl_2d3d_4x128-100e-128x128_Affine/best_all_p-mpjpe_epoch_90.pth'
-        # '/data/AI_DATA/data_hand/model/mmpose/td-hand_rsn26_fpn_25d_scale_ipr_right_2d3d_1031data_simu_4x128-100e-128x128/epoch_100.pth'
-        '/data/AI_DATA/data_hand/model/mmpose/td-hand_rsn26_fpn_25d_scale_ipr_right_2d3d_handmix_aug_240229data_4x128-100e-128x128/epoch_100.pth'
-    ),
+    init_cfg=dict(type='Pretrained', 
+                  checkpoint="/data/stliu/mmpose_simliar_wx10/work_dirs/new_dataset/lift_reg9d_rleloss_seq_twostage_two_adddata_weight30/best_all_mpjpe_epoch_1.pth"),
+    predict_frame=predict_frame,
+    history_window_len=seq_length,
 )
 
 # base dataset settings
-dataset_type = 'PairHand3DDataset'
+dataset_type = 'PairHand3DDatasetSeq'
 data_mode = 'topdown'
 
 train_data_list = []
@@ -202,9 +188,7 @@ train_data_list += [
 
 # train_data_list = [train_data_sin for train_data_sin in train_data_list if '__20240220_' in train_data_sin and ('Flora302' in train_data_sin or 'Flora303' in train_data_sin)]
 # train_data_list = [train_data_sin for train_data_sin in train_data_list if '__20230824_' in train_data_sin]
-# train_data_list = [
-#     '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_060805__all__normal__left__1111__0006__undistort_tar__Flora301.json'
-# ]
+# train_data_list = ['/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240229_082652__pinch__normal__left__1110__0010__undistort_tar__Flora301.json']
 
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
@@ -218,30 +202,16 @@ val_data_list = [
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073857__pinch__normal__right__1111__0005__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_074601__pinch__bright__left__1111__0005__undistort_tar__Flora301.json',
 
-    # 'data_hand/hand_keypoint/annotations3d/manual_fix_kpt/XS__20240229_083647__pinch__normal__right__1110__0025__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/manual_fix_kpt/XS__20240229_083322__pinch__normal__left__1110__0025__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/manual_fix_kpt/XS__20240229_083322__pinch__normal__left__1110__0025__undistort_tar__Flora302.json',
-    # 'data_hand/hand_keypoint/annotations3d/manual_fix_kpt/XS__20240229_083647__pinch__normal__right__1110__0025__undistort_tar__Flora302.json',
-    # 'data_hand/hand_keypoint/annotations3d/manual_fix_kpt/XS__20240229_083322__pinch__normal__left__1110__0025__undistort_tar__Flora303.json',
-    # 'data_hand/hand_keypoint/annotations3d/manual_fix_kpt/XS__20240229_083647__pinch__normal__right__1110__0025__undistort_tar__Flora303.json',
-
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230904_093420__all__dark__left__1111__0021__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230904_094228__pinch__dark__left__1111__0021__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230904_094637__pinch__bright__left__1111__0021__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230904_094851__pinch__bright__left__1111__0021__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230904_095839__all__bright__right__1111__0021__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230904_100545__pinch__normal__right__1111__0021__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230904_100822__pinch__normal__right__1111__0021__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230904_101030__pinch__bright__right__1111__0021__undistort_tar__Flora301.json'
+    # '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/fit3d_seqsmooth_auto__binocular_coco/XS__20240516_070512__all__normal__left__1101__0007__undistort_tar__Flora301.json',
+    # '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/fit3d_seqsmooth_auto__binocular_coco/XS__20240516_065421__all__normal__right__1101__0007__undistort_tar__Flora301.json',
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # pipelines
 train_pipeline = [
-    # dict(
-    #     type='RandomStereoParamAug',
-    #     prob=0.5,
-    #     baseline_range=[-0.005, 0.005],
-    #     y_angle_range=[-3, 3]),
+    dict(
+        type='RandomStereoParamAug',
+        prob=0,
+    ),
     dict(
         type='Albumentation',
         transforms=[
@@ -276,8 +246,8 @@ val_pipeline = [
 
 # data loaders
 train_dataloader = dict(
-    batch_size=128,
-    num_workers=8,
+    batch_size=32,
+    num_workers=4,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
     collate_fn=dict(type='default_collate'),
@@ -290,28 +260,28 @@ train_dataloader = dict(
         dataset_weight_list=dataset_weight_list,
         data_root=data_root,
         flip_left_to_right=True,
-        filter_kpt_exceed=True,
-        standard_stereo=standard_stereo
+        seq_len=seq_length,
         # point_type='leftcam',
         # indices=1000,
     ),
 )
 val_dataloader = dict(
     batch_size=128,
-    num_workers=8,
+    num_workers=4,
     persistent_workers=True,
-    drop_last=False,
-    sampler=dict(type='DefaultSampler', shuffle=False, round_up=False),
+    drop_last=True,
+    sampler=dict(
+        type='DistributedRangeSampler', shuffle=False, round_up=False),
     collate_fn=dict(type='default_collate'),
     dataset=dict(
-        type=dataset_type,
+        type='PairHand3DDataset',
         data_file_list=val_data_list,
         data_mode=data_mode,
         test_mode=True,
         pipeline=val_pipeline,
         flip_left_to_right=True,
         data_root=data_root,
-        standard_stereo=standard_stereo
+        standard_stereo=True
         # point_type='leftcam'
     ),
 )
@@ -319,7 +289,7 @@ test_dataloader = val_dataloader
 
 # hooks
 default_hooks = dict(
-    checkpoint=dict(interval=5, save_best='all_mpjpe', rule='less'),
+    checkpoint=dict(interval=1, save_best='all_mpjpe', rule='less'),
     run_time_info=dict(type='RuntimeInfoHookV2'))
 
 # evaluators
@@ -331,20 +301,12 @@ filter_exceed = True
 val_evaluator = [
     dict(
         type='MPJPEV2',
-        mode='mpjpe',
+        mode=['mpjpe', 'p-mpjpe'],
         # gesture_list=gesture_list,
-        scale_metric=False,
-        fit_metric=False,
-        openhand_metric=True,
-        pinch_hard_metric=True,
-        category_metric=True,
-        score_metric=True,
-        # bmk_save_root='/data/stliu/mmpose_new/mmpose/work_dirs/result_20231203/bad_case',
-        # show_bmk_thr=(50, 10000000),
-        filter_exceed=filter_exceed),  #bad case mpjpe thr (mm)
-    dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
-    # dict(type='EPE',filter_exceed=filter_exceed),
-    # dict(type='NrealKeypointAP',filter_exceed=filter_exceed)
+        rearrange_result=True,
+        result_dir='.'),
+    dict(type='EPE'),
+    dict(type='NrealKeypointAP'),
 ]
 
 test_evaluator = val_evaluator
@@ -357,7 +319,6 @@ find_unused_parameters = True
 # visualizer
 vis_backends = [
     dict(type='LocalVisBackend'),
-    # this will slow the training process ???
     dict(type='TensorboardVisBackend')
 ]
 

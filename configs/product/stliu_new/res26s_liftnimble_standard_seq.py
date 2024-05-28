@@ -5,7 +5,7 @@ import os
 
 _base_ = ['../../_base_/default_runtime.py']
 
-train_cfg = dict(max_epochs=30, val_interval=3)
+train_cfg = dict(max_epochs=60, val_interval=3)
 
 # data_root = '/data/AI_DATA'
 data_root = '/data/AI_DATA_WX'
@@ -67,46 +67,52 @@ codec = dict(
 
 pinch_thre = [20, 40]  # pinch双阈值，单位：mm
 kpt2d_with_depth = False  # liftnet 是否使用2.5d的深度信息
-pretrained_path = "/data/stliu/mmpose_simliar_wx10/work_dirs/new_dataset/lift_reg9d_rleloss_seq_twostage_one/best_all_mpjpe_epoch_57.pth"
-
+standard_stereo = True  # 是否转换标准双目
 # model settings
-backbone_out_channels = [64, 96, 128, 160]
+backbone_out_channels = [32, 64, 128, 256]
 model = dict(
     type='TopdownPoseLiftNimbleEstimatorSeq',
     data_preprocessor=dict(
         type='PoseDataPreprocessor', mean=[0.449 * 255], std=[0.226 * 255]),
     backbone=dict(
         type='ResNet',
-        depth=26,
+        depth='26s',
         in_channels=1,
-        stem_channels=64,
+        stem_channels=32,
         base_channels=32,
         expansion=1,
-        out_indices=(0, 1, 2, 3),
+        out_indices=(3, ),
+        strides=(1, 2, 2, 1),
         zero_init_residual=False,
         bias_in_conv=False,
         out_channels=backbone_out_channels),
-    neck=dict(
-        type='FPN',
-        in_channels=backbone_out_channels,
-        out_channels=192,
-        num_outs=4,
-        upsample_cfg=dict(mode='bilinear', align_corners=True),
-        upsample_style='rsn',
-        norm_cfg=dict(type='BN'),
-        reverse_output=True,
-        apply_fpn_conv=False),
     head=dict(
-        type='DSNTHead',
-        in_channels=192,
-        deconv_out_channels=(),
-        feat_norm_type='softmax',
-        in_featuremap_size=(32, 32),
-        num_joints=21,
-        output_depth=True,
-        decoder=codec,
-        deploy=False,
-        output_sigma=False),
+        type='RTMCCIPRHead3D',
+        in_channels=256,
+        out_channels=21,
+        input_size=(128, 128, 128),
+        in_featuremap_size=(8, 8),
+        simcc_split_ratio=2,
+        final_layer_kernel_size=3,
+        deploy_output='feat',
+        output_sigma=False,
+        with_gau=False,
+        gau_cfg=dict(
+            hidden_dims=128,
+            s=128,
+            expansion_factor=2,
+            dropout_rate=0.,
+            drop_path=0.,
+            act_fn='ReLU',
+            use_rel_bias=False,
+            pos_enc=False),
+        loss=dict(
+            type='MultipleLossWrapper',
+            losses=[
+                dict(type='L1Loss', use_target_weight=False),
+                dict(type='L1Loss', use_target_weight=False),
+            ]),
+        decoder=codec),
     kpt3d_lift=dict(
         type='TemporalLiftNimbleHeadStandard',
         lift_loss=dict(
@@ -119,37 +125,19 @@ model = dict(
                 dict(type='L1Loss', use_target_weight=True,
                      loss_weight=1),  # 3d kpts rightcam
                 dict(
-                    type='MSELoss',
-                    loss_weight=0,
-                    enable_start_epoch=train_cfg['max_epochs'] -
-                    40),  # 2d reprojection left
-                dict(
-                    type='MSELoss',
-                    loss_weight=0,
-                    enable_start_epoch=train_cfg['max_epochs'] -
-                    40),  # 2d reprojection right
-                dict(
                     type='PinchLoss',
                     enter_thre=pinch_thre[0] / 1000,
                     exit_thre=pinch_thre[1] / 1000,
                     loss_weight=15,
-                    enable_start_epoch=0),
-                dict(
-                    type='L1Loss',
-                    loss_weight=0,
-                    enable_start_epoch=train_cfg['max_epochs'] -
-                    40),  # xyz比例损失
-                dict(
-                    type='MSELoss',
-                    loss_weight=0,
-                    enable_start_epoch=train_cfg['max_epochs'] -
-                    40),  # nimble pose直接监督
+                    enable_start_epoch=train_cfg['max_epochs']//2),
                 dict(type='MSELoss', loss_weight=20),  # nimble trans直接监督
                 dict(
                     type='MPJPAELoss',
                     seq_length=seq_length,
-                    loss_weight=1,
-                )
+                    loss_weight=1.5,),
+                dict(type='RLELoss',
+                    dim=3,
+                    enable_start_epoch=train_cfg['max_epochs']//2)
             ]),
         seq_len=4,
         all_use_kp2d_gt=False,
@@ -158,17 +146,14 @@ model = dict(
         use_svd=True,
         lambda_t=train_cfg['max_epochs'],
         pose_ncomp=30,
-        euler_or_quaternion='euler',
         baseline=0.135,
         use_6d_pose_reg=False,
         use_9d_pose_reg=True,
-        use_rle_loss=True,
-        use_shape_smooth=False,
+        use_shape_smooth=True,
         reproj_thre=440,
         iou_thre=0.5,
         pad_2d=0,
-        flow_model_pretrain="",
-    ),
+        fix_sigma_pars=False),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
@@ -176,7 +161,7 @@ model = dict(
     ),
     init_cfg=dict(
         type='Pretrained',
-        checkpoint=pretrained_path
+        checkpoint="/data/AI_DATA/data_hand/model/mmpose/all_decouple_pca_standard_total_res26s/epoch_100.pth"
     ),
 )
 
@@ -201,7 +186,7 @@ train_data_list += [
 
 # train_data_list = [train_data_sin for train_data_sin in train_data_list if '__20240220_' in train_data_sin and ('Flora302' in train_data_sin or 'Flora303' in train_data_sin)]
 # train_data_list = [train_data_sin for train_data_sin in train_data_list if '__20230824_' in train_data_sin]
-# train_data_list = ['/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_060805__all__normal__left__1111__0006__undistort_tar__Flora301.json',
+# train_data_list = ['/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_060805__all__normal__left__1111__0006__undistort_tar__Flora301.json',]
 #                    '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230828_072918__all__normal__right__1111__0017__undistort_tar__Flora301.json']
 
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
@@ -215,6 +200,9 @@ val_data_list = [
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073556__pinch__bright__left__1111__0005__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073857__pinch__normal__right__1111__0005__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_074601__pinch__bright__left__1111__0005__undistort_tar__Flora301.json',
+    
+    # '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/fit3d_seqsmooth_auto__binocular_coco/XS__20240516_070512__all__normal__left__1101__0007__undistort_tar__Flora301.json',
+    # '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/fit3d_seqsmooth_auto__binocular_coco/XS__20240516_065421__all__normal__right__1101__0007__undistort_tar__Flora301.json',
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # pipelines
@@ -313,6 +301,7 @@ val_evaluator = [
     dict(
         type='MPJPEV2',
         mode=['mpjpe', 'p-mpjpe'],
+        score_metric=True,
         # gesture_list=gesture_list,
         rearrange_result=True,
         result_dir='.'),

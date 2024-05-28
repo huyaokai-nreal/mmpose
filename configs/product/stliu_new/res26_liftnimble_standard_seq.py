@@ -5,12 +5,12 @@ import os
 
 _base_ = ['../../_base_/default_runtime.py']
 
-train_cfg = dict(max_epochs=15, val_interval=1)
+train_cfg = dict(max_epochs=60, val_interval=3)
 
 # data_root = '/data/AI_DATA'
 data_root = '/data/AI_DATA_WX'
 # data_root = '/data/AI_DATA_LOCAL'
-seq_length = 8
+seq_length = 4
 
 # optimizer
 optim_wrapper = dict(
@@ -22,9 +22,6 @@ optim_wrapper = dict(
             'backbone': dict(lr_mult=0.0, decay_mult=0.0),
             'head': dict(lr_mult=0.0, decay_mult=0.0),
             'neck': dict(lr_mult=0.0, decay_mult=0.0),
-            'kpt3d_lift.liftnet': dict(lr_mult=0.0, decay_mult=0.0),
-            'kpt3d_lift.sigma_conv': dict(lr_mult=0.0, decay_mult=0.0),
-            'kpt3d_lift.rle_loss_func': dict(lr_mult=0.0, decay_mult=0.0),
         }),
     # clip_grad=dict(max_norm=10, norm_type=2),
 )
@@ -69,14 +66,12 @@ codec = dict(
 )
 
 pinch_thre = [20, 40]  # pinch双阈值，单位：mm
-predict_frame = 1
 kpt2d_with_depth = False  # liftnet 是否使用2.5d的深度信息
-pretrained_path = "/data/stliu/mmpose_simliar_wx10/work_dirs/new_dataset/debug/epoch_1.pth"
-
+standard_stereo = True  # 是否转换标准双目
 # model settings
 backbone_out_channels = [64, 96, 128, 160]
 model = dict(
-    type='TopdownPoseLiftNimbleEstimatorSeqPredict',
+    type='TopdownPoseLiftNimbleEstimatorSeq',
     data_preprocessor=dict(
         type='PoseDataPreprocessor', mean=[0.449 * 255], std=[0.226 * 255]),
     backbone=dict(
@@ -112,33 +107,33 @@ model = dict(
         deploy=False,
         output_sigma=False),
     kpt3d_lift=dict(
-        type='TemporalLiftNimbleHeadStandardPredict',
+        type='TemporalLiftNimbleHeadStandard',
         lift_loss=dict(
             type='MultipleLossWrapper',
             losses=[
                 dict(type='L1Loss', use_target_weight=True,
-                     loss_weight=1.5),  # 3d kpts
+                     loss_weight=1),  # 3d kpts
                 dict(type='L1Loss', use_target_weight=True,
-                     loss_weight=1.8),  # 3d kpts leftcam
+                     loss_weight=1),  # 3d kpts leftcam
+                dict(type='L1Loss', use_target_weight=True,
+                     loss_weight=1),  # 3d kpts rightcam
                 dict(
                     type='PinchLoss',
                     enter_thre=pinch_thre[0] / 1000,
                     exit_thre=pinch_thre[1] / 1000,
-                    loss_weight=18,
-                    enable_start_epoch=0),
-                dict(type='MSELoss', loss_weight=100),  # nimble trans直接监督
+                    loss_weight=15,
+                    enable_start_epoch=train_cfg['max_epochs']//2),
+                dict(type='MSELoss', loss_weight=20),  # nimble trans直接监督
                 dict(
                     type='MPJPAELoss',
-                    seq_length=seq_length-predict_frame,
-                    loss_weight=1,
+                    seq_length=seq_length,
+                    loss_weight=1.5,
                 ),
-                dict(
-                    type='MPJPAELoss',
-                    seq_length=seq_length-predict_frame,
-                    loss_weight=1,
-                )
+                dict(type='RLELoss',
+                    dim=3,
+                    enable_start_epoch=train_cfg['max_epochs']//2)
             ]),
-        seq_len=seq_length,
+        seq_len=4,
         all_use_kp2d_gt=False,
         kpt2d_with_depth=kpt2d_with_depth,
         undistort=True,
@@ -152,10 +147,7 @@ model = dict(
         reproj_thre=440,
         iou_thre=0.5,
         pad_2d=0,
-        predict_frame=predict_frame,
-        flow_model_pretrain=pretrained_path,
-        predict_local_guest=True
-    ),
+        fix_sigma_pars=False),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
@@ -163,9 +155,8 @@ model = dict(
     ),
     init_cfg=dict(
         type='Pretrained',
-        checkpoint=pretrained_path
+        checkpoint="/data/stliu/mmpose_simliar_wx10/work_dirs/new_dataset/lift_reg9d_rleloss_seq_twostage_two_adddata_weight30/best_all_mpjpe_epoch_1.pth"
     ),
-    predict_frame=predict_frame,
 )
 
 # base dataset settings
@@ -189,7 +180,8 @@ train_data_list += [
 
 # train_data_list = [train_data_sin for train_data_sin in train_data_list if '__20240220_' in train_data_sin and ('Flora302' in train_data_sin or 'Flora303' in train_data_sin)]
 # train_data_list = [train_data_sin for train_data_sin in train_data_list if '__20230824_' in train_data_sin]
-# train_data_list = ['/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240229_082652__pinch__normal__left__1110__0010__undistort_tar__Flora301.json']
+# train_data_list = ['/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_060805__all__normal__left__1111__0006__undistort_tar__Flora301.json',]
+#                    '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230828_072918__all__normal__right__1111__0017__undistort_tar__Flora301.json']
 
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
@@ -248,7 +240,7 @@ val_pipeline = [
 # data loaders
 train_dataloader = dict(
     batch_size=32,
-    num_workers=8,
+    num_workers=16,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
     collate_fn=dict(type='default_collate'),
@@ -290,7 +282,7 @@ test_dataloader = val_dataloader
 
 # hooks
 default_hooks = dict(
-    checkpoint=dict(interval=1, save_best='all_mpjpe', rule='less'),
+    checkpoint=dict(interval=3, save_best='all_mpjpe', rule='less'),
     run_time_info=dict(type='RuntimeInfoHookV2'))
 
 # evaluators
@@ -303,6 +295,7 @@ val_evaluator = [
     dict(
         type='MPJPEV2',
         mode=['mpjpe', 'p-mpjpe'],
+        score_metric=True,
         # gesture_list=gesture_list,
         rearrange_result=True,
         result_dir='.'),
