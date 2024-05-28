@@ -5,7 +5,7 @@ import os
 
 _base_ = ['../../../_base_/default_runtime.py']
 
-train_cfg = dict(max_epochs=100, val_interval=5)
+train_cfg = dict(max_epochs=150, val_interval=5)
 
 # data_root = '/data/AI_DATA'
 data_root = '/data/AI_DATA_WX'
@@ -125,37 +125,26 @@ model = dict(
                      loss_weight=1),  # 3d kpts rightcam
                 dict(
                     type='MSELoss',
-                    loss_weight=0,
-                    enable_start_epoch=train_cfg['max_epochs'] -
-                    40),  # 2d reprojection left
+                    loss_weight=0),  # 2d reprojection left
                 dict(
                     type='MSELoss',
-                    loss_weight=0,
-                    enable_start_epoch=train_cfg['max_epochs'] -
-                    40),  # 2d reprojection right
+                    loss_weight=0),  # 2d reprojection right
                 dict(
                     type='PinchLoss',
                     enter_thre=pinch_thre[0] / 1000,
                     exit_thre=pinch_thre[1] / 1000,
                     loss_weight=3,
-                    enable_start_epoch=train_cfg['max_epochs'] -
-                    20),  # 后20 epoch打开pinch loss
+                    enable_start_epoch=train_cfg['max_epochs']//2),
                 dict(
                     type='L1Loss',
-                    loss_weight=0,
-                    enable_start_epoch=train_cfg['max_epochs'] -
-                    40),  # xyz比例损失
+                    loss_weight=0),  # xyz比例损失
                 dict(
                     type='MSELoss',
-                    loss_weight=0,
-                    enable_start_epoch=train_cfg['max_epochs'] -
-                    40),  # nimble pose直接监督
+                    loss_weight=0),  # nimble pose直接监督
                 dict(type='MSELoss', loss_weight=5),  # nimble trans直接监督
-                dict(type='RLELoss', dim=3, enable_start_epoch=0),  # all kpt
-                dict(
-                    type='RLELoss',
+                dict(type='RLELoss',
                     dim=3,
-                    enable_start_epoch=train_cfg['max_epochs']),  # major kpt
+                    enable_start_epoch=train_cfg['max_epochs']//2)
             ]),
         all_use_kp2d_gt=False,
         kpt2d_with_depth=kpt2d_with_depth,
@@ -180,8 +169,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        # '/data/AI_DATA/data_hand/model/mmpose/td-hand_rtmtinyv2_26s_25d_scale_ipr_right_2d3d_handmix_dark_small_drop_aug_240401data_8x128-100e-128x128/epoch_100.pth'  # 20240415 2D model
-        '/home/ykhu/workspace/mmpose/work_dirs/nimble/res26s/all_decouple_pca_standard_res26s_total_score1/epoch_60.pth'
+        '/data/AI_DATA/data_hand/model/mmpose/td-hand_rtmtinyv2_26s_25d_scale_ipr_right_2d3d_handmix_dark_small_drop_aug_240401data_8x128-100e-128x128/epoch_100.pth'  # 20240415 2D model
     ),
 )
 
@@ -209,7 +197,6 @@ train_data_list += [
 # train_data_list = [train_data_sin for train_data_sin in train_data_list if '__20230824_' in train_data_sin]
 # train_data_list = [
 #     '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_060805__all__normal__left__1111__0006__undistort_tar__Flora301.json',
-#     '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20240517_033443__all__normal__right__1101__0015__undistort_tar__Flora304.json'
 # ]
 
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
@@ -234,38 +221,42 @@ val_data_list = [
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # pipelines
 train_pipeline = [
-    # dict(
-    #     type='RandomStereoParamAug',
-    #     prob=0.5,
-    #     baseline_range=[-0.005, 0.005],
-    #     y_angle_range=[-3, 3]),
-    dict(
-        type='Albumentation',
-        transforms=[
-            dict(type='RandomBrightnessContrast', p=0.2),
-        ]),
     dict(type='GetBBoxCenterScale', padding=1.0),
     dict(
-        type='RandomBBoxTransform',
-        scale_factor=[0.75, 1.25],
-        rotate_factor=15,
-        rotate_prob=0.3,
-        shift_prob=0.5,
-        shift_factor=0.2,
-        enable_epoch_num=40),
-    dict(type='TopdownAffine', input_size=codec['input_size']),
-    dict(
-        type='GenerateTarget',
-        target_type='heatmap+keypoint_label',
-        encoder=codec),
+    type='GroupTransformers',
+    trans_cfg_list=[
+        dict(
+            type='RandomBBoxTransform',
+            scale_factor=[0.75, 1.25],
+            rotate_factor=15,
+            rotate_prob=0.3,
+            shift_prob=0.5,
+            shift_factor=0.2),
+        dict(type='TopdownAffine', input_size=codec['input_size'][:2]),
+        dict(type='RandomDownSampleImage', min_ratio=0.5, prob=0.2),
+        dict(type='MixTwoHands', prob=0.1),
+        dict(
+            type='Albumentation',
+            transforms=[
+                dict(
+                    type='CoarseDropout',
+                    p=0.2,
+                    max_holes=2,
+                    max_height=16,
+                    max_width=16,
+                ),
+            ]),
+        dict(
+            type='GenerateNoiseDarkImage',
+            prob=0.65,
+            gamma_limit=(0.85, 0.95),
+            alpha_limit=(0.2, 0.5),
+            concat_image=False),
+    ],
+    enable_epoch_num=int(train_cfg['max_epochs'])),
     dict(type='PackPoseInputs')
 ]
 val_pipeline = [
-    # dict(
-    #     type='RandomStereoParamAug',
-    #     prob=0.5,
-    #     baseline_range=[-0.005, 0.005],
-    #     y_angle_range=[-3, 3]),
     dict(type='GetBBoxCenterScale', padding=1.0),
     dict(type='TopdownAffine', input_size=codec['input_size']),
     dict(type='PackPoseInputs')

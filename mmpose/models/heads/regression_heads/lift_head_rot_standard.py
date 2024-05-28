@@ -108,12 +108,18 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             self.output_num = output_num + 18  # 21 - 3
         else:
             self.output_num = output_num
-        self.last_layer = nn.Sequential(
+        self.sigma_conv = nn.Sequential(
             nn.Conv2d(feat_dim, feat_dim, kernel_size=1),
-            nn.SyncBatchNorm(feat_dim), nn.ReLU(),
+            nn.Conv2d(feat_dim, 21 * 3, kernel_size=1))
+        self.temporal = nn.Sequential(
+            nn.Conv2d(
+                2 * self.channel_num * 2, 2 * self.channel_num, kernel_size=1),
+            nn.ReLU(),
+            nn.Conv2d(
+                self.channel_num * 2, self.channel_num * 2, kernel_size=1))
+        self.last_layer = nn.Sequential(
+            nn.Conv2d(feat_dim * 2, feat_dim, kernel_size=1), nn.ReLU(),
             nn.Conv2d(feat_dim, self.output_num, kernel_size=1))
-        self.sigma_conv = nn.Conv2d(self.feat_dim, 21 * 3, kernel_size=1)
-        self.major_sigma_conv = nn.Conv2d(self.feat_dim, 11 * 3, kernel_size=1)
         self.lift_loss = MODELS.build(lift_loss)
 
         # define the fllow parameters
@@ -213,13 +219,13 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
                                                                    0])
         return kpt, rot, svd_pt
 
-    def forward(self, feats: Tuple[Tensor]) -> Tensor:
-        output = self.liftnet(feats)
-        sigma = self.sigma_conv(output).reshape(feats.shape[0], 21, 3)
-        major_sigma = self.major_sigma_conv(output).reshape(
-            feats.shape[0], 11, 3)
-        output = self.last_layer(output).view((feats.shape[0], -1, 1, 1))
-        return output, sigma, major_sigma
+    def forward(self, feats_2d: Tuple[Tensor]) -> Tensor:
+        feats = self.liftnet(feats_2d)
+        mems = torch.zeros_like(feats).cuda()
+        sigma = self.sigma_conv(feats).reshape(feats_2d.shape[0], 21, 3)
+        feat_mix = torch.cat([feats, mems], dim=1)
+        output = self.last_layer(feat_mix).view((feats_2d.shape[0], -1, 1, 1))
+        return output, sigma
 
     def postprocess(self,
                     output,
@@ -365,7 +371,7 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
                 skeleton_joints_info).view(batch_num,
                                            self.skeleton_feature_dim, 1, -1)
             data['feats'] = torch.cat((data['feats'], skeleton_feature), dim=1)
-        output, sigma, major_sigma = self.forward(data['feats'])
+        output, sigma = self.forward(data['feats'])
         hand3d_pred = self.postprocess(
             output,
             data['left_hand'],
@@ -403,7 +409,7 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
                                            self.skeleton_feature_dim, 1, -1)
             data['feats'] = torch.cat((data['feats'], skeleton_feature), dim=1)
 
-        output, sigma, major_sigma = self.forward(data['feats'])
+        output, sigma = self.forward(data['feats'])
 
         B = output.shape[0]
         # 3d 损失
@@ -464,23 +470,16 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             data['hand3d_gt'][:, 4, :] - data['hand3d_gt'][:, 8, :], dim=-1)
 
         re_all_sigmas = torch.cat((hand3d_pred, sigma), dim=-1)
-        re_major_sigmas = torch.cat(
-            (torch.cat((hand3d_pred[:, :10, :], hand3d_pred[:, 13:14, :]),
-                       dim=1), major_sigma),
-            dim=-1)
-        major_gt = torch.cat(
-            (data['hand3d_gt'][:, :10, :], data['hand3d_gt'][:, 13:14, :]),
-            dim=1)
 
         pred_for_loss = [
             pred_3d_way1, pred_3d_way2, hand3d_pred, leftcam_uv_pre,
             rightcam_uv_pre, dist_pred, proportion_xyz_pre, pre_nimble_pose,
-            pre_nimble_trans, re_all_sigmas, re_major_sigmas
+            pre_nimble_trans, re_all_sigmas
         ]
         targ_for_loss = [
             data['hand3d_gt'], data['hand3d_gt'], data['hand3d_gt'],
             leftcam_uv_gt, rightcam_uv_gt, dist_gt, proportion_xyz_gt,
-            gt_nimble_pose, gt_nimble_trans, data['hand3d_gt'], major_gt
+            gt_nimble_pose, gt_nimble_trans, data['hand3d_gt']
         ]
 
         weight_ini = torch.ones((1, 21, 3))
@@ -499,13 +498,12 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             None,
             None,
             None,
-            None,
         ]
 
         losses = self.lift_loss(pred_for_loss, targ_for_loss, weight_for_loss)
         (loss_pre_root, loss_pre_nimble, loss_pre_all, loss_mse_2d_leftcam,
          loss_mse_2d_rightcam, loss_pinch, loss_scale, loss_nimble_pose,
-         loss_nimble_trans, loss_rle_all, loss_rle_major) = losses
+         loss_nimble_trans, loss_rle_all) = losses
 
         # # 子骨骼向量监督
         if self.use_bone_loss:
@@ -595,8 +593,7 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             loss_nimble_trans=loss_nimble_trans,
             root_pose_loss=root_pose_loss,
             local_pose_loss=local_pose_loss,
-            loss_rle_all=loss_rle_all,
-            loss_rle_major=loss_rle_major)
+            loss_rle_all=loss_rle_all)
 
         return losses_dict
 

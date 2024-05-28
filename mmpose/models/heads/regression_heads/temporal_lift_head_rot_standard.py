@@ -132,8 +132,8 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             major_sigmas[:, i, ...] = major_sigma
             outputs[:, i, ...] = output
         outputs = outputs.reshape(B * seq_len, -1, 1, 1)
-        all_sigmas = sigmas.reshape(B * seq_len, 21, 3).sigmoid()
-        major_sigmas = major_sigmas.reshape(B * seq_len, 11, 3).sigmoid()
+        all_sigmas = sigmas.reshape(B * seq_len, 21, 3)
+        major_sigmas = major_sigmas.reshape(B * seq_len, 11, 3)
         return outputs, mems, all_sigmas, major_sigmas
 
     def predict(self,
