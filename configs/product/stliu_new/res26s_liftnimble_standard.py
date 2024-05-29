@@ -128,11 +128,12 @@ model = dict(
                     enter_thre=pinch_thre[0] / 1000,
                     exit_thre=pinch_thre[1] / 1000,
                     loss_weight=3,
-                    enable_start_epoch=train_cfg['max_epochs']//2),
+                    enable_start_epoch=train_cfg['max_epochs'] // 2),
                 dict(type='MSELoss', loss_weight=5),  # nimble trans直接监督
-                dict(type='RLELoss',
+                dict(
+                    type='RLELoss',
                     dim=3,
-                    enable_start_epoch=train_cfg['max_epochs']//2)
+                    enable_start_epoch=train_cfg['max_epochs'] // 2)
             ]),
         all_use_kp2d_gt=False,
         kpt2d_with_depth=kpt2d_with_depth,
@@ -210,37 +211,37 @@ val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 train_pipeline = [
     dict(type='GetBBoxCenterScale', padding=1.0),
     dict(
-    type='GroupTransformers',
-    trans_cfg_list=[
-        dict(
-            type='RandomBBoxTransform',
-            scale_factor=[0.75, 1.25],
-            rotate_factor=15,
-            rotate_prob=0.3,
-            shift_prob=0.5,
-            shift_factor=0.2),
-        dict(type='TopdownAffine', input_size=codec['input_size'][:2]),
-        dict(type='RandomDownSampleImage', min_ratio=0.5, prob=0.2),
-        dict(type='MixTwoHands', prob=0.1),
-        dict(
-            type='Albumentation',
-            transforms=[
-                dict(
-                    type='CoarseDropout',
-                    p=0.2,
-                    max_holes=2,
-                    max_height=16,
-                    max_width=16,
-                ),
-            ]),
-        dict(
-            type='GenerateNoiseDarkImage',
-            prob=0.65,
-            gamma_limit=(0.85, 0.95),
-            alpha_limit=(0.2, 0.5),
-            concat_image=False),
-    ],
-    enable_epoch_num=int(train_cfg['max_epochs'])),
+        type='GroupTransformers',
+        trans_cfg_list=[
+            dict(
+                type='RandomBBoxTransform',
+                scale_factor=[0.75, 1.25],
+                rotate_factor=15,
+                rotate_prob=0.3,
+                shift_prob=0.5,
+                shift_factor=0.2),
+            dict(type='TopdownAffine', input_size=codec['input_size'][:2]),
+            dict(type='RandomDownSampleImage', min_ratio=0.5, prob=0.2),
+            dict(type='MixTwoHands', prob=0.1),
+            dict(
+                type='Albumentation',
+                transforms=[
+                    dict(
+                        type='CoarseDropout',
+                        p=0.2,
+                        max_holes=2,
+                        max_height=16,
+                        max_width=16,
+                    ),
+                ]),
+            dict(
+                type='GenerateNoiseDarkImage',
+                prob=0.65,
+                gamma_limit=(0.85, 0.95),
+                alpha_limit=(0.2, 0.5),
+                concat_image=False),
+        ],
+        enable_epoch_num=int(train_cfg['max_epochs'])),
     dict(type='PackPoseInputs')
 ]
 val_pipeline = [

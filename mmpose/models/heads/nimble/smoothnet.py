@@ -1,6 +1,7 @@
+# Copyright (c) OpenMMLab. All rights reserved.
 import torch
-import torch.nn.functional as F
 from torch import Tensor, nn
+
 
 class SmoothNetResBlock(nn.Module):
 

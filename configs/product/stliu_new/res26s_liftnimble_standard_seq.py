@@ -129,15 +129,17 @@ model = dict(
                     enter_thre=pinch_thre[0] / 1000,
                     exit_thre=pinch_thre[1] / 1000,
                     loss_weight=15,
-                    enable_start_epoch=train_cfg['max_epochs']//2),
+                    enable_start_epoch=train_cfg['max_epochs'] // 2),
                 dict(type='MSELoss', loss_weight=20),  # nimble trans直接监督
                 dict(
                     type='MPJPAELoss',
                     seq_length=seq_length,
-                    loss_weight=1.5,),
-                dict(type='RLELoss',
+                    loss_weight=1.5,
+                ),
+                dict(
+                    type='RLELoss',
                     dim=3,
-                    enable_start_epoch=train_cfg['max_epochs']//2)
+                    enable_start_epoch=train_cfg['max_epochs'] // 2)
             ]),
         seq_len=4,
         all_use_kp2d_gt=False,
@@ -161,7 +163,8 @@ model = dict(
     ),
     init_cfg=dict(
         type='Pretrained',
-        checkpoint="/data/AI_DATA/data_hand/model/mmpose/all_decouple_pca_standard_total_res26s/epoch_100.pth"
+        checkpoint=
+        '/data/AI_DATA/data_hand/model/mmpose/all_decouple_pca_standard_total_res26s_aug2d/epoch_150.pth'
     ),
 )
 
@@ -200,36 +203,46 @@ val_data_list = [
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073556__pinch__bright__left__1111__0005__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073857__pinch__normal__right__1111__0005__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_074601__pinch__bright__left__1111__0005__undistort_tar__Flora301.json',
-    
+
     # '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/fit3d_seqsmooth_auto__binocular_coco/XS__20240516_070512__all__normal__left__1101__0007__undistort_tar__Flora301.json',
     # '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/fit3d_seqsmooth_auto__binocular_coco/XS__20240516_065421__all__normal__right__1101__0007__undistort_tar__Flora301.json',
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # pipelines
 train_pipeline = [
-    dict(
-        type='RandomStereoParamAug',
-        prob=0,
-    ),
-    dict(
-        type='Albumentation',
-        transforms=[
-            dict(type='RandomBrightnessContrast', p=0.2),
-        ]),
     dict(type='GetBBoxCenterScale', padding=1.0),
     dict(
-        type='RandomBBoxTransform',
-        scale_factor=[0.75, 1.25],
-        rotate_factor=15,
-        rotate_prob=0.3,
-        shift_prob=0.5,
-        shift_factor=0.2,
-        enable_epoch_num=40),
-    dict(type='TopdownAffine', input_size=codec['input_size']),
-    dict(
-        type='GenerateTarget',
-        target_type='heatmap+keypoint_label',
-        encoder=codec),
+        type='GroupTransformers',
+        trans_cfg_list=[
+            dict(
+                type='RandomBBoxTransform',
+                scale_factor=[0.75, 1.25],
+                rotate_factor=15,
+                rotate_prob=0.3,
+                shift_prob=0.5,
+                shift_factor=0.2),
+            dict(type='TopdownAffine', input_size=codec['input_size'][:2]),
+            dict(type='RandomDownSampleImage', min_ratio=0.5, prob=0.2),
+            dict(type='MixTwoHands', prob=0.1),
+            dict(
+                type='Albumentation',
+                transforms=[
+                    dict(
+                        type='CoarseDropout',
+                        p=0.2,
+                        max_holes=2,
+                        max_height=16,
+                        max_width=16,
+                    ),
+                ]),
+            dict(
+                type='GenerateNoiseDarkImage',
+                prob=0.65,
+                gamma_limit=(0.85, 0.95),
+                alpha_limit=(0.2, 0.5),
+                concat_image=False),
+        ],
+        enable_epoch_num=int(train_cfg['max_epochs'])),
     dict(type='PackPoseInputs')
 ]
 val_pipeline = [
@@ -301,7 +314,7 @@ val_evaluator = [
     dict(
         type='MPJPEV2',
         mode=['mpjpe', 'p-mpjpe'],
-        score_metric=True,
+        # score_metric=True,
         # gesture_list=gesture_list,
         rearrange_result=True,
         result_dir='.'),

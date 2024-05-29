@@ -77,6 +77,12 @@ class RLELoss(nn.Module):
                 param.requires_grad = False
 
     def forward(self, pred, target, target_weight=None):
+
+        if self.enable_start_epoch >= 0:
+            mh = MessageHub.get_current_instance()
+            cur_epoch = mh.get_info('epoch')
+            if cur_epoch < self.enable_start_epoch:
+                return 0
         """Forward function.
 
         Note:
@@ -122,11 +128,6 @@ class RLELoss(nn.Module):
         if self.size_average:
             loss /= len(loss)
 
-        if self.enable_start_epoch >= 0:
-            mh = MessageHub.get_current_instance()
-            cur_epoch = mh.get_info('epoch')
-            if cur_epoch < self.enable_start_epoch:
-                return loss * 0
         return loss.sum()
 
 

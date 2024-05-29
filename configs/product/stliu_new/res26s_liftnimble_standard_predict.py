@@ -140,9 +140,10 @@ model = dict(
                     seq_length=seq_length - predict_frame,
                     loss_weight=0.6,
                 ),
-                dict(type='RLELoss',
+                dict(
+                    type='RLELoss',
                     dim=3,
-                    enable_start_epoch=train_cfg['max_epochs']//2)
+                    enable_start_epoch=train_cfg['max_epochs'] // 2)
             ]),
         seq_len=seq_length,
         all_use_kp2d_gt=False,
@@ -160,7 +161,7 @@ model = dict(
         pad_2d=0,
         predict_frame=predict_frame,
         smooth_window_len=8,
-        predict_way="SmoothNet",   # SmoothNet / RNN
+        predict_way='SmoothNet',  # SmoothNet / RNN
         fix_sigma_pars=False),
     test_cfg=dict(
         flip_test=False,
@@ -168,8 +169,10 @@ model = dict(
         shift_heatmap=False,
     ),
     init_cfg=dict(
-        type='Pretrained', 
-        checkpoint="/data/stliu/mmpose_simliar_wx10/work_dirs/new_dataset/lift_reg9d_rleloss_seq_twostage_two_adddata_weight30/best_all_mpjpe_epoch_1.pth"),
+        type='Pretrained',
+        checkpoint=
+        '/data/stliu/mmpose_simliar_wx10/work_dirs/new_dataset/lift_reg9d_rleloss_seq_twostage_two_adddata_weight30/best_all_mpjpe_epoch_1.pth'
+    ),
     predict_frame=predict_frame,
     history_window_len=seq_length,
 )
@@ -215,29 +218,39 @@ val_data_list = [
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # pipelines
 train_pipeline = [
-    dict(
-        type='RandomStereoParamAug',
-        prob=0,
-    ),
-    dict(
-        type='Albumentation',
-        transforms=[
-            dict(type='RandomBrightnessContrast', p=0.2),
-        ]),
     dict(type='GetBBoxCenterScale', padding=1.0),
     dict(
-        type='RandomBBoxTransform',
-        scale_factor=[0.75, 1.25],
-        rotate_factor=15,
-        rotate_prob=0.3,
-        shift_prob=0.5,
-        shift_factor=0.2,
-        enable_epoch_num=40),
-    dict(type='TopdownAffine', input_size=codec['input_size']),
-    dict(
-        type='GenerateTarget',
-        target_type='heatmap+keypoint_label',
-        encoder=codec),
+        type='GroupTransformers',
+        trans_cfg_list=[
+            dict(
+                type='RandomBBoxTransform',
+                scale_factor=[0.75, 1.25],
+                rotate_factor=15,
+                rotate_prob=0.3,
+                shift_prob=0.5,
+                shift_factor=0.2),
+            dict(type='TopdownAffine', input_size=codec['input_size'][:2]),
+            dict(type='RandomDownSampleImage', min_ratio=0.5, prob=0.2),
+            dict(type='MixTwoHands', prob=0.1),
+            dict(
+                type='Albumentation',
+                transforms=[
+                    dict(
+                        type='CoarseDropout',
+                        p=0.2,
+                        max_holes=2,
+                        max_height=16,
+                        max_width=16,
+                    ),
+                ]),
+            dict(
+                type='GenerateNoiseDarkImage',
+                prob=0.65,
+                gamma_limit=(0.85, 0.95),
+                alpha_limit=(0.2, 0.5),
+                concat_image=False),
+        ],
+        enable_epoch_num=int(train_cfg['max_epochs'])),
     dict(type='PackPoseInputs')
 ]
 val_pipeline = [
