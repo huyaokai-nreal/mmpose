@@ -82,7 +82,7 @@ class RLELoss(nn.Module):
             mh = MessageHub.get_current_instance()
             cur_epoch = mh.get_info('epoch')
             if cur_epoch < self.enable_start_epoch:
-                return 0
+                return torch.tensor(0.0, device=pred.device)
         """Forward function.
 
         Note:
