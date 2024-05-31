@@ -7,6 +7,7 @@ nreal_data_tool@git+ssh://git@github.com/nreal-alg-ai/nreal_data_tool.git@master
 numpy
 opencv-python
 pillow
+roma
 scipy
 torchvision
 xtcocotools@git+ssh://git@github.com/nreal-alg-ai/xtcocoapi.git@master
