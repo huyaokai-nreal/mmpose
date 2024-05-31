@@ -100,7 +100,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/AI_DATA/data_hand/model/mmpose/td-hand_rtmtinyv2_26s_25d_scale_ipr_right_2d3d_handmix_dark_small_drop_aug_240401data_8x128-100e-128x128/epoch_100.pth'
+        ' /data/AI_DATA/data_hand/model/mmpose/td-hand_rtmtinyv2_26s_25d_scale_ipr_right_2d3d_handmix_dark_small_drop_aug_240401data_8x128-100e-128x128/epoch_100.pth'
     ),
     root_mode='optimize' if test_type == '3d' else 'gt',
     camera_layout=camera_layout)
@@ -117,7 +117,7 @@ visualizer = dict(
 default_hooks = dict(
     #visualization=dict(
     #    type='PoseVisualizationHook', enable=True, draw_3d=True),
-    checkpoint=dict(save_best='all mAP', rule='less'))
+    checkpoint=dict(save_best='all_mpjpe', rule='less'))
 # base dataset settings
 backend_args = dict(backend='local')
 train_pipeline = [
@@ -133,7 +133,7 @@ train_pipeline = [
                 rotate_prob=0.3,
                 shift_prob=0.5,
                 shift_factor=0.2),
-            dict(type='TopdownAffine', input_size=codec['input_size'][:2]),
+            dict(type='TopdownPCL', input_size=codec['input_size'][:2]),
             dict(type='RandomDownSampleImage', min_ratio=0.5, prob=0.2),
             dict(type='MixTwoHands', prob=0.1),
             dict(
@@ -198,8 +198,7 @@ train_2d_pipeline = [
 val_pipeline = [
     dict(type='KeypointTo25DLabel', norm_depth=True),
     dict(type='GetBBoxCenterScale', padding=1.0),
-    dict(type='TopdownAffine', input_size=codec['input_size'][:2]),
-    # dict(type='TopdownPCL', input_size=codec['input_size'][:2]),
+    dict(type='TopdownPCL', input_size=codec['input_size'][:2]),
     dict(type='GenerateTarget', encoder=codec),
     dict(type='PackPoseInputs')
 ]
@@ -246,12 +245,15 @@ for data_date in val_date_list:
         val_data_list += kpt3d_datasets_info['test_data'][data_date].get(
             glasses, [])
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
+val_data_list = [
+    item for item in val_data_list if item.split('__')[-3] in val_person_list
+]
 val_2d_datasets = ['flora_static_finegrain', 'flora_dynamic']
 #val_2d_datasets = ['flora_black']
 #val_2d_datasets = ['flora_decoration']
 #val_2d_datasets = ['ella']
 #val_2d_datasets = ['near_two_hands']
-val_2d_datasets = ['dark_light']
+#val_2d_datasets = ['dark_light']
 val_2d_data_list = [
     kpt2d_datasets_info['test_data'][key] for key in val_2d_datasets
 ]
@@ -280,9 +282,6 @@ train_dataloader = dict(
                 data_root=data_root,
                 flip_left_to_right=True,
                 point_type='2.5D',
-                mean_bone_template_path=
-                '/data/AI_DATA/data_hand/model/mmpose/mean_hand_bones_230824.npz'
-                # indices=1000,
             ),
             dict(
                 type='HANDDataset',
@@ -302,9 +301,6 @@ val_3d_dataset = dict(
     test_mode=True,
     pipeline=val_pipeline,
     flip_left_to_right=True,
-    mean_bone_template_path=
-    '/data/AI_DATA/data_hand/model/mmpose/mean_hand_bones_230824.npz',
-    #point_type='leftcam',
     point_type='2.5D' if camera_layout == 'monocular' else '3D',
     data_root=data_root)
 val_2d_dataset = dict(
@@ -327,14 +323,14 @@ test_dataloader = val_dataloader
 
 # evaluators
 val_evaluator = [dict(type='EPE'), dict(type='NrealKeypointAP', with_tag=True)]
-#if test_type == '3d':
-#    val_evaluator += [
-#        dict(
-#            type='MPJPEV2',
-#            mode='mpjpe',
-#            scale_metric=False,
-#            with_tag=True,
-#        ),
-#        dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
-#    ]
+if test_type == '3d':
+    val_evaluator += [
+        dict(
+            type='MPJPEV2',
+            mode='mpjpe',
+            scale_metric=False,
+            with_tag=True,
+        ),
+        dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
+    ]
 test_evaluator = val_evaluator
