@@ -127,7 +127,7 @@ class TemporalLiftNimbleHeadStandardPredict(TemporalLiftNimbleHeadStandard):
         
         B = int(feats.shape[0] / seq_len)
         history_feats = history_feats.reshape(B, self.output_num, -1, 1)
-        sigmas = sigma.reshape(feats.shape[0], 21, 3)
+        sigmas = sigma.reshape(B, -1, 21, 3)
         if mems is None:
             mems = torch.zeros(B, 2 * self.channel_num, 1, 1).cuda()
         feats = feats.view(B, seq_len, -1)
@@ -250,6 +250,7 @@ class TemporalLiftNimbleHeadStandardPredict(TemporalLiftNimbleHeadStandard):
                                                        self.seq_len)
         valid_frame = self.seq_len - self.predict_frame
         output = output[:,:valid_frame,...].reshape(B * valid_frame, -1, 1, 1)
+        all_sigmas = all_sigmas[:,:valid_frame,...].reshape(B * valid_frame, -1, 3)
         
         predict_used_index = []
         predict_drop_t = [j for j in range(self.predict_frame)]
@@ -350,7 +351,7 @@ class TemporalLiftNimbleHeadStandardPredict(TemporalLiftNimbleHeadStandard):
         targ_for_loss = [
             enhanced_left_hand3d_gt_predict, enhanced_left_hand3d_gt_curent,
             dist_gt, gt_nimble_trans, enhanced_static_hand3d_gt_predict,
-            enhanced_static_hand3d_gt_curent, hand3d_gt
+            enhanced_static_hand3d_gt_curent, hand3d_gt_predict
         ]
 
         weight_ini = torch.ones((1, 21, 3))
