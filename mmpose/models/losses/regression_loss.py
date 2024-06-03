@@ -103,11 +103,14 @@ class RLELoss(nn.Module):
         sigma = sigma.sigmoid()
         error = (pos_pred - target) / (sigma + 1e-9)
         # (B, K, 2)
-        log_phi = self.flow_model.log_prob(error.reshape(-1, dim))
-        log_phi = log_phi.reshape(target.shape[0], target.shape[1], 1)
-        log_sigma = torch.log(sigma).reshape(target.shape[0], target.shape[1],
-                                             dim)
-        nf_loss = log_sigma - log_phi
+        try:
+            log_phi = self.flow_model.log_prob(error.reshape(-1, dim))
+            log_phi = log_phi.reshape(target.shape[0], target.shape[1], 1)
+            log_sigma = torch.log(sigma).reshape(target.shape[0],
+                                                 target.shape[1], dim)
+            nf_loss = log_sigma - log_phi
+        except:
+            return torch.tensor(0.0, device=pred.device)
 
         if self.residual:
             assert self.q_distribution in ['laplace', 'gaussian']
@@ -125,10 +128,10 @@ class RLELoss(nn.Module):
             assert target_weight is not None
             loss *= target_weight.unsqueeze(-1)
 
-        if self.size_average:
-            loss /= len(loss)
+        # if self.size_average:
+        #     loss /= len(loss)
 
-        return loss.sum()
+        return loss.mean()
 
 
 @MODELS.register_module()
