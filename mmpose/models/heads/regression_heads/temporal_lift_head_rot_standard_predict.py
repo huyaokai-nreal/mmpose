@@ -2,15 +2,15 @@
 from typing import List, Tuple, Union
 
 import torch
-import torch.nn.functional as F
-from torch import Tensor, nn
+from mmengine.logging import MessageHub
+from torch import Tensor
 
+from mmpose.models.heads.nimble.smoothnet import MotionSmoothNet, SmoothNet
 from mmpose.models.heads.regression_heads.temporal_lift_head_rot_standard import \
     TemporalLiftNimbleHeadStandard
-from mmpose.models.losses.regression_loss import L1Loss, RLELoss
+from mmpose.models.losses.regression_loss import L1Loss
 from mmpose.registry import MODELS
 from mmpose.utils.typing import ConfigType, OptSampleList, Predictions
-from mmpose.models.heads.nimble.smoothnet import MotionSmoothNet, SmoothNet
 
 
 @MODELS.register_module()
@@ -45,7 +45,7 @@ class TemporalLiftNimbleHeadStandardPredict(TemporalLiftNimbleHeadStandard):
                  enhance_lefthand=True,
                  enhance_static=True,
                  predict_frame: int = 1,
-                 predict_way = "SmoothNet",
+                 predict_way='SmoothNet',
                  smooth_window_len=8,
                  fix_sigma_pars=False,
                  init_cfg: Union[dict, List[dict], None] = None):
@@ -70,25 +70,24 @@ class TemporalLiftNimbleHeadStandardPredict(TemporalLiftNimbleHeadStandard):
             use_shape_smooth=use_shape_smooth,
             enhance_lefthand=enhance_lefthand,
             enhance_static=enhance_static,
-            fix_sigma_pars=fix_sigma_pars
-            )
+            fix_sigma_pars=fix_sigma_pars)
         self.predict_frame = predict_frame
         self.smooth_window_len = smooth_window_len
         self.predict_way = predict_way
         if predict_way not in ['SmoothNet', 'RNN']:
             raise ValueError('the predict way must in SmoothNet or RNN')
-        
+
         if smooth_window_len > seq_len:
             raise ValueError('smooth_window_len size must bigger than seq_len')
 
         # self.out_list = dict()
         self.smoothnet_predict = False
-        if self.predict_way == "SmoothNet":
+        if self.predict_way == 'SmoothNet':
             self.smoothnet_predict = True
             self.predict_root_layer = MotionSmoothNet(self.smooth_window_len,
-                                                    self.predict_frame)
+                                                      self.predict_frame)
             self.predict_local_layer = SmoothNet(self.smooth_window_len,
-                                                self.predict_frame)
+                                                 self.predict_frame)
         self.l1_loss_func = L1Loss(
             use_target_weight=True,
             loss_weight=1.,
@@ -110,12 +109,14 @@ class TemporalLiftNimbleHeadStandardPredict(TemporalLiftNimbleHeadStandard):
         mems = self.temporal(feat_mix)
         output = self.last_layer(feat_mix)
         raw_output = output[:, :, 0].clone()
-        if self.smoothnet_predict == True:
-            output = self.smoothnet_predict_forward(output.unsqueeze(0), history_feats[:,:,:,0], 1)[0]
+        if self.smoothnet_predict:
+            output = self.smoothnet_predict_forward(
+                output.unsqueeze(0), history_feats[:, :, :, 0], 1)[0]
         shape, rot, svd_pt = self.simple_feature_layer(output, feats[:, -1, 0,
                                                                      0])
-        score = self.sigma_conv(out_feats).sigmoid().mean().reshape(shape.shape)
-        return shape, rot, svd_pt, mems, score
+        score = self.sigma_conv(out_feats).sigmoid().mean().reshape(
+            shape.shape)
+        return shape, rot, svd_pt, mems, score, raw_output
 
     def forward(self,
                 feats: Tuple[Tensor],
@@ -124,7 +125,7 @@ class TemporalLiftNimbleHeadStandardPredict(TemporalLiftNimbleHeadStandard):
                 seq_len: int = 1) -> Tensor:
         feats = self.liftnet(feats)
         sigma = self.sigma_conv(feats)
-        
+
         B = int(feats.shape[0] / seq_len)
         history_feats = history_feats.reshape(B, self.output_num, -1, 1)
         sigmas = sigma.reshape(B, -1, 21, 3)
@@ -140,10 +141,10 @@ class TemporalLiftNimbleHeadStandardPredict(TemporalLiftNimbleHeadStandard):
             outputs[:, i, ...] = output
         # outputs = outputs.reshape(B * seq_len, -1, 1, 1)
         raw_output = outputs[:, :, :, 0].clone()
-        if self.smoothnet_predict == True:
+        if self.smoothnet_predict:
             outputs = self.smoothnet_predict_forward(outputs,
-                                                    history_feats[:, :, :,
-                                                                0], seq_len)
+                                                     history_feats[:, :, :,
+                                                                   0], seq_len)
         return raw_output, outputs, mems, sigmas
 
     def smoothnet_predict_forward(self,
@@ -204,7 +205,7 @@ class TemporalLiftNimbleHeadStandardPredict(TemporalLiftNimbleHeadStandard):
         B = output.shape[0]
         output = output.reshape(B, -1, 1, 1)
         sigma = sigma.reshape(-1, 21, 3)
-        
+
         hand3d_pred = self.postprocess(
             output,
             data['left_hand'],
@@ -214,7 +215,7 @@ class TemporalLiftNimbleHeadStandardPredict(TemporalLiftNimbleHeadStandard):
             data['hand3d_gt'],
             data['baseline_scale'],
             only_pre=True)[0]
-        
+
         # import numpy as np
         # for (batch_data_sample,hand3d_pred_sin) in zip(batch_data_samples[::2], hand3d_pred):
         #     id_name = int(batch_data_sample.img_path.split("__")[-1])
@@ -222,7 +223,7 @@ class TemporalLiftNimbleHeadStandardPredict(TemporalLiftNimbleHeadStandard):
         #         "kpt3d": hand3d_pred_sin.detach().cpu().numpy(),
         #     }
         # np.save("pre_predict_0516.npy", self.out_list)
-        
+
         if self.reproj:
             camera_model = batch_data_samples[0].meta['ori_camera']
             leftcam_uv_reproj_distort = camera_model.eye_to_window(
@@ -245,13 +246,14 @@ class TemporalLiftNimbleHeadStandardPredict(TemporalLiftNimbleHeadStandard):
         B = int(data['feats'].shape[0] / self.seq_len)
         history_dim = self.output_num
         history_output = torch.zeros((B, history_dim, self.seq_len, 1))
-        raw_output, output, mems, all_sigmas = self.forward(data['feats'],
-                                                       history_output, None,
-                                                       self.seq_len)
+        raw_output, output, mems, all_sigmas = self.forward(
+            data['feats'], history_output, None, self.seq_len)
         valid_frame = self.seq_len - self.predict_frame
-        output = output[:,:valid_frame,...].reshape(B * valid_frame, -1, 1, 1)
-        all_sigmas = all_sigmas[:,:valid_frame,...].reshape(B * valid_frame, -1, 3)
-        
+        output = output[:, :valid_frame, ...].reshape(B * valid_frame, -1, 1,
+                                                      1)
+        all_sigmas = all_sigmas[:, :valid_frame,
+                                ...].reshape(B * valid_frame, -1, 3)
+
         predict_used_index = []
         predict_drop_t = [j for j in range(self.predict_frame)]
         for i in range(B * self.seq_len):
@@ -277,8 +279,7 @@ class TemporalLiftNimbleHeadStandardPredict(TemporalLiftNimbleHeadStandard):
             'nimble_shape': nimble_info_shape,
             'nimble_trans': nimble_info_trans
         }
-        
-        
+
         # 3d 损失
         (pre_root__xyz, pre_local__xyz, hand3d_pred, hand3d_part_gt,
          pre_trans_xyz, pre_shape, gt_all_matrix,
@@ -340,7 +341,7 @@ class TemporalLiftNimbleHeadStandardPredict(TemporalLiftNimbleHeadStandard):
 
         enhanced_static_pre_root__xyz = enhanced_static_pre_all_xyz
         enhanced_static_pre_local__xyz = enhanced_static_pre_all_xyz
-        
+
         re_all_sigmas = torch.cat((hand3d_pred, all_sigmas), dim=-1)
 
         pred_for_loss = [
@@ -367,13 +368,7 @@ class TemporalLiftNimbleHeadStandardPredict(TemporalLiftNimbleHeadStandard):
         #                                                            8, :] = 8, 8
 
         weight_for_loss = [
-            weight_ini,
-            weight_ini,
-            None,
-            None,
-            None,
-            None,
-            None
+            weight_ini, weight_ini, None, None, None, None, None
         ]
 
         losses = self.lift_loss(pred_for_loss, targ_for_loss, weight_for_loss)
@@ -436,9 +431,22 @@ class TemporalLiftNimbleHeadStandardPredict(TemporalLiftNimbleHeadStandard):
             major_bone_loss = torch.tensor(
                 0.0, device=loss_root_predict.device)
 
+        if self.lambda_t > 0:
+            mh = MessageHub.get_current_instance()
+            cur_epoch = mh.get_info('epoch')
+            if cur_epoch > self.lambda_t - 4:
+                self.fix_sigma_pars = True
+                for param in self.liftnet.parameters():
+                    param.requires_grad = False
+                for param in self.sigma_conv.parameters():
+                    param.requires_grad = False
+                loss_pinch *= 2
+                loss_root_smooth *= 2
+                loss_local_smooth *= 2
+
         if self.fix_sigma_pars:
             loss_rle = torch.tensor(0.0, device=loss_root_predict.device)
-        
+
         losses_dict = dict(
             loss_pre_root=loss_root_predict,
             loss_pre_nimble=loss_local_curent,
