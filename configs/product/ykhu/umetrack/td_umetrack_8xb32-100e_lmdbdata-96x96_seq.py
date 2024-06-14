@@ -10,9 +10,7 @@ train_cfg = dict(max_epochs=100, val_interval=5)
 data_root = '/data/AI_DATA_WX'
 
 # optimizer
-optim_wrapper = dict(
-    optimizer=dict(type='Adam', lr=3e-4, weight_decay=1e-4),
-)
+optim_wrapper = dict(optimizer=dict(type='Adam', lr=3e-4, weight_decay=1e-4), )
 
 param_scheduler = [
     dict(
@@ -36,7 +34,7 @@ auto_scale_lr = dict(base_batch_size=128)
 pinch_thre = [20, 40]  # pinch双阈值，单位：mm
 # model settings
 backbone_out_channels = [32, 64, 128, 256]
-seq_len=4
+seq_len = 4
 model = dict(
     type='TopdownPoseUmeNimbleEstimatorSeq',
     data_preprocessor=dict(
@@ -63,7 +61,7 @@ model = dict(
                 dict(type='L1Loss', use_target_weight=True,
                      loss_weight=1),  # local pred
                 dict(type='L1Loss', use_target_weight=True,
-                     loss_weight=1),   # all pred
+                     loss_weight=1),  # all pred
                 dict(
                     type='PinchLoss',
                     enter_thre=pinch_thre[0] / 1000,
@@ -80,9 +78,11 @@ model = dict(
                     type='RLELoss',
                     dim=3,
                     enable_start_epoch=train_cfg['max_epochs']),
-                dict(type='L1Loss', use_target_weight=False,
+                dict(
+                    type='L1Loss',
+                    use_target_weight=False,
                     enable_start_epoch=train_cfg['max_epochs'],
-                    loss_weight=0),   # 由于深度不准会导致2d误差大，从而可能会梯度爆炸
+                    loss_weight=0),  # 由于深度不准会导致2d误差大，从而可能会梯度爆炸
             ]),
         seq_len=seq_len,
         use_svd=True,
@@ -151,7 +151,7 @@ val_data_list = [
     # '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/fit3d_seqsmooth_auto__binocular_coco/XS__20240516_065421__all__normal__right__1101__0007__undistort_tar__Flora301.json',
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
-_input_size=(128, 128)
+_input_size = (128, 128)
 # pipelines
 train_pipeline = [
     dict(type='GetBBoxCenterScale', padding=1.0),
@@ -178,8 +178,7 @@ train_dataloader = dict(
         dataset_weight_list=dataset_weight_list,
         data_root=data_root,
         flip_left_to_right=False,
-        seq_len=seq_len
-    ),
+        seq_len=seq_len),
 )
 val_dataloader = dict(
     batch_size=128,
@@ -195,8 +194,7 @@ val_dataloader = dict(
         test_mode=True,
         pipeline=val_pipeline,
         flip_left_to_right=False,
-        data_root=data_root
-    ),
+        data_root=data_root),
 )
 test_dataloader = val_dataloader
 
@@ -226,8 +224,8 @@ val_evaluator = [
         # show_bmk_thr=(50, 10000000),
         filter_exceed=filter_exceed),  #bad case mpjpe thr (mm)
     # dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
-    dict(type='EPE',filter_exceed=filter_exceed),
-    dict(type='NrealKeypointAP',filter_exceed=filter_exceed)
+    dict(type='EPE', filter_exceed=filter_exceed),
+    dict(type='NrealKeypointAP', filter_exceed=filter_exceed)
 ]
 
 test_evaluator = val_evaluator

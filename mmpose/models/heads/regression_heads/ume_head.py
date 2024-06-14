@@ -44,7 +44,6 @@ def create_multi_view_fusion_layers(
 
 
 def apply_ftl_to_feature_maps(
-    self,
     xfs: torch.Tensor,
     feature_maps: torch.Tensor,
     ftl_ratio: float = 1,

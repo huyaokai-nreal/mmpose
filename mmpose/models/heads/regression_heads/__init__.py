@@ -21,25 +21,12 @@ from .ume_head import UmeHead
 from .ume_head_seq import UmeHeadSeq
 
 __all__ = [
-    'RegressionHead',
-    'IntegralRegressionHead',
-    'DSNTHead',
-    'RLEHead',
-    'TemporalRegressionHead',
-    'TrajectoryRegressionHead',
-    'DSNTAttrHead',
-    'RTMCCIPRHead',
-    'AttrMlpHead',
-    'LiftHead',
-    'RTMCCIPRHead3D',
-    'LiftHeadStandard',
-    'LiftNimbleHead',
-    'TemporalLiftHead',
-    'TemporalLiftNimbleHeadStandard',
-    'TemporalLiftNimbleHeadStandardPredict',
-    'TemporalLiftHeadStandard',
-    'LiftNimbleHeadStandard',
-    'UmeHead',
+    'RegressionHead', 'IntegralRegressionHead', 'DSNTHead', 'RLEHead',
+    'TemporalRegressionHead', 'TrajectoryRegressionHead', 'DSNTAttrHead',
+    'RTMCCIPRHead', 'AttrMlpHead', 'LiftHead', 'RTMCCIPRHead3D',
+    'LiftHeadStandard', 'LiftNimbleHead', 'TemporalLiftHead',
+    'TemporalLiftNimbleHeadStandard', 'TemporalLiftNimbleHeadStandardPredict',
+    'TemporalLiftHeadStandard', 'LiftNimbleHeadStandard', 'UmeHead',
     'UmeHeadSeq'
     # 'PCT_Head', 'PCT_Tokenizer',
     # 'LiftClassifierHead', 'SwinV2TransformerRPE2FC'
