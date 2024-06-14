@@ -180,7 +180,7 @@ def gen_crop_parameters_from_points(
     The effect on the image is some margin will be left at the boundary.
     """
     orig_world_to_eye_xf = np.linalg.inv(camera_orig.camera_to_world_xf)
-    center_eye = camera_orig.window_to_eye(crop_center)
+    center_eye = camera_orig.window_to_eye(crop_center)  # undistort
     new_world_to_eye = make_look_at_matrix(orig_world_to_eye_xf, center_eye,
                                            camera_angle)
     if mirror_img_x:
@@ -190,7 +190,7 @@ def gen_crop_parameters_from_points(
 
     ori_K = camera_orig.uv_to_window_matrix()
     homo_center = np.concatenate([crop_center, np.ones((1))], axis=0)
-    cam_center = np.linalg.inv(ori_K) @ homo_center
+    cam_center = np.linalg.inv(ori_K) @ homo_center  # no undistort
     virtual_K = gen_intrinsics_from_bounding_box(cam_center, new_image_size[0],
                                                  new_image_size[1], ori_K)
     virtual_K = virtual_K.numpy()

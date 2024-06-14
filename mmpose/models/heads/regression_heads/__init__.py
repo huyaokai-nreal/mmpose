@@ -17,6 +17,8 @@ from .temporal_lift_head_rot_standard_predict import \
 from .temporal_lift_head_standard import TemporalLiftHeadStandard
 from .temporal_regression_head import TemporalRegressionHead
 from .trajectory_regression_head import TrajectoryRegressionHead
+from .ume_head import UmeHead
+from .ume_head_seq import UmeHeadSeq
 
 __all__ = [
     'RegressionHead',
@@ -37,6 +39,8 @@ __all__ = [
     'TemporalLiftNimbleHeadStandardPredict',
     'TemporalLiftHeadStandard',
     'LiftNimbleHeadStandard',
+    'UmeHead',
+    'UmeHeadSeq'
     # 'PCT_Head', 'PCT_Tokenizer',
     # 'LiftClassifierHead', 'SwinV2TransformerRPE2FC'
 ]

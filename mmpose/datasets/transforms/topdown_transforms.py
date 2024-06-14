@@ -470,3 +470,37 @@ class TopdownPCL(BaseTransform):
         results['warp_mat'] = np.array([[1, 0, 0], [0, 1, 0]],
                                        dtype=np.float32)
         return results
+
+
+@TRANSFORMS.register_module()
+class UmePCL(BaseTransform):
+
+    def __init__(self, input_size: Tuple[int, int], root_id: int = 0) -> None:
+        self.input_size = input_size
+        self.root_id = root_id
+
+    def transform(self, results: Dict) -> Dict:
+        w, h = self.input_size
+        # if results['meta']['flipped']:
+        #     results['keypoints3d'][..., 0] = -results['keypoints3d'][..., 0]
+        results['input_size'] = self.input_size
+        results['bbox_scale'] = TopdownAffine._fix_aspect_ratio(
+            results['bbox_scale'], aspect_ratio=w / h)
+        results['meta']['ori_xf'] = results['meta'][
+            'ori_camera'].camera_to_world_xf
+        results['meta']['ori_camera'].camera_to_world_xf = np.eye(4)
+        ori_camera = results['meta']['ori_camera']
+        center = results['bbox_center'][0]
+        scale = self.input_size[0] / results['bbox_scale'][0][0]
+        virtual_camera: PinholePlaneCameraModel = \
+            gen_crop_parameters_from_points(
+                ori_camera,
+                center,
+                self.input_size,
+                mirror_img_x=False,
+                focal_multiplier=scale)
+        image = results['img']
+        crop_img = warp_image(ori_camera, virtual_camera, w, h, image)
+        results['img'] = crop_img
+        results['meta']['virtual_camera'] = virtual_camera
+        return results
