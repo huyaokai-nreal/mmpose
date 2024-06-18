@@ -5,7 +5,7 @@ import os
 
 _base_ = ['../../../_base_/default_runtime.py']
 
-train_cfg = dict(max_epochs=100, val_interval=5)
+train_cfg = dict(max_epochs=150, val_interval=5)
 
 data_root = '/data/AI_DATA_WX'
 
@@ -56,27 +56,27 @@ model = dict(
             type='MultipleLossWrapper',
             losses=[
                 dict(type='L1Loss', use_target_weight=True,
-                     loss_weight=5),  # root pred
+                     loss_weight=1),  # root pred
                 dict(type='L1Loss', use_target_weight=True,
-                     loss_weight=5),  # local pred
+                     loss_weight=1),  # local pred
                 dict(type='L1Loss', use_target_weight=True,
-                     loss_weight=5),  # all pred
+                     loss_weight=1),  # all pred
                 dict(
                     type='PinchLoss',
                     enter_thre=pinch_thre[0] / 1000,
                     exit_thre=pinch_thre[1] / 1000,
-                    loss_weight=0,
+                    loss_weight=1,
                     enable_start_epoch=train_cfg['max_epochs'] // 2),
-                dict(type='MSELoss', loss_weight=5),  # nimble trans直接监督
+                dict(type='MSELoss', loss_weight=1),  # nimble trans直接监督
                 dict(
                     type='RLELoss',
                     dim=3,
-                    enable_start_epoch=train_cfg['max_epochs']),
+                    enable_start_epoch=train_cfg['max_epochs'] // 2),
                 dict(
                     type='L1Loss',
-                    use_target_weight=False,
-                    enable_start_epoch=train_cfg['max_epochs'],
-                    loss_weight=0),  # 由于深度不准会导致2d误差大，从而可能会梯度爆炸
+                    use_target_weight=True,
+                    enable_start_epoch=train_cfg['max_epochs'] // 2,
+                    loss_weight=1),  # 由于深度不准会导致2d误差大，从而可能会梯度爆炸，所以需要后半段打开
             ]),
         use_svd=True,
         pose_ncomp=30,
@@ -94,7 +94,6 @@ model = dict(
         type='Pretrained',
         checkpoint=
         '/data/AI_DATA/data_hand/model/mmpose/all_decouple_pca_standard_total_res26s_aug2d/epoch_150.pth'
-        # '/home/ykhu/workspace/mmpose/work_dirs/umetrack/single/td_umetrack_8xb32-100e_lmdbdata-96x96_gmlp_2dloss/epoch_10.pth'
     ),
 )
 
@@ -117,15 +116,15 @@ train_data_list += [
 ]
 
 # train_data_list = [
-#     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240229_085520__pinch__normal__left__1110__0029__undistort_tar__Flora301.json',
-#     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240229_085836__pinch__normal__right__1110__0029__undistort_tar__Flora301.json',
-#     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_062729__pinch__normal__right__1110__0006__undistort_tar__Flora301.json',
-#     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_063058__pinch__normal__left__1110__0006__undistort_tar__Flora301.json',
-#     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_063800__pinch__normal__left__1110__0007__undistort_tar__Flora301.json',
-#     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_064131__pinch__normal__right__1110__0007__undistort_tar__Flora301.json',
-#     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_064839__pinch__normal__left__1110__0014__undistort_tar__Flora301.json',
-#     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_065926__pinch__normal__right__1110__0014__undistort_tar__Flora301.json',
-#     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_070606__pinch__normal__right__1110__0008__undistort_tar__Flora301.json',
+#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240229_085520__pinch__normal__left__1110__0029__undistort_tar__Flora301.json',
+#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240229_085836__pinch__normal__right__1110__0029__undistort_tar__Flora301.json',
+#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_062729__pinch__normal__right__1110__0006__undistort_tar__Flora301.json',
+#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_063058__pinch__normal__left__1110__0006__undistort_tar__Flora301.json',
+#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_063800__pinch__normal__left__1110__0007__undistort_tar__Flora301.json',
+#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_064131__pinch__normal__right__1110__0007__undistort_tar__Flora301.json',
+#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_064839__pinch__normal__left__1110__0014__undistort_tar__Flora301.json',
+#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_065926__pinch__normal__right__1110__0014__undistort_tar__Flora301.json',
+#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_070606__pinch__normal__right__1110__0008__undistort_tar__Flora301.json',
 #     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_070606__pinch__normal__right__1110__0008__undistort_tar__Flora301.json',
 # ]
 
@@ -146,7 +145,38 @@ _input_size = (128, 128)
 # pipelines
 train_pipeline = [
     dict(type='GetBBoxCenterScale', padding=1.0),
-    dict(type='UmePCL', input_size=_input_size),
+    dict(
+        type='GroupTransformers',
+        trans_cfg_list=[
+            dict(
+                type='RandomBBoxTransform',
+                scale_factor=[0.75, 1.25],
+                rotate_factor=15,
+                rotate_prob=0.3,
+                shift_prob=0.5,
+                shift_factor=0.2),
+            dict(type='UmePCL', input_size=_input_size),
+            dict(type='RandomDownSampleImage', min_ratio=0.5, prob=1),
+            dict(type='MixTwoHands', prob=1),
+            dict(
+                type='Albumentation',
+                transforms=[
+                    dict(
+                        type='CoarseDropout',
+                        p=1,
+                        max_holes=2,
+                        max_height=16,
+                        max_width=16,
+                    ),
+                ]),
+            dict(
+                type='GenerateNoiseDarkImage',
+                prob=1,
+                gamma_limit=(0.85, 0.95),
+                alpha_limit=(0.2, 0.5),
+                concat_image=False),
+        ],
+        enable_epoch_num=int(train_cfg['max_epochs'])),
     dict(type='PackPoseInputs')
 ]
 val_pipeline = [
@@ -170,14 +200,14 @@ train_dataloader = dict(
         pipeline=train_pipeline,
         dataset_weight_list=dataset_weight_list,
         data_root=data_root,
-        flip_left_to_right=False,
+        flip_left_to_right=True,
         # indices=1000,
     ),
 )
 val_dataloader = dict(
     batch_size=128,
-    num_workers=0,
-    persistent_workers=False,
+    num_workers=8,
+    persistent_workers=True,
     drop_last=True,
     sampler=dict(type='DefaultSampler', shuffle=False, round_up=False),
     collate_fn=dict(type='default_collate'),
@@ -187,7 +217,7 @@ val_dataloader = dict(
         data_mode=data_mode,
         test_mode=True,
         pipeline=val_pipeline,
-        flip_left_to_right=False,
+        flip_left_to_right=True,
         data_root=data_root
         # point_type='leftcam'
     ),

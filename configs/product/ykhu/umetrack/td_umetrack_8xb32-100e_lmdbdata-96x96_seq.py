@@ -5,12 +5,12 @@ import os
 
 _base_ = ['../../../_base_/default_runtime.py']
 
-train_cfg = dict(max_epochs=100, val_interval=5)
+train_cfg = dict(max_epochs=50, val_interval=5)
 
 data_root = '/data/AI_DATA_WX'
 
 # optimizer
-optim_wrapper = dict(optimizer=dict(type='Adam', lr=3e-4, weight_decay=1e-4), )
+optim_wrapper = dict(optimizer=dict(type='Adam', lr=5e-5, weight_decay=1e-4), )
 
 param_scheduler = [
     dict(
@@ -66,23 +66,23 @@ model = dict(
                     type='PinchLoss',
                     enter_thre=pinch_thre[0] / 1000,
                     exit_thre=pinch_thre[1] / 1000,
-                    loss_weight=0,
+                    loss_weight=1,
                     enable_start_epoch=train_cfg['max_epochs'] // 2),
                 dict(type='MSELoss', loss_weight=5),  # nimble trans直接监督
                 dict(
                     type='MPJPAELoss',
                     seq_length=seq_len,
-                    loss_weight=1.5,
+                    loss_weight=1,
                 ),
                 dict(
                     type='RLELoss',
                     dim=3,
-                    enable_start_epoch=train_cfg['max_epochs']),
+                    enable_start_epoch=train_cfg['max_epochs'] // 2),
                 dict(
                     type='L1Loss',
                     use_target_weight=False,
-                    enable_start_epoch=train_cfg['max_epochs'],
-                    loss_weight=0),  # 由于深度不准会导致2d误差大，从而可能会梯度爆炸
+                    enable_start_epoch=train_cfg['max_epochs'] // 2,
+                    loss_weight=1),
             ]),
         seq_len=seq_len,
         use_svd=True,
@@ -100,7 +100,8 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/AI_DATA/data_hand/model/mmpose/all_decouple_pca_standard_total_res26s_aug2d/epoch_150.pth'
+        # '/data/AI_DATA/data_hand/model/mmpose/all_decouple_pca_standard_total_res26s_aug2d/epoch_150.pth'
+        '/home/ykhu/workspace/mmpose/work_dirs/umetrack/single/td_umetrack_8xb32-100e_lmdbdata-96x96_gmlp_5e-05_100e_stage2/best_all_mpjpe_epoch_140.pth'
     ),
 )
 
@@ -122,33 +123,30 @@ train_data_list += [
     for annotations3d_fixed_file_sin in annotations3d_fixed_file_list
 ]
 
-train_data_list = [
-    # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240229_085520__pinch__normal__left__1110__0029__undistort_tar__Flora301.json',
-    # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240229_085836__pinch__normal__right__1110__0029__undistort_tar__Flora301.json',
-    # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_062729__pinch__normal__right__1110__0006__undistort_tar__Flora301.json',
-    # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_063058__pinch__normal__left__1110__0006__undistort_tar__Flora301.json',
-    '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_063800__pinch__normal__left__1110__0007__undistort_tar__Flora301.json',
-    '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_064131__pinch__normal__right__1110__0007__undistort_tar__Flora301.json',
-    '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_064839__pinch__normal__left__1110__0014__undistort_tar__Flora301.json',
-    '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_065926__pinch__normal__right__1110__0014__undistort_tar__Flora301.json',
-    '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_070606__pinch__normal__right__1110__0008__undistort_tar__Flora301.json',
-    '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_070606__pinch__normal__right__1110__0008__undistort_tar__Flora301.json',
-]
+# train_data_list = [
+#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240229_085520__pinch__normal__left__1110__0029__undistort_tar__Flora301.json',
+#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240229_085836__pinch__normal__right__1110__0029__undistort_tar__Flora301.json',
+#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_062729__pinch__normal__right__1110__0006__undistort_tar__Flora301.json',
+#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_063058__pinch__normal__left__1110__0006__undistort_tar__Flora301.json',
+#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_063800__pinch__normal__left__1110__0007__undistort_tar__Flora301.json',
+#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_064131__pinch__normal__right__1110__0007__undistort_tar__Flora301.json',
+#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_064839__pinch__normal__left__1110__0014__undistort_tar__Flora301.json',
+#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_065926__pinch__normal__right__1110__0014__undistort_tar__Flora301.json',
+#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_070606__pinch__normal__right__1110__0008__undistort_tar__Flora301.json',
+#     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_070606__pinch__normal__right__1110__0008__undistort_tar__Flora301.json',
+# ]
 
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_070648__all__normal__right__1111__0005__undistort_tar__Flora301.json',  #
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_071804__all__bright__left__1111__0005__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_072334__pinch__dark__right__1111__0005__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_072715__pinch__normal__left__1111__0005__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073026__pinch__bright__right__1111__0005__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073556__pinch__bright__left__1111__0005__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073857__pinch__normal__right__1111__0005__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_070648__all__normal__right__1111__0005__undistort_tar__Flora301.json',  #
+    'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_071804__all__bright__left__1111__0005__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_072334__pinch__dark__right__1111__0005__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_072715__pinch__normal__left__1111__0005__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073026__pinch__bright__right__1111__0005__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073556__pinch__bright__left__1111__0005__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073857__pinch__normal__right__1111__0005__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_074601__pinch__bright__left__1111__0005__undistort_tar__Flora301.json',
-
-    # '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/fit3d_seqsmooth_auto__binocular_coco/XS__20240516_070512__all__normal__left__1101__0007__undistort_tar__Flora301.json',
-    # '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/fit3d_seqsmooth_auto__binocular_coco/XS__20240516_065421__all__normal__right__1101__0007__undistort_tar__Flora301.json',
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 _input_size = (128, 128)
@@ -177,7 +175,7 @@ train_dataloader = dict(
         pipeline=train_pipeline,
         dataset_weight_list=dataset_weight_list,
         data_root=data_root,
-        flip_left_to_right=False,
+        flip_left_to_right=True,
         seq_len=seq_len),
 )
 val_dataloader = dict(
@@ -193,7 +191,7 @@ val_dataloader = dict(
         data_mode=data_mode,
         test_mode=True,
         pipeline=val_pipeline,
-        flip_left_to_right=False,
+        flip_left_to_right=True,
         data_root=data_root),
 )
 test_dataloader = val_dataloader

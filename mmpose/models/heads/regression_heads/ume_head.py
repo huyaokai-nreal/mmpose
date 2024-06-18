@@ -199,15 +199,14 @@ class UmeHead(BaseModule):
             if i % 2 == 0:
                 left_vir_camera = data_sample.meta['virtual_camera']
                 left_cam_f.append(left_vir_camera.f[0])
-                # if data_sample.meta['flipped']:
-                #     mirror_x_matrix = np.eye(4)
-                #     mirror_x_matrix[0][0] = -1
-                #     left_cam_xf.append(mirror_x_matrix @ \
-                #     left_vir_camera.camera_to_world_xf)
-                #     data_sample.gt_instances.keypoints3d[..., 0] *= -1
-                #     hand3d_gt.append(data_sample.gt_instances.keypoints3d[0])
-                # else:
-                left_cam_xf.append(left_vir_camera.camera_to_world_xf)
+                if data_sample.meta['flipped']:
+                    mirror_x_matrix = np.eye(4)
+                    mirror_x_matrix[0][0] = -1
+                    left_cam_xf.append(mirror_x_matrix @ \
+                    left_vir_camera.camera_to_world_xf)
+                    data_sample.gt_instances.keypoints3d[..., 0] *= -1
+                else:
+                    left_cam_xf.append(left_vir_camera.camera_to_world_xf)
                 hand3d_gt.append(data_sample.gt_instances.keypoints3d[0])
                 if 'nimble_pose' in data_sample.meta.keys() and not np.equal(
                         data_sample.meta['nimble_pose'].any(), None):
@@ -222,14 +221,14 @@ class UmeHead(BaseModule):
                 right_vir_camera = data_sample.meta['virtual_camera']
                 right_cam_f.append(right_vir_camera.f[0])
 
-                # if data_sample.meta['flipped']:
-                #     mirror_x_matrix = np.eye(4)
-                #     mirror_x_matrix[0][0] = -1
-                #     right_cam_xf.append(data_sample.meta['ori_xf'] @ \
-                #     mirror_x_matrix @ right_vir_camera.camera_to_world_xf)
-                # else:
-                right_cam_xf.append(data_sample.meta['ori_xf']
-                                    @ right_vir_camera.camera_to_world_xf)
+                if data_sample.meta['flipped']:
+                    mirror_x_matrix = np.eye(4)
+                    mirror_x_matrix[0][0] = -1
+                    right_cam_xf.append(data_sample.meta['ori_xf'] @ \
+                    mirror_x_matrix @ right_vir_camera.camera_to_world_xf)
+                else:
+                    right_cam_xf.append(data_sample.meta['ori_xf']
+                                        @ right_vir_camera.camera_to_world_xf)
         hand3d_gt = torch.tensor(np.array(hand3d_gt)).cuda().float()
         left_cam_f = torch.tensor(np.array(left_cam_f)).cuda().float()
         right_cam_f = torch.tensor(np.array(right_cam_f)).cuda().float()
@@ -447,7 +446,7 @@ class UmeHead(BaseModule):
         weight_ini[:, :9, :] = 2
         weight_ini[:, 4, :], weight_ini[:, 8, :] = 4, 4
         weight_for_loss = [
-            weight_ini, weight_ini, weight_ini, None, None, None, None
+            weight_ini, weight_ini, weight_ini, None, None, None, weight_ini
         ]
         losses = self.ume_loss(pred_for_loss, targ_for_loss, weight_for_loss)
         (loss_pre_root, loss_pre_nimble, loss_pre_all, loss_pinch,

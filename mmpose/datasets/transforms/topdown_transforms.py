@@ -481,8 +481,8 @@ class UmePCL(BaseTransform):
 
     def transform(self, results: Dict) -> Dict:
         w, h = self.input_size
-        # if results['meta']['flipped']:
-        #     results['keypoints3d'][..., 0] = -results['keypoints3d'][..., 0]
+        if results['meta']['flipped']:
+            results['keypoints3d'][..., 0] = -results['keypoints3d'][..., 0]
         results['input_size'] = self.input_size
         results['bbox_scale'] = TopdownAffine._fix_aspect_ratio(
             results['bbox_scale'], aspect_ratio=w / h)
@@ -490,6 +490,7 @@ class UmePCL(BaseTransform):
             'ori_camera'].camera_to_world_xf
         results['meta']['ori_camera'].camera_to_world_xf = np.eye(4)
         ori_camera = results['meta']['ori_camera']
+        world_points = results['keypoints3d'][0]
         center = results['bbox_center'][0]
         scale = self.input_size[0] / results['bbox_scale'][0][0]
         virtual_camera: PinholePlaneCameraModel = \
@@ -503,4 +504,10 @@ class UmePCL(BaseTransform):
         crop_img = warp_image(ori_camera, virtual_camera, w, h, image)
         results['img'] = crop_img
         results['meta']['virtual_camera'] = virtual_camera
+        kpt3d_in_virutal = virtual_camera.world_to_eye(world_points)
+        warp_keypoints = virtual_camera.eye_to_window(kpt3d_in_virutal)
+        results['transformed_keypoints'] = results['keypoints'].copy()
+        results['transformed_keypoints'][..., :2] = warp_keypoints
+        results['warp_mat'] = np.array([[1, 0, 0], [0, 1, 0]],
+                                       dtype=np.float32)
         return results

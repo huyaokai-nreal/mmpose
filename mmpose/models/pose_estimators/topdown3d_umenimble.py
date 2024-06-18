@@ -202,13 +202,11 @@ class TopdownPoseUmeNimbleEstimator(BaseModel):
 
         for pred_instances, pred_fields, data_sample in zip_longest(
                 batch_pred_instances, batch_pred_fields, batch_data_samples):
-            # if data_sample.meta['flipped']:
-            #     pred_kpt = pred_instances.keypoints[0]
-            #     gt_kpt = data_sample.gt_instances.keypoints[0]
-            #     pred_kpt[..., 0] = (
-            #         data_sample.meta['frame_width'] - 1 - pred_kpt[..., 0])
-            #     gt_kpt[..., 0] = (
-            #         data_sample.meta['frame_width'] - 1 - gt_kpt[..., 0])
+            if data_sample.meta['flipped']:
+                # 预测3D点已翻转过，重投影的2d不必再翻转
+                gt_kpt = data_sample.gt_instances.keypoints[0]
+                gt_kpt[..., 0] = (
+                    data_sample.meta['frame_width'] - 1 - gt_kpt[..., 0])
             data_sample.pred_instances = pred_instances
         return batch_data_samples
 
