@@ -1,6 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import copy
-
+import torch
 import torch.nn as nn
 import torch.utils.checkpoint as cp
 from mmcv.cnn import ConvModule, build_conv_layer, build_norm_layer
@@ -9,6 +9,7 @@ from mmengine.utils.dl_utils.parrots_wrapper import _BatchNorm
 
 from mmpose.registry import MODELS
 from .base_backbone import BaseBackbone
+from mmpose.models.utils import SEBlock, CBAM, ECA, BAM, NonLocalBlock
 
 
 class BasicBlock(BaseModule):
@@ -45,6 +46,7 @@ class BasicBlock(BaseModule):
                  downsample=None,
                  style='pytorch',
                  with_cp=False,
+                 attention=None,
                  conv_cfg=None,
                  norm_cfg=dict(type='BN'),
                  init_cfg=None,
@@ -64,6 +66,8 @@ class BasicBlock(BaseModule):
         self.with_cp = with_cp
         self.conv_cfg = conv_cfg
         self.norm_cfg = norm_cfg
+        self.attention = attention
+        self.attention_module = self._initialize_attention_module()
 
         self.norm1_name, norm1 = build_norm_layer(
             norm_cfg, self.mid_channels, postfix=1)
@@ -102,6 +106,21 @@ class BasicBlock(BaseModule):
         """nn.Module: the normalization layer named "norm2" """
         return getattr(self, self.norm2_name)
 
+    def _initialize_attention_module(self):
+        attention_modules = {
+            'SEBlock': SEBlock,
+            'CBAM': CBAM,
+            'ECA': ECA,
+            'BAM': BAM,
+            'NonLocalBlock': NonLocalBlock
+        }
+        if self.attention in attention_modules:
+            return attention_modules[self.attention](self.out_channels)
+        elif self.attention is None:
+            return None
+        else:
+            raise TypeError(f'Unsupport attention module: {self.attention}')
+
     def forward(self, x):
         """Forward function."""
 
@@ -114,7 +133,9 @@ class BasicBlock(BaseModule):
 
             out = self.conv2(out)
             out = self.norm2(out)
-
+            
+            if self.attention is not None:
+                out = self.attention_module(out)
             if self.downsample is not None:
                 identity = self.downsample(x)
 
@@ -348,6 +369,7 @@ class ResLayer(nn.Sequential):
                  stride=1,
                  avg_down=False,
                  conv_cfg=None,
+                 attention=None,
                  norm_cfg=dict(type='BN'),
                  downsample_first=True,
                  bias_in_conv=False,
@@ -392,6 +414,7 @@ class ResLayer(nn.Sequential):
                     downsample=downsample,
                     conv_cfg=conv_cfg,
                     norm_cfg=norm_cfg,
+                    attention=attention,
                     bias_in_conv=bias_in_conv,
                     **kwargs))
             in_channels = out_channels
@@ -525,6 +548,7 @@ class ResNet(BaseBackbone):
                  norm_cfg=dict(type='BN', requires_grad=True),
                  norm_eval=False,
                  with_cp=False,
+                 attention=None,
                  zero_init_residual=True,
                  init_cfg=[
                      dict(type='Kaiming', layer=['Conv2d']),
@@ -591,6 +615,7 @@ class ResNet(BaseBackbone):
                 with_cp=with_cp,
                 conv_cfg=conv_cfg,
                 norm_cfg=norm_cfg,
+                attention=attention,
                 bias_in_conv=self.bias_in_conv)
             _in_channels = out_channel
             layer_name = f'layer{i + 1}'

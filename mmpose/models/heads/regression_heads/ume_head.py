@@ -99,6 +99,7 @@ class UmeHead(BaseModule):
                  enhance_lefthand=True,
                  enhance_static=True,
                  use_svd: bool = True,
+                 use_gmlp: bool = True,
                  use_scaled_as_canonical: bool = True,
                  init_cfg: Union[dict, List[dict], None] = None):
         super().__init__(init_cfg)
@@ -116,6 +117,7 @@ class UmeHead(BaseModule):
         self.shape_ncomp = shape_ncomp
         self.pose_ncomp = pose_ncomp
         self.use_scaled_as_canonical = use_scaled_as_canonical
+        self.use_gmlp = use_gmlp
         self.scale_parameter = 1000
         self.rigid_samples = _gen_rigid_features()
         self.proj_layer = nn.Conv2d(
@@ -155,7 +157,8 @@ class UmeHead(BaseModule):
         else:
             self.output_num = output_num
         feat_dim = feat_channel * feature_map_shape[0] * feature_map_shape[1]
-        self.gmlp = gMLP(d_model=feat_dim, d_ffn=d_ffn, num_layers=3)
+        if self.use_gmlp:
+            self.gmlp = gMLP(d_model=feat_dim, d_ffn=d_ffn, num_layers=3)
         self.last_layer = nn.Sequential(
             nn.Conv2d(feat_dim, feat_dim, kernel_size=1), nn.ReLU(),
             nn.Conv2d(feat_dim, self.output_num, kernel_size=1))
@@ -510,9 +513,10 @@ class UmeHead(BaseModule):
         # fuse multiv feat
         cur_fused_features = self.forward_feature_fuse(feats, cam_f, cam_xf)
         cur_fused_features = cur_fused_features.view(B, -1, 1, 1)
-        feats_gmlp = self.gmlp(cur_fused_features)
-        sigma = self.sigma_conv(feats_gmlp).reshape(B, 21, 3)
-        output = self.last_layer(feats_gmlp)
+        if self.use_gmlp:
+            cur_fused_features = self.gmlp(cur_fused_features)
+        sigma = self.sigma_conv(cur_fused_features).reshape(B, 21, 3)
+        output = self.last_layer(cur_fused_features)
         return output, sigma
 
     def forward_feature_fuse(self, feats, cam_f, cam_xf):

@@ -4,8 +4,10 @@ from .ckpt_convert import pvt_convert
 from .ops import BFBatchNorm2d
 from .rtmcc_block import RTMCCBlock, rope
 from .transformer import PatchEmbed, nchw_to_nlc, nlc_to_nchw
+from .attention import SEBlock, CBAM, ECA, BAM, NonLocalBlock
 
 __all__ = [
     'PatchEmbed', 'nchw_to_nlc', 'nlc_to_nchw', 'pvt_convert', 'RTMCCBlock',
-    'rope', 'check_and_update_config', 'BFBatchNorm2d'
+    'rope', 'check_and_update_config', 'BFBatchNorm2d', 'SEBlock',
+    'CBAM', 'ECA', 'BAM', 'NonLocalBlock'
 ]

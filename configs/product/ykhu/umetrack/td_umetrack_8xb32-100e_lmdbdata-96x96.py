@@ -5,7 +5,7 @@ import os
 
 _base_ = ['../../../_base_/default_runtime.py']
 
-train_cfg = dict(max_epochs=150, val_interval=5)
+train_cfg = dict(max_epochs=200, val_interval=5)
 
 data_root = '/data/AI_DATA_WX'
 
@@ -45,6 +45,7 @@ model = dict(
         stem_channels=32,
         base_channels=32,
         expansion=1,
+        attention=None, # None, SEBlock, CBAM, ECA, BAM, NonLocalBlock
         out_indices=(3, ),
         strides=(1, 2, 2, 1),
         zero_init_residual=False,
@@ -76,9 +77,10 @@ model = dict(
                     type='L1Loss',
                     use_target_weight=True,
                     enable_start_epoch=train_cfg['max_epochs'] // 2,
-                    loss_weight=1),  # 由于深度不准会导致2d误差大，从而可能会梯度爆炸，所以需要后半段打开
+                    loss_weight=1),
             ]),
         use_svd=True,
+        use_gmlp=False,
         pose_ncomp=30,
         reg_shape_type=0,
         enhance_static=False,
@@ -156,14 +158,14 @@ train_pipeline = [
                 shift_prob=0.5,
                 shift_factor=0.2),
             dict(type='UmePCL', input_size=_input_size),
-            dict(type='RandomDownSampleImage', min_ratio=0.5, prob=1),
-            dict(type='MixTwoHands', prob=1),
+            dict(type='RandomDownSampleImage', min_ratio=0.5, prob=0.2),
+            dict(type='MixTwoHands', prob=0.1),
             dict(
                 type='Albumentation',
                 transforms=[
                     dict(
                         type='CoarseDropout',
-                        p=1,
+                        p=0.2,
                         max_holes=2,
                         max_height=16,
                         max_width=16,
@@ -171,7 +173,7 @@ train_pipeline = [
                 ]),
             dict(
                 type='GenerateNoiseDarkImage',
-                prob=1,
+                prob=0.65,
                 gamma_limit=(0.85, 0.95),
                 alpha_limit=(0.2, 0.5),
                 concat_image=False),
@@ -245,7 +247,7 @@ val_evaluator = [
         openhand_metric=False,
         pinch_hard_metric=False,
         category_metric=False,
-        score_metric=False,
+        score_metric=True,
         # bmk_save_root='/data/stliu/mmpose_new/mmpose/work_dirs/result_20231203/bad_case',
         # show_bmk_thr=(50, 10000000),
         filter_exceed=filter_exceed),  #bad case mpjpe thr (mm)
