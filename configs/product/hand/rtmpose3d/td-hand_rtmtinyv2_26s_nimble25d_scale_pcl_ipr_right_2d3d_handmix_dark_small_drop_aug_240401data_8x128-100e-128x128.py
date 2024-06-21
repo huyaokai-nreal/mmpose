@@ -100,7 +100,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        ' /data/AI_DATA/data_hand/model/mmpose/td-hand_rtmtinyv2_26s_25d_scale_ipr_right_2d3d_handmix_dark_small_drop_aug_240401data_8x128-100e-128x128/epoch_100.pth'
+        '/data/AI_DATA/data_hand/model/mmpose/td-hand_rtmtinyv2_26s_25d_scale_ipr_right_2d3d_handmix_dark_small_drop_aug_240401data_8x128-100e-128x128/epoch_100.pth'
     ),
     root_mode='optimize' if test_type == '3d' else 'gt',
     camera_layout=camera_layout)
