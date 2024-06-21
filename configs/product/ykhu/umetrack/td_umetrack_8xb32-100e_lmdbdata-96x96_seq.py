@@ -12,6 +12,8 @@ data_root = '/data/AI_DATA_WX'
 # optimizer
 optim_wrapper = dict(optimizer=dict(type='Adam', lr=5e-5, weight_decay=1e-4), )
 
+# 梯度裁剪
+clip_grad=dict(max_norm=50, norm_type=2)
 param_scheduler = [
     dict(
         type='LinearLR',
@@ -68,7 +70,7 @@ model = dict(
                     exit_thre=pinch_thre[1] / 1000,
                     loss_weight=1,
                     enable_start_epoch=train_cfg['max_epochs'] // 2),
-                dict(type='MSELoss', loss_weight=5),  # nimble trans直接监督
+                dict(type='MSELoss', loss_weight=1),  # nimble trans直接监督
                 dict(
                     type='MPJPAELoss',
                     seq_length=seq_len,
@@ -80,12 +82,13 @@ model = dict(
                     enable_start_epoch=train_cfg['max_epochs'] // 2),
                 dict(
                     type='L1Loss',
-                    use_target_weight=False,
+                    use_target_weight=True,
                     enable_start_epoch=train_cfg['max_epochs'] // 2,
                     loss_weight=1),
             ]),
         seq_len=seq_len,
         use_svd=True,
+        use_gmlp=False,
         pose_ncomp=30,
         reg_shape_type=0,
         enhance_static=False,
@@ -101,7 +104,7 @@ model = dict(
         type='Pretrained',
         checkpoint=
         # '/data/AI_DATA/data_hand/model/mmpose/all_decouple_pca_standard_total_res26s_aug2d/epoch_150.pth'
-        '/home/ykhu/workspace/mmpose/work_dirs/umetrack/single/td_umetrack_8xb32-100e_lmdbdata-96x96_gmlp_5e-05_100e_stage2/best_all_mpjpe_epoch_140.pth'
+        '/home/ykhu/workspace/mmpose/work_dirs/0619_grad/td_umetrack_8xb32-100e_lmdbdata-96x96_clip50_lr5e-5_e150/best_all_mpjpe_epoch_145.pth'
     ),
 )
 
@@ -153,7 +156,38 @@ _input_size = (128, 128)
 # pipelines
 train_pipeline = [
     dict(type='GetBBoxCenterScale', padding=1.0),
-    dict(type='UmePCL', input_size=_input_size),
+    dict(
+        type='GroupTransformers',
+        trans_cfg_list=[
+            dict(
+                type='RandomBBoxTransform',
+                scale_factor=[0.75, 1.25],
+                rotate_factor=15,
+                rotate_prob=0.3,
+                shift_prob=0.5,
+                shift_factor=0.2),
+            dict(type='UmePCL', input_size=_input_size),
+            dict(type='RandomDownSampleImage', min_ratio=0.5, prob=0.2),
+            dict(type='MixTwoHands', prob=0.1),
+            dict(
+                type='Albumentation',
+                transforms=[
+                    dict(
+                        type='CoarseDropout',
+                        p=0.2,
+                        max_holes=2,
+                        max_height=16,
+                        max_width=16,
+                    ),
+                ]),
+            dict(
+                type='GenerateNoiseDarkImage',
+                prob=0.65,
+                gamma_limit=(0.85, 0.95),
+                alpha_limit=(0.2, 0.5),
+                concat_image=False),
+        ],
+        enable_epoch_num=int(train_cfg['max_epochs'])),
     dict(type='PackPoseInputs')
 ]
 val_pipeline = [
@@ -222,8 +256,8 @@ val_evaluator = [
         # show_bmk_thr=(50, 10000000),
         filter_exceed=filter_exceed),  #bad case mpjpe thr (mm)
     # dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
-    dict(type='EPE', filter_exceed=filter_exceed),
-    dict(type='NrealKeypointAP', filter_exceed=filter_exceed)
+    # dict(type='EPE', filter_exceed=filter_exceed),
+    # dict(type='NrealKeypointAP', filter_exceed=filter_exceed)
 ]
 
 test_evaluator = val_evaluator

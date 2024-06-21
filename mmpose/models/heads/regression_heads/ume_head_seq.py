@@ -114,6 +114,7 @@ class UmeHeadSeq(UmeHead):
                  enhance_lefthand=True,
                  enhance_static=True,
                  use_svd: bool = True,
+                 use_gmlp: bool = True,
                  use_scaled_as_canonical: bool = True,
                  init_cfg: Union[dict, List[dict], None] = None):
         super().__init__(
@@ -132,9 +133,11 @@ class UmeHeadSeq(UmeHead):
             enhance_lefthand=enhance_lefthand,
             enhance_static=enhance_static,
             use_svd=use_svd,
+            use_gmlp=use_gmlp,
             use_scaled_as_canonical=use_scaled_as_canonical,
             init_cfg=init_cfg)
         self.seq_len = seq_len
+        self.use_gmlp = use_gmlp
         self.temporal = SimpleConvRNN(
             nTemporalBlocks=3,
             nTemporalMemoryChannels=mem_channel,
@@ -202,9 +205,10 @@ class UmeHeadSeq(UmeHead):
             prev_extrinsics = _cam_xf[:, 0]
             # import ipdb;ipdb.set_trace()
             temporal_features = temporal_features.view(B, -1, 1, 1)
-            feats_gmlp = self.gmlp(temporal_features)
-            sigma = self.sigma_conv(feats_gmlp).reshape(B, 21, 3)
-            output = self.last_layer(feats_gmlp)
+            if self.use_gmlp:
+                temporal_features = self.gmlp(temporal_features)
+            sigma = self.sigma_conv(temporal_features).reshape(B, 21, 3)
+            output = self.last_layer(temporal_features)
             outputs[:, i, ...] = output
             sigmas[:, i, ...] = sigma
 
@@ -293,7 +297,7 @@ class UmeHeadSeq(UmeHead):
             None,
             None,
             None,
-            None,
+            weight_ini,
         ]
         losses = self.ume_loss(pred_for_loss, targ_for_loss, weight_for_loss)
         (loss_pre_root, loss_pre_nimble, loss_pre_all, loss_pinch,

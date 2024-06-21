@@ -5,13 +5,15 @@ import os
 
 _base_ = ['../../../_base_/default_runtime.py']
 
-train_cfg = dict(max_epochs=200, val_interval=5)
+train_cfg = dict(max_epochs=100, val_interval=5)
 
 data_root = '/data/AI_DATA_WX'
 
 # optimizer
 optim_wrapper = dict(optimizer=dict(type='Adam', lr=5e-5, weight_decay=1e-4), )
 
+# 梯度裁剪
+clip_grad=dict(max_norm=50, norm_type=2)
 param_scheduler = [
     dict(
         type='LinearLR',
@@ -116,6 +118,7 @@ train_data_list += [
     os.path.join(annotations3d_fixed_base_path, annotations3d_fixed_file_sin)
     for annotations3d_fixed_file_sin in annotations3d_fixed_file_list
 ]
+
 
 # train_data_list = [
 #     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240229_085520__pinch__normal__left__1110__0029__undistort_tar__Flora301.json',
@@ -252,8 +255,8 @@ val_evaluator = [
         # show_bmk_thr=(50, 10000000),
         filter_exceed=filter_exceed),  #bad case mpjpe thr (mm)
     # dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
-    dict(type='EPE', filter_exceed=filter_exceed),
-    dict(type='NrealKeypointAP', filter_exceed=filter_exceed)
+    # dict(type='EPE', filter_exceed=filter_exceed),
+    # dict(type='NrealKeypointAP', filter_exceed=filter_exceed)
 ]
 
 test_evaluator = val_evaluator
