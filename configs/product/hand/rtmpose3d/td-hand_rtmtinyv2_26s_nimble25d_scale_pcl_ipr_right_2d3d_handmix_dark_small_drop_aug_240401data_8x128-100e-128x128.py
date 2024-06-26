@@ -124,24 +124,24 @@ train_pipeline = [
     dict(type='KeypointTo25DLabel', norm_depth=True),
     dict(type='GetBBoxCenterScale', padding=1.0),
     dict(
+        type='RandomBBoxTransform',
+        scale_factor=[0.75, 1.25],
+        rotate_factor=15,
+        rotate_prob=0.3,
+        shift_prob=0.5,
+        shift_factor=0.2),
+    dict(type='TopdownPCL', input_size=codec['input_size'][:2]),
+    dict(
         type='GroupTransformers',
         trans_cfg_list=[
-            dict(
-                type='RandomBBoxTransform',
-                scale_factor=[0.75, 1.25],
-                rotate_factor=15,
-                rotate_prob=0.3,
-                shift_prob=0.5,
-                shift_factor=0.2),
-            dict(type='TopdownPCL', input_size=codec['input_size'][:2]),
             dict(type='RandomDownSampleImage', min_ratio=0.5, prob=0.2),
-            dict(type='MixTwoHands', prob=0.1),
+            dict(type='MixTwoHands', prob=0.5),
             dict(
                 type='Albumentation',
                 transforms=[
                     dict(
                         type='CoarseDropout',
-                        p=0.2,
+                        p=0.5,
                         max_holes=2,
                         max_height=16,
                         max_width=16,
@@ -154,31 +154,31 @@ train_pipeline = [
                 alpha_limit=(0.2, 0.5),
                 concat_image=False),
         ],
-        enable_epoch_num=int(train_cfg['max_epochs'])),
+        enable_epoch_num=int(train_cfg['max_epochs']) - 20),
     dict(type='GenerateTarget', encoder=codec),
     dict(type='PackPoseInputs')
 ]
 train_2d_pipeline = [
     dict(type='GetBBoxCenterScale', padding=1.0),
     dict(
+        type='RandomBBoxTransform',
+        scale_factor=[0.75, 1.25],
+        rotate_factor=15,
+        rotate_prob=0.3,
+        shift_prob=0.5,
+        shift_factor=0.2),
+    dict(type='TopdownAffine', input_size=codec['input_size'][:2]),
+    dict(
         type='GroupTransformers',
         trans_cfg_list=[
-            dict(
-                type='RandomBBoxTransform',
-                scale_factor=[0.75, 1.25],
-                rotate_factor=15,
-                rotate_prob=0.3,
-                shift_prob=0.5,
-                shift_factor=0.2),
-            dict(type='TopdownAffine', input_size=codec['input_size'][:2]),
-            dict(type='RandomDownSampleImage', min_ratio=0.5, prob=0.2),
-            dict(type='MixTwoHands', prob=0.1),
+            dict(type='RandomDownSampleImage', min_ratio=0.5, prob=0.5),
+            dict(type='MixTwoHands', prob=0.5),
             dict(
                 type='Albumentation',
                 transforms=[
                     dict(
                         type='CoarseDropout',
-                        p=0.2,
+                        p=0.5,
                         max_holes=2,
                         max_height=16,
                         max_width=16,
@@ -191,7 +191,7 @@ train_2d_pipeline = [
                 alpha_limit=(0.2, 0.5),
                 concat_image=False),
         ],
-        enable_epoch_num=int(train_cfg['max_epochs'])),
+        enable_epoch_num=int(train_cfg['max_epochs']) - 20),
     dict(type='GenerateTarget', encoder=codec2d),
     dict(type='PackPoseInputs')
 ]
