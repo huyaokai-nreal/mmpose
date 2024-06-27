@@ -1,15 +1,15 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import copy
-import torch
+
 import torch.nn as nn
 import torch.utils.checkpoint as cp
 from mmcv.cnn import ConvModule, build_conv_layer, build_norm_layer
 from mmengine.model import BaseModule, constant_init
 from mmengine.utils.dl_utils.parrots_wrapper import _BatchNorm
 
+from mmpose.models.utils import BAM, CBAM, ECA, NonLocalBlock, SEBlock
 from mmpose.registry import MODELS
 from .base_backbone import BaseBackbone
-from mmpose.models.utils import SEBlock, CBAM, ECA, BAM, NonLocalBlock
 
 
 class BasicBlock(BaseModule):
@@ -133,7 +133,7 @@ class BasicBlock(BaseModule):
 
             out = self.conv2(out)
             out = self.norm2(out)
-            
+
             if self.attention is not None:
                 out = self.attention_module(out)
             if self.downsample is not None:
@@ -414,7 +414,6 @@ class ResLayer(nn.Sequential):
                     downsample=downsample,
                     conv_cfg=conv_cfg,
                     norm_cfg=norm_cfg,
-                    attention=attention,
                     bias_in_conv=bias_in_conv,
                     **kwargs))
             in_channels = out_channels

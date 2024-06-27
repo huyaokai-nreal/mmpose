@@ -1,4 +1,5 @@
 # Copyright (c) OpenMMLab. All rights reserved.
+import torch
 import torch.nn.functional as F
 from torch import nn
 
@@ -12,9 +13,10 @@ class ChannelGatingUnit(nn.Module):
         # self.norm = nn.BatchNorm2d(d_ffn)
         self.channel_proj = nn.Conv2d(d_ffn, d_ffn, kernel_size=1)
         nn.init.constant_(self.channel_proj.bias, 1.0)
+        self.d_ffn = d_ffn
 
     def forward(self, x):
-        u, v = x.chunk(2, dim=1)
+        u, v = torch.split(x, [self.d_ffn, self.d_ffn], dim=1)
         v = self.norm(v)
         v = self.channel_proj(v)
         out = u * v

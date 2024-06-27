@@ -121,10 +121,10 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
         # 标准双目归一化平面2d
         norm_leftcam_xyz = torch.cat(
             (feats[:, :K, 0, 0].reshape(B, K // 2, 2), torch.ones(
-                B, K // 2, 1).cuda()),
+                B, K // 2, 1).to(feats.device)),
             dim=-1)
         norm_rightcam_xyz = torch.cat((feats[:, K + 1:-1, 0, 0].reshape(
-            B, K // 2, 2), torch.ones(B, K // 2, 1).cuda()),
+            B, K // 2, 2), torch.ones(B, K // 2, 1).to(feats.device)),
                                       dim=-1)
 
         if mems is None:

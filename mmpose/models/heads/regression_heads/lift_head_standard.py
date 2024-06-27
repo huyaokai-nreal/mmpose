@@ -406,9 +406,8 @@ class LiftHeadStandard(BaseModule):
 
     def get_standard_kpt3d(self, output, norm_leftcam_xyz, norm_rightcam_xyz):
         B, K = norm_leftcam_xyz.shape[:2]
-        virtual_baseline = (torch.ones(B) *
-                            self.baseline).reshape(B, 1, 1).repeat(1, 21,
-                                                                   1).cuda()
+        virtual_baseline = (torch.ones(B) * self.baseline).reshape(
+            B, 1, 1).repeat(1, 21, 1).to(output.device)
         leftcam_Z = output[:, :21].view(B, K, 1)
         leftcam_XYZ = torch.cat(
             (norm_leftcam_xyz[:, :, :2] * leftcam_Z, leftcam_Z), dim=2)
