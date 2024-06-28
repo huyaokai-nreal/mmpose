@@ -124,23 +124,11 @@ model = dict(
                 dict(type='L1Loss', use_target_weight=True,
                      loss_weight=1),  # 3d kpts rightcam
                 dict(
-                    type='MSELoss',
-                    loss_weight=0),  # 2d reprojection left
-                dict(
-                    type='MSELoss',
-                    loss_weight=0),  # 2d reprojection right
-                dict(
                     type='PinchLoss',
                     enter_thre=pinch_thre[0] / 1000,
                     exit_thre=pinch_thre[1] / 1000,
                     loss_weight=3,
                     enable_start_epoch=train_cfg['max_epochs']//2),
-                dict(
-                    type='L1Loss',
-                    loss_weight=0),  # xyz比例损失
-                dict(
-                    type='MSELoss',
-                    loss_weight=0),  # nimble pose直接监督
                 dict(type='MSELoss', loss_weight=5),  # nimble trans直接监督
                 dict(type='RLELoss',
                     dim=3,
@@ -152,11 +140,9 @@ model = dict(
         use_svd=True,
         lambda_t=train_cfg['max_epochs'],
         pose_ncomp=30,
-        euler_or_quaternion='euler',
         baseline=0.135,
         use_6d_pose_reg=False,
         use_9d_pose_reg=True,
-        use_pose_loss=False,
         direct_pose_reg=False,
         reproj_thre=440,
         iou_thre=0.5,
@@ -196,7 +182,7 @@ train_data_list += [
 # train_data_list = [train_data_sin for train_data_sin in train_data_list if '__20240220_' in train_data_sin and ('Flora302' in train_data_sin or 'Flora303' in train_data_sin)]
 # train_data_list = [train_data_sin for train_data_sin in train_data_list if '__20230824_' in train_data_sin]
 # train_data_list = [
-#     '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_060805__all__normal__left__1111__0006__undistort_tar__Flora301.json',
+#     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_060805__all__normal__left__1111__0006__undistort_tar__Flora301.json',
 # ]
 
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
