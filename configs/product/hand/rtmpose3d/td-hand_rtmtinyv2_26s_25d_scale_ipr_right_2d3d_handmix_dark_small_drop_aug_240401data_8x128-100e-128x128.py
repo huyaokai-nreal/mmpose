@@ -10,7 +10,7 @@ from mmpose.configs._base_.datasets.xs3d import \
 # runtime
 train_cfg = dict(max_epochs=100, val_interval=10)
 
-data_root = '/data/AI_DATA_WX'
+data_root = '/data/AI_DATA'
 # data_root = '/data/AI_DATA_LOCAL'
 test_type = '3d'
 camera_layout = 'monocular'
@@ -124,74 +124,64 @@ train_pipeline = [
     dict(type='KeypointTo25DLabel', norm_depth=True),
     dict(type='GetBBoxCenterScale', padding=1.0),
     dict(
-        type='GroupTransformers',
-        trans_cfg_list=[
+        type='RandomBBoxTransform',
+        scale_factor=[0.75, 1.25],
+        rotate_factor=15,
+        rotate_prob=0.3,
+        shift_prob=0.5,
+        shift_factor=0.2),
+    dict(type='TopdownAffine', input_size=codec['input_size'][:2]),
+    dict(type='RandomDownSampleImage', min_ratio=0.5, prob=0.2),
+    dict(type='MixTwoHands', prob=0.1),
+    dict(
+        type='Albumentation',
+        transforms=[
             dict(
-                type='RandomBBoxTransform',
-                scale_factor=[0.75, 1.25],
-                rotate_factor=15,
-                rotate_prob=0.3,
-                shift_prob=0.5,
-                shift_factor=0.2),
-            dict(type='TopdownAffine', input_size=codec['input_size'][:2]),
-            dict(type='RandomDownSampleImage', min_ratio=0.5, prob=0.2),
-            dict(type='MixTwoHands', prob=0.1),
-            dict(
-                type='Albumentation',
-                transforms=[
-                    dict(
-                        type='CoarseDropout',
-                        p=0.2,
-                        max_holes=2,
-                        max_height=16,
-                        max_width=16,
-                    ),
-                ]),
-            dict(
-                type='GenerateNoiseDarkImage',
-                prob=0.65,
-                gamma_limit=(0.85, 0.95),
-                alpha_limit=(0.2, 0.5),
-                concat_image=False),
-        ],
-        enable_epoch_num=int(train_cfg['max_epochs'])),
+                type='CoarseDropout',
+                p=0.2,
+                max_holes=2,
+                max_height=16,
+                max_width=16,
+            ),
+        ]),
+    dict(
+        type='GenerateNoiseDarkImage',
+        prob=0.65,
+        gamma_limit=(0.85, 0.95),
+        alpha_limit=(0.2, 0.5),
+        concat_image=False),
     dict(type='GenerateTarget', encoder=codec),
     dict(type='PackPoseInputs')
 ]
 train_2d_pipeline = [
     dict(type='GetBBoxCenterScale', padding=1.0),
     dict(
-        type='GroupTransformers',
-        trans_cfg_list=[
+        type='RandomBBoxTransform',
+        scale_factor=[0.75, 1.25],
+        rotate_factor=15,
+        rotate_prob=0.3,
+        shift_prob=0.5,
+        shift_factor=0.2),
+    dict(type='TopdownAffine', input_size=codec['input_size'][:2]),
+    dict(type='RandomDownSampleImage', min_ratio=0.5, prob=0.2),
+    dict(type='MixTwoHands', prob=0.1),
+    dict(
+        type='Albumentation',
+        transforms=[
             dict(
-                type='RandomBBoxTransform',
-                scale_factor=[0.75, 1.25],
-                rotate_factor=15,
-                rotate_prob=0.3,
-                shift_prob=0.5,
-                shift_factor=0.2),
-            dict(type='TopdownAffine', input_size=codec['input_size'][:2]),
-            dict(type='RandomDownSampleImage', min_ratio=0.5, prob=0.2),
-            dict(type='MixTwoHands', prob=0.1),
-            dict(
-                type='Albumentation',
-                transforms=[
-                    dict(
-                        type='CoarseDropout',
-                        p=0.2,
-                        max_holes=2,
-                        max_height=16,
-                        max_width=16,
-                    ),
-                ]),
-            dict(
-                type='GenerateNoiseDarkImage',
-                prob=0.65,
-                gamma_limit=(0.85, 0.95),
-                alpha_limit=(0.2, 0.5),
-                concat_image=False),
-        ],
-        enable_epoch_num=int(train_cfg['max_epochs'])),
+                type='CoarseDropout',
+                p=0.2,
+                max_holes=2,
+                max_height=16,
+                max_width=16,
+            ),
+        ]),
+    dict(
+        type='GenerateNoiseDarkImage',
+        prob=0.65,
+        gamma_limit=(0.85, 0.95),
+        alpha_limit=(0.2, 0.5),
+        concat_image=False),
     dict(type='GenerateTarget', encoder=codec2d),
     dict(type='PackPoseInputs')
 ]
@@ -259,11 +249,11 @@ val_2d_data_list = [item for sublist in val_2d_data_list for item in sublist]
 val_2d_data_list = [os.path.join(data_root, item) for item in val_2d_data_list]
 
 train_dataloader = dict(
-    batch_size=128,
+    batch_size=32,
     num_workers=8,
     persistent_workers=True,
     sampler=dict(
-        type='MultiSourceSampler', source_ratio=[0.5, 0.5], batch_size=128),
+        type='MultiSourceSampler', source_ratio=[0.5, 0.5], batch_size=32),
     collate_fn=dict(type='default_collate'),
     dataset=dict(
         type='CombinedDataset',
@@ -280,9 +270,6 @@ train_dataloader = dict(
                 data_root=data_root,
                 flip_left_to_right=True,
                 point_type='2.5D',
-                mean_bone_template_path=
-                '/data/AI_DATA/data_hand/model/mmpose/mean_hand_bones_230824.npz'
-                # indices=1000,
             ),
             dict(
                 type='HANDDataset',
@@ -302,8 +289,6 @@ val_3d_dataset = dict(
     test_mode=True,
     pipeline=val_pipeline,
     flip_left_to_right=True,
-    mean_bone_template_path=
-    '/data/AI_DATA/data_hand/model/mmpose/mean_hand_bones_230824.npz',
     #point_type='leftcam',
     point_type='2.5D' if camera_layout == 'monocular' else '3D',
     data_root=data_root)
@@ -338,3 +323,12 @@ val_evaluator = [dict(type='EPE'), dict(type='NrealKeypointAP', with_tag=True)]
 #        dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
 #    ]
 test_evaluator = val_evaluator
+quant_cfg = dict(
+    type='QAT',  # PTQ, QAT
+    ptq_iters=100,
+    qat_epochs=1,
+    input_shape=[1, 1, 128, 128],
+    act_bitwidth=8,
+    weight_bitwidth=8,
+    input_names=['input'],
+    output_names=['feat_x', 'feat_y', 'feat_z'])

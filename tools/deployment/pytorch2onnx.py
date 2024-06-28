@@ -4,9 +4,9 @@ import os
 
 import numpy as np
 import torch
-from torch import nn
 
 from mmpose.apis import init_model
+from mmpose.models.utils.deploy import fuse_preprocess
 from mmpose.utils import md5sum
 
 try:
@@ -36,35 +36,6 @@ def _convert_batchnorm(module):
         module_output.add_module(name, _convert_batchnorm(child))
     del module
     return module_output
-
-
-def _get_conv_layer(submodule):
-    for name, child in submodule.named_children():
-        if isinstance(child, nn.Conv2d):
-            return name, child
-        else:
-            return _get_conv_layer(child)
-
-
-def _fuse_preprocess(module):
-    mean = module.cfg.mean
-    std = module.cfg.std
-    mean = torch.as_tensor([mean])
-    std = torch.as_tensor([std])
-    for name, child in module.named_children():
-        if name == 'backbone':
-            name, conv_layer = _get_conv_layer(child)
-            print(
-                f'fuse preprocess with mean {mean}, std {std} to conv {name}')
-            w = conv_layer.weight.data
-            b = conv_layer.bias.data
-            fuse_w = w / std
-            fuse_b = -(w * mean / std).view((b.size(0), -1)).sum(dim=-1) + b
-            conv_layer.weight.data = fuse_w
-            conv_layer.bias.data = fuse_b
-            return module
-    print('can not find first conv in backbone to fuse preprocess')
-    return module
 
 
 def pytorch2onnx(model,
@@ -253,7 +224,7 @@ if __name__ == '__main__':
             args.config, checkpoint, device='cpu', cfg_options=cfg_options)
         if args.fuse_pre:
             print('enable fuse preprocess mean std to first conv')
-            model = _fuse_preprocess(model)
+            model = fuse_preprocess(model)
         model = _convert_batchnorm(model)
     if args.deploy_module != 'all':
         model = getattr(model, args.deploy_module)

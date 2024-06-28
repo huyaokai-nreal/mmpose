@@ -103,8 +103,10 @@ class TopdownPoseEstimator(BasePoseEstimator):
         Returns:
             dict: A dictionary of losses.
         """
-        feats = self.extract_feat(inputs)
-
+        if self._deploy:
+            feats = inputs
+        else:
+            feats = self.extract_feat(inputs)
         losses = dict()
         if self.with_head:
             losses.update(
@@ -133,15 +135,18 @@ class TopdownPoseEstimator(BasePoseEstimator):
                 - keypoint_scores (Tensor): predicted keypoint scores in shape
                     (num_instances, K)
         """
-        assert self.with_head, (
-            'The model must have head to perform prediction.')
-
-        if self.test_cfg.get('flip_test', False):
-            _feats = self.extract_feat(inputs)
-            _feats_flip = self.extract_feat(inputs.flip(-1))
-            feats = [_feats, _feats_flip]
+        if self._deploy:
+            feats = inputs
         else:
-            feats = self.extract_feat(inputs)
+            assert self.with_head, (
+                'The model must have head to perform prediction.')
+
+            if self.test_cfg.get('flip_test', False):
+                _feats = self.extract_feat(inputs)
+                _feats_flip = self.extract_feat(inputs.flip(-1))
+                feats = [_feats, _feats_flip]
+            else:
+                feats = self.extract_feat(inputs)
         preds = self.head.predict(feats, data_samples, test_cfg=self.test_cfg)
 
         if isinstance(preds, tuple):

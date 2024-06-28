@@ -45,6 +45,7 @@ class BasePoseEstimator(BaseModel, metaclass=ABCMeta):
         self.metainfo = self._load_metainfo(metainfo)
 
         self.backbone = MODELS.build(backbone)
+        self._deploy = False
 
         # the PR #2108 and #2126 modified the interface of neck and head.
         # The following function automatically detects outdated
@@ -63,6 +64,12 @@ class BasePoseEstimator(BaseModel, metaclass=ABCMeta):
 
         # Register the hook to automatically convert old version state dicts
         self._register_load_state_dict_pre_hook(self._load_state_dict_pre_hook)
+
+    def deploy(self):
+        self._deploy = True
+        if self.head is not None:
+            if hasattr(self.head, 'deploy'):
+                setattr(self.head, 'deploy', True)
 
     @property
     def with_neck(self) -> bool:
@@ -132,6 +139,8 @@ class BasePoseEstimator(BaseModel, metaclass=ABCMeta):
         """
         if isinstance(inputs, list):
             inputs = torch.stack(inputs)
+        if self._deploy:
+            return self._forward(inputs)
         if mode == 'loss':
             return self.loss(inputs, data_samples)
         elif mode == 'predict':

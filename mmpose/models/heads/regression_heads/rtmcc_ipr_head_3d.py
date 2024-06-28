@@ -4,7 +4,6 @@ from typing import Optional, Sequence, Tuple, Union
 import numpy as np
 import torch
 import torch.nn as nn
-from mmengine.structures import PixelData
 from torch import Tensor
 
 from mmpose.evaluation.functional import keypoint_pck_accuracy
@@ -185,55 +184,58 @@ class RTMCCIPRHead3D(RTMCCHead3D):
 
                 - heatmaps (Tensor): The predicted heatmaps in shape (K, h, w)
         """
-        if test_cfg.get('flip_test', False):
-            # TTA: flip test -> feats = [orig, flipped]
-            assert isinstance(feats, list) and len(feats) == 2
-            flip_indices = batch_data_samples[0].metainfo['flip_indices']
-            input_size = batch_data_samples[0].metainfo['input_size']
-            _feats, _feats_flip = feats
-
-            _batch_coords, _batch_heatmaps = self.forward(_feats)
-
-            _batch_coords_flip, _batch_heatmaps_flip = self.forward(
-                _feats_flip)
-            _batch_coords_flip = flip_coordinates(
-                _batch_coords_flip,
-                flip_indices=flip_indices,
-                shift_coords=test_cfg.get('shift_coords', True),
-                input_size=input_size)
-            _batch_heatmaps_flip = flip_heatmaps(
-                _batch_heatmaps_flip,
-                flip_mode='heatmap',
-                flip_indices=flip_indices,
-                shift_heatmap=test_cfg.get('shift_heatmap', False))
-
-            batch_coords = (_batch_coords + _batch_coords_flip) * 0.5
-            batch_heatmaps = (_batch_heatmaps + _batch_heatmaps_flip) * 0.5
+        if self.deploy:
+            pred_x, pred_y, pred_z = self.ipr_module(feats[0], feats[1],
+                                                     feats[2])
+            batch_coords = torch.cat([pred_x, pred_y, pred_z], dim=-1)
         else:
-            batch_coords, batch_heatmaps = self.forward(feats)  # (B, K, D)
+            if test_cfg.get('flip_test', False):
+                # TTA: flip test -> feats = [orig, flipped]
+                assert isinstance(feats, list) and len(feats) == 2
+                flip_indices = batch_data_samples[0].metainfo['flip_indices']
+                input_size = batch_data_samples[0].metainfo['input_size']
+                _feats, _feats_flip = feats
+
+                _batch_coords, _batch_heatmaps = self.forward(_feats)
+
+                _batch_coords_flip, _batch_heatmaps_flip = self.forward(
+                    _feats_flip)
+                _batch_coords_flip = flip_coordinates(
+                    _batch_coords_flip,
+                    flip_indices=flip_indices,
+                    shift_coords=test_cfg.get('shift_coords', True),
+                    input_size=input_size)
+                _batch_heatmaps_flip = flip_heatmaps(
+                    _batch_heatmaps_flip,
+                    flip_mode='heatmap',
+                    flip_indices=flip_indices,
+                    shift_heatmap=test_cfg.get('shift_heatmap', False))
+
+                batch_coords = (_batch_coords + _batch_coords_flip) * 0.5
+                batch_heatmaps = (_batch_heatmaps + _batch_heatmaps_flip) * 0.5
+            else:
+                batch_coords, batch_heatmaps = self.forward(feats)  # (B, K, D)
 
         if self.output_sigma:
             batch_coords[..., 2:] = batch_coords[..., 2:].sigmoid()
         batch_coords.unsqueeze_(dim=1)  # (B, N, K, D)
         preds = self.decode(batch_coords)
-        if test_cfg.get('output_heatmaps', False):
-            pred_fields = [
-                PixelData(heatmaps=hm) for hm in batch_heatmaps.detach()
-            ]
-            return preds, pred_fields
-        else:
-            return preds
+        return preds
 
     def loss(self,
              inputs: Tuple[Tensor],
              batch_data_samples: OptSampleList,
              train_cfg: ConfigType = {}) -> dict:
         """Calculate losses from a batch of inputs and data samples."""
-        pred_outputs, _ = self.forward(inputs)
-
+        if self.deploy:
+            pred_x, pred_y, pred_z = self.ipr_module(inputs[0], inputs[1],
+                                                     inputs[2])
+            pred_outputs = torch.cat([pred_x, pred_y, pred_z], dim=-1)
+        else:
+            pred_outputs, _ = self.forward(inputs)
         keypoint_weights = torch.cat([
             d.gt_instance_labels.keypoint_weights for d in batch_data_samples
-        ])
+        ]).cuda()
         label_2d_list = []
         label_depth_list = []
         label_depth_id_list = []

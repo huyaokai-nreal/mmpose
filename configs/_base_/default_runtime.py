@@ -48,3 +48,12 @@ backend_args = dict(backend='local')
 train_cfg = dict(by_epoch=True)
 val_cfg = dict()
 test_cfg = dict()
+quant_cfg = dict(
+    type='QAT',  # PTQ, QAT
+    ptq_iters=100,
+    qat_epochs=1,
+    input_shape=[1, 1, 128, 128],
+    act_bitwidth=8,
+    weight_bitwidth=8,
+    input_names=[],
+    output_names=[])

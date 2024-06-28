@@ -136,3 +136,4 @@ configs/product/hand
 result_keypoints.json
 *.png
 *.json
+*.encodings
