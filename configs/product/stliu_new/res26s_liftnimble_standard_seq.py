@@ -152,6 +152,7 @@ model = dict(
         use_6d_pose_reg=False,
         use_9d_pose_reg=True,
         use_shape_smooth=True,
+        all_data_flip=True,
         reproj_thre=440,
         iou_thre=0.5,
         pad_2d=0,
@@ -164,7 +165,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/AI_DATA/data_hand/model/mmpose/all_decouple_pca_standard_total_res26s_aug2d/epoch_150.pth'
+        '/data/stliu/mmpose_simliar_wx10/work_dirs/new_dataset/res26s_liftnimble_standard_flipdata/epoch_150.pth'
     ),
 )
 

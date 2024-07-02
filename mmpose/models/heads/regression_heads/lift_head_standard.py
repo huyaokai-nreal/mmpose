@@ -72,6 +72,7 @@ class LiftHeadStandard(BaseModule):
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
                  all_use_kp2d_gt: bool = False,
+                 all_data_flip: bool = False,
                  init_cfg: Union[dict, List[dict], None] = None):
         super().__init__(init_cfg)
         self.all_use_kp2d_gt = all_use_kp2d_gt
@@ -79,6 +80,7 @@ class LiftHeadStandard(BaseModule):
         self.channel_num = 43
         self.lambda_t = lambda_t
         self.score_dim = score_dim
+        self.all_data_flip = all_data_flip
         feat_dim = 2 * self.channel_num
         self.liftnet = gMLP(
             d_model=feat_dim, d_ffn=d_ffn, num_layers=num_layers)
@@ -188,6 +190,7 @@ class LiftHeadStandard(BaseModule):
         nimble_shape = []
         nimble_info = dict()
         uv_coord_im_gt_global = []
+        # stliu_flip=True
 
         all_inv_warp_mat = torch.zeros(B * 2, 3, 2).cuda()
         all_inv_warp_mat.requires_grad = False
@@ -226,6 +229,13 @@ class LiftHeadStandard(BaseModule):
                 np.float32)
             inv_warp_mat = torch.from_numpy(inv_warp_mat).cuda()  # (2,3)
             all_inv_warp_mat[i] = inv_warp_mat.transpose(0, 1)  # (3,2)
+
+            # if stliu_flip:
+            #     old_point = data_sample.gt_instances.keypoints
+            #     new_point = old_point.copy()
+            #     new_point[:, :, 0] = 480 - 1 - old_point[:, :, 0]
+            #     uv_coord_im_gt_global.append(new_point)
+            # else:
             uv_coord_im_gt_global.append(data_sample.gt_instances.keypoints)
         leftcam_cam_matrix = torch.tensor(
             np.array(leftcam_cam_matrix)).cuda().float()
@@ -240,19 +250,19 @@ class LiftHeadStandard(BaseModule):
             np.array(left_to_right_rt)).cuda().float()
         hand3d_gt = torch.tensor(np.array(hand3d_gt)).cuda().float()
         if len(nimble_pose) > 0:
-            nimble_info = {
-                'nimble_pose':
-                torch.tensor(np.array(nimble_pose)).cuda().float(),
-                'nimble_trans':
-                torch.tensor(np.array(nimble_trans)).cuda().float(),
-                'nimble_shape':
-                torch.tensor(np.array(nimble_shape)).cuda().float()
-            }
+            nimble_pose = torch.tensor(np.array(nimble_pose)).cuda().float()
+            nimble_trans = torch.tensor(np.array(nimble_trans)).cuda().float()
+            nimble_shape = torch.tensor(np.array(nimble_shape)).cuda().float()
         left_hand = torch.tensor(np.array(is_left_hands)).cuda().float()
         uv_coord_im_gt_global = torch.tensor(
             np.array(uv_coord_im_gt_global)).cuda().float()
         uv_coord_im_gt_global = uv_coord_im_gt_global[..., :2]
         uv_coord_im_gt_global = uv_coord_im_gt_global.view(B, N, K, 2)
+        # if stliu_flip:
+        #     tmp = uv_coord_im_gt_global.clone()
+        #     tmp[:,0,...] = uv_coord_im_gt_global[:,1,...]
+        #     tmp[:,1,...] = uv_coord_im_gt_global[:,0,...]
+        #     uv_coord_im_gt_global = tmp
 
         uv_coord_im_pred_crop_leftright = uv_coord_im_pred_crop_right
         uv_coord_im_pred_crop_leftright = uv_coord_im_pred_crop_leftright.view(
@@ -269,6 +279,74 @@ class LiftHeadStandard(BaseModule):
             B, N, K, 2)
 
         frame_width = batch_data_samples[0].meta['frame_width']
+
+        def exchange_value(value):
+            tmp = value.clone()
+            tmp[:, 0, ...] = value[:, 1, ...]
+            tmp[:, 1, ...] = value[:, 0, ...]
+            value = tmp
+            return value
+
+        if self.all_data_flip:
+            right_hand = torch.ones_like(
+                left_hand).cuda().float() - left_hand.clone().cuda().float()
+            new_uv_coord_im_pred_global_distort = uv_coord_im_pred_global_distort.clone(
+            )
+            new_uv_coord_im_pred_global_distort = exchange_value(
+                new_uv_coord_im_pred_global_distort)
+            left_hand = torch.concat([left_hand, right_hand])
+            uv_coord_im_pred_global_distort = torch.concat([
+                uv_coord_im_pred_global_distort,
+                new_uv_coord_im_pred_global_distort
+            ],
+                                                           dim=0)
+
+            new_uv_coord_im_gt_global = uv_coord_im_gt_global.clone()
+            new_uv_coord_im_gt_global = exchange_value(
+                new_uv_coord_im_gt_global)
+            uv_coord_im_gt_global = torch.concat(
+                [uv_coord_im_gt_global, new_uv_coord_im_gt_global], dim=0)
+            B *= 2
+
+            leftcam_cam_matrix = torch.concat(
+                [leftcam_cam_matrix, leftcam_cam_matrix])
+            rightcam_cam_matrix = torch.concat(
+                [rightcam_cam_matrix, rightcam_cam_matrix])
+            left_R = torch.concat([left_R, left_R])
+            right_R = torch.concat([right_R, right_R])
+            baseline_scale = torch.concat([baseline_scale, baseline_scale])
+            hand3d_gt = torch.concat([hand3d_gt, hand3d_gt])
+            try:
+                nimble_info = {
+                    'nimble_pose': torch.concat([nimble_pose, nimble_pose]),
+                    'nimble_trans': torch.concat([nimble_trans, nimble_trans]),
+                    'nimble_shape': torch.concat([nimble_shape, nimble_shape]),
+                }
+            except Exception as e:
+                nimble_info = {
+                    'nimble_pose': None,
+                    'nimble_trans': None,
+                    'nimble_shape': None,
+                }
+                print(f"An error occurred: {e}")
+            valid_mask = torch.concat(
+                [torch.ones(B // 2), torch.zeros(B // 2)]).cuda().float()
+        else:
+            valid_mask = torch.ones_like(left_hand).cuda().float()
+            try:
+                nimble_info = {
+                    'nimble_pose': nimble_pose,
+                    'nimble_trans': nimble_trans,
+                    'nimble_shape': nimble_shape
+                }
+            except Exception as e:
+                nimble_info = {
+                    'nimble_pose': None,
+                    'nimble_trans': None,
+                    'nimble_shape': None,
+                }
+                print(f"An error occurred: {e}")
+
         uv_coord_im_pred_global_distort_noflip = self.recover_hand(
             uv_coord_im_pred_global_distort, left_hand,
             frame_width).view(-1, K, 2)
@@ -373,7 +451,8 @@ class LiftHeadStandard(BaseModule):
             'left_hand': left_hand,
             'baseline_scale': baseline_scale,
             'hand_scale': hand_scale,
-            'nimble_info': nimble_info
+            'nimble_info': nimble_info,
+            'valid_mask': valid_mask
         }
 
     def postprocess(self, hand3d_standard, left_to_right_rt, left_R,
