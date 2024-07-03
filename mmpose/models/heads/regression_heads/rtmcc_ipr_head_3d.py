@@ -145,7 +145,8 @@ class RTMCCIPRHead3D(RTMCCHead3D):
             output = torch.cat([output, pred_sigma_reshape], dim=-1)
         if self.deploy:
             if self.deploy_output == 'kpt':
-                return pred_x, pred_y, pred_z
+                batch_coords = torch.cat([pred_x, pred_y, pred_z], dim=-1)
+                return batch_coords
             elif self.deploy_output == 'feat':
                 return feat_x, feat_y, feat_z
         else:
@@ -185,9 +186,12 @@ class RTMCCIPRHead3D(RTMCCHead3D):
                 - heatmaps (Tensor): The predicted heatmaps in shape (K, h, w)
         """
         if self.deploy:
-            pred_x, pred_y, pred_z = self.ipr_module(feats[0], feats[1],
-                                                     feats[2])
-            batch_coords = torch.cat([pred_x, pred_y, pred_z], dim=-1)
+            if self.deploy_output == 'feat':
+                pred_x, pred_y, pred_z = self.ipr_module(
+                    feats[0], feats[1], feats[2])
+                batch_coords = torch.cat([pred_x, pred_y, pred_z], dim=-1)
+            else:
+                batch_coords = feats
         else:
             if test_cfg.get('flip_test', False):
                 # TTA: flip test -> feats = [orig, flipped]
@@ -228,9 +232,12 @@ class RTMCCIPRHead3D(RTMCCHead3D):
              train_cfg: ConfigType = {}) -> dict:
         """Calculate losses from a batch of inputs and data samples."""
         if self.deploy:
-            pred_x, pred_y, pred_z = self.ipr_module(inputs[0], inputs[1],
-                                                     inputs[2])
-            pred_outputs = torch.cat([pred_x, pred_y, pred_z], dim=-1)
+            if self.deploy_output == 'feat':
+                pred_x, pred_y, pred_z = self.ipr_module(
+                    inputs[0], inputs[1], inputs[2])
+                pred_outputs = torch.cat([pred_x, pred_y, pred_z], dim=-1)
+            else:
+                pred_outputs = inputs
         else:
             pred_outputs, _ = self.forward(inputs)
         keypoint_weights = torch.cat([
