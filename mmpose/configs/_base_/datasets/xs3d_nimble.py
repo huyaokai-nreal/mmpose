@@ -321,6 +321,21 @@ datasets_info = {
                 'data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20240517_033443__all__normal__right__1101__0015__undistort_tar__Flora304.json',
             ]
         },
+        # 边缘半手场景
+        '20240425': {
+            'Flora301': [
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20240425_031120__pinch__normal__right__1101__0008__undistort_tar__Flora301.json',
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20240425_033616__pinch__normal__right__1101__0027__undistort_tar__Flora301.json',
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20240425_030619__pinch__normal__right__1101__0007__undistort_tar__Flora301.json',
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20240425_061202__pinch__normal__right__1101__0031__undistort_tar__Flora301.json',
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20240425_061812__pinch__normal__right__1101__0031__undistort_tar__Flora301.json',
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20240425_025131__pinch__normal__right__1101__0007__undistort_tar__Flora301.json',
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20240425_033132__pinch__normal__right__1101__0030__undistort_tar__Flora301.json',
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20240425_031803__pinch__normal__right__1101__0008__undistort_tar__Flora301.json',
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20240425_032108__pinch__normal__right__1101__0030__undistort_tar__Flora301.json',
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20240425_034123__pinch__normal__right__1101__0027__undistort_tar__Flora301.json'
+            ]
+        },
         '20240522': {
             'Flora301': [
                 'data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20240522_025450__all__normal__right__1101__0008__undistort_tar__Flora301.json',
@@ -341,7 +356,6 @@ datasets_info = {
                 'data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20240522_031135__all__normal__left__1101__0030__undistort_tar__Flora304.json',
             ]
         }
-        
     },
     'simu_train_data': {
         '20230809': {
@@ -619,6 +633,13 @@ datasets_info = {
                 'data_hand/hand_keypoint/annotations3d/fit3d_seqsmooth_auto__binocular_coco/XS__20240408_080847__all__normal__right__1110__0030__undistort_tar__Flora303.json',
             ]
         },
+        # 边缘半手场景
+        '20240508': {
+            'Flora301': [
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20240508_032300__pinch__normal__right__1101__0006__undistort_tar__Flora301.json',
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20240508_032919__pinch__normal__right__1101__0006__undistort_tar__Flora301.json'
+            ]
+        },
         # 黑人1数据
         '20230911': {
             'Flora301': [
@@ -662,7 +683,7 @@ datasets_info = {
                 'data_hand/hand_keypoint/annotations3d/Flora304/XS__20230911_063405__pinch__normal__right__1111__0023__undistort_tar__Flora304.json'
             ],
         },
-        
+
         # 静止手势数据
         '20230911': {
             'Flora301': [
@@ -679,7 +700,6 @@ datasets_info = {
             ],
         },
     }
-
 }
 
 cameras_info = {
