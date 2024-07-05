@@ -13,7 +13,7 @@ data_root = '/data/AI_DATA_WX'
 optim_wrapper = dict(optimizer=dict(type='Adam', lr=5e-5, weight_decay=1e-4), )
 
 # 梯度裁剪
-clip_grad=dict(max_norm=50, norm_type=2)
+clip_grad = dict(max_norm=50, norm_type=2)
 param_scheduler = [
     dict(
         type='LinearLR',
@@ -47,7 +47,7 @@ model = dict(
         stem_channels=32,
         base_channels=32,
         expansion=1,
-        attention=None, # None, SEBlock, CBAM, ECA, BAM, NonLocalBlock
+        attention=None,  # None, SEBlock, CBAM, ECA, BAM, NonLocalBlock
         out_indices=(3, ),
         strides=(1, 2, 2, 1),
         zero_init_residual=False,
@@ -74,12 +74,12 @@ model = dict(
                 dict(
                     type='RLELoss',
                     dim=3,
-                    enable_start_epoch=train_cfg['max_epochs'] // 2),
+                    enable_start_epoch=train_cfg['max_epochs']),
                 dict(
                     type='L1Loss',
                     use_target_weight=True,
                     enable_start_epoch=train_cfg['max_epochs'] // 2,
-                    loss_weight=1),
+                    loss_weight=0),
             ]),
         use_svd=True,
         use_gmlp=False,
@@ -105,22 +105,17 @@ model = dict(
 data_mode = 'topdown'
 
 train_data_list = []
-annotations3d_base_path = '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/'
-annotations3d_fixed_base_path = '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/'
-
-annotations3d_file_list = os.listdir(annotations3d_base_path)
-annotations3d_fixed_file_list = os.listdir(annotations3d_fixed_base_path)
-train_data_list += [
-    os.path.join(annotations3d_base_path, annotations3d_file_sin)
-    for annotations3d_file_sin in annotations3d_file_list
-]
-train_data_list += [
-    os.path.join(annotations3d_fixed_base_path, annotations3d_fixed_file_sin)
-    for annotations3d_fixed_file_sin in annotations3d_fixed_file_list
-]
-
+ume_data_root = '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/ume_data/training/'
+ume_user_list = os.listdir(ume_data_root)
+for user in ume_user_list:
+    if '15' in user:
+        user_path = os.path.join(ume_data_root, user)
+        file_list = os.listdir(user_path)
+        for file in file_list:
+            train_data_list.append(os.path.join(user_path, file))
 
 # train_data_list = [
+# #     '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/ume_data/training/user_15/recording_00.json'
 #     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240229_085520__pinch__normal__left__1110__0029__undistort_tar__Flora301.json',
 #     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240229_085836__pinch__normal__right__1110__0029__undistort_tar__Flora301.json',
 #     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_062729__pinch__normal__right__1110__0006__undistort_tar__Flora301.json',
@@ -132,61 +127,30 @@ train_data_list += [
 #     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_070606__pinch__normal__right__1110__0008__undistort_tar__Flora301.json',
 #     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_070606__pinch__normal__right__1110__0008__undistort_tar__Flora301.json',
 # ]
-
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
-    'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_070648__all__normal__right__1111__0005__undistort_tar__Flora301.json',  #
-    'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_071804__all__bright__left__1111__0005__undistort_tar__Flora301.json',
-    'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_072334__pinch__dark__right__1111__0005__undistort_tar__Flora301.json',
-    'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_072715__pinch__normal__left__1111__0005__undistort_tar__Flora301.json',
-    'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073026__pinch__bright__right__1111__0005__undistort_tar__Flora301.json',
-    'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073556__pinch__bright__left__1111__0005__undistort_tar__Flora301.json',
-    'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073857__pinch__normal__right__1111__0005__undistort_tar__Flora301.json',
-    'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_074601__pinch__bright__left__1111__0005__undistort_tar__Flora301.json',
+    '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/ume_data/training/user_15/recording_02.json'
+    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_070648__all__normal__right__1111__0005__undistort_tar__Flora301.json',  #
+    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_071804__all__bright__left__1111__0005__undistort_tar__Flora301.json',
+    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_072334__pinch__dark__right__1111__0005__undistort_tar__Flora301.json',
+    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_072715__pinch__normal__left__1111__0005__undistort_tar__Flora301.json',
+    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073026__pinch__bright__right__1111__0005__undistort_tar__Flora301.json',
+    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073556__pinch__bright__left__1111__0005__undistort_tar__Flora301.json',
+    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073857__pinch__normal__right__1111__0005__undistort_tar__Flora301.json',
+    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_074601__pinch__bright__left__1111__0005__undistort_tar__Flora301.json',
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 _input_size = (128, 128)
 # pipelines
 train_pipeline = [
     dict(type='GetBBoxCenterScale', padding=1.0),
-    dict(
-        type='GroupTransformers',
-        trans_cfg_list=[
-            dict(
-                type='RandomBBoxTransform',
-                scale_factor=[0.75, 1.25],
-                rotate_factor=15,
-                rotate_prob=0.3,
-                shift_prob=0.5,
-                shift_factor=0.2),
-            dict(type='UmePCL', input_size=_input_size),
-            dict(type='RandomDownSampleImage', min_ratio=0.5, prob=0.2),
-            dict(type='MixTwoHands', prob=0.1),
-            dict(
-                type='Albumentation',
-                transforms=[
-                    dict(
-                        type='CoarseDropout',
-                        p=0.2,
-                        max_holes=2,
-                        max_height=16,
-                        max_width=16,
-                    ),
-                ]),
-            dict(
-                type='GenerateNoiseDarkImage',
-                prob=0.65,
-                gamma_limit=(0.85, 0.95),
-                alpha_limit=(0.2, 0.5),
-                concat_image=False),
-        ],
-        enable_epoch_num=int(train_cfg['max_epochs'])),
+    dict(type='UmePCL', input_size=_input_size, flip_left_to_right=True),
     dict(type='PackPoseInputs')
 ]
 val_pipeline = [
     dict(type='GetBBoxCenterScale', padding=1.0),
-    dict(type='UmePCL', input_size=_input_size),
+    dict(type='UmePCL', input_size=_input_size, flip_left_to_right=True),
     dict(type='PackPoseInputs')
 ]
 
@@ -200,32 +164,28 @@ train_dataloader = dict(
     dataset=dict(
         type='PairHand3DDataset',
         data_file_list=train_data_list,
-        # data_ratio=1.0/30,
+        ume_data=True,
         data_mode=data_mode,
         pipeline=train_pipeline,
         dataset_weight_list=dataset_weight_list,
         data_root=data_root,
-        flip_left_to_right=True,
-        # indices=1000,
     ),
 )
 val_dataloader = dict(
-    batch_size=128,
-    num_workers=8,
+    batch_size=64,
+    num_workers=4,
     persistent_workers=True,
-    drop_last=True,
+    drop_last=False,
     sampler=dict(type='DefaultSampler', shuffle=False, round_up=False),
     collate_fn=dict(type='default_collate'),
     dataset=dict(
         type='PairHand3DDataset',
         data_file_list=val_data_list,
+        ume_data=True,
         data_mode=data_mode,
         test_mode=True,
         pipeline=val_pipeline,
-        flip_left_to_right=True,
-        data_root=data_root
-        # point_type='leftcam'
-    ),
+        data_root=data_root),
 )
 test_dataloader = val_dataloader
 

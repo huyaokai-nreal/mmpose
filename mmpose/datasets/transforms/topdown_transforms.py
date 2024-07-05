@@ -487,9 +487,13 @@ class TopdownPCL(BaseTransform):
 @TRANSFORMS.register_module()
 class UmePCL(BaseTransform):
 
-    def __init__(self, input_size: Tuple[int, int], root_id: int = 0) -> None:
+    def __init__(self,
+                 input_size: Tuple[int, int],
+                 root_id: int = 0,
+                 flip_left_to_right: bool = False) -> None:
         self.input_size = input_size
         self.root_id = root_id
+        self.flip_left_to_right = flip_left_to_right
 
     def transform(self, results: Dict) -> Dict:
         w, h = self.input_size
@@ -505,15 +509,21 @@ class UmePCL(BaseTransform):
         world_points = results['keypoints3d'][0]
         center = results['bbox_center'][0]
         scale = self.input_size[0] / results['bbox_scale'][0][0]
+        mirror_img_x = self.flip_left_to_right and results['cat_id'] == 1
+        camera_angle = 90 if self.flip_left_to_right else 0
         virtual_camera: PinholePlaneCameraModel = \
             gen_crop_parameters_from_points(
                 ori_camera,
                 center,
                 self.input_size,
-                mirror_img_x=False,
+                mirror_img_x=mirror_img_x,
+                camera_angle=camera_angle,
                 focal_multiplier=scale)
         image = results['img']
         crop_img = warp_image(ori_camera, virtual_camera, w, h, image)
+        # cv2.imwrite('/home/ykhu/workspace/mmpose/zz.png', image)
+        # cv2.imwrite('/home/ykhu/workspace/mmpose/zz1.png', crop_img)
+        # import ipdb;ipdb.set_trace()
         results['img'] = crop_img
         results['meta']['virtual_camera'] = virtual_camera
         kpt3d_in_virutal = virtual_camera.world_to_eye(world_points)
