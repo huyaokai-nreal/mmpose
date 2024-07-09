@@ -1,7 +1,8 @@
 # flake8: noqa
 import os
 
-# from configs._base_.datasets.xs3d import datasets_info as kpt3d_datasets_info
+from mmpose.configs._base_.datasets.xs3d_nimble import \
+    datasets_info as kpt3d_datasets_info
 
 _base_ = ['../../../_base_/default_runtime.py']
 
@@ -106,10 +107,19 @@ model = dict(
 data_mode = 'topdown'
 
 train_data_list = []
+train_date_list = [
+    '20230824', '20230828', '20230906', '20230907', '20231227', '20240220',
+    '20240229', '20240401', '20240517', '20240425', '20240522'
+]
+train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
+for data_date in train_date_list:
+    for glasses in train_glasses_list:
+        train_data_list += kpt3d_datasets_info['train_data'][data_date].get(
+            glasses, [])
+train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 ume_data_root = '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/ume_data/training/'
 ume_user_list = os.listdir(ume_data_root)
 for user in ume_user_list:
-    # if '15' in user:
     user_path = os.path.join(ume_data_root, user)
     file_list = os.listdir(user_path)
     for file in file_list:
@@ -208,7 +218,7 @@ val_evaluator = [
         openhand_metric=False,
         pinch_hard_metric=False,
         category_metric=False,
-        score_metric=True,
+        score_metric=False,
         # bmk_save_root='/data/stliu/mmpose_new/mmpose/work_dirs/result_20231203/bad_case',
         # show_bmk_thr=(50, 10000000),
         filter_exceed=filter_exceed),  #bad case mpjpe thr (mm)
