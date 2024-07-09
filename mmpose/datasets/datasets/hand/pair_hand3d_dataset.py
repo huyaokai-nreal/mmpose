@@ -378,6 +378,15 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         meta_right['hand_scale'] = self.hand_scale_list[data_info['meta']
                                                         ['template_bones_id']]
 
+
+        left_cam_xf = meta_left['ori_camera'].camera_to_world_xf
+        right_cam_xf = meta_right['ori_camera'].camera_to_world_xf
+        left_to_right_rt = np.linalg.inv(right_cam_xf)
+        meta_left['external'] = meta_right['external'] = left_to_right_rt
+
+
+
+
         if self.standard_stereo:
             meta_left['cam_to_virtual_R'] = copy.deepcopy(
                 data_info['meta']['left_R'])
@@ -386,7 +395,9 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             meta_right['virtual_baseline'] = copy.deepcopy(
                 data_info['meta']['virtual_baseline'])
         meta_left['test_mode'] = self.test_mode
+        meta_left['camera_name'] = 'left'
         meta_right['test_mode'] = self.test_mode
+        meta_right['camera_name'] = 'right'
 
         if 'nimble_pose' in data_info.keys():
             meta_left['nimble_pose'] = data_info['nimble_pose']

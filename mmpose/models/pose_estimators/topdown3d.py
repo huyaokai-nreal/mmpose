@@ -6,6 +6,9 @@ from typing import Optional
 import cv2
 import numpy as np
 from mmengine import MMLogger
+from torch import Tensor
+import torch
+
 from nreal_data_tool.utils.camera import NoDistortion, PinholePlaneCameraModel
 
 from mmpose.models.utils.pose_solver import (get_kpt_depth,
@@ -17,6 +20,7 @@ from mmpose.structures.bbox import bbox_cs2xyxy
 from mmpose.utils.typing import (ConfigType, InstanceList, OptConfigType,
                                  OptMultiConfig, PixelDataList, SampleList)
 from .topdown import TopdownPoseEstimator
+from mmengine.structures import InstanceData
 
 
 @MODELS.register_module()
@@ -42,7 +46,34 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
         self.root_id = root_id
         self.refine_kpt = refine_kpt
 
-    def add_pred_to_datasample(self, batch_pred_instances: InstanceList,
+    def predict(self, inputs: Tensor, data_samples: SampleList) -> SampleList:
+
+        assert self.with_head, (
+            'The model must have head to perform prediction.')
+
+        if self.test_cfg.get('flip_test', False):
+            _feats = self.extract_feat(inputs)
+            _feats_flip = self.extract_feat(inputs.flip(-1))
+            feats = [_feats, _feats_flip]
+        else:
+            feats = self.extract_feat(inputs)
+        preds = self.head.predict(feats, data_samples, test_cfg=self.test_cfg)
+        
+        if self.camera_layout == "nimble":
+            results = self.add_pred_to_datasample_nimble(
+                preds, None,  data_samples)
+        else:
+            if isinstance(preds, tuple):
+                batch_pred_instances, batch_pred_fields = preds
+            else:
+                batch_pred_instances = preds
+                batch_pred_fields = None
+            results = self.add_pred_to_datasample(
+                batch_pred_instances, batch_pred_fields, data_samples)
+
+        return results
+
+    def add_pred_to_datasample(self, batch_pred_instances,
                                batch_pred_fields: Optional[PixelDataList],
                                batch_data_samples: SampleList) -> SampleList:
         if self.camera_layout == 'monocular':
@@ -434,4 +465,67 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                                               key)
                 data_sample.pred_fields = pred_fields
 
+        return batch_data_samples
+
+
+    # 单目使用模版进行kpt3d求解
+    def add_pred_to_datasample_nimble(
+            self, pre_info,
+            batch_pred_fields: Optional[PixelDataList],
+            batch_data_samples: SampleList) -> SampleList:
+        
+        pred, pred_bino_kp2d, sigmas = pre_info
+        batch_pred_instances = []
+        for b in range(pred.shape[0]):
+            keypoints = pred_bino_kp2d[b:b + 1, ...]  # gt为左目信息
+            batch_pred_instances.append(
+                InstanceData(
+                    keypoints3d=pred[b:b + 1, ...],
+                    keypoints3d_scores=sigmas[b:b + 1, ...],
+                    keypoints=keypoints,
+                    keypoint_scores=torch.ones((1, 21)),
+                ))
+
+        assert len(batch_pred_instances) == len(batch_data_samples)
+        if batch_pred_fields is None:
+            batch_pred_fields = []
+
+        for pred_instances, pred_fields, data_sample in zip_longest(
+                batch_pred_instances, batch_pred_fields, batch_data_samples):
+            pred_instances.keypoints3d = pred_instances.keypoints3d.cpu(
+            ).numpy()
+            pred_instances.keypoints3d_scores = \
+                pred_instances.keypoints3d_scores.cpu().numpy()
+            pred_instances.keypoints = pred_instances.keypoints.cpu().numpy()
+            pred_instances.keypoints = np.concatenate(
+                (pred_instances.keypoints, pred_instances.keypoints3d[...,
+                                                                      2:]),
+                axis=-1)
+            ori_cam = data_sample.meta['ori_camera']
+            hand2d_gt = ori_cam.eye_to_window(data_sample.gt_instances.keypoints3d)
+            
+            # if 'virtual_camera' in data_sample.meta:
+            #     ori_cam = data_sample.meta['ori_camera']
+            #     virtual_cam = data_sample.meta['virtual_camera']
+            #     # vritual_point_world = virtual_cam.world_to_eye(hand3d_gt_sin.cpu().numpy())
+            #     # vritual_point = virtual_cam.eye_to_window(vritual_point_world)
+            #     kpt_norm_eye = virtual_cam.window_to_eye(
+            #         pred_instances.keypoints[0,:, :2])
+            #     kpt_norm_world = virtual_cam.eye_to_world(kpt_norm_eye)
+            #     kpt2d_ori = ori_cam.eye_to_window(kpt_norm_world)
+            #     pred_instances.keypoints[0][..., :2] = kpt2d_ori
+                
+            data_sample.gt_instances.keypoints = np.concatenate(
+                (hand2d_gt, data_sample.gt_instances.keypoints3d[..., 2:]),
+                axis=-1)
+            pred_instances.keypoint_scores = np.ones(
+                (1, pred_instances.keypoints.shape[1]))
+            # if data_sample.meta['flipped']:
+            #     pred_kpt = pred_instances.keypoints[0]
+            #     gt_kpt = data_sample.gt_instances.keypoints[0]
+            #     pred_kpt[..., 0] = (
+            #         data_sample.meta['frame_width'] - 1 - pred_kpt[..., 0])
+            #     gt_kpt[..., 0] = (
+            #         data_sample.meta['frame_width'] - 1 - gt_kpt[..., 0])
+            data_sample.pred_instances = pred_instances
         return batch_data_samples

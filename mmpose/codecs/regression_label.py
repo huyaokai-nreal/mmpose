@@ -106,7 +106,7 @@ class RegressionLabel(BaseKeypointCodec):
         keypoint_weights = np.where(valid, 1., 0.).astype(np.float32)
         keypoint_weights = keypoint_weights * keypoints_visible
         if not self.with_depth:
-            keypoint_labels = (keypoints / np.array([w, h])).astype(np.float32)
+            keypoint_labels = (keypoints[..., :2] / np.array([w, h])).astype(np.float32)
         else:
             keypoint_labels = (keypoints /
                                np.array([w, h, 1])).astype(np.float32)

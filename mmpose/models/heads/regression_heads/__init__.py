@@ -22,18 +22,29 @@ from .temporal_lift_head_standard import TemporalLiftHeadStandard
 from .temporal_lift_head_standard_ori import TemporalLiftHeadStandardOri
 from .temporal_regression_head import TemporalRegressionHead
 from .trajectory_regression_head import TrajectoryRegressionHead
+from .rtmcc_ipr_head_nimble import RTMCCIPRHeadNimble
 from .ume_head import UmeHead
-from .ume_head_seq import UmeHeadSeq
 
 __all__ = [
-    'RegressionHead', 'IntegralRegressionHead', 'DSNTHead', 'RLEHead',
-    'TemporalRegressionHead', 'TrajectoryRegressionHead', 'DSNTAttrHead',
-    'RTMCCIPRHead', 'AttrMlpHead', 'LiftHead', 'RTMCCIPRHead3D',
-    'LiftHeadStandard', 'LiftNimbleHead', 'TemporalLiftHead',
-    'TemporalLiftNimbleHeadStandard', 'TemporalLiftNimbleHeadStandardPredict',
-    'TemporalLiftHeadStandard', 'LiftNimbleHeadStandard', 'UmeHead',
-    'UmeHeadSeq', 'LiftHeadStandardOriE2e', 'TemporalLiftHeadStandardOri',
-    'LiftNimbleHeadStandardE2e', 'TemporalLiftNimbleHeadStandardE2e'
+    'RegressionHead',
+    'IntegralRegressionHead',
+    'DSNTHead',
+    'RLEHead',
+    'TemporalRegressionHead',
+    'TrajectoryRegressionHead',
+    'DSNTAttrHead',
+    'RTMCCIPRHead',
+    'AttrMlpHead',
+    'LiftHead',
+    'RTMCCIPRHead3D',
+    'LiftHeadStandard',
+    'LiftNimbleHead',
+    'TemporalLiftHead',
+    'TemporalLiftNimbleHeadStandard',
+    'TemporalLiftNimbleHeadStandardPredict',
+    'TemporalLiftHeadStandard',
+    'LiftNimbleHeadStandard',
+    'RTMCCIPRHeadNimble',
     # 'PCT_Head', 'PCT_Tokenizer',
     # 'LiftClassifierHead', 'SwinV2TransformerRPE2FC'
 ]
