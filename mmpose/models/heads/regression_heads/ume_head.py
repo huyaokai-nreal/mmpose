@@ -100,6 +100,7 @@ class UmeHead(BaseModule):
                  enhance_static=True,
                  use_svd: bool = True,
                  use_gmlp: bool = True,
+                 baseline: float = 0.135,
                  use_scaled_as_canonical: bool = True,
                  init_cfg: Union[dict, List[dict], None] = None):
         super().__init__(init_cfg)
@@ -120,6 +121,7 @@ class UmeHead(BaseModule):
         self.use_gmlp = use_gmlp
         self.scale_parameter = 1000
         self.rigid_samples = _gen_rigid_features()
+        self.baseline = baseline
         self.proj_layer = nn.Conv2d(
             256, feat_channel, kernel_size=1, padding=0)
         self._multi_view_fusion = create_multi_view_fusion_layers(
@@ -205,11 +207,13 @@ class UmeHead(BaseModule):
                 if data_sample.meta['flipped']:
                     mirror_x_matrix = np.eye(4)
                     mirror_x_matrix[0][0] = -1
-                    left_cam_xf.append(mirror_x_matrix @ \
-                    left_vir_camera.camera_to_world_xf)
+                    left_cam_xf.append(
+                        data_sample.meta['ori_xf'] @ mirror_x_matrix
+                        @ left_vir_camera.camera_to_world_xf)
                     data_sample.gt_instances.keypoints3d[..., 0] *= -1
                 else:
-                    left_cam_xf.append(left_vir_camera.camera_to_world_xf)
+                    left_cam_xf.append(data_sample.meta['ori_xf']
+                                       @ left_vir_camera.camera_to_world_xf)
                 hand3d_gt.append(data_sample.gt_instances.keypoints3d[0])
                 if 'nimble_pose' in data_sample.meta.keys() and not np.equal(
                         data_sample.meta['nimble_pose'].any(), None):
@@ -227,8 +231,9 @@ class UmeHead(BaseModule):
                 if data_sample.meta['flipped']:
                     mirror_x_matrix = np.eye(4)
                     mirror_x_matrix[0][0] = -1
-                    right_cam_xf.append(data_sample.meta['ori_xf'] @ \
-                    mirror_x_matrix @ right_vir_camera.camera_to_world_xf)
+                    right_cam_xf.append(
+                        data_sample.meta['ori_xf'] @ mirror_x_matrix
+                        @ right_vir_camera.camera_to_world_xf)
                 else:
                     right_cam_xf.append(data_sample.meta['ori_xf']
                                         @ right_vir_camera.camera_to_world_xf)
@@ -239,6 +244,11 @@ class UmeHead(BaseModule):
         right_cam_xf = torch.tensor(np.array(right_cam_xf)).cuda().float()
         cam_f = torch.stack((left_cam_f, right_cam_f), axis=1)
         cam_xf = torch.stack((left_cam_xf, right_cam_xf), axis=1)
+        # 求虚拟双目的baseline
+        baseline_vector = torch.norm(
+            torch.bmm(torch.inverse(left_cam_xf), right_cam_xf)[:, :3, 3],
+            dim=1)
+        baseline_scale = baseline_vector / self.baseline
         if len(nimble_pose) > 0:
             nimble_info = {
                 'nimble_pose':
@@ -254,7 +264,8 @@ class UmeHead(BaseModule):
             'cam_xf': cam_xf,
             'hand3d_gt': hand3d_gt,
             'left_hand': left_hand,
-            'nimble_info': nimble_info
+            'nimble_info': nimble_info,
+            'baseline_scale': baseline_scale
         }
 
     def postprocess(
@@ -263,10 +274,12 @@ class UmeHead(BaseModule):
         nimble_info,
         left_hand,
         cam_xf,
+        baseline_scale,
         only_pre=False,
     ):
         B = output.shape[0]
         cuda_device = output.device
+        baseline_scale = baseline_scale.view(B, 1, 1)
 
         pose_len = self.pose_ncomp
         rot_vector_t = output[:, :pose_len, 0, 0].float()
@@ -318,6 +331,7 @@ class UmeHead(BaseModule):
             rebuild_joints_with_scale = \
                 rebuild_joints_temp / self.scale_parameter
             xyz_point = rebuild_joints_with_scale + root_xyz.unsqueeze(1)
+            xyz_point *= baseline_scale
             return xyz_point
 
         if not only_pre:
@@ -337,8 +351,6 @@ class UmeHead(BaseModule):
                     gt_rot_vector.view(B, -1)).reshape(B, -1, 9)
 
         if only_pre:
-            # gt_root_xyz = nimble_info['nimble_trans'].unsqueeze(
-            #         -1)[:, :, 0]
             pre_nimble_pre_root_pre_shape__xyz = get_nimble_3d(
                 pre_root_xyz, pre_root_matrix, pre_local_matrix,
                 pre_shape_vector)
@@ -376,6 +388,7 @@ class UmeHead(BaseModule):
             data['nimble_info'],
             data['left_hand'],
             data['cam_xf'],
+            data['baseline_scale'],
             only_pre=True)[0]
 
         hand3d_pred = hand3d_pred.cpu().numpy()
@@ -397,7 +410,8 @@ class UmeHead(BaseModule):
         (pred_3d_way1, pred_3d_way2, hand3d_pred, hand3d_part_gt,
          pre_trans_xyz, pre_shape, gt_all_matrix,
          pre_all_matrix) = self.postprocess(output, data['nimble_info'],
-                                            data['left_hand'], data['cam_xf'])
+                                            data['left_hand'], data['cam_xf'],
+                                            data['baseline_scale'])
 
         # 直接监督rot和trans, 只考虑根节点的处理方式
         pre_nimble_trans = pre_trans_xyz
@@ -552,6 +566,7 @@ class UmeHead(BaseModule):
             multiv_scaled_to_canonical_xf,
             multiv_canonical_to_cam0_xf,
         ) = self._compute_multiv_xfs(singlev_scaled_to_orig_xf, extrinsics_xf)
+        multiv_scaled_to_canonical_xf[..., :3, 3] = 0.
         # Transform all the features to the canonical space
         multiv_canonical_features = apply_ftl_to_feature_maps(
             multiv_scaled_to_canonical_xf.reshape(-1, 4, 4),
@@ -585,7 +600,6 @@ class UmeHead(BaseModule):
         canonical_to_cam0_xf = singlev_scaled_to_orig_xf[:, 0].clone()
         s_0 = torch.inverse(singlev_scaled_to_orig_xf[:, 0:1].clone())
         scaled_to_canonical_xf = s_0 @ xf_0 @ xf_to_world
-
         return scaled_to_canonical_xf, canonical_to_cam0_xf
 
     def get_full_pose_with_part_pars(self, pose_reg):

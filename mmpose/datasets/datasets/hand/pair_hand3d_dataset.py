@@ -46,7 +46,6 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                  sub_data_index=-1,
                  data_ratio=-1,
                  point_type='3D',
-                 ume_data=False,
                  filter_kpt_exceed=False,
                  standard_stereo=False,
                  sample_interval=1):
@@ -67,9 +66,6 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         self.filter_kpt_exceed = filter_kpt_exceed
         self.sample_interval = sample_interval
         self.standard_stereo = standard_stereo
-        self.ume_data = ume_data
-        if self.ume_data:
-            self.flip_left_to_right = False
         if dataset_weight_list:
             assert len(dataset_weight_list) == len(data_file_list)
         super().__init__(
@@ -154,7 +150,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
 
         keypoints3d = np.array(ann['keypoints3d'])[np.newaxis]  # (1,21,3)
         num_keypoints = ann['num_keypoints']
-        if self.ume_data:
+        if 'cameras_info' in ann['meta']:
             keypoints_visible = np.ones((1, 21))
             ann['meta']['cameras_info']['left_cam'][
                 'camera_type'] = 'fisheye624'
@@ -246,7 +242,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             coco = COCO(anno_file)
             lmdb_path = osp.join(self.lmdb_data_root,
                                  coco.dataset['lmdb_path'])
-            if not self.ume_data:
+            if coco.dataset['cameras_info']:  # 真值系统数据
                 for k, v in coco.dataset['cameras_info'].items():
                     self.cams_info[k] = BinocularCameraInstance.from_dict(v)
             keypoints3d_list = []
@@ -344,16 +340,16 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         else:
             idx = idx % self.data_num
         data_info = super().get_data_info(idx)
-        if self.ume_data:
-            image = self.lmdb_client.get(data_info['left_img_path'])
-            image_list = np.split(image, 4, axis=1)
-            data_info['left_img'] = image_list[1]
-            data_info['right_img'] = image_list[2]
-        else:
+        if (data_info['cam_model_left'].camera_to_world_xf == np.eye(4)).all():
             data_info['left_img'] = self.lmdb_client.get(
                 data_info['left_img_path'])
             data_info['right_img'] = self.lmdb_client.get(
                 data_info['right_img_path'])
+        else:
+            image = self.lmdb_client.get(data_info['left_img_path'])
+            image_list = np.split(image, 4, axis=1)
+            data_info['left_img'] = image_list[1]
+            data_info['right_img'] = image_list[2]
         data_info['meta']['frame_height'] = data_info['left_img'].shape[0]
         data_info['meta']['frame_width'] = data_info['left_img'].shape[1]
         data_info['meta']['flipped'] = False
