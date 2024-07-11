@@ -185,6 +185,14 @@ class RTMCCIPRHead3D(RTMCCHead3D):
 
                 - heatmaps (Tensor): The predicted heatmaps in shape (K, h, w)
         """
+        # label_depth_list = []
+        # label_2d_list = []
+        # for i, data in enumerate(batch_data_samples):
+        #     keypoint_label = data.gt_instance_labels.keypoint_labels
+        #     label_depth_list.append(keypoint_label[..., 2:3])
+        #     label_2d_list.append(keypoint_label[..., :2])
+        # label_2d = torch.cat(label_2d_list)
+        # label_depth = torch.cat(label_depth_list)
         if self.deploy:
             if self.deploy_output == 'feat':
                 pred_x, pred_y, pred_z = self.ipr_module(
@@ -222,6 +230,8 @@ class RTMCCIPRHead3D(RTMCCHead3D):
 
         if self.output_sigma:
             batch_coords[..., 2:] = batch_coords[..., 2:].sigmoid()
+        # batch_coords[..., 2:3] = label_depth
+        # batch_coords[..., :2] = label_2d
         batch_coords.unsqueeze_(dim=1)  # (B, N, K, D)
         preds = self.decode(batch_coords)
         return preds

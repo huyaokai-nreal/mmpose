@@ -312,6 +312,7 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
         output_keypoint_indices = self.test_cfg.get('output_keypoint_indices',
                                                     None)
 
+        self.last_kpt3d = None
         for pred_instances, pred_fields, data_sample in zip_longest(
                 batch_pred_instances, batch_pred_fields, batch_data_samples):
 
@@ -333,12 +334,14 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                 virtual_cam = data_sample.meta['virtual_camera']
                 virtual_keypoints = pred_instances.keypoints[0].copy()
                 gt_keypoints3d = gt_instances.keypoints3d[0]
+                gt_hand_scale = data_sample.meta.get('hand_scale', 1.0)
+                virtual_keypoints[..., 2] *= gt_hand_scale
                 if self.root_mode == 'optimize':
                     root_depth, hand_scale = get_root_depth(
-                        pred_instances.keypoints[0], virtual_cam,
-                        data_sample.meta['template_bones'],
-                        pred_instances.keypoint_scores, gt_keypoints3d, False)
-                    virtual_keypoints[..., 2] *= hand_scale
+                        virtual_keypoints, virtual_cam,
+                        data_sample.meta['template_bones'] * gt_hand_scale,
+                        pred_instances.keypoint_scores, gt_keypoints3d, False,
+                        self.last_kpt3d)
                 elif self.root_mode == 'optimizev2':
                     kpt_depth = get_kpt_depth(
                         pred_instances.keypoints[0],
@@ -351,18 +354,21 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                 virtual_keypoints[..., 2] += root_depth
                 virtual_keypoints3d = virtual_cam.window_to_eye(
                     virtual_keypoints)
+                if data_sample.meta['flipped']:
+                    virtual_keypoints3d[..., 0] *= -1
                 world_keypoints3d = virtual_cam.eye_to_world(
                     virtual_keypoints3d)
-                ori_keypoints3d = ori_cam.world_to_eye(world_keypoints3d)
-                self.last_kpt3d = ori_keypoints3d
+                self.last_kpt3d = world_keypoints3d
                 # vir_camera_window->vir_camera_eye->ori_camera_eye->ori_camera_windows
                 kpt_norm_eye = virtual_cam.window_to_eye(
                     virtual_keypoints[:, :2])
+                if data_sample.meta['flipped']:
+                    kpt_norm_eye[..., 0] *= -1
                 kpt_norm_world = virtual_cam.eye_to_world(kpt_norm_eye)
                 kpt2d_ori = ori_cam.eye_to_window(kpt_norm_world)
                 pred_instances.keypoints[0][..., :2] = kpt2d_ori
                 pred_instances.keypoints3d = pred_instances.keypoints.copy()
-                pred_instances.keypoints3d[0] = ori_keypoints3d
+                pred_instances.keypoints3d[0] = world_keypoints3d
             else:
                 input_size = data_sample.metainfo['input_size']
                 global_keypoints = copy.deepcopy(pred_instances.keypoints)
@@ -409,12 +415,8 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             # add bbox information into pred_instances
             pred_instances.bboxes = bbox_cs2xyxy(bbox_centers, bbox_scales)
             pred_instances.bbox_scores = gt_instances.bbox_scores
+            gt_instances.keypoints[..., -1] *= gt_hand_scale
             data_sample.pred_instances = pred_instances
-            if data_sample.meta.get('norm_depth', False):
-                hand_scale = data_sample.meta.get('hand_scale', 1.0)
-                gt_instances.keypoints[..., -1] *= hand_scale
-                pred_instances.keypoints3d *= hand_scale
-
             if pred_fields is not None:
                 if output_keypoint_indices is not None:
                     # select output heatmap channels with keypoint indices

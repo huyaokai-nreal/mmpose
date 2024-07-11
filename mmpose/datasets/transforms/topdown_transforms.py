@@ -455,18 +455,23 @@ class TopdownPCL(BaseTransform):
         results['img'] = crop_img
         results['meta']['virtual_camera'] = virtual_camera
         kpt3d_in_virutal = virtual_camera.world_to_eye(world_points)
+        if results['cat_id'] == 1:
+            results['img'] = results['img'][:, ::-1]
+            kpt3d_in_virutal[..., 0] *= -1
+            results['meta']['flipped'] = True
         warp_keypoints = virtual_camera.eye_to_window(kpt3d_in_virutal)
         results['transformed_keypoints'] = results['keypoints'].copy()
         results['transformed_keypoints'][..., :2] = warp_keypoints
-        virtual_cam_points = virtual_camera.world_to_eye(world_points)
-        results['transformed_keypoints'][..., 2] = virtual_cam_points[
-            ..., 2] - virtual_cam_points[self.root_id, 2]
+        root_depth = kpt3d_in_virutal[self.root_id, 2]
+        results['transformed_keypoints'][...,
+                                         2] = kpt3d_in_virutal[...,
+                                                               2] - root_depth
         if self.norm_depth:
             results['transformed_keypoints'][
                 ..., -1] /= results['meta']['hand_scale']
             results['meta']['norm_depth'] = True
         results['keypoints'][..., 2] = results['transformed_keypoints'][..., 2]
-        results['meta']['root_depth'] = virtual_cam_points[self.root_id][2]
+        results['meta']['root_depth'] = root_depth
         results['warp_mat'] = np.array([[1, 0, 0], [0, 1, 0]],
                                        dtype=np.float32)
         return results

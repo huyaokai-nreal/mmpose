@@ -186,7 +186,7 @@ def get_root_depth(keypoints,
                    weight,
                    gt: Optional[np.array] = None,
                    undistort: bool = True,
-                   estimate_hand_scale: bool = False):
+                   last_kpt3d: Optional[np.array] = None):
     rel_depth = keypoints[..., 2:]
     kpt2d = keypoints[..., :2]
     if undistort:
@@ -194,6 +194,8 @@ def get_root_depth(keypoints,
     f = np.array(camera.f, dtype=np.float32)
     c = np.array(camera.c, dtype=np.float32)
     norm_kpt2d = np.concatenate([(kpt2d - c) / f, np.ones((21, 1))], axis=-1)
+    if last_kpt3d is not None:
+        last_kpt3d = camera.world_to_eye(last_kpt3d)
 
     def get_bones_from_kpt3d(kpt3d):
         root_kpt = kpt3d[:1].reshape((1, 1, 3))
@@ -203,7 +205,7 @@ def get_root_depth(keypoints,
         bones = np.linalg.norm(kpt[:, 1:, :] - kpt[:, :-1, :], axis=-1)
         return bones.reshape(-1)
 
-    def error(p, x, y, w, gt):
+    def error(p, x, y, w, gt, last_kpt3d):
         w0 = w[0].reshape((1, 1))
         _w = w[1:].reshape((5, 4))
         w0 = np.tile(w0, (5, 1))
@@ -213,17 +215,17 @@ def get_root_depth(keypoints,
         mean_w /= np.max(mean_w)
         kpt3d = x * rel_depth + x * p[0]
         bones = get_bones_from_kpt3d(kpt3d)
-        if estimate_hand_scale:
-            kpt_error = kpt3d[8] - gt[8]
-            result = mean_w * ((y * p[1] - bones).reshape(-1))
-            result = np.concatenate([result, kpt_error * 10])
-        else:
-            result = mean_w * ((y - bones).reshape(-1))
+
+        result = mean_w * ((y - bones).reshape(-1))
+        if last_kpt3d is not None:
+            root_error = 0.1 * (last_kpt3d[0] - kpt3d[0])
+            result = np.concatenate([result, root_error])
         return result
 
     p0 = [0.3, 1.0]
     param = leastsq(
         error,
         p0,
-        args=(norm_kpt2d, template_bones.reshape(-1), weight.reshape(-1), gt))
+        args=(norm_kpt2d, template_bones.reshape(-1), weight.reshape(-1), gt,
+              last_kpt3d))
     return param[0][0], param[0][1]
