@@ -229,22 +229,6 @@ class HANDDataset(BaseCocoStyleDataset):
             )
         return instance_list, image_list
 
-    def __left_2_right_hand(self, results):
-        img = results['img']
-        width = img.shape[1]
-        results['img'] = img[:, ::-1]
-        results['keypoints'][:, :,
-                             0] = width - 1 - results['keypoints'][:, :, 0]
-        bbox = results['bbox']
-        bbox[:, ::2] = width - 1 - bbox[:, ::2]
-        min_x = np.min(bbox[:, ::2])
-        max_x = np.max(bbox[:, ::2])
-        min_y = np.min(bbox[:, 1::2])
-        max_y = np.max(bbox[:, 1::2])
-        results['bbox'] = np.array([[min_x, min_y, max_x, max_y]], np.float32)
-        if 'mask' in results:
-            results['mask'] = results['mask'][:, ::-1]
-
     def get_data_info(self, idx):
         if not self.test_mode:
             idx = random.randint(0, self.data_num - 1)
@@ -258,9 +242,7 @@ class HANDDataset(BaseCocoStyleDataset):
         data_info['ori_shape'] = data_info['img'].shape[:2]
         data_info['meta']['flipped'] = False
         if self.flip_left_to_right and data_info['cat_id'] == 1:
-            self.__left_2_right_hand(data_info)
             data_info['meta']['flipped'] = True
-            data_info['cat_id'] = 2
         return data_info
 
     def __get_weighted_random_image_id(self):

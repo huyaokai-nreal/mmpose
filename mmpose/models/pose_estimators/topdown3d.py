@@ -330,11 +330,11 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                     camera_to_world_xf=np.eye(4),
                     distort_coeffs=[]))
             root_depth = data_sample.meta.get('root_depth', 0.5)
+            gt_hand_scale = data_sample.meta.get('hand_scale', 1.0)
             if 'virtual_camera' in data_sample.meta:
                 virtual_cam = data_sample.meta['virtual_camera']
                 virtual_keypoints = pred_instances.keypoints[0].copy()
                 gt_keypoints3d = gt_instances.keypoints3d[0]
-                gt_hand_scale = data_sample.meta.get('hand_scale', 1.0)
                 virtual_keypoints[..., 2] *= gt_hand_scale
                 if self.root_mode == 'optimize':
                     root_depth, hand_scale = get_root_depth(
@@ -371,6 +371,11 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                 pred_instances.keypoints3d[0] = world_keypoints3d
             else:
                 input_size = data_sample.metainfo['input_size']
+                if data_sample.meta['flipped']:
+                    pred_instances.keypoints[
+                        ...,
+                        0] = input_size[0] - 1 - pred_instances.keypoints[...,
+                                                                          0]
                 global_keypoints = copy.deepcopy(pred_instances.keypoints)
                 global_keypoints[..., :2] = global_keypoints[
                     ..., :

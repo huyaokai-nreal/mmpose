@@ -21,8 +21,6 @@ class KeypointTo25DLabel(BaseTransform):
         results['meta']['ori_xf'] = results['meta'][
             'ori_camera'].camera_to_world_xf
         results['meta']['ori_camera'].camera_to_world_xf = np.eye(4)
-        if results['meta']['flipped']:
-            results['keypoints3d'][..., 0] = -results['keypoints3d'][..., 0]
         root_depth = results['keypoints3d'][0][self.root_id][2]
         results['keypoints'] = np.concatenate([
             results['keypoints'],

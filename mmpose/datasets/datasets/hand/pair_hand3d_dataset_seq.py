@@ -274,23 +274,6 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
 
         return instance_list, image_list
 
-    def __left_2_right_hand(self, results):
-        img = results['img']
-        width = img.shape[1]
-        results['img'] = img[:, ::-1]
-        results['keypoints'][:, :,
-                             0] = width - 1 - results['keypoints'][:, :, 0]
-        bbox = results['bbox']
-        bbox[:, ::2] = width - 1 - bbox[:, ::2]
-        min_x = np.min(bbox[:, ::2])
-        max_x = np.max(bbox[:, ::2])
-        min_y = np.min(bbox[:, 1::2])
-        max_y = np.max(bbox[:, 1::2])
-        results['bbox'] = np.array([[min_x, min_y, max_x, max_y]], np.float32)
-        if 'mask' in results:
-            results['mask'] = results['mask'][:, ::-1]
-        results['meta']['flipped'] = True
-
     def get_data_info(self, idx):
         idx = idx % self.data_num
         data_info = super().get_data_info(idx)
@@ -379,9 +362,9 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
             data_info_right.update(
                 dict(mask=self.lmdb_client.get(data_info['right_mask_path'])))
 
-        if data_info['cat_id'] == 1:
-            self.__left_2_right_hand(data_info_left)
-            self.__left_2_right_hand(data_info_right)
+        if data_info['cat_id'] == 1 and self.flip_left_to_right:
+            data_info_left['meta']['flipped'] = True
+            data_info_right['meta']['flipped'] = True
 
         ppl_left = self.pipeline(data_info_left)
         ppl_right = self.pipeline(data_info_right)

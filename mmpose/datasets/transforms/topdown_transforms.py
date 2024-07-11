@@ -123,19 +123,27 @@ class TopdownAffine(BaseTransform):
                     img, warp_mat, warp_size, flags=cv2.INTER_LINEAR)
                 for img in results['img']
             ]
+            if results['meta']['flipped']:
+                results['img'] = [
+                    np.flip(img, axis=1) for img in results['img']
+                ]
         else:
             results['img'] = cv2.warpAffine(
                 results['img'], warp_mat, warp_size, flags=cv2.INTER_LINEAR)
+            if results['meta']['flipped']:
+                results['img'] = np.flip(results['img'], axis=1)
 
         if results.get('keypoints', None) is not None:
             transformed_keypoints = results['keypoints'].copy()
             # Only transform (x, y) coordinates
             transformed_keypoints[..., :2] = cv2.transform(
                 results['keypoints'][..., :2], warp_mat)
+            if results['meta']['flipped']:
+                transformed_keypoints[...,
+                                      0] = w - 1 - transformed_keypoints[...,
+                                                                         0]
             results['transformed_keypoints'] = transformed_keypoints
-
         results['input_size'] = (w, h)
-
         return results
 
     def __repr__(self) -> str:
@@ -455,10 +463,9 @@ class TopdownPCL(BaseTransform):
         results['img'] = crop_img
         results['meta']['virtual_camera'] = virtual_camera
         kpt3d_in_virutal = virtual_camera.world_to_eye(world_points)
-        if results['cat_id'] == 1:
-            results['img'] = results['img'][:, ::-1]
+        if results['cat_id'] == 1 and results['meta']['flipped']:
+            results['img'] = np.flip(results['img'], axis=1)
             kpt3d_in_virutal[..., 0] *= -1
-            results['meta']['flipped'] = True
         warp_keypoints = virtual_camera.eye_to_window(kpt3d_in_virutal)
         results['transformed_keypoints'] = results['keypoints'].copy()
         results['transformed_keypoints'][..., :2] = warp_keypoints
