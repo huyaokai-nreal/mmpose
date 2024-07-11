@@ -361,16 +361,21 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         with torch.no_grad():
             shape_vector = torch.zeros((B, 1)).to(cuda_device)
 
+        mask = left_hand == 1
+        add_matrix = torch.eye(3).unsqueeze(0).expand(B, -1,
+                                                        -1).to(cuda_device)
+        add_matrix[mask, 0, 0] = -add_matrix[mask, 0, 0]
+
         if not only_pre:
             with torch.no_grad():
                 gt_root_xyz = torch.bmm(
-                    left_R, nimble_info['nimble_trans'].unsqueeze(
+                    torch.matmul(left_R, add_matrix), nimble_info['nimble_trans'].unsqueeze(
                         -1))[:, :, 0] / f_scale.unsqueeze(-1)
                 # gt_root_matrix = batch_rodrigues(
                 #     nimble_info['nimble_pose'][:, 0, :]).reshape(-1, 3, 3)
                 
                 gt_root_matrix = nimble_info['nibmle_root_matrix']
-                gt_root_matrix = torch.matmul(left_R, gt_root_matrix)
+                gt_root_matrix = torch.matmul(torch.matmul(left_R, add_matrix), torch.matmul(gt_root_matrix, add_matrix))
 
                 init_root_rot = torch.zeros((B, 1, 3),
                                             requires_grad=True,
@@ -389,15 +394,8 @@ class RTMCCIPRHeadNimble(RTMCCHead):
             rebuild_joints = bone_joints[:, self.kp_index, :]
             root_rebuild_joints = rebuild_joints[:, 0:1, :]
             rebuild_joints_temp = rebuild_joints - root_rebuild_joints
-
-            mask = left_hand == 1
-            add_matrix = torch.eye(3).unsqueeze(0).expand(B, -1,
-                                                          -1).to(cuda_device)
-            add_matrix[mask, 0, 0] = -add_matrix[mask, 0, 0]
-            tmp = torch.matmul(add_matrix, torch.inverse(left_R))
-            root_matrix = torch.matmul(tmp, root_matrix)
-            root_matrix = torch.matmul(root_matrix, add_matrix)
             
+            root_matrix = torch.matmul(torch.inverse(left_R), root_matrix)
             rebuild_joints_temp = torch.matmul(rebuild_joints_temp,
                                                root_matrix.transpose(1, 2))
             rebuild_joints_with_scale = \
@@ -405,7 +403,7 @@ class RTMCCIPRHeadNimble(RTMCCHead):
 
             new_root_xyz = torch.bmm(
                 root_xyz.unsqueeze(1),
-                tmp.permute(0, 2, 1))
+                torch.inverse(left_R).permute(0, 2, 1))
             new_root_xyz = new_root_xyz.mul(f_scale[:,None,None].repeat(1,1,3))
             xyz_point = rebuild_joints_with_scale + new_root_xyz
             return xyz_point

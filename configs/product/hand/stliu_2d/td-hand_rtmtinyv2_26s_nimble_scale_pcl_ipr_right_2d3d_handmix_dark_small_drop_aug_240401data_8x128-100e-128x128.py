@@ -103,13 +103,13 @@ model = dict(
                     exit_thre=pinch_thre[1] / 1000,
                     loss_weight=3,
                     enable_start_epoch=train_cfg['max_epochs'] // 2),
-                dict(type='MSELoss', loss_weight=5),  # nimble trans直接监督
+                dict(type='MSELoss', loss_weight=100),  # nimble trans直接监督
                 dict(
                     type='RLELoss',
                     dim=3,
                     enable_start_epoch=train_cfg['max_epochs'] // 2),
                 dict(type='MSELoss', loss_weight=0.1,
-                     enable_start_epoch=train_cfg['max_epochs']),
+                     enable_start_epoch=train_cfg['max_epochs'] - 20),
             ]),
         decoder=codec),
     test_cfg=dict(flip_test=False, ),
