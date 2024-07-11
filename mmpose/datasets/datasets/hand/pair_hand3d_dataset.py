@@ -12,7 +12,7 @@ from nreal_data_tool import LmdbClient
 from nreal_data_tool.schema.instance import (BinocularCameraInstance,
                                              CameraInstance)
 from nreal_data_tool.utils.camera import (build_from_BinocularCameraInstance,
-                                          build_from_CameraInstance,
+                                          build_ume_CameraInstance,
                                           get_virtual_camera_transform)
 from xtcocotools.coco import COCO
 
@@ -153,19 +153,20 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         if 'cameras_info' in ann['meta']:
             keypoints_visible = np.ones((1, 21))
             ann['meta']['cameras_info']['left_cam'][
-                'camera_type'] = 'fisheye624'
+                'camera_type'] = 'fisheye_ume'
             ann['meta']['cameras_info']['right_cam'][
-                'camera_type'] = 'fisheye624'
-            cam_model_left = build_from_CameraInstance(
+                'camera_type'] = 'fisheye_ume'
+            cam_model_left = build_ume_CameraInstance(
                 CameraInstance.from_dict(
                     ann['meta']['cameras_info']['left_cam']))
-            cam_model_right = build_from_CameraInstance(
+            cam_model_right = build_ume_CameraInstance(
                 CameraInstance.from_dict(
                     ann['meta']['cameras_info']['right_cam']))
+            # import ipdb;ipdb.set_trace()
             cam_model_left.camera_to_world_xf[:3, -1] /= 1000  # mm to m
             cam_model_right.camera_to_world_xf[:3, -1] /= 1000
-            keypoints3d /= 1000
-            meta = {}
+            # keypoints3d /= 1000
+            meta = {'ume': True}
         else:
             keypoints_visible = np.array(ann['keypoints_left'])[...,
                                                                 2].reshape(
@@ -175,6 +176,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             cam_model_left, cam_model_right = \
                 build_from_BinocularCameraInstance(cam_info)
             meta = ann.get('meta', dict())
+            meta['ume'] = False
         meta['category_id'] = ann['category_id']
 
         left_R, right_R, virtual_baseline = \
@@ -340,16 +342,16 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         else:
             idx = idx % self.data_num
         data_info = super().get_data_info(idx)
-        if (data_info['cam_model_left'].camera_to_world_xf == np.eye(4)).all():
-            data_info['left_img'] = self.lmdb_client.get(
-                data_info['left_img_path'])
-            data_info['right_img'] = self.lmdb_client.get(
-                data_info['right_img_path'])
-        else:
+        if data_info['meta']['ume']:
             image = self.lmdb_client.get(data_info['left_img_path'])
             image_list = np.split(image, 4, axis=1)
             data_info['left_img'] = image_list[1]
             data_info['right_img'] = image_list[2]
+        else:
+            data_info['left_img'] = self.lmdb_client.get(
+                data_info['left_img_path'])
+            data_info['right_img'] = self.lmdb_client.get(
+                data_info['right_img_path'])
         data_info['meta']['frame_height'] = data_info['left_img'].shape[0]
         data_info['meta']['frame_width'] = data_info['left_img'].shape[1]
         data_info['meta']['flipped'] = False

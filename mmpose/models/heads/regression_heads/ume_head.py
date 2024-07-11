@@ -390,12 +390,13 @@ class UmeHead(BaseModule):
             data['cam_xf'],
             data['baseline_scale'],
             only_pre=True)[0]
-
         hand3d_pred = hand3d_pred.cpu().numpy()
         leftcam_uv_distort = []
         for i, left_sample in enumerate(batch_data_samples[::2]):
-            _leftcam_uv_distort = left_sample.meta['ori_camera'].eye_to_window(
-                hand3d_pred[i])
+            ori_cam = left_sample.meta['ori_camera']
+            ori_cam.camera_to_world_xf = left_sample.meta['ori_xf']
+            _leftcam_uv_distort = ori_cam.eye_to_window(
+                ori_cam.world_to_eye(hand3d_pred[i]))
             leftcam_uv_distort.append(_leftcam_uv_distort)
         leftcam_uv_distort = np.stack(leftcam_uv_distort, axis=0)
         return hand3d_pred, leftcam_uv_distort, sigma

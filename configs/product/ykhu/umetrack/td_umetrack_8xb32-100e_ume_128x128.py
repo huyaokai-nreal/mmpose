@@ -126,21 +126,22 @@ for user in ume_user_list:
         train_data_list.append(os.path.join(user_path, file))
 
 # train_data_list = [
-#     # '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/ume_data/training/user_15/recording_00.json',
-#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240229_085520__pinch__normal__left__1110__0029__undistort_tar__Flora301.json',
-#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240229_085836__pinch__normal__right__1110__0029__undistort_tar__Flora301.json',
-#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_062729__pinch__normal__right__1110__0006__undistort_tar__Flora301.json',
-#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_063058__pinch__normal__left__1110__0006__undistort_tar__Flora301.json',
-#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_063800__pinch__normal__left__1110__0007__undistort_tar__Flora301.json',
-#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_064131__pinch__normal__right__1110__0007__undistort_tar__Flora301.json',
-#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_064839__pinch__normal__left__1110__0014__undistort_tar__Flora301.json',
-#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_065926__pinch__normal__right__1110__0014__undistort_tar__Flora301.json',
-#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_070606__pinch__normal__right__1110__0008__undistort_tar__Flora301.json',
-#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_070606__pinch__normal__right__1110__0008__undistort_tar__Flora301.json',
+#     '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/ume_data/training/user_15/recording_00.json',
+#     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240229_085520__pinch__normal__left__1110__0029__undistort_tar__Flora301.json',
+# #     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240229_085836__pinch__normal__right__1110__0029__undistort_tar__Flora301.json',
+# #     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_062729__pinch__normal__right__1110__0006__undistort_tar__Flora301.json',
+# #     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_063058__pinch__normal__left__1110__0006__undistort_tar__Flora301.json',
+# #     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_063800__pinch__normal__left__1110__0007__undistort_tar__Flora301.json',
+# #     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_064131__pinch__normal__right__1110__0007__undistort_tar__Flora301.json',
+# #     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_064839__pinch__normal__left__1110__0014__undistort_tar__Flora301.json',
+# #     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_065926__pinch__normal__right__1110__0014__undistort_tar__Flora301.json',
+# #     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_070606__pinch__normal__right__1110__0008__undistort_tar__Flora301.json',
+# #     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_070606__pinch__normal__right__1110__0008__undistort_tar__Flora301.json',
 # ]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
+    # '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/ume_data/training/user_15/recording_00.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_070648__all__normal__right__1111__0005__undistort_tar__Flora301.json',  #
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_071804__all__bright__left__1111__0005__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_072334__pinch__dark__right__1111__0005__undistort_tar__Flora301.json',
@@ -155,12 +156,43 @@ _input_size = (128, 128)
 # pipelines
 train_pipeline = [
     dict(type='GetBBoxCenterScale', padding=1.0),
-    dict(type='UmePCL', input_size=_input_size, flip_left_to_right=True),
+    dict(
+        type='GroupTransformers',
+        trans_cfg_list=[
+            # dict(
+            #     type='RandomBBoxTransform',
+            #     scale_factor=[0.75, 1.25],
+            #     rotate_factor=15,
+            #     rotate_prob=0.3,
+            #     shift_prob=0.5,
+            #     shift_factor=0.2),
+            dict(type='UmePCL', input_size=_input_size),
+            # dict(type='RandomDownSampleImage', min_ratio=0.5, prob=0.2),
+            # dict(type='MixTwoHands', prob=0.),
+            # dict(
+            #     type='Albumentation',
+            #     transforms=[
+            #         dict(
+            #             type='CoarseDropout',
+            #             p=0.2,
+            #             max_holes=2,
+            #             max_height=16,
+            #             max_width=16,
+            #         ),
+            #     ]),
+            dict(
+                type='GenerateNoiseDarkImage',
+                prob=0.65,
+                gamma_limit=(0.85, 0.95),
+                alpha_limit=(0.2, 0.5),
+                concat_image=False),
+        ],
+        enable_epoch_num=int(train_cfg['max_epochs'])),
     dict(type='PackPoseInputs')
 ]
 val_pipeline = [
     dict(type='GetBBoxCenterScale', padding=1.0),
-    dict(type='UmePCL', input_size=_input_size, flip_left_to_right=True),
+    dict(type='UmePCL', input_size=_input_size),
     dict(type='PackPoseInputs')
 ]
 
@@ -177,6 +209,7 @@ train_dataloader = dict(
         data_mode=data_mode,
         pipeline=train_pipeline,
         dataset_weight_list=dataset_weight_list,
+        flip_left_to_right=True,
         data_root=data_root,
     ),
 )
@@ -193,6 +226,7 @@ val_dataloader = dict(
         data_mode=data_mode,
         test_mode=True,
         pipeline=val_pipeline,
+        flip_left_to_right=True,
         data_root=data_root),
 )
 test_dataloader = val_dataloader

@@ -487,16 +487,15 @@ class TopdownPCL(BaseTransform):
 @TRANSFORMS.register_module()
 class UmePCL(BaseTransform):
 
-    def __init__(self,
-                 input_size: Tuple[int, int],
-                 root_id: int = 0,
-                 flip_left_to_right: bool = False) -> None:
+    def __init__(self, input_size: Tuple[int, int], root_id: int = 0) -> None:
         self.input_size = input_size
         self.root_id = root_id
-        self.flip_left_to_right = flip_left_to_right
 
     def transform(self, results: Dict) -> Dict:
         w, h = self.input_size
+        mirror_img_x = results['meta']['ume'] and results['cat_id'] == 1
+        if not results['meta']['flipped'] and mirror_img_x:
+            results['meta']['flipped'] = True
         if results['meta']['flipped']:
             results['keypoints3d'][..., 0] = -results['keypoints3d'][..., 0]
         results['input_size'] = self.input_size
@@ -509,8 +508,7 @@ class UmePCL(BaseTransform):
         world_points = results['keypoints3d'][0]
         center = results['bbox_center'][0]
         scale = self.input_size[0] / results['bbox_scale'][0][0]
-        mirror_img_x = self.flip_left_to_right and results['cat_id'] == 1
-        camera_angle = 90 if self.flip_left_to_right else 0
+        camera_angle = 90 if results['meta']['ume'] else 0
         virtual_camera: PinholePlaneCameraModel = \
             gen_crop_parameters_from_points(
                 ori_camera,
