@@ -36,7 +36,8 @@ datasets_info = {
             'data_hand/hand_keypoint/annotations/hand_train_flora_20k__230914__1__cam0__lmdb.json',
             'data_hand/hand_keypoint/annotations/hand_train_flora_keypoint_231027_20k__1__binocular__lmdb.json',
             'data_hand/hand_keypoint/annotations/hand_train_flora_keypoint_decoration_1_231017_20k__1__binocular__lmdb.json',
-            'data_hand/hand_keypoint/annotations/hand_train_flora_keypoint_bottom_1_231017_20k__1__binocular__lmdb.json'
+            'data_hand/hand_keypoint/annotations/hand_train_flora_keypoint_bottom_1_231017_20k__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_ces_240709_25k__1__binocular__lmdb.json'
         ],
         'quest_system': [
             'data_hand/hand_keypoint/annotations/hand_train_flora_quest_system_240222_7k_1__binocular__lmdb.json',
