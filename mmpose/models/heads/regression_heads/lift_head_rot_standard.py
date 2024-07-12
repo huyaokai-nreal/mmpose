@@ -354,7 +354,6 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
                 test_cfg: ConfigType = {}) -> Predictions:
         with torch.no_grad():
             data = self.preprocess(feats, batch_data_samples, 'predict')
-            valid_mask = data['valid_mask'] == 1
         if self.reg_shape_type > 1:
             batch_num = data['feats'].shape[0]
             skeleton_joints_info = self.skeleton_joints_info.repeat(
@@ -373,7 +372,6 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             data['hand3d_gt'],
             data['baseline_scale'],
             only_pre=True)[0]
-        hand3d_pred = hand3d_pred[valid_mask]
         if self.reproj:
             camera_model = batch_data_samples[0].meta['ori_camera']
             leftcam_uv_reproj_distort = camera_model.eye_to_window(
@@ -392,8 +390,6 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
 
         with torch.no_grad():
             data = self.preprocess(feats, batch_data_samples, 'loss')
-
-        valid_mask = data['valid_mask'] == 1
 
         if self.reg_shape_type > 1:
             batch_num = data['feats'].shape[0]
@@ -415,21 +411,15 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
                                             data['hand3d_gt'],
                                             data['baseline_scale'], False)
 
-        pred_3d_way1 = pred_3d_way1[valid_mask]
-        hand3d_pred = hand3d_pred[valid_mask]
-        pre_trans_xyz = pre_trans_xyz[valid_mask]
-        sigma = sigma[valid_mask]
-        hand3d_gt = data['hand3d_gt'][valid_mask]
-
         # 直接监督rot和trans, 只考虑根节点的处理方式
         pre_nimble_trans = pre_trans_xyz
-        gt_nimble_trans = data['nimble_info']['nimble_trans'][valid_mask]
+        gt_nimble_trans = data['nimble_info']['nimble_trans']
 
         # pinch 损失
         dist_pred = torch.norm(
-            pred_3d_way2[:, 4, :] - pred_3d_way2[:, 8, :], dim=-1)
+            hand3d_pred[:, 4, :] - hand3d_pred[:, 8, :], dim=-1)
         dist_gt = torch.norm(
-            hand3d_part_gt[:, 4, :] - hand3d_part_gt[:, 8, :], dim=-1)
+            data['hand3d_gt'][:, 4, :] - data['hand3d_gt'][:, 8, :], dim=-1)
 
         re_all_sigmas = torch.cat((hand3d_pred, sigma), dim=-1)
 
@@ -438,21 +428,19 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             pre_nimble_trans, re_all_sigmas
         ]
         targ_for_loss = [
-            hand3d_gt, hand3d_part_gt, hand3d_gt, dist_gt, gt_nimble_trans,
-            hand3d_gt
+            data['hand3d_gt'], data['hand3d_gt'], data['hand3d_gt'], dist_gt,
+            gt_nimble_trans, data['hand3d_gt']
         ]
 
         weight_ini = torch.ones((1, 21, 3))
         weight_ini[0, :9, :] = 2
         weight_ini[0, 4, :], weight_ini[0, 8, :] = 4, 4
-        weight_ini_ori = weight_ini.repeat(hand3d_gt.shape[0], 1,
-                                           1).to(hand3d_gt.device)
-        weight_ini_rel = weight_ini.repeat(hand3d_part_gt.shape[0], 1,
-                                           1).to(hand3d_part_gt.device)
+        weight_ini = weight_ini.repeat(data['hand3d_gt'].shape[0], 1,
+                                       1).to(data['hand3d_gt'].device)
         weight_for_loss = [
-            weight_ini_ori,
-            weight_ini_rel,
-            weight_ini_ori,
+            weight_ini,
+            weight_ini,
+            weight_ini,
             None,
             None,
             None,
@@ -467,7 +455,8 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             bone_loss_weight = 0.1
             bone_3d_pre = (hand3d_pred - hand3d_pred[:, self.joint_parents, :]
                            )[:, self.non_root_indices].reshape(-1, 3)
-            bone_3d_gt = (hand3d_gt - hand3d_gt[:, self.joint_parents, :]
+            bone_3d_gt = (data['hand3d_gt'] -
+                          data['hand3d_gt'][:, self.joint_parents, :]
                           )[:, self.non_root_indices].reshape(-1, 3)
 
             bone_3d_pre_vector = self.cal_normalize_vector(bone_3d_pre)

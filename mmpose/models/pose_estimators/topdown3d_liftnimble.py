@@ -239,7 +239,7 @@ class TopdownPoseLiftNimbleEstimator(BaseModel):
 
         if 'nimble_pose' in data_samples[0].meta and parent_matrix is not None:
             for b in range(pred.shape[0]):
-                keypoints = pred_bino_kp2d[b:b + 1, 0, ...]  # gt为左目信息
+                keypoints = pred_bino_kp2d[b:b + 1, ...]  # gt为左目信息
                 child_matrix = batch_rodrigues(child_vector[b, :, :]).reshape(
                     -1, 3, 3)
                 pre_matrix = torch.cat(
@@ -257,7 +257,7 @@ class TopdownPoseLiftNimbleEstimator(BaseModel):
                             0)))
         else:
             for b in range(pred.shape[0]):
-                keypoints = pred_bino_kp2d[b:b + 1, 0, ...]  # gt为左目信息
+                keypoints = pred_bino_kp2d[b:b + 1, ...]  # gt为左目信息
                 batch_pred_instances.append(
                     InstanceData(
                         keypoints3d=pred[b:b + 1, ...],
@@ -489,8 +489,8 @@ class TopdownPoseLiftNimbleEstimatorSeq(TopdownPoseLiftNimbleEstimator):
 
             pred_instances.keypoints3d = pred_instances.keypoints3d.cpu(
             ).numpy()
-            pred_instances.keypoints3d_scores = pred_instances.keypoints3d_scores.cpu(
-            ).numpy()
+            pred_instances.keypoints3d_scores = \
+            pred_instances.keypoints3d_scores.cpu().numpy()
             pred_instances.keypoints = pred_instances.keypoints.cpu().numpy()
             pred_instances.keypoint_scores = np.ones(
                 (1, pred_instances.keypoints.shape[1]))
@@ -500,8 +500,7 @@ class TopdownPoseLiftNimbleEstimatorSeq(TopdownPoseLiftNimbleEstimator):
 
 
 @MODELS.register_module()
-class TopdownPoseLiftNimbleEstimatorSeqPredict(
-        TopdownPoseLiftNimbleEstimator):
+class TopdownPoseLiftNimbleEstimatorSeqPredict(TopdownPoseLiftNimbleEstimator):
 
     def __init__(self,
                  backbone: ConfigType,
@@ -592,7 +591,8 @@ class TopdownPoseLiftNimbleEstimatorSeqPredict(
         N = xy_sigma.shape[-2]
         K = xy_sigma.shape[-1]
         xy_sigma_input = xy_sigma.reshape(clip_num, clip_len, N, K)
-        history_feats = torch.zeros((1, 193, self.history_window_len, 1)).cuda()
+        history_feats = torch.zeros(
+            (1, 193, self.history_window_len, 1)).cuda()
         for b in range(self.seq_len):
             sub_xy_input = xy_sigma_input[:, 2 * b:2 * b +
                                           2, :].reshape(-1, N, K)

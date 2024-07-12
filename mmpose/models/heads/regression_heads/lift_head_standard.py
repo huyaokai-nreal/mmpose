@@ -173,9 +173,7 @@ class LiftHeadStandard(BaseModule):
         K = xy_coord.shape[1]
         # kpt2d output to crop wh
         uv_coord_im_pred_crop_right = xy_coord * torch.tensor([W, H]).cuda()
-        uv_coord_im_pred_crop_right = uv_coord_im_pred_crop_right.view(
-            B, N, K, 2)
-
+        uv_coord_im_pred_crop = uv_coord_im_pred_crop_right.view(B, N, K, 2)
         leftcam_cam_matrix = []
         rightcam_cam_matrix = []
         left_R = []
@@ -208,6 +206,10 @@ class LiftHeadStandard(BaseModule):
                     nimble_shape.append(data_sample.meta['nimble_shape'])
                 if data_sample.meta['category_id'] == 1:
                     is_left_hands.append(1)
+                    if data_sample.meta['flipped']:
+                        uv_coord_im_pred_crop[
+                            i // 2, :, :,
+                            0] = W - 1 - uv_coord_im_pred_crop[i // 2, :, :, 0]
                 else:
                     is_left_hands.append(0)
             else:
@@ -257,15 +259,9 @@ class LiftHeadStandard(BaseModule):
         uv_coord_im_gt_global = torch.tensor(
             np.array(uv_coord_im_gt_global)).cuda().float()
         uv_coord_im_gt_global = uv_coord_im_gt_global[..., :2]
-        uv_coord_im_gt_global = uv_coord_im_gt_global.view(B, N, K, 2)
-        # if stliu_flip:
-        #     tmp = uv_coord_im_gt_global.clone()
-        #     tmp[:,0,...] = uv_coord_im_gt_global[:,1,...]
-        #     tmp[:,1,...] = uv_coord_im_gt_global[:,0,...]
-        #     uv_coord_im_gt_global = tmp
+        uv_coord_im_gt_global = uv_coord_im_gt_global.view(-1, K, 2)
 
-        uv_coord_im_pred_crop_leftright = uv_coord_im_pred_crop_right
-        uv_coord_im_pred_crop_leftright = uv_coord_im_pred_crop_leftright.view(
+        uv_coord_im_pred_crop_leftright = uv_coord_im_pred_crop.view(
             B * N, K, 2)
 
         # from crop uv to global uv
@@ -276,88 +272,26 @@ class LiftHeadStandard(BaseModule):
         uv_coord_im_pred_global_distort = torch.bmm(uv_coord_im_pred,
                                                     all_inv_warp_mat)
         uv_coord_im_pred_global_distort = uv_coord_im_pred_global_distort.view(
-            B, N, K, 2)
+            -1, K, 2)
 
-        frame_width = batch_data_samples[0].meta['frame_width']
-
-        def exchange_value(value):
-            tmp = value.clone()
-            tmp[:, 0, ...] = value[:, 1, ...]
-            tmp[:, 1, ...] = value[:, 0, ...]
-            value = tmp
-            return value
-
-        if self.all_data_flip:
-            right_hand = torch.ones_like(
-                left_hand).cuda().float() - left_hand.clone().cuda().float()
-            new_uv_coord_im_pred_global_distort = uv_coord_im_pred_global_distort.clone(
-            )
-            new_uv_coord_im_pred_global_distort = exchange_value(
-                new_uv_coord_im_pred_global_distort)
-            left_hand = torch.concat([left_hand, right_hand])
-            uv_coord_im_pred_global_distort = torch.concat([
-                uv_coord_im_pred_global_distort,
-                new_uv_coord_im_pred_global_distort
-            ],
-                                                           dim=0)
-
-            new_uv_coord_im_gt_global = uv_coord_im_gt_global.clone()
-            new_uv_coord_im_gt_global = exchange_value(
-                new_uv_coord_im_gt_global)
-            uv_coord_im_gt_global = torch.concat(
-                [uv_coord_im_gt_global, new_uv_coord_im_gt_global], dim=0)
-            B *= 2
-
-            leftcam_cam_matrix = torch.concat(
-                [leftcam_cam_matrix, leftcam_cam_matrix])
-            rightcam_cam_matrix = torch.concat(
-                [rightcam_cam_matrix, rightcam_cam_matrix])
-            left_R = torch.concat([left_R, left_R])
-            right_R = torch.concat([right_R, right_R])
-            baseline_scale = torch.concat([baseline_scale, baseline_scale])
-            hand3d_gt = torch.concat([hand3d_gt, hand3d_gt])
-            try:
-                nimble_info = {
-                    'nimble_pose': torch.concat([nimble_pose, nimble_pose]),
-                    'nimble_trans': torch.concat([nimble_trans, nimble_trans]),
-                    'nimble_shape': torch.concat([nimble_shape, nimble_shape]),
-                }
-            except Exception as e:
-                nimble_info = {
-                    'nimble_pose': None,
-                    'nimble_trans': None,
-                    'nimble_shape': None,
-                }
-                print(f"An error occurred: {e}")
-            valid_mask = torch.concat(
-                [torch.ones(B // 2), torch.zeros(B // 2)]).cuda().float()
-        else:
-            valid_mask = torch.ones_like(left_hand).cuda().float()
-            try:
-                nimble_info = {
-                    'nimble_pose': nimble_pose,
-                    'nimble_trans': nimble_trans,
-                    'nimble_shape': nimble_shape
-                }
-            except Exception as e:
-                nimble_info = {
-                    'nimble_pose': None,
-                    'nimble_trans': None,
-                    'nimble_shape': None,
-                }
-                print(f"An error occurred: {e}")
-
-        uv_coord_im_pred_global_distort_noflip = self.recover_hand(
-            uv_coord_im_pred_global_distort, left_hand,
-            frame_width).view(-1, K, 2)
-        uv_coord_im_gt_global = self.recover_hand(uv_coord_im_gt_global,
-                                                  left_hand,
-                                                  frame_width).view(-1, K, 2)
+        try:
+            nimble_info = {
+                'nimble_pose': nimble_pose,
+                'nimble_trans': nimble_trans,
+                'nimble_shape': nimble_shape
+            }
+        except Exception as e:
+            nimble_info = {
+                'nimble_pose': None,
+                'nimble_trans': None,
+                'nimble_shape': None,
+            }
+            print(f'An error occurred: {e}')
 
         # Pad 2D keypoints exceeding boundaries
         if self.pad_2d and mode == 'loss':
             for i in range(len(batch_data_samples)):
-                pred_kpt = uv_coord_im_pred_global_distort_noflip[i]
+                pred_kpt = uv_coord_im_pred_global_distort[i]
                 gt_kpt = uv_coord_im_gt_global[i]
                 data_sample = batch_data_samples[i]
                 mask = self.keypoint_within_bounds(
@@ -366,8 +300,7 @@ class LiftHeadStandard(BaseModule):
                 if self.pad_2d <= mask.sum() < 21:  # 可见点足够多时
                     noise = (4 * torch.rand((21 - mask.sum(), 2)) - 2).cuda()
                     pred_kpt[:, :2][~mask] = gt_kpt[:, :2][~mask] + noise
-        uv_coord_im_pred_global = uv_coord_im_pred_global_distort_noflip.clone(
-        )
+        uv_coord_im_pred_global = uv_coord_im_pred_global_distort.clone()
         if self.all_use_kp2d_gt:
             uv_coord_im_pred_global = uv_coord_im_gt_global.view(-1, K,
                                                                  2).clone()
@@ -443,7 +376,7 @@ class LiftHeadStandard(BaseModule):
             'uv_coord_im_gt_global': uv_coord_im_gt_global,
             'uv_coord_im_pred_global_distort': uv_coord_im_pred_global_distort,
             'uv_coord_im_pred_global_distort_noflip':
-            uv_coord_im_pred_global_distort_noflip,
+            uv_coord_im_pred_global_distort,
             'hand3d_gt': hand3d_gt,
             'left_R': left_R,
             'right_R': right_R,
@@ -452,7 +385,6 @@ class LiftHeadStandard(BaseModule):
             'baseline_scale': baseline_scale,
             'hand_scale': hand_scale,
             'nimble_info': nimble_info,
-            'valid_mask': valid_mask
         }
 
     def postprocess(self, hand3d_standard, left_to_right_rt, left_R,
