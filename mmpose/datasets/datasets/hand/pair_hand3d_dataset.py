@@ -472,6 +472,9 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             ppl_right = self.pipeline(data_info_right)
             all_results = default_collate([ppl_left, ppl_right])
         else:
-            all_results = self.pipeline(
-                random.choice([data_info_left, data_info_right]))
+            # all_results = self.pipeline(
+            #     random.choice([data_info_left, data_info_right]))
+            ppl_left = self.pipeline(data_info_left)
+            ppl_right = self.pipeline(data_info_right)
+            all_results = default_collate([ppl_left, ppl_right])
         return all_results

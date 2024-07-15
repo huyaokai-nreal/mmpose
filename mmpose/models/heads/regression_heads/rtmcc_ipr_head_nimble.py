@@ -365,17 +365,20 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         add_matrix = torch.eye(3).unsqueeze(0).expand(B, -1,
                                                         -1).to(cuda_device)
         add_matrix[mask, 0, 0] = -add_matrix[mask, 0, 0]
+        
+        pre_root_xyz = torch.matmul(add_matrix, pre_root_xyz.unsqueeze(-1))[:,:,0]
+        pre_root_matrix = torch.matmul(add_matrix, pre_root_matrix)
 
         if not only_pre:
             with torch.no_grad():
                 gt_root_xyz = torch.bmm(
-                    torch.matmul(left_R, add_matrix), nimble_info['nimble_trans'].unsqueeze(
+                    left_R, nimble_info['nimble_trans'].unsqueeze(
                         -1))[:, :, 0] / f_scale.unsqueeze(-1)
                 # gt_root_matrix = batch_rodrigues(
                 #     nimble_info['nimble_pose'][:, 0, :]).reshape(-1, 3, 3)
                 
                 gt_root_matrix = nimble_info['nibmle_root_matrix']
-                gt_root_matrix = torch.matmul(torch.matmul(left_R, add_matrix), torch.matmul(gt_root_matrix, add_matrix))
+                gt_root_matrix = torch.matmul(left_R, torch.matmul(gt_root_matrix, add_matrix))
 
                 init_root_rot = torch.zeros((B, 1, 3),
                                             requires_grad=True,

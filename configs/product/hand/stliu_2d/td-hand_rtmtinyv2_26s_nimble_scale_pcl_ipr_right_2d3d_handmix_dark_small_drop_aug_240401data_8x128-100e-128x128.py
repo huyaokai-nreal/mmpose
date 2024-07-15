@@ -14,7 +14,7 @@ data_root = '/data/AI_DATA_WX'
 # data_root = '/data/AI_DATA_LOCAL'
 test_type = '3d'
 camera_layout = 'nimble'
-base_lr = 5e-5
+base_lr = 1e-5
 # optimizer
 optim_wrapper = dict(
     type='OptimWrapper',
@@ -109,7 +109,7 @@ model = dict(
                     dim=3,
                     enable_start_epoch=train_cfg['max_epochs'] // 2),
                 dict(type='MSELoss', loss_weight=0.1,
-                     enable_start_epoch=train_cfg['max_epochs'] - 20),
+                     enable_start_epoch=train_cfg['max_epochs']),
             ]),
         decoder=codec),
     test_cfg=dict(flip_test=False, ),
@@ -202,7 +202,7 @@ for data_date in train_date_list:
         train_data_list += kpt3d_datasets_info['train_data'][data_date].get(
             glasses, [])
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
-# train_data_list = [train_data_sin for train_data_sin in train_data_list if "__right__" in train_data_sin]
+# train_data_list = [train_data_sin for train_data_sin in train_data_list if "__left__" in train_data_sin]
 # train_data_list = [
 #     '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_060805__all__normal__left__1111__0006__undistort_tar__Flora301.json',
 #     # '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20240517_033443__all__normal__right__1101__0015__undistort_tar__Flora304.json'
@@ -220,7 +220,7 @@ for data_date in val_date_list:
         val_data_list += kpt3d_datasets_info['test_data'][data_date].get(
             glasses, [])
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
-# val_data_list = [val_data_sin for val_data_sin in val_data_list if "__right__" in val_data_sin]
+# val_data_list = [val_data_sin for val_data_sin in val_data_list if "__left__" in val_data_sin]
 
 # val_data_list = [
 #     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081909__pinch__bright__left__1111__0019__undistort_tar__Flora301.json',
@@ -241,7 +241,7 @@ train_dataloader = dict(
         pipeline=train_pipeline,
         dataset_weight_list=dataset_weight_list,
         data_root=data_root,
-        flip_left_to_right=True,
+        flip_left_to_right=False,
         filter_kpt_exceed=True,
         point_type='2.5D',
         # standard_stereo=standard_stereo
@@ -258,7 +258,7 @@ val_3d_dataset = dict(
     #extern_hand_template_path = '/home/zx_li/workspace/mmpose/work_dirs/binocular_hand_template.npy',
     test_mode=True,
     pipeline=val_pipeline,
-    flip_left_to_right=True,
+    flip_left_to_right=False,
     # mean_bone_template_path=
     # '/data/AI_DATA/data_hand/model/mmpose/mean_hand_bones_230824.npz',
     #point_type='leftcam',

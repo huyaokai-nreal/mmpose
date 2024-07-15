@@ -515,9 +515,9 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             #     kpt2d_ori = ori_cam.eye_to_window(kpt_norm_world)
             #     pred_instances.keypoints[0][..., :2] = kpt2d_ori
                 
-            data_sample.gt_instances.keypoints = np.concatenate(
-                (hand2d_gt, data_sample.gt_instances.keypoints3d[..., 2:]),
-                axis=-1)
+            # data_sample.gt_instances.keypoints = np.concatenate(
+            #     (hand2d_gt, data_sample.gt_instances.keypoints3d[..., 2:]),
+            #     axis=-1)
             pred_instances.keypoint_scores = np.ones(
                 (1, pred_instances.keypoints.shape[1]))
             # if data_sample.meta['flipped']:
