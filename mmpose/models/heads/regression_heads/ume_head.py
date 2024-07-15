@@ -331,7 +331,7 @@ class UmeHead(BaseModule):
             rebuild_joints_with_scale = \
                 rebuild_joints_temp / self.scale_parameter
             xyz_point = rebuild_joints_with_scale + root_xyz.unsqueeze(1)
-            xyz_point *= baseline_scale
+            # xyz_point *= baseline_scale
             return xyz_point
 
         if not only_pre:
@@ -567,7 +567,7 @@ class UmeHead(BaseModule):
             multiv_scaled_to_canonical_xf,
             multiv_canonical_to_cam0_xf,
         ) = self._compute_multiv_xfs(singlev_scaled_to_orig_xf, extrinsics_xf)
-        multiv_scaled_to_canonical_xf[..., :3, 3] = 0.
+        # multiv_scaled_to_canonical_xf[..., :3, 3] = 0.
         # Transform all the features to the canonical space
         multiv_canonical_features = apply_ftl_to_feature_maps(
             multiv_scaled_to_canonical_xf.reshape(-1, 4, 4),

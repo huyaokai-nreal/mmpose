@@ -6,7 +6,7 @@ from mmpose.configs._base_.datasets.xs3d_nimble import \
 
 _base_ = ['../../../_base_/default_runtime.py']
 
-train_cfg = dict(max_epochs=100, val_interval=5)
+train_cfg = dict(max_epochs=150, val_interval=5)
 
 data_root = '/data/AI_DATA_WX'
 
@@ -75,7 +75,7 @@ model = dict(
                 dict(
                     type='RLELoss',
                     dim=3,
-                    enable_start_epoch=train_cfg['max_epochs']),
+                    enable_start_epoch=train_cfg['max_epochs']//2),
                 dict(
                     type='L1Loss',
                     use_target_weight=True,
@@ -199,7 +199,7 @@ val_pipeline = [
 # data loaders
 train_dataloader = dict(
     batch_size=128,
-    num_workers=0,
+    num_workers=8,
     persistent_workers=False,
     sampler=dict(type='DefaultSampler', shuffle=True),
     collate_fn=dict(type='default_collate'),
@@ -214,8 +214,8 @@ train_dataloader = dict(
     ),
 )
 val_dataloader = dict(
-    batch_size=64,
-    num_workers=4,
+    batch_size=128,
+    num_workers=8,
     persistent_workers=True,
     drop_last=False,
     sampler=dict(type='DefaultSampler', shuffle=False, round_up=False),
