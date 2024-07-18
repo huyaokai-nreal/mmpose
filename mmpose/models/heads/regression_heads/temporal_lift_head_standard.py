@@ -43,8 +43,10 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
             reproj_thre=reproj_thre,
             iou_thre=iou_thre,
             pad_2d=pad_2d,
-            score_dim=score_dim,
-            enhance_static=enhance_static)
+            score_dim=score_dim)
+        self.enhance_static=enhance_static
+        self.enhance_static = enhance_static
+        self.static_data_date_list = ['20240516', '20240517', '20240522']
         self.seq_len = seq_len
         self.last_layer = nn.Sequential(
             nn.Conv2d(self.feat_dim * 2, self.feat_dim, kernel_size=1),

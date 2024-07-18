@@ -86,7 +86,7 @@ class LiftHeadStandard(BaseModule):
             d_model=feat_dim, d_ffn=d_ffn, num_layers=num_layers)
         self.corruption_cam = corruption_cam
         self.last_layer = nn.Sequential(
-            nn.Conv2d(feat_dim, feat_dim, kernel_size=1), nn.ReLU(),
+            nn.Conv2d(feat_dim*2, feat_dim, kernel_size=1), nn.ReLU(),
             nn.Conv2d(feat_dim, output_num, kernel_size=1))
         if self.score_dim:
             score_feat_dim = feat_dim + output_num * 2
@@ -128,6 +128,7 @@ class LiftHeadStandard(BaseModule):
             B, K // 2, 2), torch.ones(B, K // 2, 1).cuda()),
                                       dim=-1)
         liftnet_output = self.liftnet(feats)
+        liftnet_output = torch.cat((liftnet_output, torch.zeros(liftnet_output.shape).to(liftnet_output.device)), dim=1)
         output = self.last_layer(liftnet_output).view(feats.shape[0], -1, 1, 1)
 
         # 标准双目3d点输出
