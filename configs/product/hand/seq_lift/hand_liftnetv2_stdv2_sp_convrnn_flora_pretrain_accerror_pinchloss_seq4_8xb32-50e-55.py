@@ -1,8 +1,9 @@
 # flake8: noqa
 _base_ = ['../../../_base_/default_runtime.py']
-from mmpose.configs._base_.datasets.xs3d import \
+from mmpose.configs._base_.datasets.xs3d_nimble import \
     datasets_info as kpt3d_datasets_info
 
+import os
 train_cfg = dict(max_epochs=50, val_interval=5)
 
 data_root = '/data/AI_DATA_WX'
@@ -124,6 +125,7 @@ model = dict(
                 )
             ]),
         seq_len=4,
+        enhance_static=True,
         baseline=0.135,
     ),
     test_cfg=dict(
@@ -134,7 +136,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/AI_DATA/data_hand/model/mmpose/027_td-stage_two_train_2d_RLE_head_train_flora_standard_plane/epoch_100.pth'
+        'work_dirs/lift3d/027_td-stage_two_train_2d_RLE_head_train_flora_standard_plane/best_all_mpjpe_epoch_100.pth'
     ),
 )
 
@@ -142,58 +144,22 @@ model = dict(
 dataset_type = 'PairHand3DDatasetSeq'
 data_mode = 'topdown'
 
-import os
-
 train_data_list = []
-train_date_list = ['20230824', '20230828', '20230906', '20230907']
+train_date_list = [
+    '20230824', '20230828', '20230906', '20230907', '20231227', '20240220',
+    '20240229', '20240401', '20240517', '20240425', '20240522'
+]
 train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
-quest_date_list = ['20240220', '20240229', '20240401']
-quest_glasses_list = ['Flora301', 'Flora302', 'Flora303']
-
 for data_date in train_date_list:
     for glasses in train_glasses_list:
         train_data_list += kpt3d_datasets_info['train_data'][data_date].get(
             glasses, [])
-for data_date in quest_date_list:
-    for glasses in quest_glasses_list:
-        train_data_list += kpt3d_datasets_info['train_data'][data_date].get(
-            glasses, [])
+train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 
-train_data_list1 = [
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_075055__all__bright__right__1111__0019__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_075728__all__dark__left__1111__0019__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_080158__pinch__normal__right__1111__0019__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_080536__pinch__bright__left__1111__0019__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_080910__pinch__normal__left__1111__0019__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081151__pinch__dark__right__1111__0019__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081427__pinch__normal__right__1111__0019__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081909__pinch__bright__left__1111__0019__undistort_tar__Flora301.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_075055__all__bright__right__1111__0019__undistort_tar__Flora302.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_075728__all__dark__left__1111__0019__undistort_tar__Flora302.json',
-    'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_080158__pinch__normal__right__1111__0019__undistort_tar__Flora302.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_080536__pinch__bright__left__1111__0019__undistort_tar__Flora302.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_080910__pinch__normal__left__1111__0019__undistort_tar__Flora302.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081151__pinch__dark__right__1111__0019__undistort_tar__Flora302.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081427__pinch__normal__right__1111__0019__undistort_tar__Flora302.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081909__pinch__bright__left__1111__0019__undistort_tar__Flora302.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_075055__all__bright__right__1111__0019__undistort_tar__Flora303.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_075728__all__dark__left__1111__0019__undistort_tar__Flora303.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_080158__pinch__normal__right__1111__0019__undistort_tar__Flora303.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_080536__pinch__bright__left__1111__0019__undistort_tar__Flora303.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_080910__pinch__normal__left__1111__0019__undistort_tar__Flora303.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081151__pinch__dark__right__1111__0019__undistort_tar__Flora303.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081427__pinch__normal__right__1111__0019__undistort_tar__Flora303.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081909__pinch__bright__left__1111__0019__undistort_tar__Flora303.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_075055__all__bright__right__1111__0019__undistort_tar__Flora304.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_075728__all__dark__left__1111__0019__undistort_tar__Flora304.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_080158__pinch__normal__right__1111__0019__undistort_tar__Flora304.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_080536__pinch__bright__left__1111__0019__undistort_tar__Flora304.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_080910__pinch__normal__left__1111__0019__undistort_tar__Flora304.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081151__pinch__dark__right__1111__0019__undistort_tar__Flora304.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081427__pinch__normal__right__1111__0019__undistort_tar__Flora304.json',
-    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081909__pinch__bright__left__1111__0019__undistort_tar__Flora304.json'
-]
-# train_data_list = train_data_list1
+# train_data_list = [
+#     # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_075055__all__bright__right__1111__0019__undistort_tar__Flora302.json',
+#     'data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20240517_030629__all__normal__right__1101__0006__undistort_tar__Flora301.json'
+# ]
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 

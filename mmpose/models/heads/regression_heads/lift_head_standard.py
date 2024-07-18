@@ -469,10 +469,10 @@ class LiftHeadStandard(BaseModule):
         hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
             hand3d_standard, data['left_to_right_rt'], data['left_R'],
             data['baseline_scale'], data['hand_scale'])
-
+        hand3d_gt = data['hand3d_gt']
         left_reproj, right_reproj = self.trans_3d_2_2d(hand3d_standard)
-        major_gt = torch.cat((data['hand3d_gt'][:, 1:10, :],
-                              data['hand3d_gt'][:, 13, :].unsqueeze(1)),
+        major_gt = torch.cat((hand3d_gt[:, 1:10, :],
+                              hand3d_gt[:, 13, :].unsqueeze(1)),
                              dim=1)
         major_pred = torch.cat(
             (hand3d_pred[:, 1:10, :], hand3d_pred[:, 13, :].unsqueeze(1)),
@@ -482,13 +482,13 @@ class LiftHeadStandard(BaseModule):
         dist_pred = torch.norm(
             hand3d_pred[:, 4, :] - hand3d_pred[:, 8, :], dim=-1)
         dist_gt = torch.norm(
-            data['hand3d_gt'][:, 4, :] - data['hand3d_gt'][:, 8, :], dim=-1)
+            hand3d_gt[:, 4, :] - hand3d_gt[:, 8, :], dim=-1)
         pred_for_loss = [
             hand3d_pred, leftcam_XYZ, rightcam_XYZ, left_reproj, right_reproj,
             dist_pred
         ]
         targ_for_loss = [
-            data['hand3d_gt'], data['hand3d_gt'], data['hand3d_gt'],
+            hand3d_gt, hand3d_gt, hand3d_gt,
             data['norm_leftcam_xyz'][..., :2],
             data['norm_rightcam_xyz'][..., :2], dist_gt
         ]

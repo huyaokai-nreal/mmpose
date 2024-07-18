@@ -221,6 +221,7 @@ class TopdownPoseLiftEstimator(BaseModel):
         else:
             score = torch.ones((pred.shape[:2]))
         batch_pred_instances = []
+        pred_bino_kp2d = pred_bino_kp2d.reshape(pred.shape[0],-1,21,2)
         for b in range(pred.shape[0]):
             keypoints = pred_bino_kp2d[b:b + 1, 0, ...]  # gt为左目信息
             batch_pred_instances.append(
@@ -411,6 +412,7 @@ class TopdownPoseLiftEstimatorSeq(TopdownPoseLiftEstimator):
                     mem,
                     test_cfg=self.test_cfg)
                 score = torch.ones((pred.shape[:2]))
+            pred_bino_kp2d = pred_bino_kp2d.reshape(pred.shape[0],-1,21,2)
             for b in range(pred.shape[0]):
                 keypoints = pred_bino_kp2d[b:b + 1, 0, ...]  # gt为左目信息
                 batch_pred_instances.append(

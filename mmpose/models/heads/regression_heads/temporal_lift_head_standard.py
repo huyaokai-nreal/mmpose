@@ -25,6 +25,7 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
                  pad_2d=0,
                  score_dim=0,
                  baseline=0.13,
+                 enhance_static=True,
                  corruption_cam: float = 0.5,
                  all_use_kp2d_gt: bool = False,
                  seq_len: int = 4,
@@ -42,7 +43,8 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
             reproj_thre=reproj_thre,
             iou_thre=iou_thre,
             pad_2d=pad_2d,
-            score_dim=score_dim)
+            score_dim=score_dim,
+            enhance_static=enhance_static)
         self.seq_len = seq_len
         self.last_layer = nn.Sequential(
             nn.Conv2d(self.feat_dim * 2, self.feat_dim, kernel_size=1),
@@ -194,10 +196,10 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
         hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
             hand3d_standard, data['left_to_right_rt'], data['left_R'],
             data['baseline_scale'], data['hand_scale'])
-
+        hand3d_gt = data['hand3d_gt']
         left_reproj, right_reproj = self.trans_3d_2_2d(hand3d_standard)
-        major_gt = torch.cat((data['hand3d_gt'][:, 1:10, :],
-                              data['hand3d_gt'][:, 13, :].unsqueeze(1)),
+        major_gt = torch.cat((hand3d_gt[:, 1:10, :],
+                              hand3d_gt[:, 13, :].unsqueeze(1)),
                              dim=1)
         major_pred = torch.cat(
             (hand3d_pred[:, 1:10, :], hand3d_pred[:, 13, :].unsqueeze(1)),
@@ -207,17 +209,23 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
         dist_pred = torch.norm(
             hand3d_pred[:, 4, :] - hand3d_pred[:, 8, :], dim=-1)
         dist_gt = torch.norm(
-            data['hand3d_gt'][:, 4, :] - data['hand3d_gt'][:, 8, :], dim=-1)
+            hand3d_gt[:, 4, :] - hand3d_gt[:, 8, :], dim=-1)
 
+        if self.enhance_static:
+            static_weight = 25
+            static_mask = self.generate_static_mask(batch_data_samples)
+            _hand3d_pred = self.enhanced_fun(
+                hand3d_pred, static_mask, static_weight)
+            _hand3d_gt = self.enhanced_fun(
+                hand3d_gt, static_mask, static_weight)
         pred_for_loss = [
             hand3d_pred, leftcam_XYZ, rightcam_XYZ, left_reproj, right_reproj,
-            dist_pred, hand3d_pred, major_pred
+            dist_pred, _hand3d_pred
         ]
         targ_for_loss = [
-            data['hand3d_gt'], data['hand3d_gt'], data['hand3d_gt'],
+            hand3d_gt, hand3d_gt, hand3d_gt,
             data['norm_leftcam_xyz'][..., :2],
-            data['norm_rightcam_xyz'][..., :2], dist_gt, data['hand3d_gt'],
-            major_gt
+            data['norm_rightcam_xyz'][..., :2], dist_gt, _hand3d_gt
         ]
 
         losses = self.lift_loss(pred_for_loss, targ_for_loss)
@@ -241,3 +249,20 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
             # losses_dict['loss_major_score'] = self.compute_score_loss(
             #             major_pred, major_gt, dist_pred, dist_gt, score)
         return losses_dict
+
+    def generate_static_mask(self, batch_data_samples):
+        mask = []
+        for batch_sample in batch_data_samples[::2]:
+            data_info = batch_sample.img_path.split('/')[-1].split(
+                '__')[1].split('_')[0]
+            if data_info in self.static_data_date_list:
+                mask.append(True)
+            else:
+                mask.append(False)
+        mask = torch.tensor(mask)
+        return mask
+
+    def enhanced_fun(self, kpt, mask, weight):
+        enhanced_kpt = kpt.clone()
+        enhanced_kpt[mask] = enhanced_kpt[mask] * weight
+        return enhanced_kpt
