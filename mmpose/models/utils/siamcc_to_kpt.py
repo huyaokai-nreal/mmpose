@@ -48,13 +48,13 @@ class SimCCToKeypoint3D(nn.Module):
     @staticmethod
     def _flat_softmax(featmaps):
         """Use Softmax to normalize the featmaps in depthwise."""
-        heatmaps = F.softmax(featmaps, dim=2)
+        heatmaps = F.softmax(featmaps, dim=-1)
         return heatmaps
 
     @staticmethod
     def _elu_normalize(featmaps):
         heatmaps = F.elu(featmaps) + 1
-        heatmaps = heatmaps / heatmaps.sum(dim=2, keepdim=True)
+        heatmaps = heatmaps / heatmaps.sum(dim=-1, keepdim=True)
         return heatmaps
 
     def forward(self, x, y, z):

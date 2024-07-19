@@ -106,7 +106,7 @@ class RTMCCHead3D(RTMCCHead):
         feats = self.final_layer(raw_feats)  # -> B, K, H, W
 
         # flatten the output heatmap
-        feats = torch.flatten(feats, 2)
+        feats = feats.reshape((feats.shape[0], 1, feats.shape[1], -1))
 
         feats = self.mlp(feats)  # -> B, K, hidden
         if self.with_gau:
