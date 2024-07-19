@@ -1,7 +1,7 @@
 # flake8: noqa
 import os
 
-from mmpose.configs._base_.datasets.xs3d_nimble import \
+from mmpose.configs._base_.datasets.xs3d_ume import \
     datasets_info as kpt3d_datasets_info
 
 _base_ = ['../../../_base_/default_runtime.py']
@@ -107,41 +107,16 @@ model = dict(
 data_mode = 'topdown'
 
 train_data_list = []
-train_date_list = [
-    '20230824', '20230828', '20230906', '20230907', '20231227', '20240220',
-    '20240229', '20240401', '20240517', '20240425', '20240522'
-]
-train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
-for data_date in train_date_list:
-    for glasses in train_glasses_list:
-        train_data_list += kpt3d_datasets_info['train_data'][data_date].get(
-            glasses, [])
+for hand in ['left', 'right']:
+    for v in kpt3d_datasets_info[hand].values():
+        train_data_list += v
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
-ume_data_root = '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/ume_data/training/'
-ume_user_list = os.listdir(ume_data_root)
-for user in ume_user_list:
-    user_path = os.path.join(ume_data_root, user)
-    file_list = os.listdir(user_path)
-    for file in file_list:
-        train_data_list.append(os.path.join(user_path, file))
-
 # train_data_list = [
 #     '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/ume_data/training/user_15/recording_00.json',
-#     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240229_085520__pinch__normal__left__1110__0029__undistort_tar__Flora301.json',
-# #     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240229_085836__pinch__normal__right__1110__0029__undistort_tar__Flora301.json',
-# #     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_062729__pinch__normal__right__1110__0006__undistort_tar__Flora301.json',
-# #     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_063058__pinch__normal__left__1110__0006__undistort_tar__Flora301.json',
-# #     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_063800__pinch__normal__left__1110__0007__undistort_tar__Flora301.json',
-# #     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_064131__pinch__normal__right__1110__0007__undistort_tar__Flora301.json',
-# #     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_064839__pinch__normal__left__1110__0014__undistort_tar__Flora301.json',
-# #     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_065926__pinch__normal__right__1110__0014__undistort_tar__Flora301.json',
-# #     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_070606__pinch__normal__right__1110__0008__undistort_tar__Flora301.json',
-# #     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240401_070606__pinch__normal__right__1110__0008__undistort_tar__Flora301.json',
 # ]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
-    # '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/ume_data/training/user_15/recording_00.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_070648__all__normal__right__1111__0005__undistort_tar__Flora301.json',  #
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_071804__all__bright__left__1111__0005__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_072334__pinch__dark__right__1111__0005__undistort_tar__Flora301.json',
