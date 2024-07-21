@@ -111,9 +111,9 @@ class RTMCCHead3D(RTMCCHead):
         feats = self.mlp(feats)  # -> B, K, hidden
         if self.with_gau:
             feats = self.gau(feats)
-        pred_x = self.cls_x(feats)
-        pred_y = self.cls_y(feats)
-        pred_z = self.cls_z(feats)
+        pred_x = self.cls_x(feats).squeeze(1)
+        pred_y = self.cls_y(feats).squeeze(1)
+        pred_z = self.cls_z(feats).squeeze(1)
         output = [pred_x, pred_y, pred_z]
         if self.with_root_net:
             x = torch.nn.functional.adaptive_avg_pool2d(raw_feats, (1, 1))
