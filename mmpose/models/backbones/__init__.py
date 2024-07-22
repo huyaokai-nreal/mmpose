@@ -1,5 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from .alexnet import AlexNet
+from .convnext import ConvNeXt
 from .cpm import CPM
 from .cspnext import CSPNeXt
 from .hourglass import HourglassNet
@@ -38,5 +39,5 @@ __all__ = [
     'MSPN', 'ResNeSt', 'VGG', 'TCN', 'ViPNAS_ResNet', 'ViPNAS_MobileNetV3',
     'LiteHRNet', 'V2VNet', 'HRFormer', 'PyramidVisionTransformer',
     'PyramidVisionTransformerV2', 'SwinTransformer', 'RSNTiny', 'MobileOne',
-    'CSPNeXt', 'RepViT'
+    'CSPNeXt', 'RepViT', 'ConvNeXt'
 ]
