@@ -96,7 +96,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         x, y = keypoint[:, 0], keypoint[:, 1]
         within_mask = ((0 <= x) & (x < image_width)) & ((0 <= y) &
                                                         (y < image_height))
-        return within_mask.sum() == keypoint.shape[0]
+        return within_mask.sum() >= keypoint.shape[0] * 0.5
 
     @force_full_init
     def __len__(self) -> int:
