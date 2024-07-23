@@ -267,14 +267,6 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                         right_keypoints, right_img['width'],
                         right_img['height'])
                     if not left_within_bounds or not right_within_bounds:
-                        if '301' in ann['camera_instance_id']:
-                            f301 += 1
-                        elif '302' in ann['camera_instance_id']:
-                            f302 += 1
-                        elif '303' in ann['camera_instance_id']:
-                            f303 += 1
-                        else:
-                            f304 += 1
                         if ann['category_id'] == 1:
                             left_filter += 1
                         else:

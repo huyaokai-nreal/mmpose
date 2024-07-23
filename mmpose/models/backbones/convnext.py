@@ -223,7 +223,7 @@ class ConvNeXtBlock(BaseModule):
 
             if self.linear_pw_conv:
                 x = x.permute(0, 2, 3, 1)  # (N, C, H, W) -> (N, H, W, C)
-                x = self.norm(x, data_format='channel_last')
+                x = self.norm(x)
                 x = self.pointwise_conv1(x)
                 x = self.act(x)
                 if self.grn is not None:
@@ -231,7 +231,7 @@ class ConvNeXtBlock(BaseModule):
                 x = self.pointwise_conv2(x)
                 x = x.permute(0, 3, 1, 2)  # (N, H, W, C) -> (N, C, H, W)
             else:
-                x = self.norm(x, data_format='channel_first')
+                x = self.norm(x)
                 x = self.pointwise_conv1(x)
                 x = self.act(x)
 
