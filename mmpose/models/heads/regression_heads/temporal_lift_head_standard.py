@@ -220,6 +220,9 @@ class TemporalLiftHeadStandard(LiftHeadStandard):
                 hand3d_pred, static_mask, static_weight)
             _hand3d_gt = self.enhanced_fun(
                 hand3d_gt, static_mask, static_weight)
+        else:
+            _hand3d_gt = hand3d_gt
+            _hand3d_pred = hand3d_pred
         pred_for_loss = [
             hand3d_pred, leftcam_XYZ, rightcam_XYZ, left_reproj, right_reproj,
             dist_pred, _hand3d_pred

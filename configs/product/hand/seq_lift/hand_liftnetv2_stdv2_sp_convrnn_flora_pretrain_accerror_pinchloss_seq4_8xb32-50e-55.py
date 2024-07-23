@@ -4,7 +4,7 @@ from mmpose.configs._base_.datasets.xs3d_nimble import \
     datasets_info as kpt3d_datasets_info
 
 import os
-train_cfg = dict(max_epochs=50, val_interval=5)
+train_cfg = dict(max_epochs=50, val_interval=50)
 
 data_root = '/data/AI_DATA_WX'
 # data_root = '/data/AI_DATA_LOCAL'
@@ -116,16 +116,15 @@ model = dict(
                     type='PinchLoss',
                     enter_thre=pinch_thre[0] / 1000,
                     exit_thre=pinch_thre[1] / 1000,
-                    loss_weight=1,
-                    enable_start_epoch=0),  # 后20 epoch打开pinch loss
+                    loss_weight=1),
                 dict(
                     type='MPJPAELoss',
                     seq_length=seq_length,
-                    loss_weight=1,
+                    loss_weight=1
                 )
             ]),
         seq_len=4,
-        enhance_static=True,
+        enhance_static=False,
         baseline=0.135,
     ),
     test_cfg=dict(
@@ -136,7 +135,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        'work_dirs/lift3d/027_td-stage_two_train_2d_RLE_head_train_flora_standard_plane/best_all_mpjpe_epoch_100.pth'
+        'work_dirs/lift3d/hand_liftnetv2_stdv2_sp_convrnn_flora_pretrain_accerror_pinchloss_seq4_8xb32-50e-55/best_all_mpjpe_epoch_20.pth'
     ),
 )
 
@@ -154,11 +153,14 @@ for data_date in train_date_list:
     for glasses in train_glasses_list:
         train_data_list += kpt3d_datasets_info['train_data'][data_date].get(
             glasses, [])
+for k,v in kpt3d_datasets_info['simu_train_data'].items():
+    train_data_list += v['Flora301']
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 
 # train_data_list = [
-#     # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_075055__all__bright__right__1111__0019__undistort_tar__Flora302.json',
-#     'data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20240517_030629__all__normal__right__1101__0006__undistort_tar__Flora301.json'
+#     # 'data_hand/hand_keypoint/annotations3d/simulate_binocular_coco_hand/XS__20230907_033431__pinch__dark__left__1111__0011__undistort_tar__Flora301__marker_20240711110634.json',
+#     # 'data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20240517_030629__all__normal__right__1101__0006__undistort_tar__Flora301.json',
+#     'data_hand/hand_keypoint/annotations3d/simulate_binocular_coco_hand/XS__20230907_033735__pinch__normal__right__1111__0011__undistort_tar__Flora301__15F_office.json',
 # ]
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
@@ -378,6 +380,8 @@ train_dataloader = dict(
         dataset_weight_list=dataset_weight_list,
         data_root=data_root,
         seq_len=seq_length,
+        data_ratio=1./3,
+        serialize_data=True
     ),
 )
 val_dataloader = dict(
@@ -435,6 +439,9 @@ find_unused_parameters = True
 # visualizer
 vis_backends = [
     dict(type='LocalVisBackend'),
+    # this will slow the training process ???
+    dict(type='TensorboardVisBackend')
 ]
+
 visualizer = dict(
     type='PoseLocalVisualizer', vis_backends=vis_backends, name='visualizer')

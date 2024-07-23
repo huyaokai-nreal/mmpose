@@ -1,6 +1,7 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import torch.nn as nn
 
+from mmengine.logging import MessageHub, MMLogger
 from mmpose.registry import MODELS
 
 
@@ -37,10 +38,11 @@ class MPJPAELoss(nn.Module):
         nn (_type_): _description_
     """
 
-    def __init__(self, loss_weight: float = 1.0, seq_length: int = 4) -> None:
+    def __init__(self, loss_weight: float = 1.0, seq_length: int = 4,enable_start_epoch:int=0) -> None:
         super().__init__()
         self.loss_weight = loss_weight
         self.seq_length = seq_length
+        self.enable_start_epoch = enable_start_epoch
 
     def forward(self, output, target, target_weight=None):
         B, N, K = output.shape
@@ -56,4 +58,10 @@ class MPJPAELoss(nn.Module):
         acc_t1 = acc[:, :acc_length - 1, :, :]
         acc_t2 = acc[:, 1:acc_length, :, :]
         acc_error = acc_t2 - acc_t1
+        
+        if self.enable_start_epoch > 0:
+            mh = MessageHub.get_current_instance()
+            cur_epoch = mh.get_info('epoch')
+            if cur_epoch <= self.enable_start_epoch:
+                return acc_error.abs().mean() * 0
         return acc_error.abs().mean() * self.loss_weight

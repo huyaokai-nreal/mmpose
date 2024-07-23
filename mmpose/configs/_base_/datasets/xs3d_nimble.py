@@ -336,6 +336,7 @@ datasets_info = {
                 'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20240425_034123__pinch__normal__right__1101__0027__undistort_tar__Flora301.json'
             ]
         },
+        # static
         '20240522': {
             'Flora301': [
                 'data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20240522_025450__all__normal__right__1101__0008__undistort_tar__Flora301.json',
@@ -360,7 +361,7 @@ datasets_info = {
     'simu_train_data': {
         '15F': {
             'Flora301': [
-                'data_hand/hand_keypoint/annotations3d/simulate_binocular_coco_hand/XS__20230824_060805__all__normal__left__1111__0006__undistort_tar__Flora301__15F_office.json',
+                # 'data_hand/hand_keypoint/annotations3d/simulate_binocular_coco_hand/XS__20230824_060805__all__normal__left__1111__0006__undistort_tar__Flora301__15F_office.json',
                 'data_hand/hand_keypoint/annotations3d/simulate_binocular_coco_hand/XS__20230907_031309__all__normal__left__1111__0011__undistort_tar__Flora301__15F_office.json',
                 'data_hand/hand_keypoint/annotations3d/simulate_binocular_coco_hand/XS__20230907_033735__pinch__normal__right__1111__0011__undistort_tar__Flora301__15F_office.json',
                 'data_hand/hand_keypoint/annotations3d/simulate_binocular_coco_hand/XS__20230907_032037__all__bright__right__1111__0011__undistort_tar__Flora301__15F_office.json',
