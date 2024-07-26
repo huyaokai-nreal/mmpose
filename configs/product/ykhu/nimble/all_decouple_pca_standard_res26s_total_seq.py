@@ -166,7 +166,6 @@ model = dict(
         use_svd=True,
         lambda_t=train_cfg['max_epochs'],
         pose_ncomp=30,
-        euler_or_quaternion='euler',
         baseline=0.135,
         use_6d_pose_reg=False,
         use_9d_pose_reg=True,

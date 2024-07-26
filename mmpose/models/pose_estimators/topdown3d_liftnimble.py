@@ -457,6 +457,7 @@ class TopdownPoseLiftNimbleEstimatorSeq(TopdownPoseLiftNimbleEstimator):
                 sub_xy_input, [data_samples[i] for i in data_sample_id_list],
                 mem,
                 test_cfg=self.test_cfg)
+            pred_bino_kp2d = pred_bino_kp2d.reshape(pred.shape[0],-1,21,2)
             for b in range(pred.shape[0]):
                 keypoints = pred_bino_kp2d[b:b + 1, 0, ...]  # gt为左目信息
                 batch_pred_instances.append(

@@ -140,7 +140,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
                 test_cfg: ConfigType = {}) -> Predictions:
         with torch.no_grad():
             data = self.preprocess(feats, batch_data_samples, 'predict')
-        valid_mask = data['valid_mask'] == 1
+        # valid_mask = data['valid_mask'] == 1
         output, mems, all_sigmas = self.forward(data['feats'], mems, 1)
 
         hand3d_pred = self.postprocess(
@@ -152,7 +152,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             data['hand3d_gt'],
             data['baseline_scale'],
             only_pre=True)[0]
-        hand3d_pred = hand3d_pred[valid_mask]
+        hand3d_pred = hand3d_pred
         # for (batch_data_sample,hand3d_pred_sin) in zip(batch_data_samples[::2], hand3d_pred):
         #     id_name = int(batch_data_sample.img_path.split("__")[-1])
         #     self.out_list[id_name] = {

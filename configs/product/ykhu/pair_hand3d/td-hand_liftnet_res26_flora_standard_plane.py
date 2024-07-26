@@ -134,7 +134,8 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/AI_DATA/data_hand/model/mmpose/td-hand_rsn26_fpn_25d_scale_ipr_right_2d3d_handmix_aug_240229data_4x128-100e-128x128/epoch_100.pth'  # 20240315 T 2D model
+        # '/data/AI_DATA/data_hand/model/mmpose/td-hand_rsn26_fpn_25d_scale_ipr_right_2d3d_handmix_aug_240229data_4x128-100e-128x128/epoch_100.pth'  # 20240315 T 2D model
+        '/data/AI_DATA/data_hand/model/mmpose/td-hand_rtmtinyv2_26s_nimble25d_scale_pcl_ipr_right_2d3d_handmix_dark_small_drop_aug_240716data_ume_8x128-100e-128x128/epoch_100.pth' # pcl和 warpafine混合训练
     ))
 
 # base dataset settings
@@ -151,10 +152,12 @@ for data_date in train_date_list:
     for glasses in train_glasses_list:
         train_data_list += kpt3d_datasets_info['train_data'][data_date].get(
             glasses, [])
+for k,v in kpt3d_datasets_info['simu_train_data'].items():
+    train_data_list += v['Flora301']
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 
 # train_data_list = [
-#     'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_075055__all__bright__right__1111__0019__undistort_tar__Flora302.json',
+#     # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_075055__all__bright__right__1111__0019__undistort_tar__Flora302.json',
 #     'data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20240517_030629__all__normal__right__1101__0006__undistort_tar__Flora301.json'
 # ]
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
@@ -368,7 +371,8 @@ train_dataloader = dict(
         data_root=data_root,
         flip_left_to_right=True,
         filter_kpt_exceed=False,
-        standard_stereo=standard_stereo
+        standard_stereo=standard_stereo,
+        # data_ratio=1/2,
         # point_type='leftcam',
         # indices=1000,
     ),
@@ -407,20 +411,15 @@ filter_exceed = False
 val_evaluator = [
     dict(
         type='MPJPEV2',
-        mode='mpjpe',
+        mode=['mpjpe', 'p-mpjpe'],
+        # mode=['mpjpe'],
         # gesture_list=gesture_list,
-        scale_metric=False,
-        fit_metric=False,
-        openhand_metric=False,
-        pinch_hard_metric=False,
-        category_metric=False,
+        rearrange_result=True,
         pinch_thre=pinch_thre,
         # bmk_save_root='/home/ykhu/workspace/mmpose/work_dirs/bad_case_liftnet/pinch0315',
-        # show_bmk_thr=(20, 10000000),
-        filter_exceed=filter_exceed),  #bad case mpjpe thr (mm)
-    # dict(type='MPJPEV2', mode='p-mpjpe', prefix='1',filter_exceed=filter_exceed),
-    # dict(type='EPE',filter_exceed=filter_exceed),
-    # dict(type='NrealKeypointAP',filter_exceed=filter_exceed, category_metric=True)
+        result_dir='.'),
+    # dict(type='EPE'),
+    # dict(type='NrealKeypointAP'),
 ]
 test_evaluator = val_evaluator
 

@@ -6,7 +6,7 @@ from mmpose.configs._base_.datasets.xs3d_ume import \
 
 _base_ = ['../../../_base_/default_runtime.py']
 
-train_cfg = dict(max_epochs=150, val_interval=5)
+train_cfg = dict(max_epochs=50, val_interval=5)
 
 data_root = '/data/AI_DATA_WX'
 
@@ -37,8 +37,9 @@ auto_scale_lr = dict(base_batch_size=128)
 pinch_thre = [20, 40]  # pinch双阈值，单位：mm
 # model settings
 backbone_out_channels = [32, 64, 128, 256]
+seq_len = 4
 model = dict(
-    type='TopdownPoseUmeNimbleEstimator',
+    type='TopdownPoseUmeNimbleEstimatorSeq',
     data_preprocessor=dict(
         type='PoseDataPreprocessor', mean=[0.449 * 255], std=[0.226 * 255]),
     backbone=dict(
@@ -55,7 +56,7 @@ model = dict(
         bias_in_conv=False,
         out_channels=backbone_out_channels),
     head=dict(
-        type='UmeHead',
+        type='UmeHeadSeq',
         ume_loss=dict(
             type='MultipleLossWrapper',
             losses=[
@@ -81,7 +82,13 @@ model = dict(
                     use_target_weight=True,
                     enable_start_epoch=train_cfg['max_epochs'] // 2,
                     loss_weight=0),
+                dict(
+                    type='MPJPAELoss',
+                    seq_length=seq_len,
+                    loss_weight=1,
+                ),
             ]),
+        seq_len=seq_len,
         use_svd=True,
         use_gmlp=False,
         pose_ncomp=30,
@@ -173,19 +180,20 @@ val_pipeline = [
 
 # data loaders
 train_dataloader = dict(
-    batch_size=128,
-    num_workers=8,
+    batch_size=32,
+    num_workers=16,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
     collate_fn=dict(type='default_collate'),
     dataset=dict(
-        type='PairHand3DDataset',
+        type='PairHand3DDatasetSeq',
         data_file_list=train_data_list,
         data_mode=data_mode,
         pipeline=train_pipeline,
         dataset_weight_list=dataset_weight_list,
         flip_left_to_right=True,
         data_root=data_root,
+        seq_len=seq_len
     ),
 )
 val_dataloader = dict(
