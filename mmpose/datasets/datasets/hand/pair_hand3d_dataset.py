@@ -152,20 +152,12 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         num_keypoints = ann['num_keypoints']
         if 'cameras_info' in ann['meta']:
             keypoints_visible = np.ones((1, 21))
-            ann['meta']['cameras_info']['left_cam'][
-                'camera_type'] = 'fisheye_ume'
-            ann['meta']['cameras_info']['right_cam'][
-                'camera_type'] = 'fisheye_ume'
             cam_model_left = build_ume_CameraInstance(
                 CameraInstance.from_dict(
                     ann['meta']['cameras_info']['left_cam']))
             cam_model_right = build_ume_CameraInstance(
                 CameraInstance.from_dict(
                     ann['meta']['cameras_info']['right_cam']))
-            # import ipdb;ipdb.set_trace()
-            cam_model_left.camera_to_world_xf[:3, -1] /= 1000  # mm to m
-            cam_model_right.camera_to_world_xf[:3, -1] /= 1000
-            # keypoints3d /= 1000
             meta = {'ume': True}
         else:
             keypoints_visible = np.array(ann['keypoints_left'])[...,
