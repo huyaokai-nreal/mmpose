@@ -98,8 +98,9 @@ def main():
         cfg[f'{args.phase}_dataloader'].dataset.pipeline = []
     else:
         # pack transformed keypoints for visualization
-        cfg[f'{args.phase}_dataloader'].dataset.pipeline[
-            -1].pack_transformed = True
+        # cfg[f'{args.phase}_dataloader'].dataset.pipeline[
+        #    -1].pack_transformed = True
+        pass
 
     dataset = build_from_cfg(cfg[f'{args.phase}_dataloader'].dataset, DATASETS)
 

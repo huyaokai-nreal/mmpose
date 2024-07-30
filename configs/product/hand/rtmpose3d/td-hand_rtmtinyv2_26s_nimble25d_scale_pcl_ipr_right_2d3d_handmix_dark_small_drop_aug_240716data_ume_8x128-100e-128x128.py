@@ -253,7 +253,7 @@ train_2d_data_list = [
 
 val_data_list = []
 val_date_list = ['20230830']
-val_glasses_list = ['Flora304']
+val_glasses_list = ['Flora301']
 val_person_list = ['0005']
 
 for data_date in val_date_list:
@@ -270,7 +270,7 @@ val_2d_datasets = ['flora_static_finegrain', 'flora_dynamic']
 #val_2d_datasets = ['flora_decoration']
 #val_2d_datasets = ['ella']
 #val_2d_datasets = ['near_two_hands']
-#val_2d_datasets = ['dark_light']
+val_2d_datasets = ['dark_light']
 #val_2d_datasets = ['wrist_occlusion']
 #val_2d_datasets = ['tattoo']
 val_2d_data_list = [

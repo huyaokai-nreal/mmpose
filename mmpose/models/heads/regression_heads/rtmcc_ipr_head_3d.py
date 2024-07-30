@@ -92,6 +92,7 @@ class RTMCCIPRHead3D(RTMCCHead3D):
                  deploy: bool = False,
                  with_gau: bool = False,
                  deploy_output='kpt',
+                 mlp_with_conv: bool = False,
                  map_type='softmax'):
         super().__init__(
             in_channels,
@@ -114,6 +115,14 @@ class RTMCCIPRHead3D(RTMCCHead3D):
         self.deploy_output = deploy_output
         self.output_sigma = output_sigma
         self.deploy = deploy
+        if mlp_with_conv:
+            flatten_dims = self.in_featuremap_size[
+                0] * self.in_featuremap_size[1]
+            self.mlp = nn.Sequential(
+                nn.Linear(flatten_dims, 128), nn.ReLU(), nn.Conv2d(21, 21, 1),
+                nn.ReLU(), nn.Linear(128, 128), nn.ReLU(),
+                nn.Conv2d(21, 21, 1))
+
         if self.output_sigma:
             self.gap = nn.AdaptiveAvgPool2d((1, 1))
             self.sigma_conv = nn.Conv2d(

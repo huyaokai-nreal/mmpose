@@ -106,14 +106,14 @@ class RTMCCHead3D(RTMCCHead):
         feats = self.final_layer(raw_feats)  # -> B, K, H, W
 
         # flatten the output heatmap
-        feats = feats.reshape((feats.shape[0], 1, feats.shape[1], -1))
-
+        feats = feats.reshape((feats.shape[0], feats.shape[1], 1, -1))
         feats = self.mlp(feats)  # -> B, K, hidden
         if self.with_gau:
             feats = self.gau(feats)
-        pred_x = self.cls_x(feats).squeeze(1)
-        pred_y = self.cls_y(feats).squeeze(1)
-        pred_z = self.cls_z(feats).squeeze(1)
+        feats = feats.squeeze(2)
+        pred_x = self.cls_x(feats)
+        pred_y = self.cls_y(feats)
+        pred_z = self.cls_z(feats)
         output = [pred_x, pred_y, pred_z]
         if self.with_root_net:
             x = torch.nn.functional.adaptive_avg_pool2d(raw_feats, (1, 1))

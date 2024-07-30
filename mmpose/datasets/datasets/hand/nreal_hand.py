@@ -183,7 +183,17 @@ class HANDDataset(BaseCocoStyleDataset):
         sub_dataset_start_id = 0
         if self.sub_data_index >= 0:
             self.data_file_list = [self.data_file_list[self.sub_data_index]]
-        for anno_file in self.data_file_list:
+        data_tag_dict = dict()
+        if isinstance(self.data_file_list, dict):
+            all_data_list = []
+            for data_name in self.data_file_list:
+                for data_file in self.data_file_list[data_name]:
+                    data_tag_dict[data_file] = data_name
+                    all_data_list.append(data_file)
+        else:
+            all_data_list = self.data_file_list
+
+        for anno_file in all_data_list:
             coco = COCO(anno_file)
             lmdb_path = osp.join(self.lmdb_data_root,
                                  coco.dataset['lmdb_path'])
@@ -213,6 +223,9 @@ class HANDDataset(BaseCocoStyleDataset):
                         else:
                             data_info['meta'][
                                 'tag'] += f',{osp.basename(anno_file)}'
+                        if isinstance(self.data_file_list, dict):
+                            data_info['meta'][
+                                'tag'] += f',{data_tag_dict[anno_file]}'
                     instance_list.append(data_info)
                     sub_dataset_num += 1
             self.dataset_info_list.append(
