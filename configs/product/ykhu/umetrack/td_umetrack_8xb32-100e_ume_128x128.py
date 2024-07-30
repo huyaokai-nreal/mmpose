@@ -6,7 +6,7 @@ from mmpose.configs._base_.datasets.xs3d_ume import \
 
 _base_ = ['../../../_base_/default_runtime.py']
 
-train_cfg = dict(max_epochs=150, val_interval=5)
+train_cfg = dict(max_epochs=100, val_interval=10)
 
 data_root = '/data/AI_DATA_WX'
 
@@ -108,11 +108,11 @@ data_mode = 'topdown'
 
 train_data_list = []
 for hand in ['left', 'right']:
-    for v in kpt3d_datasets_info[hand].values():
-        train_data_list += v
+    train_data_list += kpt3d_datasets_info[hand]
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 # train_data_list = [
-#     '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/ume_data/training/user_15/recording_00.json',
+#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/ume_data/left/training/user_20/recording_01.json',
+#     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/ume_data/left/training/user_27/recording_06.json',
 # ]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
