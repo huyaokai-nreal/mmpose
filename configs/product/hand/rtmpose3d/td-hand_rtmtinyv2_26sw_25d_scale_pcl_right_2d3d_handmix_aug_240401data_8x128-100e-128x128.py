@@ -6,9 +6,6 @@ from mmpose.configs._base_.datasets.xs2d import \
     datasets_info as kpt2d_datasets_info
 from mmpose.configs._base_.datasets.xs3d import \
     datasets_info as kpt3d_datasets_info
-from mmpose.configs._base_.datasets.xs3d_nimble import \
-    datasets_info as kpt3d_datasets_info_nimble
-from mmpose.configs._base_.datasets.xs3d_ume import datasets_info as kpt3d_ume
 
 # runtime
 train_cfg = dict(max_epochs=100, val_interval=10)
@@ -42,19 +39,22 @@ param_scheduler = [
 
 # automatically scaling LR based on the actual training batch size
 auto_scale_lr = dict(base_batch_size=128)
-
 codec = dict(
-    type='RegressionLabel',
+    type='SimCCLabel3D',
     input_size=(128, 128, 128),
-    with_depth=True,
-    depth_bound=0.4)
+    sigma=4.0,
+    simcc_split_ratio=2.0,
+    depth_bound=0.4,
+    normalize=False,
+    use_dark=True)
 codec2d = dict(
-    type='RegressionLabel',
+    type='SimCCLabel',
     input_size=(128, 128),
-    with_depth=False,
-    depth_bound=0.4)
-
-backbone_out_channels = [32, 64, 128, 256]
+    sigma=4.0,
+    simcc_split_ratio=2.0,
+    normalize=False,
+    use_dark=True)
+backbone_out_channels = [48, 96, 192, 384]
 # model settings
 model = dict(
     type='TopdownPose3DEstimator',
@@ -65,7 +65,7 @@ model = dict(
         depth='26s',
         in_channels=1,
         stem_channels=32,
-        base_channels=32,
+        base_channels=48,
         expansion=1,
         out_indices=(3, ),
         strides=(1, 2, 2, 1),
@@ -73,16 +73,14 @@ model = dict(
         bias_in_conv=False,
         out_channels=backbone_out_channels),
     head=dict(
-        type='RTMCCIPRHead3D',
-        in_channels=256,
+        type='RTMCCHead3D',
+        in_channels=384,
         out_channels=21,
         input_size=codec['input_size'],
         in_featuremap_size=(8, 8),
         simcc_split_ratio=2,
         final_layer_kernel_size=3,
-        deploy_output='feat',
-        output_sigma=False,
-        with_gau=False,
+        mlp_with_conv=False,
         gau_cfg=dict(
             hidden_dims=128,
             s=128,
@@ -95,16 +93,21 @@ model = dict(
         loss=dict(
             type='MultipleLossWrapper',
             losses=[
-                dict(type='L1Loss', use_target_weight=False),
-                dict(type='L1Loss', use_target_weight=False),
+                dict(
+                    type='KLDiscretLoss',
+                    use_target_weight=True,
+                    beta=10.,
+                    loss_weight=1.0,
+                    label_softmax=True),
+                dict(
+                    type='KLDiscretLoss',
+                    use_target_weight=True,
+                    beta=10.,
+                    loss_weight=1.0,
+                    label_softmax=True),
             ]),
         decoder=codec),
     test_cfg=dict(flip_test=False, ),
-    init_cfg=dict(
-        type='Pretrained',
-        checkpoint=
-        '/data/AI_DATA/data_hand/model/mmpose/td-hand_rtmtinyv2_26s_25d_scale_ipr_right_2d3d_handmix_dark_small_drop_aug_240401data_8x128-100e-128x128/epoch_100.pth'
-    ),
     root_mode='optimize' if test_type == '3d' else 'gt',
     camera_layout=camera_layout)
 
@@ -120,81 +123,65 @@ visualizer = dict(
 default_hooks = dict(
     #visualization=dict(
     #    type='PoseVisualizationHook', enable=True, draw_3d=True),
-    checkpoint=dict(save_best='all_mpjpe', rule='less'))
+    checkpoint=dict(save_best='all mAP', rule='less'))
 # base dataset settings
 backend_args = dict(backend='local')
 train_pipeline = [
     dict(type='KeypointTo25DLabel', norm_depth=True),
     dict(type='GetBBoxCenterScale', padding=1.0),
     dict(
-        type='RandomBBoxTransform',
-        scale_factor=[0.75, 1.25],
-        rotate_factor=15,
-        rotate_prob=0,
-        shift_prob=0.5,
-        shift_factor=0.2),
-    dict(type='TopdownPCL', input_size=codec['input_size'][:2]),
-    dict(
         type='GroupTransformers',
         trans_cfg_list=[
-            dict(type='RandomDownSampleImage', min_ratio=0.5, prob=0.2),
-            dict(type='MixTwoHands', prob=0.5),
+            dict(
+                type='RandomBBoxTransform',
+                scale_factor=[0.75, 1.25],
+                rotate_factor=15,
+                rotate_prob=0.3,
+                shift_prob=0.5,
+                shift_factor=0.2),
+            dict(type='TopdownPCL', input_size=codec['input_size'][:2]),
+            dict(type='MixTwoHands', prob=0.1),
             dict(
                 type='Albumentation',
                 transforms=[
                     dict(
-                        type='CoarseDropout',
-                        p=0.5,
-                        max_holes=2,
-                        max_height=16,
-                        max_width=16,
-                    ),
-                ]),
-            dict(
-                type='GenerateNoiseDarkImage',
-                prob=0.65,
-                gamma_limit=(0.85, 0.95),
-                alpha_limit=(0.2, 0.5),
-                concat_image=False),
+                        type='RandomBrightnessContrast',
+                        p=0.2,
+                        brightness_limit=[-0.3, 0.1],
+                        contrast_limit=[-0.3, 0.3]),
+                    dict(type='GaussNoise', p=0.2)
+                ])
         ],
-        enable_epoch_num=int(train_cfg['max_epochs']) - 20),
+        enable_epoch_num=int(train_cfg['max_epochs'])),
     dict(type='GenerateTarget', encoder=codec),
     dict(type='PackPoseInputs')
 ]
 train_2d_pipeline = [
     dict(type='GetBBoxCenterScale', padding=1.0),
     dict(
-        type='RandomBBoxTransform',
-        scale_factor=[0.75, 1.25],
-        rotate_factor=15,
-        rotate_prob=0.3,
-        shift_prob=0.5,
-        shift_factor=0.2),
-    dict(type='TopdownAffine', input_size=codec['input_size'][:2]),
-    dict(
         type='GroupTransformers',
         trans_cfg_list=[
-            dict(type='RandomDownSampleImage', min_ratio=0.5, prob=0.5),
-            dict(type='MixTwoHands', prob=0.5),
+            dict(
+                type='RandomBBoxTransform',
+                scale_factor=[0.75, 1.25],
+                rotate_factor=15,
+                rotate_prob=0.3,
+                shift_prob=0.5,
+                shift_factor=0.2),
+            dict(type='TopdownAffine', input_size=codec['input_size'][:2]),
+            dict(type='MixTwoHands', prob=0.1),
             dict(
                 type='Albumentation',
                 transforms=[
                     dict(
-                        type='CoarseDropout',
-                        p=0.5,
-                        max_holes=2,
-                        max_height=16,
-                        max_width=16,
-                    ),
-                ]),
-            dict(
-                type='GenerateNoiseDarkImage',
-                prob=0.65,
-                gamma_limit=(0.85, 0.95),
-                alpha_limit=(0.2, 0.5),
-                concat_image=False),
+                        type='RandomBrightnessContrast',
+                        p=0.2,
+                        brightness_limit=[-0.3, 0.1],
+                        contrast_limit=[-0.3, 0.3]),
+                    dict(type='GaussNoise', p=0.2)
+                ])
         ],
-        enable_epoch_num=int(train_cfg['max_epochs']) - 20),
+        enable_epoch_num=int(train_cfg['max_epochs'])),
     dict(type='GenerateTarget', encoder=codec2d),
     dict(type='PackPoseInputs')
 ]
@@ -202,6 +189,7 @@ val_pipeline = [
     dict(type='KeypointTo25DLabel', norm_depth=True),
     dict(type='GetBBoxCenterScale', padding=1.0),
     dict(type='TopdownPCL', input_size=codec['input_size'][:2]),
+    # dict(type='TopdownPCL', input_size=codec['input_size'][:2]),
     dict(type='GenerateTarget', encoder=codec),
     dict(type='PackPoseInputs')
 ]
@@ -217,29 +205,17 @@ data_mode = 'topdown'
 train_data_list = []
 train_date_list = [
     '20230809', '20230815', '20230817', '20230822', '20230824', '20230828',
-    '20230906', '20230907', '20231031', '20240220', '20240229', '20240401',
-    '20231227', '20240517', '20240425', '20240522'
+    '20230906', '20230907', '20231031', '20240220', '20240229', '20240401'
 ]
-train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
+train_glasses_list = ['Flora301', 'Flora302', 'Flora303']
+
 for data_date in train_date_list:
     for glasses in train_glasses_list:
-        if data_date in kpt3d_datasets_info_nimble['train_data']:
-            train_data_list += kpt3d_datasets_info_nimble['train_data'][
-                data_date].get(glasses, [])
-        else:
-            train_data_list += kpt3d_datasets_info['train_data'][
-                data_date].get(glasses, [])
-
-simulate_data_keys = ['marker']
-for data_date in simulate_data_keys:
-    for glasses in train_glasses_list:
-        train_data_list += kpt3d_datasets_info_nimble['simu_train_data'][
-            data_date].get(glasses, [])
-for hand in ['left', 'right']:
-    train_data_list += kpt3d_ume[hand]
+        train_data_list += kpt3d_datasets_info['train_data'][data_date].get(
+            glasses, [])
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
-train_2d_datasets = ['ella', 'flora', 'quest_system', 'hoi']
+train_2d_datasets = ['ella', 'flora', 'quest_system']
 train_2d_data_list = [
     kpt2d_datasets_info['train_data'][key] for key in train_2d_datasets
 ]
@@ -263,20 +239,18 @@ val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 val_data_list = [
     item for item in val_data_list if item.split('__')[-3] in val_person_list
 ]
-#val_data_list = [item for item in val_data_list if '__right__' in item]
 val_2d_datasets = ['flora_static_finegrain', 'flora_dynamic']
 #val_2d_datasets = ['flora_black']
 #val_2d_datasets = ['flora_decoration']
 #val_2d_datasets = ['ella']
 #val_2d_datasets = ['near_two_hands']
 val_2d_datasets = ['dark_light']
-#val_2d_datasets = ['wrist_occlusion']
-#val_2d_datasets = ['tattoo']
 val_2d_data_list = [
     kpt2d_datasets_info['test_data'][key] for key in val_2d_datasets
 ]
 val_2d_data_list = [item for sublist in val_2d_data_list for item in sublist]
 val_2d_data_list = [os.path.join(data_root, item) for item in val_2d_data_list]
+
 train_dataloader = dict(
     batch_size=128,
     num_workers=8,
@@ -291,7 +265,6 @@ train_dataloader = dict(
             dict(
                 type=dataset_type,
                 sample_interval=3,
-                filter_kpt_exceed=True,
                 data_ratio=1 / 10.0,
                 data_file_list=train_data_list,
                 data_mode=data_mode,
@@ -314,6 +287,8 @@ val_3d_dataset = dict(
     type=dataset_type,
     data_file_list=val_data_list,
     data_mode=data_mode,
+    # hand template from outside algorithm, such binocular pipeline
+    #extern_hand_template_path = '/home/zx_li/workspace/mmpose/work_dirs/binocular_hand_template.npy',
     test_mode=True,
     pipeline=val_pipeline,
     flip_left_to_right=True,
@@ -341,6 +316,12 @@ test_dataloader = val_dataloader
 val_evaluator = [dict(type='EPE'), dict(type='NrealKeypointAP', with_tag=True)]
 if test_type == '3d':
     val_evaluator += [
-        dict(type='MPJPEV2', mode=['mpjpe', 'p-mpjpe'], result_dir='.'),
+        dict(
+            type='MPJPEV2',
+            mode='mpjpe',
+            scale_metric=False,
+            with_tag=True,
+        ),
+        dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
     ]
 test_evaluator = val_evaluator

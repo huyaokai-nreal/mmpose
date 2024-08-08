@@ -105,7 +105,8 @@ class RTMCCIPRHead3D(RTMCCHead3D):
             loss,
             decoder,
             init_cfg,
-            with_gau=with_gau)
+            with_gau=with_gau,
+            mlp_with_conv=mlp_with_conv)
         W = int(self.input_size[0] * self.simcc_split_ratio)
         H = int(self.input_size[1] * self.simcc_split_ratio)
         D = int(self.input_size[2] * self.simcc_split_ratio)
@@ -115,13 +116,6 @@ class RTMCCIPRHead3D(RTMCCHead3D):
         self.deploy_output = deploy_output
         self.output_sigma = output_sigma
         self.deploy = deploy
-        if mlp_with_conv:
-            flatten_dims = self.in_featuremap_size[
-                0] * self.in_featuremap_size[1]
-            self.mlp = nn.Sequential(
-                nn.Linear(flatten_dims, 128), nn.ReLU(), nn.Conv2d(21, 21, 1),
-                nn.ReLU(), nn.Linear(128, 128), nn.ReLU(),
-                nn.Conv2d(21, 21, 1))
 
         if self.output_sigma:
             self.gap = nn.AdaptiveAvgPool2d((1, 1))

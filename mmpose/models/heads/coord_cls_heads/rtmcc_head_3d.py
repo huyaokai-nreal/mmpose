@@ -72,13 +72,21 @@ class RTMCCHead3D(RTMCCHead):
                  decoder: OptConfigType = None,
                  init_cfg: OptConfigType = None,
                  with_root_net: bool = False,
-                 with_gau: bool = False):
+                 with_gau: bool = False,
+                 mlp_with_conv: bool = False):
         if init_cfg is None:
             init_cfg = self.default_init_cfg
         super().__init__(in_channels, out_channels, input_size,
                          in_featuremap_size, simcc_split_ratio,
                          final_layer_kernel_size, gau_cfg, loss, decoder,
                          init_cfg, with_gau)
+        if mlp_with_conv:
+            flatten_dims = self.in_featuremap_size[
+                0] * self.in_featuremap_size[1]
+            self.mlp = nn.Sequential(
+                nn.Linear(flatten_dims, 128), nn.ReLU(), nn.Conv2d(21, 21, 1),
+                nn.ReLU(), nn.Linear(128, 128), nn.ReLU(),
+                nn.Conv2d(21, 21, 1))
         D = int(self.input_size[2] * self.simcc_split_ratio)
         self.cls_z = nn.Linear(gau_cfg['hidden_dims'], D, bias=False)
         self.with_root_net = with_root_net
