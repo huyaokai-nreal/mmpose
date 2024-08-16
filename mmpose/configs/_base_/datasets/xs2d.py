@@ -45,7 +45,8 @@ datasets_info = {
         ],
         'hoi': [
             'data_hand/hand_keypoint/annotations/hand_train_flora_hoi_240716_5k__1__binocular__lmdb.json',
-            'data_hand/hand_keypoint/annotations/hand_train_flora_hoi_240808_5k__1__binocular__lmdb.json'
+            'data_hand/hand_keypoint/annotations/hand_train_flora_hoi_240808_5k__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_hoi_240816_2k__1__binocular__lmdb.json'  # 手机亮屏
         ],
         'bad_bg': [
             'data_hand/hand_keypoint/annotations/hand_train_flora_bad_bg_240808_2k__1__binocular__lmdb.json'
@@ -88,6 +89,10 @@ datasets_info = {
         ],
         'tattoo': [
             'data_hand/hand_keypoint/annotations/hand_test_flora_tattoo_240417_6k__1__binocular__lmdb.json'
+        ],
+        'bad_bg': [
+            # mark板背景
+            'data_hand/hand_keypoint/annotations/hand_test_flora_bad_bg_240816_2k__1__binocular__lmdb.json'
         ]
     }
 }
