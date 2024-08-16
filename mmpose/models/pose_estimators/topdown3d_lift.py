@@ -33,6 +33,7 @@ class TopdownPoseLiftEstimator(BaseModel):
                  init_cfg: OptMultiConfig = None,
                  kpt2d_with_depth: bool = False,
                  metainfo: Optional[dict] = None,
+                 e2e=False,
                  nano_2d=False):
         super().__init__(data_preprocessor, init_cfg=init_cfg)
         self.metainfo = self._load_metainfo(metainfo)
@@ -42,6 +43,7 @@ class TopdownPoseLiftEstimator(BaseModel):
         neck, kpt3d_lift = check_and_update_config(neck, kpt3d_lift)
 
         self.nano_2d = nano_2d
+        self.e2e = e2e
         if neck is not None:
             self.neck = MODELS.build(neck)
 
@@ -154,7 +156,7 @@ class TopdownPoseLiftEstimator(BaseModel):
         Returns:
             dict: A dictionary of losses.
         """
-        with torch.no_grad():
+        if self.e2e:
             feats_pyramid = self.extract_feat(inputs)
             outputs = self.head.forward(feats_pyramid)
             xy_sigma, heatmap = outputs[:2]
@@ -162,6 +164,15 @@ class TopdownPoseLiftEstimator(BaseModel):
                 depth = outputs[2]
                 depth = (depth - 0.5) * 0.4
                 xy_sigma = torch.cat([xy_sigma, depth], dim=-1)
+        else:
+            with torch.no_grad():
+                feats_pyramid = self.extract_feat(inputs)
+                outputs = self.head.forward(feats_pyramid)
+                xy_sigma, heatmap = outputs[:2]
+                if self.kpt2d_with_depth:
+                    depth = outputs[2]
+                    depth = (depth - 0.5) * 0.4
+                    xy_sigma = torch.cat([xy_sigma, depth], dim=-1)
         losses = self.kpt3d_lift.loss(xy_sigma, data_samples)
         return losses
 
