@@ -6,7 +6,7 @@ from mmpose.configs._base_.datasets.xs3d_ume import \
 
 _base_ = ['../../../_base_/default_runtime.py']
 
-train_cfg = dict(max_epochs=100, val_interval=10)
+train_cfg = dict(max_epochs=100, val_interval=5)
 
 data_root = '/data/AI_DATA_WX'
 
@@ -99,7 +99,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/AI_DATA/data_hand/model/mmpose/all_decouple_pca_standard_total_res26s_aug2d/epoch_150.pth'
+        '/data/AI_DATA/data_hand/model/mmpose/td-hand_rtmtinyv2_26s_nimble25d_scale_pcl_ipr_right_2d3d_handmix_dark_small_drop_aug_240716data_ume_8x128-100e-128x128/epoch_100.pth' # pcl和 warpafine混合训练
     ),
 )
 
@@ -108,7 +108,7 @@ data_mode = 'topdown'
 
 train_data_list = []
 for hand in ['left', 'right']:
-    train_data_list += kpt3d_datasets_info[hand]
+    train_data_list += kpt3d_datasets_info['separate_hand']['training'][hand]
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 # train_data_list = [
 #     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/ume_data/left/training/user_20/recording_01.json',

@@ -12,7 +12,6 @@ from nreal_data_tool import LmdbClient
 from nreal_data_tool.schema.instance import (BinocularCameraInstance,
                                              CameraInstance)
 from nreal_data_tool.utils.camera import (build_from_BinocularCameraInstance,
-                                          build_ume_CameraInstance,
                                           get_virtual_camera_transform)
 from xtcocotools.coco import COCO
 
@@ -150,24 +149,17 @@ class PairHand3DDataset(BaseCocoStyleDataset):
 
         keypoints3d = np.array(ann['keypoints3d'])[np.newaxis]  # (1,21,3)
         num_keypoints = ann['num_keypoints']
-        if 'cameras_info' in ann['meta']:
-            keypoints_visible = np.ones((1, 21))
-            cam_model_left = build_ume_CameraInstance(
-                CameraInstance.from_dict(
-                    ann['meta']['cameras_info']['left_cam']))
-            cam_model_right = build_ume_CameraInstance(
-                CameraInstance.from_dict(
-                    ann['meta']['cameras_info']['right_cam']))
-            meta = {'ume': True}
+        keypoints_visible = np.array(ann['keypoints_left'])[...,
+                                                            2].reshape(
+                                                                1, -1)
+        cam_key = ann['camera_instance_id']
+        cam_info = self.cams_info[cam_key]
+        cam_model_left, cam_model_right = \
+            build_from_BinocularCameraInstance(cam_info)
+        meta = ann.get('meta', dict())
+        if cam_info.camera_type == 'fisheye_ume':
+            meta['ume'] = True
         else:
-            keypoints_visible = np.array(ann['keypoints_left'])[...,
-                                                                2].reshape(
-                                                                    1, -1)
-            cam_key = ann['camera_instance_id']
-            cam_info = self.cams_info[cam_key]
-            cam_model_left, cam_model_right = \
-                build_from_BinocularCameraInstance(cam_info)
-            meta = ann.get('meta', dict())
             meta['ume'] = False
         meta['category_id'] = ann['category_id']
 

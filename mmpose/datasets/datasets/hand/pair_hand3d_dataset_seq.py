@@ -127,12 +127,17 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         keypoints3d = np.array(ann['keypoints3d'])[np.newaxis]  # (1,21,3)
         num_keypoints = ann['num_keypoints']
         keypoints_visible = np.array(ann['keypoints_left'])[...,
-                                                            2].reshape(1, -1)
+                                                            2].reshape(
+                                                                1, -1)
         cam_key = ann['camera_instance_id']
         cam_info = self.cams_info[cam_key]
-        cam_model_left, cam_model_right = build_from_BinocularCameraInstance(
-            cam_info)
+        cam_model_left, cam_model_right = \
+            build_from_BinocularCameraInstance(cam_info)
         meta = ann.get('meta', dict())
+        if cam_info.camera_type == 'fisheye_ume':
+            meta['ume'] = True
+        else:
+            meta['ume'] = False
         meta['category_id'] = ann['category_id']
         left_R, right_R, virtual_baseline = \
             get_virtual_camera_transform(cam_model_left, cam_model_right) # noqa
