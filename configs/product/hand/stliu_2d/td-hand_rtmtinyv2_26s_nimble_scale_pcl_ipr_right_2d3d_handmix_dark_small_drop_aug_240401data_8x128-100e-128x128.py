@@ -5,6 +5,7 @@ _base_ = ['../../../_base_/default_runtime.py']
 
 from mmpose.configs._base_.datasets.xs3d_nimble import \
     datasets_info as kpt3d_datasets_info
+from mmpose.configs._base_.datasets.xs3d_ume import datasets_info as kpt3d_ume
 
 # runtime
 train_cfg = dict(max_epochs=100, val_interval=5)
@@ -108,8 +109,9 @@ model = dict(
                     type='RLELoss',
                     dim=3,
                     enable_start_epoch=train_cfg['max_epochs'] // 2),
-                dict(type='MSELoss', loss_weight=0.1,
-                     enable_start_epoch=train_cfg['max_epochs']),
+                # dict(type='MSELoss', loss_weight=0.002,
+                #      enable_start_epoch=train_cfg['max_epochs']-20),
+                dict(type='L1Loss', use_target_weight=False),
             ]),
         decoder=codec),
     test_cfg=dict(flip_test=False, ),
@@ -192,20 +194,31 @@ dataset_type = 'PairHand3DDataset'
 data_mode = 'topdown'
 train_data_list = []
 train_date_list = [
-    '20230824', '20230828', '20230906', '20230907', '20240220', 
-    '20240229', '20240401', '20231227', '20240522'
+   '20230824', '20230828','20230906', '20230907', '20240220', '20240229', '20240401',
+    '20231227', '20240517', '20240425', '20240522'
 ]
 train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
-
 for data_date in train_date_list:
     for glasses in train_glasses_list:
-        train_data_list += kpt3d_datasets_info['train_data'][data_date].get(
-            glasses, [])
+        if data_date in kpt3d_datasets_info['train_data']:
+            train_data_list += kpt3d_datasets_info['train_data'][
+                data_date].get(glasses, [])
+
+# simulate_data_keys = ['marker']
+# for data_date in simulate_data_keys:
+#     for glasses in train_glasses_list:
+#         train_data_list += kpt3d_datasets_info['simu_train_data'][
+#             data_date].get(glasses, [])
+# for hand in ['left', 'right']:
+#     for v in kpt3d_ume[hand].values():
+#         train_data_list += v
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 # train_data_list = [train_data_sin for train_data_sin in train_data_list if "__left__" in train_data_sin]
 # train_data_list = [
 #     '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_060805__all__normal__left__1111__0006__undistort_tar__Flora301.json',
-#     # '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20240517_033443__all__normal__right__1101__0015__undistort_tar__Flora304.json'
+#     # '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_062443__all__normal__right__1111__0006__undistort_tar__Flora301.json'
+#     # '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/simulate_binocular_coco_hand/XS__20230907_031309__all__normal__left__1111__0011__undistort_tar__Flora301__marker_20240711110634.json',
+#     # '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/ume_data/left/training/user_20/recording_19.json'
 # ]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 

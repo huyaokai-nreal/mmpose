@@ -7,10 +7,14 @@ from typing import Any, Callable, List, Optional, Sequence, Tuple, Union
 import numpy as np
 from mmengine.dataset.base_dataset import force_full_init
 from mmengine.dataset.utils import default_collate
+
 from mmengine.logging import MessageHub, MMLogger
 from nreal_data_tool import LmdbClient, TarClient
-from nreal_data_tool.schema.instance import BinocularCameraInstance
+from nreal_data_tool.schema.instance import (BinocularCameraInstance,
+                                             CameraInstance)
+
 from nreal_data_tool.utils.camera import (build_from_BinocularCameraInstance,
+                                          build_ume_CameraInstance,
                                           get_virtual_camera_transform)
 from xtcocotools.coco import COCO
 
@@ -381,7 +385,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
 
         left_cam_xf = meta_left['ori_camera'].camera_to_world_xf
         right_cam_xf = meta_right['ori_camera'].camera_to_world_xf
-        left_to_right_rt = np.linalg.inv(right_cam_xf)
+        left_to_right_rt = np.dot(np.linalg.inv(right_cam_xf), left_cam_xf)
         meta_left['external'] = meta_right['external'] = left_to_right_rt
 
 
@@ -472,9 +476,9 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             ppl_right = self.pipeline(data_info_right)
             all_results = default_collate([ppl_left, ppl_right])
         else:
-            # all_results = self.pipeline(
-            #     random.choice([data_info_left, data_info_right]))
-            ppl_left = self.pipeline(data_info_left)
-            ppl_right = self.pipeline(data_info_right)
-            all_results = default_collate([ppl_left, ppl_right])
+            all_results = self.pipeline(
+                random.choice([data_info_left, data_info_right]))
+            # ppl_left = self.pipeline(data_info_left)
+            # ppl_right = self.pipeline(data_info_right)
+            # all_results = default_collate([ppl_left, ppl_right])
         return all_results

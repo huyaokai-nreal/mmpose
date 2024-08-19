@@ -6,6 +6,8 @@ import torch
 import torch.nn as nn
 from mmengine.structures import PixelData
 from torch import Tensor
+from mmengine.logging import MessageHub
+
 
 from mmpose.evaluation.functional import keypoint_pck_accuracy
 from mmpose.models.utils.tta import flip_coordinates, flip_heatmaps
@@ -148,6 +150,12 @@ class RTMCCIPRHeadNimble(RTMCCHead):
             nn.Conv2d(self.nimble_hidden_num, self.nimble_output_num, kernel_size=1))
         self.nimble_layer = sim_NIMBLELayer(
             device='cuda',
+            shape_ncomp=20,
+            pose_ncomp=30,
+            use_pose_pca=False,
+            reg_shape_type=0)
+        self.nimble_layer_predict = sim_NIMBLELayer(
+            device='cuda',
             shape_ncomp=1,
             pose_ncomp=30,
             use_pose_pca=False,
@@ -199,11 +207,11 @@ class RTMCCIPRHeadNimble(RTMCCHead):
             pred_y (Tensor): 1d representation of y.
         """
         
-        # feat_x, feat_y = super().forward(feats)
-        # heatmaps = torch.cat([feat_x, feat_y], dim=1)
+        feat_x, feat_y = super().forward(feats)
+        heatmaps = torch.cat([feat_x, feat_y], dim=1)
         raw_feats = feats[-1]
-        # pred_x, pred_y = self.ipr_module(feat_x, feat_y)
-        # output = torch.cat([pred_x, pred_y], dim=-1)
+        pred_x, pred_y = self.ipr_module(feat_x, feat_y)
+        output = torch.cat([pred_x, pred_y], dim=-1) * 128
         
         B = raw_feats.shape[0]
         image_fea = self.proj_layer(raw_feats)
@@ -227,7 +235,7 @@ class RTMCCIPRHeadNimble(RTMCCHead):
             pred_sigma_reshape = pred_sigma.reshape(
                 pred_sigma.size(0), self.out_channels, 3)
 
-            return nimble_output, pred_sigma_reshape
+            return output, nimble_output, pred_sigma_reshape
 
     def predict(self,
                 feats: Tuple[Tensor],
@@ -324,15 +332,34 @@ class RTMCCIPRHeadNimble(RTMCCHead):
             batch_coords = (_batch_coords + _batch_coords_flip) * 0.5
             batch_heatmaps = (_batch_heatmaps + _batch_heatmaps_flip) * 0.5
         else:
-            nimble_output, sigma = self.forward(feats, f_scale)  # (B, K, D)
+            output_2d, nimble_output, sigma = self.forward(feats, f_scale)  # (B, K, D)
 
+        batch_size = sigma.shape[0]
+        weight_num = sigma.shape[1]* 2
+        kpt_weight = torch.eye(weight_num).unsqueeze(0).repeat(batch_size,1,1).to(sigma.device)
         
-        hand3d_pred = self.decode_nimble_fun(nimble_output, left_R, None, left_hand, None, f_scale, True)
+        sigma_kpt = torch.mean(sigma,dim=-1)
+        sigma_kpt_softmax = torch.softmax(sigma_kpt, dim=1)
+        sigma_kpt_softmax = sigma_kpt_softmax.unsqueeze(2).repeat(1,1,2).view(sigma_kpt.shape[0], -1)
+        indices = torch.arange(weight_num)
+        kpt_weight[:, indices, indices] = sigma_kpt_softmax * 21
+
+        hand3d_pred = self.decode_nimble_fun(nimble_output, left_R, None, left_hand, None, f_scale, output_2d, intrix_matrix, kpt_weight, True)
         
         result = []
         for hand3d_sin, batch_data_sample in zip(hand3d_pred, batch_data_samples):
             ori_cam = batch_data_sample.meta['ori_camera']
             result.append(ori_cam.eye_to_window(hand3d_sin.cpu().numpy()))
+
+        # output_2d = output_2d.detach().cpu().numpy()
+        # for output_2d_sin, batch_data_sample in zip(output_2d, batch_data_samples):
+        #     visual_cam = batch_data_sample.meta['virtual_camera']
+        #     ori_cam = batch_data_sample.meta['ori_camera']
+                
+        #     kpt_norm_eye = virtual_cam.window_to_eye(output_2d_sin)
+        #     kpt_norm_world = virtual_cam.eye_to_world(kpt_norm_eye)
+        #     kpt2d_ori = ori_cam.eye_to_window(kpt_norm_world)
+        #     result.append(kpt2d_ori)
         uv_reproj = torch.tensor(
             result).cuda()
             
@@ -340,7 +367,7 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         
 
 
-    def decode_nimble_fun(self, nimble_output, left_R, nimble_info, left_hand, hand3d_gt, f_scale, only_pre):
+    def decode_nimble_fun(self, nimble_output, left_R, nimble_info, left_hand, hand3d_gt, f_scale, uv_cood, intrix_matrix, kpt3d_weight, only_pre):
         
         B = nimble_output.shape[0]
         cuda_device = nimble_output.device
@@ -368,6 +395,11 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         
         pre_root_xyz = torch.matmul(add_matrix, pre_root_xyz.unsqueeze(-1))[:,:,0]
         pre_root_matrix = torch.matmul(add_matrix, pre_root_matrix)
+        
+        pre_root_zeros = torch.zeros((B, 3)).to(cuda_device)
+        left_R_zeros = torch.eye(3)[None,:,:].repeat(B,1,1).to(cuda_device)
+        
+        uv_cood[mask,:,0] = (127 - uv_cood[mask,:,0])
 
         if not only_pre:
             with torch.no_grad():
@@ -388,12 +420,42 @@ class RTMCCIPRHeadNimble(RTMCCHead):
                     dim=1)
                 gt_local_matrix = convert_vector2matrix(
                     gt_rot_vector.view(B, -1)).reshape(B, -1, 9)
+                shape_vector = nimble_info['nimble_shape']
+        
+        def get_root_xyz(hand3d_rel, cood_2d, intrix_matrix, W):
+
+            batch_size,K = hand3d_rel.shape[0], hand3d_rel.shape[1]
+            cuda_device = cood_2d.device
+            cood_2d = torch.concat((cood_2d, torch.ones(batch_size, K, 1).to(cuda_device)), dim=-1)
+            uv_cood_leftmatrix = torch.matmul(torch.inverse(intrix_matrix), cood_2d.permute(0,2,1)).permute(0,2,1)[...,:2].to(cuda_device)
+            
+            A = torch.zeros((batch_size, 2 * K, 3), device=cuda_device)
+            A[:, ::2, 0] = -1
+            A[:, 1::2, 1] = -1
+            A[:, ::2, 2] = uv_cood_leftmatrix[:, :, 0].view(batch_size, K)
+            A[:, 1::2, 2] = uv_cood_leftmatrix[:, :, 1].view(batch_size, K)
+            
+            B = torch.zeros((batch_size, 2 * K, 1), device=cuda_device)
+            B[:, ::2, 0] = hand3d_rel[:, :, 0] - hand3d_rel[:, :, 2] * uv_cood_leftmatrix[:, :, 0]
+            B[:, 1::2, 0] = hand3d_rel[:, :, 1] - hand3d_rel[:, :, 2] * uv_cood_leftmatrix[:, :, 1]
+            # result = torch.matmul(torch.matmul(torch.inverse(torch.matmul(A.permute(0,2,1), A)), A.permute(0,2,1)), B).permute(0,2,1)
+            
+            part_1 = torch.inverse(torch.matmul(torch.matmul(torch.matmul(A.permute(0,2,1), W), W), A))
+            part_2 = torch.matmul(torch.matmul(torch.matmul(A.permute(0,2,1), W), W), B)
+            result = torch.matmul(part_1, part_2).permute(0,2,1)
+            
+            hand3d = hand3d_rel + result
+            return hand3d
 
 
-        def get_nimble_3d(root_xyz, root_matrix, local_matrix, shape_vector, left_R, f_scale):
-
-            _, bone_joints = self.nimble_layer.forward_simple(
-                local_matrix, shape_vector)
+        def get_nimble_3d(root_xyz, root_matrix, local_matrix, shape_vector, left_R, f_scale, only_pre=False):
+            
+            if only_pre:
+                _, bone_joints = self.nimble_layer_predict.forward_simple(
+                    local_matrix, shape_vector)
+            else:
+                _, bone_joints = self.nimble_layer.forward_simple(
+                    local_matrix, shape_vector)
             rebuild_joints = bone_joints[:, self.kp_index, :]
             root_rebuild_joints = rebuild_joints[:, 0:1, :]
             rebuild_joints_temp = rebuild_joints - root_rebuild_joints
@@ -414,16 +476,39 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         if only_pre:
             pre_nimble_pre_root_pre_shape__xyz = get_nimble_3d(
                 pre_root_xyz, pre_root_matrix, pre_local_matrix,
-                shape_vector, left_R, f_scale)
+                shape_vector, left_R, f_scale, True)
+            
+            hand3d_wo_root = get_nimble_3d(pre_root_zeros, pre_root_matrix,
+                                            pre_local_matrix, shape_vector, left_R_zeros, f_scale, True)
+            pred_3d_in_virtual = get_root_xyz(hand3d_wo_root, uv_cood, intrix_matrix, kpt3d_weight)
+            pre_all__xyz = torch.matmul(torch.inverse(left_R), pred_3d_in_virtual.permute(0,2,1)).permute(0,2,1)
 
-            return pre_nimble_pre_root_pre_shape__xyz
+            return pre_all__xyz
         else:
-            pre_root__xyz = get_nimble_3d(pre_root_xyz, pre_root_matrix,
+            pre_root__xyz = get_nimble_3d(gt_root_xyz, pre_root_matrix,
                                           gt_local_matrix, shape_vector, left_R, f_scale)
             pre_nimble__xyz = get_nimble_3d(gt_root_xyz, gt_root_matrix,
                                             pre_local_matrix, shape_vector, left_R, f_scale)
-            pre_all__xyz = get_nimble_3d(pre_root_xyz, pre_root_matrix,
-                                         pre_local_matrix, shape_vector, left_R, f_scale)
+            
+            
+            hand3d_wo_root = get_nimble_3d(pre_root_zeros, pre_root_matrix,
+                                            pre_local_matrix, shape_vector, left_R_zeros, f_scale)
+            pred_3d_in_virtual = get_root_xyz(hand3d_wo_root, uv_cood, intrix_matrix, kpt3d_weight)
+            pre_all__xyz = torch.matmul(torch.inverse(left_R), pred_3d_in_virtual.permute(0,2,1)).permute(0,2,1)
+            
+            # from IPython import embed; embed()
+            # # debug
+            # hand3d_gt_pcl = torch.matmul(left_R, hand3d_gt.permute(0,2,1)).permute(0,2,1)
+            # hand2d_gt = torch.matmul(intrix_matrix, hand3d_gt_pcl.permute(0,2,1)).permute(0,2,1)
+            # hand2d_gt = (hand2d_gt / hand2d_gt[:,:,2:])[:,:,:2]
+            
+            # uv_cood = hand2d_gt
+            # hand3d_wo_root = get_nimble_3d(pre_root_zeros, gt_root_matrix,
+            #                                 gt_local_matrix, shape_vector, left_R_zeros, f_scale)
+            # pred_3d_in_virtual = get_root_xyz(hand3d_wo_root, uv_cood, intrix_matrix)
+            # pre_all__xyz = torch.matmul(torch.inverse(left_R), pred_3d_in_virtual.permute(0,2,1)).permute(0,2,1)
+            # # debug
+            
             gt_all__xyz = get_nimble_3d(gt_root_xyz, gt_root_matrix,
                                         gt_local_matrix, shape_vector, left_R, f_scale)
             return (pre_root__xyz, pre_nimble__xyz, pre_all__xyz, gt_all__xyz,
@@ -447,6 +532,8 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         nimble_shape = []
         hand3d_gt = []
         hand2d_gt = []
+        hand3d_gt_pcl = []
+        hand2d_gt_pcl = []
         intrix_matrix = []
         left_R = []
         is_left_hands = []
@@ -487,6 +574,9 @@ class RTMCCIPRHeadNimble(RTMCCHead):
             
             virtual_cam = data.meta['virtual_camera']
             left_R.append(np.linalg.inv(virtual_cam.camera_to_world_xf[:3,:3]))
+            hand3d_pcl_sin = virtual_cam.world_to_eye(data.gt_instances.keypoints3d[0])
+            hand3d_gt_pcl.append(hand3d_pcl_sin)
+            hand2d_gt_pcl.append(virtual_cam.eye_to_window(hand3d_pcl_sin))
 
                 
         label_2d = torch.cat(label_2d_list)
@@ -494,6 +584,8 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         left_hand = torch.tensor(np.array(is_left_hands)).cuda().float()
         hand3d_gt = torch.tensor(np.array(hand3d_gt)).cuda().float()
         hand2d_gt = torch.tensor(np.array(hand2d_gt)).cuda().float()
+        hand2d_gt_pcl = torch.tensor(np.array(hand2d_gt_pcl)).cuda().float()
+        hand3d_gt_pcl = torch.tensor(np.array(hand3d_gt_pcl)).cuda().float()
         f_scale = torch.tensor(np.array(f_scale)).cuda().float()
         intrix_matrix = torch.tensor(np.array(intrix_matrix)).cuda().float()
         external_matrix = torch.tensor(np.array(external_matrix)).cuda().float()
@@ -514,18 +606,65 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         label_depth_id = torch.tensor(
             label_depth_id_list, dtype=torch.int32).cuda()
         
-        nimble_output, sigma = self.forward(inputs, f_scale)
+        output_2d, nimble_output, sigma = self.forward(inputs, f_scale)
+
+        mh = MessageHub.get_current_instance()
+        cur_epoch = mh.get_info('epoch')
+        
+        batch_size = sigma.shape[0]
+        weight_num = sigma.shape[1]* 2
+        kpt_weight = torch.eye(weight_num).unsqueeze(0).repeat(batch_size,1,1).to(sigma.device)
+        if cur_epoch > 70:
+            sigma_kpt = torch.mean(sigma,dim=-1)
+            sigma_kpt_softmax = torch.softmax(sigma_kpt, dim=1)
+            sigma_kpt_softmax = sigma_kpt_softmax.unsqueeze(2).repeat(1,1,2).view(sigma_kpt.shape[0], -1)
+            indices = torch.arange(weight_num)
+            kpt_weight[:, indices, indices] = sigma_kpt_softmax * 21
+        
+
+        # hand3d_gt_pcl_rel = hand3d_gt_pcl - hand3d_gt_pcl[:,:1,:]
+        # hand2d_pcl = torch.matmul(intrix_matrix, hand3d_gt_pcl.permute(0,2,1)).permute(0,2,1)
+        # hand2d_pcl = hand2d_pcl/(hand2d_pcl[...,2:] +1e-9)
+        # hand2d_pcl_leftmatrix = torch.matmul(torch.inverse(intrix_matrix), hand2d_pcl.permute(0,2,1)).permute(0,2,1)[...,:2].to(hand3d_gt_pcl_rel.device)
+        # batch_size,K = hand3d_gt_pcl.shape[0], hand3d_gt_pcl.shape[1]
+        
+        # A = torch.zeros((batch_size, 2 * K, 3), device=hand2d_pcl_leftmatrix.device)
+        # A[:, ::2, 0] = -1
+        # A[:, 1::2, 1] = -1
+        # A[:, ::2, 2] = hand2d_pcl_leftmatrix[:, :, 0].view(batch_size, K)
+        # A[:, 1::2, 2] = hand2d_pcl_leftmatrix[:, :, 1].view(batch_size, K)
+        
+        # B = torch.zeros((batch_size, 2 * K, 1), device=hand3d_gt_pcl_rel.device)
+        # B[:, ::2, 0] = hand3d_gt_pcl_rel[:, :, 0] - hand3d_gt_pcl_rel[:, :, 2] * hand2d_pcl_leftmatrix[:, :, 0]
+        # B[:, 1::2, 0] = hand3d_gt_pcl_rel[:, :, 1] - hand3d_gt_pcl_rel[:, :, 2] * hand2d_pcl_leftmatrix[:, :, 1]
+        # result = torch.matmul(torch.matmul(torch.inverse(torch.matmul(A.permute(0,2,1), A)), A.permute(0,2,1)), B)
+        # hand3d = hand3d_gt_pcl_rel + result.permute(0,2,1)
+        # error = np.linalg.norm(hand3d.cpu().detach().numpy() - hand3d_gt_pcl.cpu().detach().numpy(), ord=2, axis=-1).mean() * 1000
         
         
-        (pred_3d_way1, pred_3d_way2, hand3d_pred, hand3d_part_gt,
-         pre_trans_xyz, gt_trans_xyz) = self.decode_nimble_fun(nimble_output, left_R, nimble_info, left_hand, hand3d_gt, f_scale, False)
         
         # 重投影损失
-        hand2d_pred = torch.matmul(intrix_matrix, pred_3d_way1.permute(0,2,1)).permute(0,2,1)
-        hand2d_pred = hand2d_pred[...,:2] / (hand2d_pred[...,2:]+1e-8)
-        hand2d_gt = torch.matmul(intrix_matrix, hand3d_part_gt.permute(0,2,1)).permute(0,2,1)
-        hand2d_gt = hand2d_gt[...,:2] / (hand2d_gt[...,2:]+1e-8)
+        # hand2d_pred = torch.matmul(intrix_matrix, pred_3d_way1.permute(0,2,1)).permute(0,2,1)
+        # hand2d_pred = hand2d_pred[...,:2] / (hand2d_pred[...,2:]+1e-8)
+        # hand2d_gt = torch.matmul(intrix_matrix, hand3d_part_gt.permute(0,2,1)).permute(0,2,1)
+        # hand2d_gt = hand2d_gt[...,:2] / (hand2d_gt[...,2:]+1e-8)
+        # hand3d_pred_pcl = torch.matmul(left_R, hand3d_pred.permute(0,2,1)).permute(0,2,1)
+        # hand2d_pred_pcl = torch.matmul(intrix_matrix, hand3d_pred_pcl.permute(0,2,1)).permute(0,2,1)
+        # hand2d_pred_pcl = (hand2d_pred_pcl/(hand2d_pred_pcl[...,2:] +1e-9))[...,:2]
+        hand2d_gt_pcl = hand2d_gt_pcl / 128
+        mask = left_hand == 1
+        hand2d_pred_pcl = output_2d.clone()
+        hand2d_pred_pcl[mask,:,0] = (127 - hand2d_pred_pcl[mask,:,0])
+        hand2d_pred_pcl = hand2d_pred_pcl/128
+        # hand3d_pred_pcl = torch.matmul(left_R, hand3d_pred.permute(0,2,1)).permute(0,2,1)
+        # hand2d_pred_pcl = torch.matmul(intrix_matrix, hand3d_pred_pcl.permute(0,2,1)).permute(0,2,1)
+        # hand2d_pred_pcl = (hand2d_pred_pcl/(hand2d_pred_pcl[...,2:] +1e-9))[...,:2]
+        # hand2d_pred_pcl = hand2d_pred_pcl / 128
         
+        (pred_3d_way1, pred_3d_way2, hand3d_pred, hand3d_part_gt,
+         pre_trans_xyz, gt_trans_xyz) = self.decode_nimble_fun(nimble_output, left_R, nimble_info, left_hand, hand3d_gt, f_scale, output_2d, intrix_matrix, kpt_weight, False)
+        
+
 
         # 直接监督rot和trans, 只考虑根节点的处理方式
         pre_nimble_trans = pre_trans_xyz
@@ -543,11 +682,11 @@ class RTMCCIPRHeadNimble(RTMCCHead):
 
         pred_for_loss = [
             pred_3d_way1, pred_3d_way2, hand3d_pred, dist_pred, 
-            pre_nimble_trans, re_all_sigmas, hand2d_pred
+            pre_nimble_trans, re_all_sigmas, hand2d_pred_pcl
         ]
         targ_for_loss = [
             hand3d_gt, hand3d_gt, hand3d_gt,
-            dist_gt, gt_nimble_trans, hand3d_gt, hand2d_gt
+            dist_gt, gt_nimble_trans, hand3d_gt, hand2d_gt_pcl
         ]
 
         weight_ini = torch.ones((1, 21, 3))
