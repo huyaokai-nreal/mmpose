@@ -236,10 +236,8 @@ for data_date in train_date_list:
 #    for glasses in train_glasses_list:
 #        train_data_list += kpt3d_datasets_info_nimble['simu_train_data'][
 #            data_date].get(glasses, [])
-#train_data_list = []
-#for hand in ['left', 'right']:
-#    train_data_list += kpt3d_ume['separate_hand']['training'][hand]
-#train_data_list = train_data_list[:10]
+for hand in ['left', 'right']:
+    train_data_list += kpt3d_ume['separate_hand']['training'][hand]
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 train_2d_datasets = ['ella', 'flora', 'quest_system', 'hoi']
@@ -304,7 +302,7 @@ train_dataloader = dict(
     num_workers=8,
     persistent_workers=True,
     sampler=dict(
-        type='MultiSourceSampler', source_ratio=[1.0], batch_size=128),
+        type='MultiSourceSampler', source_ratio=[0.5, 0.5], batch_size=128),
     collate_fn=dict(type='default_collate'),
     dataset=dict(
         type='CombinedDataset',
@@ -323,13 +321,13 @@ train_dataloader = dict(
                 flip_left_to_right=True,
                 point_type='2.5D',
             ),
-            #dict(
-            #    type='HANDDataset',
-            #    data_file_list=train_2d_data_list,
-            #    data_mode=data_mode,
-            #    pipeline=train_2d_pipeline,
-            #    flip_left_to_right=True,
-            #    data_root=data_root)
+            dict(
+                type='HANDDataset',
+                data_file_list=train_2d_data_list,
+                data_mode=data_mode,
+                pipeline=train_2d_pipeline,
+                flip_left_to_right=True,
+                data_root=data_root)
         ]),
 )
 val_3d_dataset = dict(
