@@ -437,28 +437,38 @@ class TopdownPCL(BaseTransform):
     def __init__(self,
                  input_size: Tuple[int, int],
                  root_id: int = 0,
-                 norm_depth: bool = False) -> None:
+                 norm_depth: bool = False,
+                 with_depth: bool = False) -> None:
         self.input_size = input_size
         self.root_id = root_id
         self.norm_depth = norm_depth
+        self.with_depth = with_depth
 
     def transform(self, results: Dict) -> Dict:
         w, h = self.input_size
+        self.with_depth = 'root_depth' in results['meta']  # 已过KeypointTo25DLabel
         results['input_size'] = self.input_size
         results['bbox_scale'] = TopdownAffine._fix_aspect_ratio(
             results['bbox_scale'], aspect_ratio=w / h)
         ori_camera = results['meta']['ori_camera']
+        if not self.with_depth:
+            results['keypoints3d'][0] = results['meta']['ori_camera'].world_to_eye(
+                results['keypoints3d'][0]).copy()
+            results['meta']['ori_xf'] = results['meta'][
+                'ori_camera'].camera_to_world_xf
+            results['meta']['ori_camera'].camera_to_world_xf = np.eye(4)
         world_points = results['keypoints3d'][0]
         center = results['bbox_center'][0]
         scale = self.input_size[0] / results['bbox_scale'][0][0]
+        camera_angle = results['meta'].get('camera_angle', 0)
         virtual_camera: PinholePlaneCameraModel = \
             gen_crop_parameters_from_points(
                 ori_camera,
                 center,
                 self.input_size,
                 mirror_img_x=False,
-                focal_multiplier=scale,
-                camera_angle=results['meta']['camera_angle'])
+                camera_angle=camera_angle,
+                focal_multiplier=scale)
         image = results['img']
         crop_img = warp_image(ori_camera, virtual_camera, w, h, image)
         results['img'] = crop_img
@@ -471,15 +481,16 @@ class TopdownPCL(BaseTransform):
         results['transformed_keypoints'] = results['keypoints'].copy()
         results['transformed_keypoints'][..., :2] = warp_keypoints
         root_depth = kpt3d_in_virutal[self.root_id, 2]
-        results['transformed_keypoints'][...,
-                                         2] = kpt3d_in_virutal[...,
-                                                               2] - root_depth
-        if self.norm_depth:
-            results['transformed_keypoints'][
-                ..., -1] /= results['meta']['hand_scale']
-            results['meta']['norm_depth'] = True
-        results['keypoints'][..., 2] = results['transformed_keypoints'][..., 2]
-        results['meta']['root_depth'] = root_depth
+        if self.with_depth:
+            results['transformed_keypoints'][...,
+                                            2] = kpt3d_in_virutal[...,
+                                                                2] - root_depth
+            if self.norm_depth:
+                results['transformed_keypoints'][
+                    ..., -1] /= results['meta']['hand_scale']
+                results['meta']['norm_depth'] = True
+            results['keypoints'][..., 2] = results['transformed_keypoints'][..., 2]
+            results['meta']['root_depth'] = root_depth
         results['warp_mat'] = np.array([[1, 0, 0], [0, 1, 0]],
                                        dtype=np.float32)
         return results

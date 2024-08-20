@@ -227,10 +227,7 @@ class TopdownPoseLiftEstimator(BaseModel):
             xy_sigma, data_samples, test_cfg=self.test_cfg)
         pred = results[0]
         pred_bino_kp2d = results[1]
-        if self.kpt3d_lift.score_dim:
-            score = results[2]
-        else:
-            score = torch.ones((pred.shape[:2]))
+        score = torch.ones((pred.shape[:2]))
         batch_pred_instances = []
         pred_bino_kp2d = pred_bino_kp2d.reshape(pred.shape[0],-1,21,2)
         for b in range(pred.shape[0]):

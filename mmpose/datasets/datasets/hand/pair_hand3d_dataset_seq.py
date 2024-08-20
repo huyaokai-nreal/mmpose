@@ -134,10 +134,8 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         cam_model_left, cam_model_right = \
             build_from_BinocularCameraInstance(cam_info)
         meta = ann.get('meta', dict())
-        if cam_info.camera_type == 'fisheye_ume':
-            meta['ume'] = True
-        else:
-            meta['ume'] = False
+        if not 'camera_angle' in meta:
+            meta['camera_angle'] = 0
         meta['category_id'] = ann['category_id']
         left_R, right_R, virtual_baseline = \
             get_virtual_camera_transform(cam_model_left, cam_model_right) # noqa
@@ -282,10 +280,16 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
     def get_data_info(self, idx):
         idx = idx % self.data_num
         data_info = super().get_data_info(idx)
-        data_info['left_img'] = self.lmdb_client.get(
-            data_info['left_img_path'])
-        data_info['right_img'] = self.lmdb_client.get(
-            data_info['right_img_path'])
+        if data_info['meta']['camera_angle']:
+            image = self.lmdb_client.get(data_info['left_img_path'])
+            image_list = np.split(image, 4, axis=1)
+            data_info['left_img'] = image_list[1]
+            data_info['right_img'] = image_list[2]
+        else:
+            data_info['left_img'] = self.lmdb_client.get(
+                data_info['left_img_path'])
+            data_info['right_img'] = self.lmdb_client.get(
+                data_info['right_img_path'])
         data_info['meta']['frame_height'] = data_info['left_img'].shape[0]
         data_info['meta']['frame_width'] = data_info['left_img'].shape[1]
         data_info['meta']['flipped'] = False
