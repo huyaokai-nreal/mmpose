@@ -457,7 +457,8 @@ class TopdownPCL(BaseTransform):
                 center,
                 self.input_size,
                 mirror_img_x=False,
-                focal_multiplier=scale)
+                focal_multiplier=scale,
+                camera_angle=results['meta']['camera_angle'])
         image = results['img']
         crop_img = warp_image(ori_camera, virtual_camera, w, h, image)
         results['img'] = crop_img

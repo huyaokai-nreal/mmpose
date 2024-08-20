@@ -9,8 +9,7 @@ from mmengine.dataset.base_dataset import force_full_init
 from mmengine.dataset.utils import default_collate
 from mmengine.logging import MMLogger
 from nreal_data_tool import LmdbClient
-from nreal_data_tool.schema.instance import (BinocularCameraInstance,
-                                             CameraInstance)
+from nreal_data_tool.schema.instance import BinocularCameraInstance
 from nreal_data_tool.utils.camera import (build_from_BinocularCameraInstance,
                                           get_virtual_camera_transform)
 from xtcocotools.coco import COCO
@@ -150,8 +149,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         keypoints3d = np.array(ann['keypoints3d'])[np.newaxis]  # (1,21,3)
         num_keypoints = ann['num_keypoints']
         keypoints_visible = np.array(ann['keypoints_left'])[...,
-                                                            2].reshape(
-                                                                1, -1)
+                                                            2].reshape(1, -1)
         cam_key = ann['camera_instance_id']
         cam_info = self.cams_info[cam_key]
         cam_model_left, cam_model_right = \
@@ -159,10 +157,11 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         meta = ann.get('meta', dict())
         if cam_info.camera_type == 'fisheye_ume':
             meta['ume'] = True
+            meta['camera_angle'] = 90
         else:
             meta['ume'] = False
+            meta['camera_angle'] = 0
         meta['category_id'] = ann['category_id']
-
         left_R, right_R, virtual_baseline = \
             get_virtual_camera_transform(cam_model_left, cam_model_right)
         if self.standard_stereo:
