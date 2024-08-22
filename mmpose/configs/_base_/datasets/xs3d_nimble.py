@@ -728,7 +728,7 @@ datasets_info = {
         },
 
         # 静止手势数据
-        '20230911': {
+        '20240516': {
             'Flora301': [
                 'data_hand/hand_keypoint/annotations3d/fit3d_seqsmooth_auto__binocular_coco/XS__20240516_070512__all__normal__left__1101__0007__undistort_tar__Flora301.json',
                 'data_hand/hand_keypoint/annotations3d/fit3d_seqsmooth_auto__binocular_coco/XS__20240516_065421__all__normal__right__1101__0007__undistort_tar__Flora301.json'
