@@ -36,6 +36,7 @@ class TopdownPoseLiftNimbleEstimator(BaseModel):
                  init_cfg: OptMultiConfig = None,
                  kpt2d_with_depth: bool = False,
                  metainfo: Optional[dict] = None,
+                 e2e=False,
                  nano_2d=False):
         super().__init__(data_preprocessor, init_cfg=init_cfg)
         self.metainfo = self._load_metainfo(metainfo)
@@ -58,7 +59,7 @@ class TopdownPoseLiftNimbleEstimator(BaseModel):
 
         self.train_cfg = train_cfg if train_cfg else {}
         self.test_cfg = test_cfg if test_cfg else {}
-
+        self.e2e = e2e
         # Register the hook to automatically convert old version state dicts
         self._register_load_state_dict_pre_hook(self._load_state_dict_pre_hook)
 
@@ -161,7 +162,7 @@ class TopdownPoseLiftNimbleEstimator(BaseModel):
         Returns:
             dict: A dictionary of losses.
         """
-        with torch.no_grad():
+        if self.e2e:
             feats_pyramid = self.extract_feat(inputs)
             outputs = self.head.forward(feats_pyramid)
             xy_sigma, heatmap = outputs[:2]
@@ -169,6 +170,15 @@ class TopdownPoseLiftNimbleEstimator(BaseModel):
                 depth = outputs[2]
                 depth = (depth - 0.5) * 0.4
                 xy_sigma = torch.cat([xy_sigma, depth], dim=-1)
+        else:
+            with torch.no_grad():
+                feats_pyramid = self.extract_feat(inputs)
+                outputs = self.head.forward(feats_pyramid)
+                xy_sigma, heatmap = outputs[:2]
+                if self.kpt2d_with_depth:
+                    depth = outputs[2]
+                    depth = (depth - 0.5) * 0.4
+                    xy_sigma = torch.cat([xy_sigma, depth], dim=-1)
         if self.use_image_info:
             losses = self.kpt3d_lift.loss(xy_sigma, data_samples, inputs)
         else:
@@ -316,13 +326,6 @@ class TopdownPoseLiftNimbleEstimator(BaseModel):
                     axis=-1)
             pred_instances.keypoint_scores = np.ones(
                 (1, pred_instances.keypoints.shape[1]))
-            if data_sample.meta['flipped']:
-                pred_kpt = pred_instances.keypoints[0]
-                gt_kpt = data_sample.gt_instances.keypoints[0]
-                pred_kpt[..., 0] = (
-                    data_sample.meta['frame_width'] - 1 - pred_kpt[..., 0])
-                gt_kpt[..., 0] = (
-                    data_sample.meta['frame_width'] - 1 - gt_kpt[..., 0])
             data_sample.pred_instances = pred_instances
         return batch_data_samples
 

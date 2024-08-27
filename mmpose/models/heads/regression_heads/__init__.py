@@ -20,6 +20,7 @@ from .trajectory_regression_head import TrajectoryRegressionHead
 from .ume_head import UmeHead
 from .ume_head_seq import UmeHeadSeq
 from .lift_head_standard_ori_e2e import LiftHeadStandardOriE2e
+from .lift_head_rot_standard_e2e import LiftNimbleHeadStandardE2e
 from .temporal_lift_head_standard_ori import TemporalLiftHeadStandardOri
 
 __all__ = [
@@ -29,7 +30,8 @@ __all__ = [
     'LiftHeadStandard', 'LiftNimbleHead', 'TemporalLiftHead',
     'TemporalLiftNimbleHeadStandard', 'TemporalLiftNimbleHeadStandardPredict',
     'TemporalLiftHeadStandard', 'LiftNimbleHeadStandard', 'UmeHead',
-    'UmeHeadSeq', 'LiftHeadStandardOriE2e', 'TemporalLiftHeadStandardOri'
+    'UmeHeadSeq', 'LiftHeadStandardOriE2e', 'TemporalLiftHeadStandardOri',
+    'LiftNimbleHeadStandardE2e'
     # 'PCT_Head', 'PCT_Tokenizer',
     # 'LiftClassifierHead', 'SwinV2TransformerRPE2FC'
 ]

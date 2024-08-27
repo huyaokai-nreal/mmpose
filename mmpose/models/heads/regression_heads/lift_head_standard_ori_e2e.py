@@ -10,6 +10,7 @@ from mmengine.model import BaseModule
 from nreal_data_tool.utils import kpt_to_bbox
 from torch import Tensor, nn
 
+from scipy.spatial.transform import Rotation as R 
 from mmpose.models.utils.gmlp import gMLP
 from mmpose.registry import MODELS
 from mmpose.utils.typing import ConfigType, OptSampleList, Predictions
@@ -31,6 +32,7 @@ class LiftHeadStandardOriE2e(LiftHeadStandardOri):
                  reproj_thre=0,
                  iou_thre=0,
                  scale_baseline=0,
+                 e2e=False,   
                  pad_2d=False,
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
@@ -49,8 +51,9 @@ class LiftHeadStandardOriE2e(LiftHeadStandardOri):
             reproj_thre=reproj_thre,
             iou_thre=iou_thre,
             pad_2d=pad_2d)
+        self.e2e = e2e
 
-    def preprocess(self, feats, batch_data_samples, mode):
+    def preprocess(self, feats, batch_data_samples):
         xy_coord = feats[..., :2]
         B = int(len(batch_data_samples) / 2)
         N = 2
@@ -76,15 +79,18 @@ class LiftHeadStandardOriE2e(LiftHeadStandardOri):
         nimble_info = dict()
         uv_coord_im_gt_global = []
 
-        all_inv_warp_mat = torch.zeros(B * 2, 3, 2).cuda()
-        all_inv_warp_mat.requires_grad = False
         for i, data_sample in enumerate(batch_data_samples):
             if i % 2 == 0:
                 left_vir_camera = data_sample.meta['virtual_camera']
                 left_camera = data_sample.meta['ori_camera']
                 left_vir_cam_matrix.append(left_vir_camera.uv_to_window_matrix())
                 left_R.append(data_sample.meta['cam_to_virtual_R'])
-                hand3d_gt.append(data_sample.gt_instances.keypoints3d[0])
+                world_points = data_sample.gt_instances.keypoints3d[0]
+                
+                if data_sample.meta['camera_angle'] != 0:
+                    R_z = R.from_euler('z', camera_angle, degrees=True).as_matrix()
+                    world_points = world_points @ R_z
+                hand3d_gt.append(world_points)
                 if 'nimble_pose' in data_sample.meta.keys() and not np.equal(
                         data_sample.meta['nimble_pose'].any(), None):
                     nimble_pose.append(data_sample.meta['nimble_pose'])
@@ -105,19 +111,11 @@ class LiftHeadStandardOriE2e(LiftHeadStandardOri):
                 left_vircam_xf.append(left_vir_camera.camera_to_world_xf[:3,:3])
                 right_vircam_xf.append(right_vir_camera.camera_to_world_xf[:3,:3])
                 left_cam_xf = left_camera.camera_to_world_xf
-                right_cam_xf = data_sample.meta['ori_xf']
-                lr_t = np.dot(np.linalg.inv(left_cam_xf),
-                              right_cam_xf).astype(np.float32)
-                left_to_right_rt = np.linalg.inv(right_cam_xf)
-                lr_rot_matrix.append(lr_t[:3, :3])
-                lr_p.append(lr_t[:3, 3])
+                right_cam_xf = data_sample.meta['ori_xf'].astype(np.float32)
+                lr_rot_matrix.append(right_cam_xf[:3, :3])
+                lr_p.append(right_cam_xf[:3, 3])
                 baseline_scale.append(data_sample.meta['virtual_baseline'] /
                                       self.baseline)
-            warp_mat = data_sample.metainfo['warp_mat']
-            inv_warp_mat = cv2.invertAffineTransform(warp_mat).astype(
-                np.float32)
-            inv_warp_mat = torch.from_numpy(inv_warp_mat).cuda()  # (2,3)
-            all_inv_warp_mat[i] = inv_warp_mat.transpose(0, 1)  # (3,2)
 
             uv_coord_im_gt_global.append(data_sample.gt_instances.keypoints)
         left_vir_cam_matrix = torch.tensor(
@@ -133,8 +131,6 @@ class LiftHeadStandardOriE2e(LiftHeadStandardOri):
         baseline_scale = torch.tensor(np.array(baseline_scale)).cuda().float()
         lr_p = torch.tensor(np.array(lr_p)).cuda().float()
         lr_rot_matrix = torch.tensor(np.array(lr_rot_matrix)).cuda().float()
-        left_to_right_rt = torch.tensor(
-            np.array(left_to_right_rt)).cuda().float()
         hand3d_gt = torch.tensor(np.array(hand3d_gt)).cuda().float()
         if len(nimble_pose) > 0:
             nimble_pose = torch.tensor(np.array(nimble_pose)).cuda().float()
@@ -144,10 +140,9 @@ class LiftHeadStandardOriE2e(LiftHeadStandardOri):
         uv_coord_im_gt_global = torch.tensor(
             np.array(uv_coord_im_gt_global)).cuda().float()
         uv_coord_im_gt_global = uv_coord_im_gt_global[..., :2]
-        uv_coord_im_gt_global = uv_coord_im_gt_global.view(-1, K, 2)
+        uv_coord_im_gt_global = uv_coord_im_gt_global.view(B, N, K, 2)
 
-        uv_coord_im_pred_global = uv_coord_im_pred_crop.view(
-            B, N, K, 2)
+        uv_coord_im_pred_vir = uv_coord_im_pred_crop.view(B, N, K, 2)
 
         try:
             nimble_info = {
@@ -163,33 +158,46 @@ class LiftHeadStandardOriE2e(LiftHeadStandardOri):
             }
             print(f'An error occurred: {e}')
 
-        leftcam_uv = uv_coord_im_pred_global[:, 0].clone()
+        leftcam_uv = uv_coord_im_pred_vir[:, 0]
         leftcam_x = (leftcam_uv[:, :, 0] - left_vir_cam_matrix[:, 0, 2].view(
             (B, 1))) / left_vir_cam_matrix[:, 0, 0].view(B, 1)
         leftcam_y = (leftcam_uv[:, :, 1] - left_vir_cam_matrix[:, 1, 2].view(
             (B, 1))) / left_vir_cam_matrix[:, 1, 1].view(B, 1)
         leftcam_xy = torch.cat(
             (leftcam_x.unsqueeze(-1), leftcam_y.unsqueeze(-1)), dim=2)
-        rightcam_uv = uv_coord_im_pred_global[:, 1].clone()
+        rightcam_uv = uv_coord_im_pred_vir[:, 1]
         rightcam_x = (rightcam_uv[:, :, 0] - right_vir_cam_matrix[:, 0, 2].view(
             (B, 1))) / right_vir_cam_matrix[:, 0, 0].view(B, 1)
         rightcam_y = (rightcam_uv[:, :, 1] - right_vir_cam_matrix[:, 1, 2].view(
             (B, 1))) / right_vir_cam_matrix[:, 1, 1].view(B, 1)
         rightcam_xy = torch.cat(
             (rightcam_x.unsqueeze(-1), rightcam_y.unsqueeze(-1)), dim=2)
-
-        uv_coord_im_pred_global = uv_coord_im_pred_global.view(-1, K, 2)
+        
+        # 归一化平面输入校正坐标系
         for i, data_sample in enumerate(batch_data_samples):
-            virtual_cam = batch_data_samples[i].meta['virtual_camera']
-            ori_cam = batch_data_samples[i].meta['ori_camera']
-            kpt_norm_eye = virtual_cam.window_to_eye(uv_coord_im_pred_global[i].clone().cpu())
-            kpt_norm_world = virtual_cam.eye_to_world(kpt_norm_eye)
-            kpt2d_ori = ori_cam.eye_to_window(kpt_norm_world)
-            uv_coord_im_pred_global[i] = torch.tensor(kpt2d_ori).cuda().float()
+            camera_angle = data_sample.meta.get('camera_angle', 0)
+            if camera_angle != 0:
+                R_z = torch.tensor(R.from_euler('z', camera_angle, degrees=True).as_matrix()).cuda().float()
+                R_z = R_z.repeat(B, K, 1, 1).view(B * K, 3, 3)
+                leftcam_xyz = torch.cat((leftcam_xy, torch.ones(B, K, 1).cuda()),dim=-1).view(B * K, 3, 1)
+                leftcam_xyz = torch.matmul(R_z, leftcam_xyz).view(B, K, 3)
+                leftcam_xy = leftcam_xyz[..., :2] / leftcam_xyz[..., 2:]
+                rightcam_xyz = torch.cat((rightcam_xy, torch.ones(B, K, 1).cuda()),dim=-1).view(B * K, 3, 1)
+                rightcam_xyz = torch.matmul(R_z, rightcam_xyz).view(B, K, 3)
+                rightcam_xy = rightcam_xyz[..., :2] / rightcam_xyz[..., 2:]
 
-        # 相机坐标转标准双目
-        norm_leftcam_xyz, norm_rightcam_xyz = self.standardize_stereo(
+        # 标准双目、原双目下归一化坐标
+        norm_leftcam_xyz, norm_rightcam_xyz, ori_left_xyz, ori_right_xyz = self.standardize_stereo(
             leftcam_xy, rightcam_xy, left_R, right_R, left_vircam_xf, right_vircam_xf)
+
+        uv_coord_im_pred_global = []
+        for i, data_sample in enumerate(batch_data_samples):
+            # 实际左目相机下像素2D点
+            ori_cam = batch_data_samples[i].meta['ori_camera']
+            ori_xyz = ori_left_xyz[i//2] if i%2==0 else ori_right_xyz[i//2]
+            kpt2d_ori = ori_cam.eye_to_window(ori_xyz.clone().detach().cpu().numpy())
+            uv_coord_im_pred_global.append(torch.tensor(kpt2d_ori))
+        uv_coord_im_pred_global = torch.stack(uv_coord_im_pred_global)
 
         feature1 = torch.cat((norm_leftcam_xyz[:, :, :2].reshape(
             (B, -1)), left_hand.view(B, -1)),
@@ -204,9 +212,10 @@ class LiftHeadStandardOriE2e(LiftHeadStandardOri):
             'feats': feats,
             'norm_leftcam_xyz': norm_leftcam_xyz,
             'norm_rightcam_xyz': norm_rightcam_xyz,
+            'ori_left_xyz': ori_left_xyz,
+            'ori_right_xyz': ori_left_xyz,
             'lr_rot_matrix': lr_rot_matrix,
             'lr_p': lr_p,
-            'left_to_right_rt': left_to_right_rt,
             'left_vir_cam_matrix': left_vir_cam_matrix,
             'right_vir_cam_matrix': right_vir_cam_matrix,
             'uv_coord_im_pred_global': uv_coord_im_pred_global,
@@ -255,11 +264,11 @@ class LiftHeadStandardOriE2e(LiftHeadStandardOri):
                 batch_data_samples: OptSampleList,
                 test_cfg: ConfigType = {}) -> Predictions:
         with torch.no_grad():
-            data = self.preprocess(feats, batch_data_samples, 'predict')
+            data = self.preprocess(feats, batch_data_samples)
         output = self.forward(data['feats'])
         hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(output, data['norm_leftcam_xyz'],
-                                data['norm_rightcam_xyz'], data['left_R'], data['right_R'],
-                                data['lr_rot_matrix'], data['lr_p'], data['baseline_scale'])
+            data['norm_rightcam_xyz'], data['left_R'], data['right_R'],
+            data['lr_rot_matrix'], data['lr_p'], data['baseline_scale'])
         return hand3d_pred, data['uv_coord_im_pred_global']
 
     def loss(self,
@@ -267,36 +276,51 @@ class LiftHeadStandardOriE2e(LiftHeadStandardOri):
              batch_data_samples: OptSampleList,
              train_cfg: ConfigType = {}) -> dict:
         """Calculate losses from a batch of inputs and data samples."""
-        with torch.no_grad():
-            data = self.preprocess(feats, batch_data_samples, 'loss')
+        if self.e2e:
+            data = self.preprocess(feats, batch_data_samples)
+        else:
+            with torch.no_grad():
+                data = self.preprocess(feats, batch_data_samples)
         output = self.forward(data['feats'])
         
         hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(output, data['norm_leftcam_xyz'],
                                 data['norm_rightcam_xyz'], data['left_R'], data['right_R'],
                                 data['lr_rot_matrix'], data['lr_p'], data['baseline_scale'])
         hand3d_gt = data['hand3d_gt']
-        major_gt = torch.cat((hand3d_gt[:, 1:10, :],
-                              hand3d_gt[:, 13, :].unsqueeze(1)),
-                             dim=1)
-        major_pred = torch.cat(
-            (hand3d_pred[:, 1:10, :], hand3d_pred[:, 13, :].unsqueeze(1)),
-            dim=1)
 
-        # pinch distance, no norm
+        # oricam norm 2d loss
+        B, K = hand3d_gt.shape[:2]
+        norm_left_pred = data['ori_left_xyz'][...,:2]
+        norm_right_pred = data['ori_right_xyz'][...,:2]  # 转右目3D，再归一化平面
+        norm_left_gt, norm_right_gt = [], []
+        for i in range(len(batch_data_samples)):
+            ori_cam = batch_data_samples[i].meta['ori_camera']
+            ori_cam.camera_to_world_xf = batch_data_samples[i].meta['ori_xf']
+            norm_gt = ori_cam.world_to_eye(hand3d_gt[i//2].cpu().numpy())
+            norm_gt = norm_gt[...,:2] / norm_gt[...,2:]
+            if i % 2 == 0:
+                norm_left_gt.append(torch.tensor(norm_gt))
+            else:
+                norm_right_gt.append(torch.tensor(norm_gt))
+        norm_left_gt = torch.stack(norm_left_gt).cuda().float()
+        norm_right_gt = torch.stack(norm_right_gt).cuda().float()
+        # pinch distance
         dist_pred = torch.norm(
             hand3d_pred[:, 4, :] - hand3d_pred[:, 8, :], dim=-1)
         dist_gt = torch.norm(
             hand3d_gt[:, 4, :] - hand3d_gt[:, 8, :], dim=-1)
+
         pred_for_loss = [
             hand3d_pred, leftcam_XYZ, rightcam_XYZ,
-            dist_pred
+            dist_pred, norm_left_pred, norm_right_pred
         ]
         targ_for_loss = [
-            hand3d_gt, hand3d_gt, hand3d_gt, dist_gt
+            hand3d_gt, hand3d_gt, hand3d_gt, dist_gt,
+            norm_left_gt, norm_right_gt
         ]
 
         losses = self.lift_loss(pred_for_loss, targ_for_loss)
-        (loss_mse_3d, loss_mse_3d_leftcam, loss_mse_3d_rightcam, loss_pinch) = losses
+        (loss_mse_3d, loss_mse_3d_leftcam, loss_mse_3d_rightcam, loss_pinch, loss_2d_left, loss_2d_right) = losses
         if self.lambda_t > 0:
             mh = MessageHub.get_current_instance()
             cur_epoch = mh.get_info('epoch')
@@ -307,18 +331,22 @@ class LiftHeadStandardOriE2e(LiftHeadStandardOri):
             loss_mse_3d=loss_mse_3d,
             loss_mse_3d_leftcam=loss_mse_3d_leftcam,
             loss_mse_3d_rightcam=loss_mse_3d_rightcam,
-            loss_pinch=loss_pinch)
+            loss_pinch=loss_pinch,
+            loss_2d_left=loss_2d_left,
+            loss_2d_right=loss_2d_right)
         return losses_dict
 
     def standardize_stereo(self, leftcam_xy, rightcam_xy, left_R, right_R, left_vircam_xf, right_vircam_xf):
         """transform to standard stereo system."""
-        standard_left_xyz = self.align_monocular_to_parallel_stereo(
+        standard_left_xyz, ori_left_xyz = self.align_monocular_to_parallel_stereo(
             leftcam_xy, left_R, left_vircam_xf)
-        standard_right_xyz = self.align_monocular_to_parallel_stereo(
+        standard_right_xyz, ori_right_xyz = self.align_monocular_to_parallel_stereo(
             rightcam_xy, right_R, right_vircam_xf)
         norm_left_xyz = standard_left_xyz / standard_left_xyz[:, :, 2:]
         norm_right_xyz = standard_right_xyz / standard_right_xyz[:, :, 2:]
-        return norm_left_xyz, norm_right_xyz
+        ori_left_xyz = ori_left_xyz / ori_left_xyz[:, :, 2:]
+        ori_right_xyz = ori_right_xyz / ori_right_xyz[:, :, 2:]
+        return norm_left_xyz, norm_right_xyz, ori_left_xyz, ori_right_xyz
 
     @staticmethod
     def align_monocular_to_parallel_stereo(cam_xy, R, vircam_xf):
@@ -332,5 +360,5 @@ class LiftHeadStandardOriE2e(LiftHeadStandardOri):
 
         oricam_cam_xyz = torch.matmul(vircam_xf, cam_xyz)
         standard_cam_xyz = torch.matmul(R, oricam_cam_xyz).view(B, K, 3)
-        return standard_cam_xyz
+        return standard_cam_xyz, oricam_cam_xyz.view(B, K, 3)
 

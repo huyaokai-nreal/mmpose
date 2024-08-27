@@ -270,13 +270,6 @@ class TopdownPoseLiftEstimator(BaseModel):
                     axis=-1)
             pred_instances.keypoint_scores = np.ones(
                 (1, pred_instances.keypoints.shape[1]))
-            if data_sample.meta['flipped']:
-                pred_kpt = pred_instances.keypoints[0]
-                gt_kpt = data_sample.gt_instances.keypoints[0]
-                pred_kpt[..., 0] = (
-                    data_sample.meta['frame_width'] - 1 - pred_kpt[..., 0])
-                gt_kpt[..., 0] = (
-                    data_sample.meta['frame_width'] - 1 - gt_kpt[..., 0])
             data_sample.pred_instances = pred_instances
         return batch_data_samples
 
