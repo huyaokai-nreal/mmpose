@@ -236,9 +236,9 @@ for data_date in train_date_list:
 #    for glasses in train_glasses_list:
 #        train_data_list += kpt3d_datasets_info_nimble['simu_train_data'][
 #            data_date].get(glasses, [])
-for hand in ['left', 'right']:
-    train_data_list += kpt3d_ume['separate_hand']['training'][hand]
-train_data_list = [os.path.join(data_root, item) for item in train_data_list]
+#for hand in ['left', 'right']:
+#    train_data_list += kpt3d_ume['separate_hand']['training'][hand]
+#train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 train_2d_datasets = ['ella', 'flora', 'quest_system', 'hoi']
 train_2d_data_list = [
@@ -265,15 +265,9 @@ val_data_list = [
     item for item in val_data_list if item.split('__')[-3] in val_person_list
 ]
 val_2d_dataset_name_list = [
-    #'flora_static_finegrain', 'flora_dynamic',
-    #'flora_black',
-    #'flora_decoration',
-    #'ella',
-    #'near_two_hands',
-    #'dark_light',
-    #'wrist_occlusion',
-    #'tattoo'
-    'bad_bg'
+    'flora_static_finegrain', 'flora_dynamic', 'flora_black',
+    'flora_decoration', 'ella', 'near_two_hands', 'dark_light',
+    'wrist_occlusion', 'tattoo', 'bad_bg'
 ]
 val_2d_data_list = dict()
 #val_data_list = [item for item in val_data_list if '__right__' in item]
@@ -291,12 +285,8 @@ for data_name in val_2d_dataset_name_list:
     val_2d_data_list[data_name] = [
         os.path.join(data_root, item) for item in val_2d_data_list[data_name]
     ]
-val_2d_datasets = ['bad_bg']
-val_2d_data_list = [
-    kpt2d_datasets_info['test_data'][key] for key in val_2d_datasets
-]
-val_2d_data_list = [item for sublist in val_2d_data_list for item in sublist]
-val_2d_data_list = [os.path.join(data_root, item) for item in val_2d_data_list]
+#val_2d_data_list = [item for sublist in val_2d_data_list for item in sublist]
+#val_2d_data_list = [os.path.join(data_root, item) for item in val_2d_data_list]
 train_dataloader = dict(
     batch_size=128,
     num_workers=8,
