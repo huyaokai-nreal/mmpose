@@ -1,6 +1,9 @@
 # flake8: noqa
 import os
 
+from mmpose.configs._base_.datasets.xs3d_nimble import \
+    datasets_info as kpt3d_datasets_info
+
 # from configs._base_.datasets.xs3d import datasets_info as kpt3d_datasets_info
 
 _base_ = ['../../_base_/default_runtime.py']
@@ -152,7 +155,7 @@ model = dict(
         use_6d_pose_reg=False,
         use_9d_pose_reg=True,
         use_shape_smooth=True,
-        all_data_flip=True,
+        data_flip_aug=True,
         reproj_thre=440,
         iou_thre=0.5,
         pad_2d=0,
@@ -174,19 +177,17 @@ dataset_type = 'PairHand3DDatasetSeq'
 data_mode = 'topdown'
 
 train_data_list = []
-annotations3d_base_path = '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/'
-annotations3d_fixed_base_path = '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/'
-
-annotations3d_file_list = os.listdir(annotations3d_base_path)
-annotations3d_fixed_file_list = os.listdir(annotations3d_fixed_base_path)
-train_data_list += [
-    os.path.join(annotations3d_base_path, annotations3d_file_sin)
-    for annotations3d_file_sin in annotations3d_file_list
+train_date_list = [
+    '20230824', '20230828', '20230906', '20230907', '20240220', '20240229',
+    '20240401', '20231227', '20240517', '20240425', '20240522'
 ]
-train_data_list += [
-    os.path.join(annotations3d_fixed_base_path, annotations3d_fixed_file_sin)
-    for annotations3d_fixed_file_sin in annotations3d_fixed_file_list
-]
+train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
+for data_date in train_date_list:
+    for glasses in train_glasses_list:
+        if data_date in kpt3d_datasets_info['train_data']:
+            train_data_list += kpt3d_datasets_info['train_data'][
+                data_date].get(glasses, [])
+train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 
 # train_data_list = [train_data_sin for train_data_sin in train_data_list if '__20240220_' in train_data_sin and ('Flora302' in train_data_sin or 'Flora303' in train_data_sin)]
 # train_data_list = [train_data_sin for train_data_sin in train_data_list if '__20230824_' in train_data_sin]

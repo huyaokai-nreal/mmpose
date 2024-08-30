@@ -43,7 +43,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
                  enhance_lefthand=True,
                  enhance_static=True,
                  fix_sigma_pars=False,
-                 all_data_flip: bool = False,
+                 data_flip_aug: bool = False,
                  init_cfg: Union[dict, List[dict], None] = None):
         super().__init__(
             lift_loss=lift_loss,
@@ -61,7 +61,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             use_9d_pose_reg=use_9d_pose_reg,
             lambda_t=lambda_t,
             all_use_kp2d_gt=all_use_kp2d_gt,
-            all_data_flip=all_data_flip,
+            data_flip_aug=data_flip_aug,
             init_cfg=init_cfg)
         self.seq_len = seq_len
 
@@ -140,7 +140,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
                 test_cfg: ConfigType = {}) -> Predictions:
         with torch.no_grad():
             data = self.preprocess(feats, batch_data_samples, 'predict')
-        # valid_mask = data['valid_mask'] == 1
+        valid_mask = data['valid_mask'] == 1
         output, mems, all_sigmas = self.forward(data['feats'], mems, 1)
 
         hand3d_pred = self.postprocess(
@@ -152,7 +152,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             data['hand3d_gt'],
             data['baseline_scale'],
             only_pre=True)[0]
-        hand3d_pred = hand3d_pred
+        hand3d_pred = hand3d_pred[valid_mask]
         # for (batch_data_sample,hand3d_pred_sin) in zip(batch_data_samples[::2], hand3d_pred):
         #     id_name = int(batch_data_sample.img_path.split("__")[-1])
         #     self.out_list[id_name] = {
@@ -332,6 +332,13 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         if self.fix_sigma_pars:
             loss_rle = torch.tensor(0.0, device=loss_pre_root.device)
 
+        if self.data_flip_aug:
+            B = pre_shape.shape[0] // 2
+            origin_shape, flip_shape = pre_shape[:B], pre_shape[B:]
+            shape_loss_cons = torch.mean(torch.abs(origin_shape - flip_shape))
+        else:
+            shape_loss_cons = torch.tensor(0.0, device=loss_pre_root.device)
+
         losses_dict = dict(
             loss_pre_root=loss_pre_root,
             loss_pre_nimble=loss_pre_nimble,
@@ -342,7 +349,8 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             loss_nimble_trans=loss_nimble_trans,
             smooth_shape_loss=smooth_shape_loss,
             loss_smooth=loss_smooth,
-            loss_rle=loss_rle)
+            loss_rle=loss_rle,
+            shape_loss_cons=shape_loss_cons)
 
         return losses_dict
 
