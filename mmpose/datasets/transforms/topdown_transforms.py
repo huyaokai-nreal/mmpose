@@ -437,23 +437,21 @@ class TopdownPCL(BaseTransform):
     def __init__(self,
                  input_size: Tuple[int, int],
                  root_id: int = 0,
-                 norm_depth: bool = False,
-                 with_depth: bool = False) -> None:
+                 norm_depth: bool = False) -> None:
         self.input_size = input_size
         self.root_id = root_id
         self.norm_depth = norm_depth
-        self.with_depth = with_depth
 
     def transform(self, results: Dict) -> Dict:
         w, h = self.input_size
-        self.with_depth = 'root_depth' in results['meta']  # 已过KeypointTo25DLabel
+        with_depth = 'root_depth' in results['meta']  # 已过KeypointTo25DLabel
         results['input_size'] = self.input_size
         results['bbox_scale'] = TopdownAffine._fix_aspect_ratio(
             results['bbox_scale'], aspect_ratio=w / h)
         ori_camera = results['meta']['ori_camera']
-        if not self.with_depth:
-            results['keypoints3d'][0] = results['meta']['ori_camera'].world_to_eye(
-                results['keypoints3d'][0]).copy()
+        if not with_depth:
+            results['keypoints3d'][0] = results['meta'][
+                'ori_camera'].world_to_eye(results['keypoints3d'][0]).copy()
             results['meta']['ori_xf'] = results['meta'][
                 'ori_camera'].camera_to_world_xf
             results['meta']['ori_camera'].camera_to_world_xf = np.eye(4)
@@ -481,15 +479,15 @@ class TopdownPCL(BaseTransform):
         results['transformed_keypoints'] = results['keypoints'].copy()
         results['transformed_keypoints'][..., :2] = warp_keypoints
         root_depth = kpt3d_in_virutal[self.root_id, 2]
-        if self.with_depth:
-            results['transformed_keypoints'][...,
-                                            2] = kpt3d_in_virutal[...,
-                                                                2] - root_depth
+        if with_depth:
+            results['transformed_keypoints'][
+                ..., 2] = kpt3d_in_virutal[..., 2] - root_depth
             if self.norm_depth:
                 results['transformed_keypoints'][
                     ..., -1] /= results['meta']['hand_scale']
                 results['meta']['norm_depth'] = True
-            results['keypoints'][..., 2] = results['transformed_keypoints'][..., 2]
+            results['keypoints'][...,
+                                 2] = results['transformed_keypoints'][..., 2]
             results['meta']['root_depth'] = root_depth
         results['warp_mat'] = np.array([[1, 0, 0], [0, 1, 0]],
                                        dtype=np.float32)
