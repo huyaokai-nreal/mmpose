@@ -8,7 +8,7 @@ import numpy as np
 from mmengine.dataset.base_dataset import force_full_init
 from mmengine.dataset.utils import default_collate
 from mmengine.logging import MMLogger
-from nreal_data_tool import LmdbClient
+from nreal_data_tool import LmdbClient, TarClient
 from nreal_data_tool.schema.instance import BinocularCameraInstance
 from nreal_data_tool.utils.camera import (build_from_BinocularCameraInstance,
                                           get_virtual_camera_transform)
@@ -51,6 +51,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         self.data_ratio = data_ratio
         self.data_file_list = data_file_list
         self.lmdb_client = LmdbClient()
+        self.tar_client = TarClient()
         self.point_type = point_type
         self.dataset_info_list = list()
         self.dataset_weight_list = dataset_weight_list
@@ -88,6 +89,14 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         for bones in self.hand_bones_list:
             scale = np.mean(bones / mean_bones)
             self.hand_scale_list.append(scale)
+
+    def get_image(self, image_path):
+        if '_lmdb' in image_path:
+            return self.lmdb_client.get(image_path)
+        elif '.tar' in image_path:
+            return self.tar_client.get(image_path)
+        else:
+            raise NotImplementedError
 
     @staticmethod
     def is_keypoint_within_bounds(keypoint, image_width, image_height):
@@ -155,7 +164,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         cam_model_left, cam_model_right = \
             build_from_BinocularCameraInstance(cam_info)
         meta = ann.get('meta', dict())
-        if not 'camera_angle' in meta:
+        if 'camera_angle' not in meta:
             meta['camera_angle'] = 0
         meta['category_id'] = ann['category_id']
         left_R, right_R, virtual_baseline = \
@@ -313,15 +322,14 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         else:
             idx = idx % self.data_num
         data_info = super().get_data_info(idx)
-        if data_info['meta']['camera_angle']:
-            image = self.lmdb_client.get(data_info['left_img_path'])
+        if 'ume' in data_info['left_img_path']:
+            image = self.get_image(data_info['left_img_path'])
             image_list = np.split(image, 4, axis=1)
             data_info['left_img'] = image_list[1]
             data_info['right_img'] = image_list[2]
         else:
-            data_info['left_img'] = self.lmdb_client.get(
-                data_info['left_img_path'])
-            data_info['right_img'] = self.lmdb_client.get(
+            data_info['left_img'] = self.get_image(data_info['left_img_path'])
+            data_info['right_img'] = self.get_image(
                 data_info['right_img_path'])
         data_info['meta']['frame_height'] = data_info['left_img'].shape[0]
         data_info['meta']['frame_width'] = data_info['left_img'].shape[1]

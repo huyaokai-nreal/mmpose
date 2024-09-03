@@ -17,6 +17,7 @@ from nreal_data_tool.utils.camera import PinholePlaneCameraModel
 from mmpose.registry import TRANSFORMS
 from mmpose.structures.bbox import get_udp_warp_matrix, get_warp_matrix
 from .pcl import gen_crop_parameters_from_points, warp_image
+from .pcl_ume import gen_crop_parameters_from_points as gen_ume_virutal_cam
 
 
 @TRANSFORMS.register_module()
@@ -459,14 +460,23 @@ class TopdownPCL(BaseTransform):
         center = results['bbox_center'][0]
         scale = self.input_size[0] / results['bbox_scale'][0][0]
         camera_angle = results['meta'].get('camera_angle', 0)
-        virtual_camera: PinholePlaneCameraModel = \
-            gen_crop_parameters_from_points(
+        try:
+            virtual_camera: PinholePlaneCameraModel = \
+                gen_crop_parameters_from_points(
+                    ori_camera,
+                    center,
+                    self.input_size,
+                    mirror_img_x=False,
+                    camera_angle=camera_angle,
+                    focal_multiplier=scale)
+        except Exception:
+            virtual_camera: PinholePlaneCameraModel = gen_ume_virutal_cam(
                 ori_camera,
-                center,
+                results['keypoints3d'][0],
                 self.input_size,
                 mirror_img_x=False,
                 camera_angle=camera_angle,
-                focal_multiplier=scale)
+                focal_multiplier=0.8)
         image = results['img']
         crop_img = warp_image(ori_camera, virtual_camera, w, h, image)
         results['img'] = crop_img
@@ -478,7 +488,10 @@ class TopdownPCL(BaseTransform):
         warp_keypoints = virtual_camera.eye_to_window(kpt3d_in_virutal)
         results['transformed_keypoints'] = results['keypoints'].copy()
         results['transformed_keypoints'][..., :2] = warp_keypoints
-        root_depth = kpt3d_in_virutal[self.root_id, 2]
+        if self.root_id == 'mean':
+            root_depth = kpt3d_in_virutal[:, 2].mean()
+        else:
+            root_depth = kpt3d_in_virutal[self.root_id, 2]
         if with_depth:
             results['transformed_keypoints'][
                 ..., 2] = kpt3d_in_virutal[..., 2] - root_depth
