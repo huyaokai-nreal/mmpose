@@ -134,7 +134,9 @@ train_pipeline = [
         rotate_prob=0,
         shift_prob=0.5,
         shift_factor=0.2),
-    dict(type='TopdownPCL', input_size=codec['input_size'][:2]),
+    dict(
+        type='TopdownPCL', input_size=codec['input_size'][:2],
+        norm_depth=True),
     dict(
         type='GroupTransformers',
         trans_cfg_list=[
@@ -202,7 +204,9 @@ train_2d_pipeline = [
 val_pipeline = [
     dict(type='KeypointTo25DLabel', norm_depth=True),
     dict(type='GetBBoxCenterScale', padding=1.0),
-    dict(type='TopdownPCL', input_size=codec['input_size'][:2]),
+    dict(
+        type='TopdownPCL', input_size=codec['input_size'][:2],
+        norm_depth=True),
     dict(type='GenerateTarget', encoder=codec),
     dict(type='PackPoseInputs')
 ]
@@ -238,7 +242,7 @@ for data_date in train_date_list:
 #            data_date].get(glasses, [])
 #for hand in ['left', 'right']:
 #    train_data_list += kpt3d_ume['separate_hand']['training'][hand]
-#train_data_list = [os.path.join(data_root, item) for item in train_data_list]
+train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 train_2d_datasets = ['ella', 'flora', 'quest_system', 'hoi']
 train_2d_data_list = [
