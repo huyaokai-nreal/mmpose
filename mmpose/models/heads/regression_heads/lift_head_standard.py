@@ -192,7 +192,6 @@ class LiftHeadStandard(BaseModule):
         nimble_shape = []
         nimble_info = dict()
         uv_coord_im_gt_global = []
-        # stliu_flip=True
 
         all_inv_warp_mat = torch.zeros(B * 2, 3, 2).cuda()
         all_inv_warp_mat.requires_grad = False
@@ -236,12 +235,6 @@ class LiftHeadStandard(BaseModule):
             inv_warp_mat = torch.from_numpy(inv_warp_mat).cuda()  # (2,3)
             all_inv_warp_mat[i] = inv_warp_mat.transpose(0, 1)  # (3,2)
 
-            # if stliu_flip:
-            #     old_point = data_sample.gt_instances.keypoints
-            #     new_point = old_point.copy()
-            #     new_point[:, :, 0] = 480 - 1 - old_point[:, :, 0]
-            #     uv_coord_im_gt_global.append(new_point)
-            # else:
             uv_coord_im_gt_global.append(data_sample.gt_instances.keypoints)
         leftcam_cam_matrix = torch.tensor(
             np.array(leftcam_cam_matrix)).cuda().float()
@@ -400,15 +393,16 @@ class LiftHeadStandard(BaseModule):
         norm_leftcam_xyz, norm_rightcam_xyz = self.standardize_stereo(
             leftcam_xy, rightcam_xy, left_R, right_R)
 
-        feature1 = torch.cat((norm_leftcam_xyz[:, :, :2].reshape(
-            (B, -1)), left_hand.view(B, -1)),
-                             dim=1)
-        feature2 = torch.cat((norm_rightcam_xyz[:, :, :2].reshape(
-            (B, -1)), left_hand.view(B, -1)),
-                             dim=1)
-        feats = torch.cat((feature1, feature2), dim=1).float()
-
-        feats = feats.reshape(B, self.feat_dim, 1, 1)
+        # feature1 = torch.cat((norm_leftcam_xyz[:, :, :2].reshape(
+        #     (B, -1)), left_hand.view(B, -1)),
+        #                      dim=1)
+        # feature2 = torch.cat((norm_rightcam_xyz[:, :, :2].reshape(
+        #     (B, -1)), left_hand.view(B, -1)),
+        #                      dim=1)
+        # feats = torch.cat((feature1, feature2), dim=1).float()
+        # feats = feats.reshape(B, self.feat_dim, 1, 1)
+        feats = torch.cat(
+            (norm_leftcam_xyz[:, :, :2], norm_rightcam_xyz[:, :, :2]), dim=-1)
         return {
             'feats': feats,
             'norm_leftcam_xyz': norm_leftcam_xyz,

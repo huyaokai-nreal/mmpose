@@ -15,7 +15,7 @@ from mmpose.models.heads.nimble.nimble_utils import (SkeletonEncoder,
 from mmpose.models.heads.nimble.simple_NIMBLELayer import sim_NIMBLELayer
 from mmpose.models.heads.regression_heads.lift_head_standard import \
     LiftHeadStandard
-from mmpose.models.utils.gmlp import gMLP
+from mmpose.models.utils.gmlp_v2 import gMLPForPose
 from mmpose.registry import MODELS
 from mmpose.utils.typing import ConfigType, OptSampleList, Predictions
 
@@ -76,15 +76,23 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
 
         # define the liftnet model
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
-        self.channel_num = 43
+        # self.channel_num = 43
         self.lambda_t = lambda_t
         self.kpt2d_with_depth = kpt2d_with_depth
-        feat_dim = 2 * self.channel_num
+        feat_dim = 21 * 8
         if self.kpt2d_with_depth:
             feat_dim = feat_dim + 21
         if reg_shape_type > 1:
             feat_dim = feat_dim + skeleton_feature_dim
-        self.liftnet = gMLP(d_model=feat_dim, d_ffn=d_ffn, num_layers=3)
+        # self.liftnet = gMLP(d_model=feat_dim, d_ffn=d_ffn, num_layers=3)
+        self.liftnet = gMLPForPose(
+            in_channels=4,
+            d_model=64,
+            d_ffn=256,
+            num_layers=6,
+            seq_len=21,
+            d_output=8,
+            with_att=True)
         self.rigid_samples = _gen_rigid_features()
 
         # define the full connection layer
@@ -109,12 +117,10 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         else:
             self.output_num = output_num
         self.sigma_conv = nn.Sequential(
-            nn.Conv2d(feat_dim, feat_dim, kernel_size=1),
-            nn.Conv2d(feat_dim, 21 * 3, kernel_size=1))
+            nn.Linear(feat_dim, feat_dim), nn.Linear(feat_dim, 21 * 3))
         self.last_layer = nn.Sequential(
-            nn.Conv2d(self.feat_dim * 2, self.feat_dim, kernel_size=1),
-            nn.ReLU(),
-            nn.Conv2d(self.feat_dim, self.output_num, kernel_size=1))
+            nn.Linear(feat_dim * 2, feat_dim * 2), nn.ReLU(),
+            nn.Linear(feat_dim * 2, self.output_num))
         self.lift_loss = MODELS.build(lift_loss)
 
         # define the fllow parameters
@@ -211,8 +217,8 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         return kpt, rot, svd_pt
 
     def forward(self, feats: Tuple[Tensor]) -> Tensor:
-        output = self.liftnet(feats)
-        mems = torch.zeros_like(feats).to(output.device)
+        output = self.liftnet(feats).reshape(feats.shape[0], -1)
+        mems = torch.zeros_like(output).to(output.device)
         sigma = self.sigma_conv(output).reshape(feats.shape[0], 21, 3)
         feat_mix = torch.cat([output, mems], dim=1)
         output = self.last_layer(feat_mix).view((feats.shape[0], -1, 1, 1))
@@ -264,7 +270,8 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         else:
             pre_local_matrix = self.nimble_layer.generate_pose_matrix(
                 rot_vector_t, normalized=True, with_root=False)
-        pre_shape_vector = shape_v
+        pre_shape_vector = shape_v.clone()
+        pre_shape_vector[(B // 2):] = pre_shape_vector[:(B // 2)]
 
         if not only_pre:
             with torch.no_grad():
@@ -461,13 +468,6 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         (loss_pre_root, loss_pre_nimble, loss_pre_all, loss_pinch,
          loss_nimble_trans, loss_rle_all) = losses
 
-        if self.data_flip_aug:
-            B = pre_shape.shape[0] // 2
-            origin_shape, flip_shape = pre_shape[:B], pre_shape[B:]
-            shape_loss_cons = torch.mean(torch.abs(origin_shape - flip_shape))
-        else:
-            shape_loss_cons = torch.tensor(0.0, device=loss_pre_root.device)
-
         # # 子骨骼向量监督
         if self.use_bone_loss:
             bone_loss_weight = 0.1
@@ -519,8 +519,7 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             major_bone_loss=major_bone_loss,
             loss_pinch=loss_pinch,
             loss_nimble_trans=loss_nimble_trans,
-            loss_rle_all=loss_rle_all,
-            shape_loss_cons=shape_loss_cons)
+            loss_rle_all=loss_rle_all)
 
         return losses_dict
 
