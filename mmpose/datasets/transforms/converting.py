@@ -21,7 +21,10 @@ class KeypointTo25DLabel(BaseTransform):
         results['meta']['ori_xf'] = results['meta'][
             'ori_camera'].camera_to_world_xf
         results['meta']['ori_camera'].camera_to_world_xf = np.eye(4)
-        root_depth = results['keypoints3d'][0][self.root_id][2]
+        if self.root_id == 'mean':
+            root_depth = results['keypoints3d'][0][:, 2].mean()
+        else:
+            root_depth = results['keypoints3d'][0][self.root_id][2]
         results['keypoints'] = np.concatenate([
             results['keypoints'],
             (results['keypoints3d'][..., 2:] - root_depth)

@@ -333,9 +333,10 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             gt_hand_scale = data_sample.meta.get('hand_scale', 1.0)
             if 'virtual_camera' in data_sample.meta:
                 virtual_cam = data_sample.meta['virtual_camera']
-                virtual_keypoints = pred_instances.keypoints[0].copy()
                 gt_keypoints3d = gt_instances.keypoints3d[0]
-                virtual_keypoints[..., 2] *= gt_hand_scale
+                if data_sample.meta.get('norm_depth', False):
+                    pred_instances.keypoints[..., 2] *= gt_hand_scale
+                virtual_keypoints = pred_instances.keypoints[0].copy()
                 if self.root_mode == 'optimize':
                     root_depth, hand_scale = get_root_depth(
                         virtual_keypoints, virtual_cam,
@@ -389,7 +390,8 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                     root_depth, hand_scale = get_root_depth(
                         kpt, ori_cam, data_sample.meta['template_bones'],
                         pred_instances.keypoint_scores)
-                    global_keypoints[..., 2] *= hand_scale
+                    if data_sample.meta.get('norm_depth', False):
+                        global_keypoints[..., 2] *= hand_scale
                 elif self.root_mode == 'optimizev2':
                     kpt = global_keypoints[0].copy()
                     kpt[..., :2] = ori_cam.undistort(kpt[..., :2])
@@ -420,7 +422,8 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             # add bbox information into pred_instances
             pred_instances.bboxes = bbox_cs2xyxy(bbox_centers, bbox_scales)
             pred_instances.bbox_scores = gt_instances.bbox_scores
-            gt_instances.keypoints[..., -1] *= gt_hand_scale
+            if data_sample.meta.get('norm_depth', False):
+                gt_instances.keypoints[..., -1] *= gt_hand_scale
             data_sample.pred_instances = pred_instances
             if pred_fields is not None:
                 if output_keypoint_indices is not None:
