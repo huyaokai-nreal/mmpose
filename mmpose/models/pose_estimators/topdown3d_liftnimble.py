@@ -246,10 +246,10 @@ class TopdownPoseLiftNimbleEstimator(BaseModel):
         else:
             pred, pred_bino_kp2d, sigmas = pre_info
             parent_matrix, child_vector = None, None
-
+        pred_bino_kp2d = pred_bino_kp2d.reshape(pred.shape[0], -1, 21, 2)
         if 'nimble_pose' in data_samples[0].meta and parent_matrix is not None:
             for b in range(pred.shape[0]):
-                keypoints = pred_bino_kp2d[b:b + 1, ...]  # gt为左目信息
+                keypoints = pred_bino_kp2d[b:b + 1, 0, ...]  # gt为左目信息
                 child_matrix = batch_rodrigues(child_vector[b, :, :]).reshape(
                     -1, 3, 3)
                 pre_matrix = torch.cat(
@@ -267,7 +267,7 @@ class TopdownPoseLiftNimbleEstimator(BaseModel):
                             0)))
         else:
             for b in range(pred.shape[0]):
-                keypoints = pred_bino_kp2d[b:b + 1, ...]  # gt为左目信息
+                keypoints = pred_bino_kp2d[b:b + 1, 0, ...]  # gt为左目信息
                 batch_pred_instances.append(
                     InstanceData(
                         keypoints3d=pred[b:b + 1, ...],
@@ -373,9 +373,19 @@ class TopdownPoseLiftNimbleEstimatorSeq(TopdownPoseLiftNimbleEstimator):
                  data_preprocessor: OptConfigType = None,
                  init_cfg: OptMultiConfig = None,
                  metainfo: Optional[dict] = None,
-                 seq_len: int = 32):
-        super().__init__(backbone, neck, head, kpt3d_lift, train_cfg, test_cfg,
-                         data_preprocessor, init_cfg, metainfo)
+                 seq_len: int = 32,
+                 e2e=False):
+        super().__init__(
+            backbone=backbone,
+            neck=neck,
+            head=head,
+            kpt3d_lift=kpt3d_lift,
+            train_cfg=train_cfg,
+            test_cfg=test_cfg,
+            data_preprocessor=data_preprocessor,
+            init_cfg=init_cfg,
+            metainfo=metainfo,
+            e2e=e2e)
         self.seq_len = seq_len
 
     def forward(self,
@@ -460,7 +470,7 @@ class TopdownPoseLiftNimbleEstimatorSeq(TopdownPoseLiftNimbleEstimator):
                 sub_xy_input, [data_samples[i] for i in data_sample_id_list],
                 mem,
                 test_cfg=self.test_cfg)
-            pred_bino_kp2d = pred_bino_kp2d.reshape(pred.shape[0],-1,21,2)
+            pred_bino_kp2d = pred_bino_kp2d.reshape(pred.shape[0], -1, 21, 2)
             for b in range(pred.shape[0]):
                 keypoints = pred_bino_kp2d[b:b + 1, 0, ...]  # gt为左目信息
                 batch_pred_instances.append(

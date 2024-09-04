@@ -127,14 +127,13 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         keypoints3d = np.array(ann['keypoints3d'])[np.newaxis]  # (1,21,3)
         num_keypoints = ann['num_keypoints']
         keypoints_visible = np.array(ann['keypoints_left'])[...,
-                                                            2].reshape(
-                                                                1, -1)
+                                                            2].reshape(1, -1)
         cam_key = ann['camera_instance_id']
         cam_info = self.cams_info[cam_key]
         cam_model_left, cam_model_right = \
             build_from_BinocularCameraInstance(cam_info)
         meta = ann.get('meta', dict())
-        if not 'camera_angle' in meta:
+        if 'camera_angle' not in meta:
             meta['camera_angle'] = 0
         meta['category_id'] = ann['category_id']
         left_R, right_R, virtual_baseline = \
@@ -145,66 +144,36 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         if 'gesture' in ann.keys():
             meta['gesture'] = ann['gesture']
         meta['tag'] = ann['tag']
+        data_info = {
+            'left_img_id': left_img_id,
+            'right_img_id': right_img_id,
+            'left_img_path': left_img_path,
+            'right_img_path': right_img_path,
+            'left_keypoints': left_keypoints,
+            'right_keypoints': right_keypoints,
+            'keypoints3d': keypoints3d,
+            'left_bbox': left_bbox,
+            'right_bbox': right_bbox,
+            'image_width': left_img_w,
+            'image_height': left_img_h,
+            'bbox_score': np.ones(1, dtype=np.float32),
+            'num_keypoints': num_keypoints,
+            'keypoints_visible': keypoints_visible,
+            'iscrowd': ann.get('iscrowd', 0),
+            'segmentation': ann.get('segmentation', None),
+            'id': ann['id'],
+            'cat_id': ann['category_id'],
+            'cam_model_left': cam_model_left,
+            'cam_model_right': cam_model_right,
+            'meta': meta
+        }
+
         if 'nimble_pose' in ann.keys():
-            nimble_pose = np.array(ann['nimble_pose'])
-            nimble_translation = np.array(ann['nimble_translation'])
-            nimble_shape = np.array(ann['nimble_shape'])
-            nimble_joints = np.array(ann['nimble_joints'])
-            # nimble_occlusion_cam0 = np.array(ann['nimble_occlusion_cam0'])
-            # nimble_occlusion_cam1 = np.array(ann['nimble_occlusion_cam1'])
-            data_info = {
-                'left_img_id': left_img_id,
-                'right_img_id': right_img_id,
-                'left_img_path': left_img_path,
-                'right_img_path': right_img_path,
-                'left_keypoints': left_keypoints,
-                'right_keypoints': right_keypoints,
-                'keypoints3d': keypoints3d,
-                'nimble_pose': nimble_pose,
-                'nimble_translation': nimble_translation,
-                'nimble_shape': nimble_shape,
-                'nimble_joints': nimble_joints,
-                # 'nimble_occlusion_cam0': nimble_occlusion_cam0,
-                # 'nimble_occlusion_cam1': nimble_occlusion_cam1,
-                'left_bbox': left_bbox,
-                'right_bbox': right_bbox,
-                'image_width': left_img_w,
-                'image_height': left_img_h,
-                'bbox_score': np.ones(1, dtype=np.float32),
-                'num_keypoints': num_keypoints,
-                'keypoints_visible': keypoints_visible,
-                'iscrowd': ann.get('iscrowd', 0),
-                'segmentation': ann.get('segmentation', None),
-                'id': ann['id'],
-                'cat_id': ann['category_id'],
-                'cam_model_left': cam_model_left,
-                'cam_model_right': cam_model_right,
-                'meta': meta
-            }
-        else:
-            data_info = {
-                'left_img_id': left_img_id,
-                'right_img_id': right_img_id,
-                'left_img_path': left_img_path,
-                'right_img_path': right_img_path,
-                'left_keypoints': left_keypoints,
-                'right_keypoints': right_keypoints,
-                'keypoints3d': keypoints3d,
-                'left_bbox': left_bbox,
-                'right_bbox': right_bbox,
-                'image_width': left_img_w,
-                'image_height': left_img_h,
-                'bbox_score': np.ones(1, dtype=np.float32),
-                'num_keypoints': num_keypoints,
-                'keypoints_visible': keypoints_visible,
-                'iscrowd': ann.get('iscrowd', 0),
-                'segmentation': ann.get('segmentation', None),
-                'id': ann['id'],
-                'cat_id': ann['category_id'],
-                'cam_model_left': cam_model_left,
-                'cam_model_right': cam_model_right,
-                'meta': meta
-            }
+            data_info['nimble_pose'] = np.array(ann['nimble_pose'])
+            data_info['nimble_translation'] = np.array(
+                ann['nimble_translation'])
+            data_info['nimble_shape'] = np.array(ann['nimble_shape'])
+            data_info['nimble_joints'] = np.array(ann['nimble_joints'])
 
         return data_info
 
@@ -386,7 +355,6 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         seq_list = self.dataset_info_list[seq_idx]
 
         seq_list_cur_idx = np.random.choice(range(len(seq_list)))
-        # import ipdb;ipdb.set_trace()
         if self.test_mode:
             seq_list_cur_idx = idx
         idx_list = []
@@ -416,7 +384,6 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
             Any: Depends on ``self.pipeline``.
         """
         collate_list = []
-        # import ipdb;ipdb.set_trace()
         seq_idx_list = self.get_seq_idx(idx)
 
         for i, idx in enumerate(seq_idx_list):
@@ -425,5 +392,4 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
 
         all_results = default_collate(collate_list)
 
-        # import ipdb;ipdb.set_trace()
         return all_results

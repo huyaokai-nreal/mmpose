@@ -385,7 +385,10 @@ class LiftNimbleHeadStandardE2e(LiftHeadStandardOriE2e):
              train_cfg: ConfigType = {}) -> dict:
         """Calculate losses from a batch of inputs and data samples."""
         if self.e2e:
-            data = self.preprocess(feats, batch_data_samples,)
+            data = self.preprocess(
+                feats,
+                batch_data_samples,
+            )
         else:
             with torch.no_grad():
                 data = self.preprocess(feats, batch_data_samples)
@@ -414,24 +417,16 @@ class LiftNimbleHeadStandardE2e(LiftHeadStandardOriE2e):
         pre_nimble_trans = pre_trans_xyz
         gt_nimble_trans = data['nimble_info']['nimble_trans']
 
-        # import ipdb;ipdb.set_trace()
-        # oricam norm reproj 2d oss
-        B, K = hand3d_pred.shape[:2]
-        norm_left_pred = data['ori_left_xyz'][...,:2]
-        norm_left_gt = hand3d_pred[...,:2] / hand3d_pred[...,2:]
-        norm_right_pred = data['ori_right_xyz'][...,:2]  # 转右目3D，再归一化平面
-        lr_rot_matrix = data['lr_rot_matrix'].view(B, 1, 3,
-                                           3).repeat(1, K, 1,
-                                                     1).view(B * K, 3, 3)
-        lr_p = data['lr_p'].view(B, 1, 3, 1).repeat(1, K, 1, 1).view(B * K, 3, 1)
-        norm_right_gt = (torch.bmm(lr_rot_matrix, hand3d_pred.view(B * K, 3, 1)) + lr_p).view(B, K, 3)
-        norm_right_gt = norm_right_gt[...,:2] / norm_right_gt[...,2:]
-        
+        hand3d_gt = data['hand3d_gt']
+        # oricam norm reproj 2d loss
+        norm_left_pred, norm_right_pred = self.reproj_norm_2d(
+            hand3d_pred, data['lr_rot_matrix'].clone(), data['lr_p'].clone())
+        norm_left_gt, norm_right_gt = self.reproj_norm_2d(
+            hand3d_gt, data['lr_rot_matrix'].clone(), data['lr_p'].clone())
         # pinch 损失
         dist_pred = torch.norm(
             hand3d_pred[:, 4, :] - hand3d_pred[:, 8, :], dim=-1)
-        dist_gt = torch.norm(
-            data['hand3d_gt'][:, 4, :] - data['hand3d_gt'][:, 8, :], dim=-1)
+        dist_gt = torch.norm(hand3d_gt[:, 4, :] - hand3d_gt[:, 8, :], dim=-1)
 
         re_all_sigmas = torch.cat((hand3d_pred, sigma), dim=-1)
 
@@ -440,24 +435,17 @@ class LiftNimbleHeadStandardE2e(LiftHeadStandardOriE2e):
             pre_nimble_trans, re_all_sigmas, norm_left_pred, norm_right_pred
         ]
         targ_for_loss = [
-            data['hand3d_gt'], data['hand3d_gt'], data['hand3d_gt'], dist_gt,
-            gt_nimble_trans, data['hand3d_gt'], norm_left_gt, norm_right_gt
+            hand3d_gt, hand3d_gt, hand3d_gt, dist_gt, gt_nimble_trans,
+            hand3d_gt, norm_left_gt, norm_right_gt
         ]
 
         weight_ini = torch.ones((1, 21, 3))
         weight_ini[0, :9, :] = 2
         weight_ini[0, 4, :], weight_ini[0, 8, :] = 4, 4
-        weight_ini = weight_ini.repeat(data['hand3d_gt'].shape[0], 1,
-                                       1).to(data['hand3d_gt'].device)
+        weight_ini = weight_ini.repeat(hand3d_gt.shape[0], 1,
+                                       1).to(hand3d_gt.device)
         weight_for_loss = [
-            weight_ini,
-            weight_ini,
-            weight_ini,
-            None,
-            None,
-            None,
-            None,
-            None
+            weight_ini, weight_ini, weight_ini, None, None, None, None, None
         ]
 
         losses = self.lift_loss(pred_for_loss, targ_for_loss, weight_for_loss)
@@ -469,8 +457,7 @@ class LiftNimbleHeadStandardE2e(LiftHeadStandardOriE2e):
             bone_loss_weight = 0.1
             bone_3d_pre = (hand3d_pred - hand3d_pred[:, self.joint_parents, :]
                            )[:, self.non_root_indices].reshape(-1, 3)
-            bone_3d_gt = (data['hand3d_gt'] -
-                          data['hand3d_gt'][:, self.joint_parents, :]
+            bone_3d_gt = (hand3d_gt - hand3d_gt[:, self.joint_parents, :]
                           )[:, self.non_root_indices].reshape(-1, 3)
 
             bone_3d_pre_vector = self.cal_normalize_vector(bone_3d_pre)
@@ -516,7 +503,8 @@ class LiftNimbleHeadStandardE2e(LiftHeadStandardOriE2e):
             loss_nimble_trans=loss_nimble_trans,
             loss_rle_all=loss_rle_all,
             loss_2d_left=loss_2d_left,
-            loss_2d_right=loss_2d_right,)
+            loss_2d_right=loss_2d_right,
+        )
 
         return losses_dict
 
@@ -525,3 +513,15 @@ class LiftNimbleHeadStandardE2e(LiftHeadStandardOriE2e):
             torch.sum(vector**2, dim=1, keepdim=True) + 1e-8)
         normalized_vector = vector / vector_norms
         return normalized_vector
+
+    def reproj_norm_2d(self, hand3d, lr_rot_matrix, lr_p):
+        B, K = hand3d.shape[:2]
+        norm_left = hand3d[..., :2] / hand3d[..., 2:]
+        lr_rot_matrix = torch.inverse(lr_rot_matrix).view(B, 1, 3, 3).repeat(
+            1, K, 1, 1).view(B * K, 3, 3)
+        lr_p = lr_p.view(B, 1, 3, 1).repeat(1, K, 1, 1).view(B * K, 3, 1)
+        norm_right = (torch.bmm(lr_rot_matrix,
+                                hand3d.view(B * K, 3, 1) -
+                                lr_p)).view(B, K, 3)
+        norm_right = norm_right[..., :2] / norm_right[..., 2:]
+        return norm_left, norm_right
