@@ -450,13 +450,14 @@ class TopdownPCL(BaseTransform):
         results['bbox_scale'] = TopdownAffine._fix_aspect_ratio(
             results['bbox_scale'], aspect_ratio=w / h)
         ori_camera = results['meta']['ori_camera']
-        world_points = results['keypoints3d'][0].copy()
         if not with_depth:
-            eye_points = results['meta']['ori_camera'].world_to_eye(
-                world_points).copy()
+            world_points = results['meta']['ori_camera'].world_to_eye(
+                results['keypoints3d'][0].copy())
             results['meta']['ori_xf'] = results['meta'][
                 'ori_camera'].camera_to_world_xf
             results['meta']['ori_camera'].camera_to_world_xf = np.eye(4)
+        else:
+            world_points = results['keypoints3d'][0]
         center = results['bbox_center'][0]
         scale = self.input_size[0] / results['bbox_scale'][0][0]
         camera_angle = results['meta'].get('camera_angle', 0)
@@ -481,7 +482,7 @@ class TopdownPCL(BaseTransform):
         crop_img = warp_image(ori_camera, virtual_camera, w, h, image)
         results['img'] = crop_img
         results['meta']['virtual_camera'] = virtual_camera
-        kpt3d_in_virutal = virtual_camera.world_to_eye(eye_points)
+        kpt3d_in_virutal = virtual_camera.world_to_eye(world_points)
         if results['cat_id'] == 1 and results['meta']['flipped']:
             results['img'] = np.flip(results['img'], axis=1)
             kpt3d_in_virutal[..., 0] *= -1
