@@ -1,12 +1,11 @@
 # flake8: noqa
 import os
 
+_base_ = ['../../_base_/default_runtime.py']
 from mmpose.configs._base_.datasets.xs3d_nimble import \
     datasets_info as kpt3d_datasets_info
 
 # from configs._base_.datasets.xs3d import datasets_info as kpt3d_datasets_info
-
-_base_ = ['../../_base_/default_runtime.py']
 
 train_cfg = dict(max_epochs=60, val_interval=3)
 
@@ -72,7 +71,7 @@ pinch_thre = [20, 40]  # pinch双阈值，单位：mm
 kpt2d_with_depth = False  # liftnet 是否使用2.5d的深度信息
 standard_stereo = True  # 是否转换标准双目
 # model settings
-backbone_out_channels = [32, 64, 128, 256]
+backbone_out_channels = [48, 96, 192, 384]
 model = dict(
     type='TopdownPoseLiftNimbleEstimatorSeq',
     data_preprocessor=dict(
@@ -82,7 +81,7 @@ model = dict(
         depth='26s',
         in_channels=1,
         stem_channels=32,
-        base_channels=32,
+        base_channels=48,
         expansion=1,
         out_indices=(3, ),
         strides=(1, 2, 2, 1),
@@ -91,7 +90,7 @@ model = dict(
         out_channels=backbone_out_channels),
     head=dict(
         type='RTMCCIPRHead3D',
-        in_channels=256,
+        in_channels=384,
         out_channels=21,
         input_size=(128, 128, 128),
         in_featuremap_size=(8, 8),
@@ -168,7 +167,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/stliu/mmpose_simliar_wx10/work_dirs/new_dataset/res26s_liftnimble_standard_flipdata/epoch_150.pth'
+        '/data/stliu/mmpose/work_dirs/new_dataset/liftnimble_flip_res26sw/epoch_115.pth'
     ),
 )
 
@@ -179,7 +178,7 @@ data_mode = 'topdown'
 train_data_list = []
 train_date_list = [
     '20230824', '20230828', '20230906', '20230907', '20240220', '20240229',
-    '20240401', '20231227', '20240517', '20240425', '20240522'
+    '20240401', '20231227', '20240517', '20240425', '20240522', '20240801'
 ]
 train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
 for data_date in train_date_list:

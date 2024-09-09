@@ -178,7 +178,7 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         pose_out[:, used_nimble_para] = pose_reg.to(torch.float32)
         return pose_out
 
-    def simple_feature_layer(self, output, left_hand):
+    def simple_feature_layer(self, output):
         B = output.shape[0]
         pose_len = self.pose_ncomp
         rot_vector_t = output[:, :pose_len, 0, 0]
@@ -212,8 +212,7 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
     def _forward(self, feats: Tuple[Tensor]) -> Tensor:
         output = self.liftnet(feats)
         output = self.last_layer(output).view((feats.shape[0], -1, 1, 1))
-        kpt, rot, svd_pt = self.simple_feature_layer(output, feats[:, -1, 0,
-                                                                   0])
+        kpt, rot, svd_pt = self.simple_feature_layer(output)
         return kpt, rot, svd_pt
 
     def forward(self, feats: Tuple[Tensor]) -> Tensor:

@@ -1,12 +1,11 @@
 # flake8: noqa
 import os
 
+_base_ = ['../../_base_/default_runtime.py']
 from mmpose.configs._base_.datasets.xs3d_nimble import \
     datasets_info as kpt3d_datasets_info
 
 # from configs._base_.datasets.xs3d import datasets_info as kpt3d_datasets_info
-
-_base_ = ['../../_base_/default_runtime.py']
 
 train_cfg = dict(max_epochs=150, val_interval=5)
 
@@ -71,7 +70,7 @@ pinch_thre = [20, 40]  # pinch双阈值，单位：mm
 kpt2d_with_depth = False  # liftnet 是否使用2.5d的深度信息
 standard_stereo = True  # 是否转换标准双目
 # model settings
-backbone_out_channels = [32, 64, 128, 256]
+backbone_out_channels = [48, 96, 192, 384]
 model = dict(
     type='TopdownPoseLiftNimbleEstimator',
     data_preprocessor=dict(
@@ -81,7 +80,7 @@ model = dict(
         depth='26s',
         in_channels=1,
         stem_channels=32,
-        base_channels=32,
+        base_channels=48,
         expansion=1,
         out_indices=(3, ),
         strides=(1, 2, 2, 1),
@@ -90,7 +89,7 @@ model = dict(
         out_channels=backbone_out_channels),
     head=dict(
         type='RTMCCIPRHead3D',
-        in_channels=256,
+        in_channels=384,
         out_channels=21,
         input_size=(128, 128, 128),
         in_featuremap_size=(8, 8),
@@ -160,7 +159,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/AI_DATA/data_hand/model/mmpose/td-hand_rtmtinyv2_26s_25d_scale_ipr_right_2d3d_handmix_dark_small_drop_aug_240401data_8x128-100e-128x128/epoch_100.pth'  # 20240415 2D model
+        '/data/AI_DATA/data_hand/model/mmpose/td-hand_rtmtinyv2_26sw_nimble25d_scale_pcl_ipr_right_2d3d_handmix_dark_small_drop_aug_240716data_ume_8x128-100e-128x128/epoch_100.pth'  # 20240415 2D model
     ),
 )
 
@@ -171,7 +170,7 @@ data_mode = 'topdown'
 train_data_list = []
 train_date_list = [
     '20230824', '20230828', '20230906', '20230907', '20240220', '20240229',
-    '20240401', '20231227', '20240517', '20240425', '20240522'
+    '20240401', '20231227', '20240517', '20240425', '20240522', '20240801'
 ]
 train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
 for data_date in train_date_list:

@@ -33,9 +33,11 @@ class TinyAttention(nn.Module):
 
     def forward(self, x):
         q, k, v = self.in_proj(x).chunk(3, dim=-1)
-        sim = einsum('b i d, b j d -> b i j', q, k) * self.scale
+        # sim = einsum('b i d, b j d -> b i j', q, k) * self.scale
+        sim = torch.matmul(q, k.transpose(-1, -2)) * self.scale
         attn = sim.softmax(dim=-1)
-        out = einsum('b i j, b j d -> b i d', attn, v)
+        # out = einsum('b i j, b j d -> b i d', attn, v)
+        out = torch.matmul(attn, v)
         return self.out_proj(out)
 
 

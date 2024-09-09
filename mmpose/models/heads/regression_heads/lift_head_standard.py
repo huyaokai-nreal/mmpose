@@ -349,7 +349,7 @@ class LiftHeadStandard(BaseModule):
                 uv_coord_im_pred_global[i] = uv_coord_im_gt_global[i].clone()
             camera_model = data_sample.meta['ori_camera']
             kpt2d_u = camera_model.undistort(
-                uv_coord_im_pred_global[i].cpu().numpy())
+                uv_coord_im_pred_global[i].cpu().numpy().astype(np.float32))
             uv_coord_im_pred_global[i] = torch.from_numpy(kpt2d_u).cuda()
         uv_coord_im_pred_global = uv_coord_im_pred_global.view(B, N, K, 2)
 

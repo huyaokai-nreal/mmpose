@@ -65,20 +65,13 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             init_cfg=init_cfg)
         self.seq_len = seq_len
 
-        self.last_layer = nn.Sequential(
-            nn.Conv2d(self.feat_dim * 2, self.feat_dim, kernel_size=1),
-            nn.ReLU(),
-            nn.Conv2d(self.feat_dim, self.output_num, kernel_size=1))
-        self.temporal = nn.Sequential(
-            nn.Conv2d(
-                2 * self.channel_num * 2, 2 * self.channel_num, kernel_size=1),
-            nn.ReLU(),
-            nn.Conv2d(
-                self.channel_num * 2, self.channel_num * 2, kernel_size=1))
         self.use_shape_smooth = use_shape_smooth
         if use_shape_smooth:
             self.shape_loss_func = F.l1_loss
 
+        self.temporal = nn.Sequential(
+            nn.Linear(self.feat_dim * 2, self.feat_dim * 2), nn.ReLU(),
+            nn.Linear(self.feat_dim * 2, self.feat_dim))
         self.enhance_lefthand = enhance_lefthand
         self.enhance_static = enhance_static
         self.static_data_date_list = ['20240516', '20240517', '20240522']
@@ -98,34 +91,34 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
     ) -> Tensor:
         devices_cuda = feats.device
         B = feats.shape[0]
-        out_feats = self.liftnet(feats)
+        out_feats = self.liftnet(feats[..., 0])
         if mems is None:
             mems = torch.zeros(B, 2 * self.channel_num, 1, 1).to(devices_cuda)
-        feat_mix = torch.cat([out_feats, mems], dim=1)
+        feat_mix = torch.cat([out_feats.reshape(B, -1),
+                              mems.reshape(B, -1)],
+                             dim=1)
         mems = self.temporal(feat_mix)
         output = self.last_layer(feat_mix)
-        shape, rot, svd_pt = self.simple_feature_layer(output, feats[:, -1, 0,
-                                                                     0])
-        score = self.sigma_conv(out_feats).sigmoid().mean().reshape(
-            shape.shape)
+        shape, rot, svd_pt = self.simple_feature_layer(output[..., None, None])
+        score = self.sigma_conv(out_feats.reshape(
+            B, -1)).sigmoid().mean().reshape(shape.shape)
         return shape, rot, svd_pt, mems, score
 
     def forward(self,
                 feats: Tuple[Tensor],
                 mems=None,
                 seq_len: int = 1) -> Tensor:
-
-        feats = self.liftnet(feats)
+        feats = self.liftnet(feats).reshape(feats.shape[0], -1)
         sigma = self.sigma_conv(feats)
         sigmas = sigma.reshape(feats.shape[0], 21, 3)
 
         B = int(feats.shape[0] / seq_len)
         if mems is None:
-            mems = torch.zeros(B, 2 * self.channel_num, 1, 1).cuda()
+            mems = torch.zeros(B, feats.shape[-1]).cuda()
         feats = feats.view(B, seq_len, -1)
-        outputs = torch.zeros((B, seq_len, self.output_num, 1, 1)).cuda()
+        outputs = torch.zeros((B, seq_len, self.output_num)).cuda()
         for i in range(seq_len):
-            feat = feats[:, i:i + 1, :].reshape(B, -1, 1, 1)
+            feat = feats[:, i:i + 1, :].reshape(B, -1)
             feat_mix = torch.cat([feat, mems], dim=1)
             mems = self.temporal(feat_mix)
             output = self.last_layer(feat_mix)
@@ -332,13 +325,6 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         if self.fix_sigma_pars:
             loss_rle = torch.tensor(0.0, device=loss_pre_root.device)
 
-        if self.data_flip_aug:
-            B = pre_shape.shape[0] // 2
-            origin_shape, flip_shape = pre_shape[:B], pre_shape[B:]
-            shape_loss_cons = torch.mean(torch.abs(origin_shape - flip_shape))
-        else:
-            shape_loss_cons = torch.tensor(0.0, device=loss_pre_root.device)
-
         losses_dict = dict(
             loss_pre_root=loss_pre_root,
             loss_pre_nimble=loss_pre_nimble,
@@ -349,8 +335,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             loss_nimble_trans=loss_nimble_trans,
             smooth_shape_loss=smooth_shape_loss,
             loss_smooth=loss_smooth,
-            loss_rle=loss_rle,
-            shape_loss_cons=shape_loss_cons)
+            loss_rle=loss_rle)
 
         return losses_dict
 
