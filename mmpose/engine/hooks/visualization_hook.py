@@ -10,7 +10,7 @@ import mmengine.fileio as fileio
 from mmengine.hooks import Hook
 from mmengine.runner import Runner
 from mmengine.visualization import Visualizer
-from nreal_data_tool import LmdbClient
+from nreal_data_tool import LmdbClient, TarClient
 
 from mmpose.registry import HOOKS
 from mmpose.structures import PoseDataSample, merge_data_samples
@@ -118,7 +118,8 @@ class PoseVisualizationHook(Hook):
                 show=self.show,
                 wait_time=self.wait_time,
                 kpt_thr=self.kpt_thr,
-                step=total_curr_iter)
+                step=total_curr_iter,
+                test=True)
 
     def after_test_iter(self, runner: Runner, batch_idx: int, data_batch: dict,
                         outputs: Sequence[PoseDataSample]) -> None:
@@ -142,8 +143,11 @@ class PoseVisualizationHook(Hook):
         for data_sample in outputs:
             img_path = data_sample.get('img_path')
             if self.file_client is None:
+                print(img_path)
                 if 'lmdb' in img_path:
                     self.file_client = LmdbClient('grayscale')
+                elif '.tar' in img_path:
+                    self.file_client = TarClient('grayscale')
                 else:
                     self.file_client = mmengine.FileClient(
                         **self.file_client_args)
@@ -153,9 +157,6 @@ class PoseVisualizationHook(Hook):
             img = self.file_client.get(img_path)
             img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
             data_sample = merge_data_samples([data_sample])
-            if 'flipped' in data_sample.meta:
-                if data_sample.meta['flipped']:
-                    img = img[:, ::-1]
             out_file = None
             if self.out_dir is not None:
                 name_list = os.path.basename(img_path).split('.')
@@ -163,8 +164,9 @@ class PoseVisualizationHook(Hook):
                     out_file_name = name_list[0]
                     postfix = '.png'
                 else:
-                    out_file_name, postfix = os.path.basename(img_path).split(
-                        '.')
+                    print(os.path.basename(img_path))
+                    out_file_name, postfix = os.path.splitext(
+                        os.path.basename(img_path))
                 index = len([
                     fname for fname in os.listdir(self.out_dir)
                     if fname.startswith(out_file_name)
@@ -183,4 +185,5 @@ class PoseVisualizationHook(Hook):
                 wait_time=self.wait_time,
                 kpt_thr=self.kpt_thr,
                 out_file=out_file,
-                step=self._test_index)
+                step=self._test_index,
+                test=True)

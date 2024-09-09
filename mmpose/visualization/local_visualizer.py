@@ -427,7 +427,8 @@ class PoseLocalVisualizer(OpencvBackendVisualizer):
                              instances: InstanceData,
                              kpt_thr: float = 0.3,
                              show_kpt_idx: bool = False,
-                             skeleton_style: str = 'mmpose'):
+                             skeleton_style: str = 'mmpose',
+                             test=False):
         """Draw keypoints and skeletons (optional) of GT or prediction.
 
         Args:
@@ -449,8 +450,12 @@ class PoseLocalVisualizer(OpencvBackendVisualizer):
         img_h, img_w, _ = image.shape
 
         if 'keypoints' in instances:
-            keypoints = instances.get('transformed_keypoints',
-                                      instances.keypoints)[..., :2]  # noqa
+            if not test:
+                keypoints = instances.get('transformed_keypoints',
+                                          instances.keypoints)[..., :2]  # noqa
+            else:
+                keypoints = instances.get('keypoints')[..., :2]  # noqa
+
             if 'keypoint_scores' in instances:
                 scores = instances.keypoint_scores
             else:
@@ -695,7 +700,8 @@ class PoseLocalVisualizer(OpencvBackendVisualizer):
                        wait_time: float = 0,
                        out_file: Optional[str] = None,
                        kpt_thr: float = 0.3,
-                       step: int = 0) -> None:
+                       step: int = 0,
+                       test=False) -> None:
         """Draw datasample and save to all backends.
 
         - If GT and prediction are plotted at the same time, they are
@@ -714,7 +720,7 @@ class PoseLocalVisualizer(OpencvBackendVisualizer):
                 to visualize
             draw_gt (bool): Whether to draw GT PoseDataSample. Default to
                 ``True``
-            draw_gt (bool): Whether to draw 3d keypoints. Default to
+            draw_3d (bool): Whether to draw 3d keypoints. Default to
                 ``False``
             draw_pred (bool): Whether to draw Prediction PoseDataSample.
                 Defaults to ``True``
@@ -746,7 +752,7 @@ class PoseLocalVisualizer(OpencvBackendVisualizer):
             if 'gt_instances' in data_sample:
                 gt_img_data = self._draw_instances_kpts(
                     gt_img_data, data_sample.gt_instances, kpt_thr,
-                    show_kpt_idx, skeleton_style)
+                    show_kpt_idx, skeleton_style, test)
                 if draw_bbox:
                     gt_img_data = self._draw_instances_bbox(
                         gt_img_data, data_sample.gt_instances)
@@ -767,7 +773,7 @@ class PoseLocalVisualizer(OpencvBackendVisualizer):
             if 'pred_instances' in data_sample:
                 pred_img_data = self._draw_instances_kpts(
                     pred_img_data, data_sample.pred_instances, kpt_thr,
-                    show_kpt_idx, skeleton_style)
+                    show_kpt_idx, skeleton_style, test)
                 if draw_bbox:
                     pred_img_data = self._draw_instances_bbox(
                         pred_img_data, data_sample.pred_instances)
