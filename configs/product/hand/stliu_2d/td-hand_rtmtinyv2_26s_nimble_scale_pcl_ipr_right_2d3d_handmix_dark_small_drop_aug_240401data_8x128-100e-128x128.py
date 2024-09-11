@@ -48,7 +48,7 @@ codec = dict(
     depth_bound=0.4)
 
 pinch_thre = [20, 40]  # pinch双阈值，单位：mm
-backbone_out_channels = [32, 64, 128, 256]
+backbone_out_channels = [48, 96, 192, 384]
 # model settings
 model = dict(
     type='TopdownPose3DEstimator',
@@ -59,7 +59,7 @@ model = dict(
         depth='26s',
         in_channels=1,
         stem_channels=32,
-        base_channels=32,
+        base_channels=48,
         expansion=1,
         out_indices=(3, ),
         strides=(1, 2, 2, 1),
@@ -68,7 +68,7 @@ model = dict(
         out_channels=backbone_out_channels),
     head=dict(
         type='RTMCCIPRHeadNimble',
-        in_channels=256,
+        in_channels=384,
         out_channels=21,
         input_size=codec['input_size'],
         in_featuremap_size=(8, 8),
@@ -118,7 +118,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/stliu/mmpose/work_dirs/new_datasets/rtmtiny_26s_ipr_aug_25d_two_stage_pcl/epoch_100.pth'
+        '/data/AI_DATA/data_hand/model/mmpose/td-hand_rtmtinyv2_26sw_nimble25d_scale_pcl_ipr_right_2d3d_handmix_dark_small_drop_aug_240716data_ume_8x128-100e-128x128/epoch_100.pth'
     ),
     root_mode='optimize' if test_type == '3d' else 'gt',
     camera_layout=camera_layout)

@@ -134,16 +134,16 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         self.nimble_output_num = self.pose_num + 21
         self.rigid_samples = _gen_rigid_features()
         self.proj_layer = nn.Conv2d(
-            256, feat_channel, kernel_size=1, padding=0).to("cuda")
+            384, feat_channel, kernel_size=1, padding=0)
         self.nimble_hidden_num = 512
         self.input_dim = feat_channel * 64
         self.f_standard = 200
-        # self.liftnet = gMLP(d_model=self.input_dim, d_ffn=220, num_layers=3).to("cuda")
-        self.feature_fuszion_layer = nn.Sequential(
-            nn.Conv2d(feat_channel, feat_channel*4, kernel_size=1),
-            nn.BatchNorm2d(feat_channel*4, momentum=0.1),
-            nn.ReLU(),
-            nn.Conv2d(feat_channel*4, feat_channel, kernel_size=1))
+        self.liftnet = gMLP(d_model=self.input_dim, d_ffn=220, num_layers=3)
+        # self.feature_fuszion_layer = nn.Sequential(
+        #     nn.Conv2d(feat_channel, feat_channel*4, kernel_size=1),
+        #     nn.BatchNorm2d(feat_channel*4, momentum=0.1),
+        #     nn.ReLU(),
+        #     nn.Conv2d(feat_channel*4, feat_channel, kernel_size=1))
         self.nimble_last_layer = nn.Sequential(
             nn.Conv2d(self.input_dim, self.nimble_hidden_num, kernel_size=1),
             nn.ReLU(),
@@ -216,7 +216,8 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         B = raw_feats.shape[0]
         image_fea = self.proj_layer(raw_feats)
         ftl_image_fea = self.trans_feat(image_fea, f_scale)
-        feature_fuszion = self.feature_fuszion_layer(ftl_image_fea)
+        # feature_fuszion = self.feature_fuszion_layer(ftl_image_fea)
+        feature_fuszion = self.liftnet(ftl_image_fea.reshape(B,-1,1,1))
         # coor_fea = output.clone().reshape(B, -1)
         # if intrix_feats.shape[0] != B:
         #     intrix_fea = intrix_feats.repeat(2, 1)
