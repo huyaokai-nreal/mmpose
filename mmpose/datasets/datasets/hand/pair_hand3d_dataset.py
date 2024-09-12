@@ -7,7 +7,7 @@ from typing import Any, Callable, List, Optional, Sequence, Tuple, Union
 import numpy as np
 from mmengine.dataset.base_dataset import force_full_init
 from mmengine.dataset.utils import default_collate
-from mmengine.logging import MMLogger
+from mmengine.logging import MessageHub, MMLogger
 from nreal_data_tool import LmdbClient, TarClient
 from nreal_data_tool.schema.instance import BinocularCameraInstance
 from nreal_data_tool.utils.camera import (build_from_BinocularCameraInstance,
@@ -46,7 +46,9 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                  point_type='3D',
                  filter_kpt_exceed=False,
                  standard_stereo=False,
-                 sample_interval=1):
+                 sample_interval=1,
+                 round_num=-1,
+                 epochs_per_round=-1):
         self.flip_left_to_right = flip_left_to_right
         self.data_ratio = data_ratio
         self.data_file_list = data_file_list
@@ -65,8 +67,8 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         self.filter_kpt_exceed = filter_kpt_exceed
         self.sample_interval = sample_interval
         self.standard_stereo = standard_stereo
-        if dataset_weight_list:
-            assert len(dataset_weight_list) == len(data_file_list)
+        self.round_num = round_num
+        self.epochs_per_round = epochs_per_round
         super().__init__(
             data_root='',
             data_mode=data_mode,
@@ -159,6 +161,8 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         num_keypoints = ann['num_keypoints']
         keypoints_visible = np.array(ann['keypoints_left'])[...,
                                                             2].reshape(1, -1)
+        # if 'hot3d' in left_img_path:
+        #    keypoints_visible[0][0] = 0
         cam_key = ann['camera_instance_id']
         cam_info = self.cams_info[cam_key]
         cam_model_left, cam_model_right = \
@@ -228,6 +232,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         f301, f302, f303, f304 = 0, 0, 0, 0
         left, right = 0, 0
         left_filter, right_filter = 0, 0
+        random.shuffle(self.data_file_list)
         for i, anno_file in enumerate(self.data_file_list):
             coco = COCO(anno_file)
             lmdb_path = osp.join(self.lmdb_data_root,
@@ -313,12 +318,20 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                 f'flora301: {f301} flora302: {f302} flora303: {f303} flora304: {f304} '  # noqa
                 f'left: {left} right: {right} left_filter: {left_filter} right_filter: {right_filter} '  # noqa
             )
-
         return instance_list, image_list
 
     def get_data_info(self, idx):
         if not self.test_mode:
             idx = random.randint(0, self.data_num - 1)
+            if self.round_num > 0:
+                num_per_round = self.data_num // self.round_num
+                mh = MessageHub.get_current_instance()
+                cur_epoch = mh.get_info('epoch')
+                round_id = cur_epoch // self.epochs_per_round % self.round_num
+                idx = round_id * num_per_round + idx
+                idx = random.randint(
+                    round_id * num_per_round,
+                    min(self.data_num - 1, (round_id + 1) * num_per_round - 1))
         else:
             idx = idx % self.data_num
         data_info = super().get_data_info(idx)

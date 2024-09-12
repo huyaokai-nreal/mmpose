@@ -37,7 +37,8 @@ class HANDDataset(BaseCocoStyleDataset):
                  sub_data_index=-1,
                  data_ratio=-1,
                  clip_bbox=True,
-                 ignore_visible=True):
+                 ignore_visible=True,
+                 sample_interval=1):
         self.flip_left_to_right = flip_left_to_right
         self.data_ratio = data_ratio
         self.clip_bbox = clip_bbox
@@ -49,6 +50,7 @@ class HANDDataset(BaseCocoStyleDataset):
         self.lmdb_data_root = data_root
         self.with_mask = with_mask
         self.mask_ext = mask_ext
+        self.sample_interval = sample_interval
         self.sub_data_index = int(sub_data_index)
         self.ignore_visible = ignore_visible
         if dataset_weight_list:
@@ -199,7 +201,7 @@ class HANDDataset(BaseCocoStyleDataset):
                                  coco.dataset['lmdb_path'])
             sub_dataset_num = 0
             img_ids = coco.getImgIds()
-            for img_id in img_ids:
+            for img_id in img_ids[::self.sample_interval]:
                 img = coco.loadImgs(img_id)[0]
                 image_list.append(img)
                 ann_ids = coco.getAnnIds(imgIds=img_id, iscrowd=False)
