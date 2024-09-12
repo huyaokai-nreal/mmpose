@@ -1,12 +1,13 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import copy
 import os.path as osp
+import random
 from typing import Any, Callable, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from mmengine.dataset.base_dataset import force_full_init
 from mmengine.dataset.utils import default_collate
-from mmengine.logging import MMLogger
+from mmengine.logging import MessageHub, MMLogger
 from nreal_data_tool import LmdbClient
 from nreal_data_tool.schema.instance import BinocularCameraInstance
 from nreal_data_tool.utils.camera import (build_from_BinocularCameraInstance,
@@ -44,7 +45,9 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
                  data_ratio=-1,
                  point_type='3D',
                  filter_kpt_exceed=False,
-                 seq_len=4):
+                 seq_len=4,
+                 round_num=-1,
+                 epochs_per_round=-1):
         self.flip_left_to_right = flip_left_to_right
         self.data_ratio = data_ratio
         self.data_file_list = data_file_list
@@ -60,6 +63,8 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         self.cams_info = dict()
         self.seq_len = seq_len
         self.test_mode = test_mode
+        self.round_num = round_num
+        self.epochs_per_round = epochs_per_round
         self.filter_kpt_exceed = filter_kpt_exceed
         if dataset_weight_list:
             assert len(dataset_weight_list) == len(data_file_list)
@@ -184,6 +189,7 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         if self.sub_data_index >= 0:
             self.data_file_list = [self.data_file_list[self.sub_data_index]]
         instance_idx = 0
+        random.shuffle(self.data_file_list)
         for i, anno_file in enumerate(self.data_file_list):
             coco = COCO(anno_file)
             lmdb_path = osp.join(self.lmdb_data_root,
@@ -350,17 +356,31 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         return ppl_left, ppl_right
 
     def get_seq_idx(self, idx) -> list:
-        # 随机一个训练文件，随机从一份数据开始取seq_len长度
+        # 随机一个训练文件
         seq_idx = np.random.choice(range(len(self.dataset_info_list)))
+        # 数据分批，并根据当前epoch随机从一个批次中抽一份数据
+        if self.round_num > 0:
+            num_per_round = len(self.dataset_info_list) // self.round_num
+            mh = MessageHub.get_current_instance()
+            cur_epoch = mh.get_info('epoch')
+            round_id = cur_epoch // self.epochs_per_round % self.round_num
+            seq_idx = random.randint(
+                round_id * num_per_round,
+                min(
+                    len(self.dataset_info_list) - 1,
+                    (round_id + 1) * num_per_round - 1))
         seq_list = self.dataset_info_list[seq_idx]
-
-        seq_list_cur_idx = np.random.choice(range(len(seq_list)))
+        seq_list_cur_idx = np.random.choice(
+            range(self.seq_len - 1, len(seq_list)))  # 避免选到重复起始数据
         if self.test_mode:
             seq_list_cur_idx = idx
         idx_list = []
         for i in range(self.seq_len):
             tmp = max(seq_list_cur_idx - i, 0)
             idx_list.append(tmp)
+        # for i in range(0, 2 * self.seq_len, 2): # 隔帧取数据
+        #     tmp = max(seq_list_cur_idx - i, 0)
+        #     idx_list.append(tmp)
         idx_list.reverse()
 
         final_list = []

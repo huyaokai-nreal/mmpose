@@ -1,10 +1,11 @@
 # flake8: noqa
 _base_ = ['../../../_base_/default_runtime.py']
+import os
+
 from mmpose.configs._base_.datasets.xs3d import \
     datasets_info as kpt3d_datasets_info
 
-import os
-train_cfg = dict(max_epochs=70, val_interval=70)
+train_cfg = dict(max_epochs=50, val_interval=5)
 
 data_root = '/data/AI_DATA_WX'
 # data_root = '/data/AI_DATA_LOCAL'
@@ -112,11 +113,7 @@ model = dict(
                     enter_thre=pinch_thre[0] / 1000,
                     exit_thre=pinch_thre[1] / 1000,
                     loss_weight=1),
-                dict(
-                    type='MPJPAELoss',
-                    seq_length=seq_length,
-                    loss_weight=1
-                )
+                dict(type='MPJPAELoss', seq_length=seq_length, loss_weight=1)
             ]),
         seq_len=4,
         enhance_static=False,
@@ -142,7 +139,7 @@ train_data_list = []
 train_date_list = [
     '20230824', '20230828', '20230906', '20230907', '20231031', '20231227',
     '20240220', '20240229', '20240401', '20240425', '20240517', '20240522',
-    '20240801'
+    '20240801', '20240816', '20240826', '20240820', '20240903'
 ]
 train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
 for data_date in train_date_list:
@@ -152,20 +149,27 @@ for data_date in train_date_list:
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 
 # train_data_list = [
-#   'data_hand/hand_keypoint/annotations3d/simulate_binocular_coco_hand/XS__20230907_033735__pinch__normal__right__1111__0011__undistort_tar__Flora301__15F_office.json',
+#     'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_074601__pinch__bright__left__1111__0005__undistort_tar__Flora301.json',
 # ]
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
-    'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_070648__all__normal__right__1111__0005__undistort_tar__Flora301.json',  # xujian 33684 images, 16842 pair instances
-    'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_071804__all__bright__left__1111__0005__undistort_tar__Flora301.json',
-    'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_072334__pinch__dark__right__1111__0005__undistort_tar__Flora301.json',
-    'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_072715__pinch__normal__left__1111__0005__undistort_tar__Flora301.json',
-    'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073026__pinch__bright__right__1111__0005__undistort_tar__Flora301.json',
-    'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073556__pinch__bright__left__1111__0005__undistort_tar__Flora301.json',
-    'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_073857__pinch__normal__right__1111__0005__undistort_tar__Flora301.json',
-    'data_hand/hand_keypoint/annotations3d/Flora_bmk_gesture/XS__20230830_074601__pinch__bright__left__1111__0005__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_071804__all__bright__left__1111__0005__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_072334__pinch__dark__right__1111__0005__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_072715__pinch__normal__left__1111__0005__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_073026__pinch__bright__right__1111__0005__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_073556__pinch__bright__left__1111__0005__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_073857__pinch__normal__right__1111__0005__undistort_tar__Flora301.json',
+    'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_074601__pinch__bright__left__1111__0005__undistort_tar__Flora301.json',
+    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_075055__all__bright__right__1111__0019__undistort_tar__Flora301.json',
+    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_075728__all__dark__left__1111__0019__undistort_tar__Flora301.json',
+    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_080158__pinch__normal__right__1111__0019__undistort_tar__Flora301.json',
+    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_080536__pinch__bright__left__1111__0019__undistort_tar__Flora301.json',
+    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_080910__pinch__normal__left__1111__0019__undistort_tar__Flora301.json',
+    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081151__pinch__dark__right__1111__0019__undistort_tar__Flora301.json',
+    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081427__pinch__normal__right__1111__0019__undistort_tar__Flora301.json',
+    # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081909__pinch__bright__left__1111__0019__undistort_tar__Flora301.json'
 
     # 边缘半手
     # 'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20240508_032300__pinch__normal__right__1101__0006__undistort_tar__Flora301.json',
@@ -188,7 +192,10 @@ val_data_list = [
     # 反向pinch
     # 'data_hand/hand_keypoint/annotations3d/manual_fix_kpt/XS__20240229_083647__pinch__normal__right__1110__0025__undistort_tar__Flora301.json',
     # 'data_hand/hand_keypoint/annotations3d/manual_fix_kpt/XS__20240229_083322__pinch__normal__left__1110__0025__undistort_tar__Flora301.json',
-            
+
+    # 握拳pinch
+    # 'data_hand/hand_keypoint/annotations3d/fit3d_merge_seqsmooth__binocular_coco/XS__20240816_101603__pinch__normal__left__1101__0033__undistort_tar__Flora301.json',
+    # 'data_hand/hand_keypoint/annotations3d/fit3d_merge_seqsmooth__binocular_coco/XS__20240816_101710__pinch__normal__right__1101__0033__undistort_tar__Flora301.json'
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # pipelines
@@ -223,7 +230,7 @@ val_pipeline = [
 # data loaders
 train_dataloader = dict(
     batch_size=32,
-    num_workers=16,
+    num_workers=8,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
     collate_fn=dict(type='default_collate'),
@@ -235,9 +242,10 @@ train_dataloader = dict(
         dataset_weight_list=dataset_weight_list,
         data_root=data_root,
         seq_len=seq_length,
-        data_ratio=1./3,
-        serialize_data=True
-    ),
+        # data_ratio=1./3,
+        serialize_data=True,
+        round_num=3,  # 分为3份数据，每次epoch都换。等效data_ratio=1/3
+        epochs_per_round=1),
 )
 val_dataloader = dict(
     batch_size=128,

@@ -328,7 +328,6 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                 mh = MessageHub.get_current_instance()
                 cur_epoch = mh.get_info('epoch')
                 round_id = cur_epoch // self.epochs_per_round % self.round_num
-                idx = round_id * num_per_round + idx
                 idx = random.randint(
                     round_id * num_per_round,
                     min(self.data_num - 1, (round_id + 1) * num_per_round - 1))
