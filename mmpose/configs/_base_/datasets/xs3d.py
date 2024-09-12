@@ -862,6 +862,28 @@ datasets_info = {
             ]
         }
     },
+    'overlap_test_data': {
+        '20230830': {
+            'Flora301': [
+                'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand/XS__20230830_070648__all__normal__right__1111__0005__undistort_tar__Flora301__kangyingjiayuan_house_random.json',
+                'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand/XS__20230830_071804__all__bright__left__1111__0005__undistort_tar__Flora301__kangyingjiayuan_house_random.json',
+                'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand/XS__20230830_072334__pinch__dark__right__1111__0005__undistort_tar__Flora301__kangyingjiayuan_house_random.json',
+                'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand/XS__20230830_072715__pinch__normal__left__1111__0005__undistort_tar__Flora301__kangyingjiayuan_house_random.json',
+                'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand/XS__20230830_073026__pinch__bright__right__1111__0005__undistort_tar__Flora301__kangyingjiayuan_house_random.json',
+                'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand/XS__20230830_073556__pinch__bright__left__1111__0005__undistort_tar__Flora301__kangyingjiayuan_house_random.json',
+                'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand/XS__20230830_073857__pinch__normal__right__1111__0005__undistort_tar__Flora301__kangyingjiayuan_house_random.json',
+                'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand/XS__20230830_074601__pinch__bright__left__1111__0005__undistort_tar__Flora301__kangyingjiayuan_house_random.json',
+                'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand/XS__20230830_075055__all__bright__right__1111__0019__undistort_tar__Flora301__kangyingjiayuan_house_random.json',
+                'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand/XS__20230830_075728__all__dark__left__1111__0019__undistort_tar__Flora301__kangyingjiayuan_house_random.json',
+                'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand/XS__20230830_080158__pinch__normal__right__1111__0019__undistort_tar__Flora301__kangyingjiayuan_house_random.json',
+                'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand/XS__20230830_080536__pinch__bright__left__1111__0019__undistort_tar__Flora301__kangyingjiayuan_house_random.json',
+                'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand/XS__20230830_080910__pinch__normal__left__1111__0019__undistort_tar__Flora301__kangyingjiayuan_house_random.json',
+                'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand/XS__20230830_081151__pinch__dark__right__1111__0019__undistort_tar__Flora301__kangyingjiayuan_house_random.json',
+                'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand/XS__20230830_081427__pinch__normal__right__1111__0019__undistort_tar__Flora301__kangyingjiayuan_house_random.json',
+                'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand/XS__20230830_081909__pinch__bright__left__1111__0019__undistort_tar__Flora301__kangyingjiayuan_house_random.json'
+            ]
+        }
+    },
     'test_data': {
         '20230830': {
             'Flora301': [
