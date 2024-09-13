@@ -129,7 +129,7 @@ model = dict(
                     type='PinchLoss',
                     enter_thre=pinch_thre[0] / 1000,
                     exit_thre=pinch_thre[1] / 1000,
-                    loss_weight=3,
+                    loss_weight=15,
                     enable_start_epoch=train_cfg['max_epochs'] // 2),
                 dict(type='MSELoss', loss_weight=5),  # nimble trans直接监督
                 dict(
@@ -170,7 +170,8 @@ data_mode = 'topdown'
 train_data_list = []
 train_date_list = [
     '20230824', '20230828', '20230906', '20230907', '20240220', '20240229',
-    '20240401', '20231227', '20240517', '20240425', '20240522', '20240801'
+    '20240401', '20231227', '20240517', '20240425', '20240522', '20240801',
+    '20240816', '20240826', '20240820', '20240903'
 ]
 train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
 for data_date in train_date_list:
@@ -263,7 +264,7 @@ val_pipeline = [
 # data loaders
 train_dataloader = dict(
     batch_size=128,
-    num_workers=8,
+    num_workers=4,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
     collate_fn=dict(type='default_collate'),
@@ -284,7 +285,7 @@ train_dataloader = dict(
 )
 val_dataloader = dict(
     batch_size=128,
-    num_workers=8,
+    num_workers=4,
     persistent_workers=True,
     drop_last=False,
     sampler=dict(type='DefaultSampler', shuffle=False, round_up=False),

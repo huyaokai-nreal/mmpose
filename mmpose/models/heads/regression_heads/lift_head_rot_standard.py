@@ -2,6 +2,8 @@
 from typing import List, Tuple, Union
 
 import torch
+import torch.nn.functional as F
+from mmengine.logging import MessageHub
 from torch import Tensor, nn
 
 from mmpose.models.heads.nimble.nimble_utils import (SkeletonEncoder,
@@ -79,7 +81,7 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         # self.channel_num = 43
         self.lambda_t = lambda_t
         self.kpt2d_with_depth = kpt2d_with_depth
-        feat_dim = 21 * 8
+        feat_dim = 21 * 4
         if self.kpt2d_with_depth:
             feat_dim = feat_dim + 21
         if reg_shape_type > 1:
@@ -87,12 +89,12 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         # self.liftnet = gMLP(d_model=feat_dim, d_ffn=d_ffn, num_layers=3)
         self.liftnet = gMLPForPose(
             in_channels=4,
-            d_model=64,
-            d_ffn=256,
+            d_model=16,
+            d_ffn=64,
             num_layers=6,
             seq_len=21,
-            d_output=8,
-            with_att=True)
+            d_output=4,
+            with_att=False)
         self.rigid_samples = _gen_rigid_features()
 
         # define the full connection layer
@@ -141,6 +143,8 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         self.use_6d_pose_reg = use_6d_pose_reg
         self.use_9d_pose_reg = use_9d_pose_reg
         self.direct_pose_reg = direct_pose_reg
+
+        self.pinch_loss_func = F.l1_loss
 
         # define nimble layer
         self.nimble_layer = sim_NIMBLELayer(
@@ -510,6 +514,15 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             bone_loss = torch.tensor(0.0, device=loss_pre_root.device)
             major_bone_loss = torch.tensor(0.0, device=loss_pre_root.device)
 
+        pinch_mask = (dist_pred > dist_gt) & (dist_gt < 0.02)
+        mh = MessageHub.get_current_instance()
+        cur_epoch = mh.get_info('epoch')
+        if cur_epoch > 80:
+            pinch_loss_add = self.pinch_loss_func(dist_pred[pinch_mask],
+                                                  dist_gt[pinch_mask]) * 1.5
+        else:
+            pinch_loss_add = torch.tensor(0.0, device=loss_pre_root.device)
+
         losses_dict = dict(
             loss_pre_root=loss_pre_root,
             loss_pre_nimble=loss_pre_nimble,
@@ -518,7 +531,8 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             major_bone_loss=major_bone_loss,
             loss_pinch=loss_pinch,
             loss_nimble_trans=loss_nimble_trans,
-            loss_rle_all=loss_rle_all)
+            loss_rle_all=loss_rle_all,
+            pinch_loss_add=pinch_loss_add)
 
         return losses_dict
 
