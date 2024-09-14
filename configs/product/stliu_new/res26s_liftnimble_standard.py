@@ -159,7 +159,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/AI_DATA/data_hand/model/mmpose/td-hand_rtmtinyv2_26sw_nimble25d_scale_pcl_ipr_right_2d3d_handmix_dark_small_drop_aug_240716data_ume_8x128-100e-128x128/epoch_100.pth'  # 20240415 2D model
+        '/data/AI_DATA/data_hand/model/mmpose/td-hand_rtmtinyv2_26sw_nimble25d_scale_pcl_ipr_right_2d3d_handmix_dark_small_drop_aug_aio_240903data_8x128-100e-128x128/epoch_100.pth'  # 20240415 2D model
     ),
 )
 
