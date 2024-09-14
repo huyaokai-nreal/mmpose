@@ -257,7 +257,7 @@ class RTMCCIPRHead3D(RTMCCHead3D):
             pred_outputs, _ = self.forward(inputs)
         keypoint_weights = torch.cat([
             d.gt_instance_labels.keypoint_weights for d in batch_data_samples
-        ]).cuda()
+        ]).cuda().unsqueeze(-1)
         label_2d_list = []
         label_depth_list = []
         label_depth_id_list = []
@@ -293,7 +293,7 @@ class RTMCCIPRHead3D(RTMCCHead3D):
         _, avg_acc, _ = keypoint_pck_accuracy(
             pred=to_numpy(pred_outputs[..., :2]),
             gt=to_numpy(label_2d),
-            mask=to_numpy(keypoint_weights) > 0,
+            mask=to_numpy(keypoint_weights[..., 0]) > 0,
             thr=0.05,
             norm_factor=np.ones((pred_coords.size(0), 2), dtype=np.float32))
 

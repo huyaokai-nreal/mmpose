@@ -161,8 +161,8 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         num_keypoints = ann['num_keypoints']
         keypoints_visible = np.array(ann['keypoints_left'])[...,
                                                             2].reshape(1, -1)
-        # if 'hot3d' in left_img_path:
-        #    keypoints_visible[0][0] = 0
+        if 'hot3d' in left_img_path:
+            keypoints_visible[0][0] = 0
         cam_key = ann['camera_instance_id']
         cam_info = self.cams_info[cam_key]
         cam_model_left, cam_model_right = \
