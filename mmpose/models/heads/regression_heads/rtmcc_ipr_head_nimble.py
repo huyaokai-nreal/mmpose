@@ -24,7 +24,8 @@ from mmpose.models.heads.nimble.nimble_utils import (
     euler_angles_to_matrix, matrix_to_euler_angles, matrix_to_quaternion,
     rot6D_to_matirx, rot9D_to_matirx, trans_3d_2_2d)
 from mmpose.models.heads.nimble.simple_NIMBLELayer import sim_NIMBLELayer
-
+import torch.nn.functional as F
+from mmengine.logging import MessageHub
 
 OptIntSeq = Optional[Sequence[int]]
 
@@ -145,7 +146,7 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         #     nn.ReLU(),
         #     nn.Conv2d(feat_channel*4, feat_channel, kernel_size=1))
         self.nimble_last_layer = nn.Sequential(
-            nn.Conv2d(self.input_dim, self.nimble_hidden_num, kernel_size=1),
+            nn.Conv2d(2 *self.input_dim, self.nimble_hidden_num, kernel_size=1),
             nn.ReLU(),
             nn.Conv2d(self.nimble_hidden_num, self.nimble_output_num, kernel_size=1))
         self.nimble_layer = sim_NIMBLELayer(
@@ -169,6 +170,7 @@ class RTMCCIPRHeadNimble(RTMCCHead):
             19
         ]
         self.non_root_indices = []
+        self.pinch_loss_func = F.l1_loss
         for i in range(len(self.joint_parents)):
             if i != self.joint_parents[i]:
                 self.non_root_indices.append(i)
@@ -217,7 +219,7 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         image_fea = self.proj_layer(raw_feats)
         ftl_image_fea = self.trans_feat(image_fea, f_scale)
         # feature_fuszion = self.feature_fuszion_layer(ftl_image_fea)
-        feature_fuszion = self.liftnet(ftl_image_fea.reshape(B,-1,1,1))
+        feature_fuszion = self.liftnet(ftl_image_fea.reshape(B,-1,1,1)).reshape(B,-1,1,1)
         # coor_fea = output.clone().reshape(B, -1)
         # if intrix_feats.shape[0] != B:
         #     intrix_fea = intrix_feats.repeat(2, 1)
@@ -227,7 +229,9 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         # nimble_fea = torch.concat((image_fea, coor_fea),dim=-1)[:,:,None,None]
         # nimble_fea = torch.concat((nimble_fea, intrix_fea),dim=-1)[:,:,None,None]
         # nimble_fea = self.liftnet(nimble_fea)
-        nimble_output = self.nimble_last_layer(feature_fuszion.reshape(B,-1,1,1))
+        mems = torch.zeros_like(feature_fuszion).to(feature_fuszion.device)
+        feat_mix = torch.cat([feature_fuszion, mems], dim=1)
+        nimble_output = self.nimble_last_layer(feat_mix)
         
         
         if self.output_sigma:
@@ -746,6 +750,15 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         major_bone_loss = torch.mean(torch.sum(
             local_squared_diff, dim=1)) * major_bone_loss_weight
 
+        pinch_mask = (dist_pred > dist_gt) & (dist_gt < 0.02)
+        mh = MessageHub.get_current_instance()
+        cur_epoch = mh.get_info('epoch')
+        if cur_epoch > 60:
+            pinch_loss_add = self.pinch_loss_func(dist_pred[pinch_mask],
+                                                  dist_gt[pinch_mask]) * 1.5
+        else:
+            pinch_loss_add = torch.tensor(0.0, device=loss_pre_root.device)
+
         losses = dict(
             # loss_kpt2d=loss_kpt2d,
             # label_depth=loss_depth,
@@ -757,7 +770,8 @@ class RTMCCIPRHeadNimble(RTMCCHead):
             loss_pinch=loss_pinch,
             loss_nimble_trans=loss_nimble_trans,
             loss_rle_all=loss_rle_all,
-            loss_reproject=loss_reproject)
+            loss_reproject=loss_reproject,
+            pinch_loss_add=pinch_loss_add)
 
         
         # claculate 3d metric
