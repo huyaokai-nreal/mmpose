@@ -4,7 +4,7 @@ from typing import List, Tuple, Union
 import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
-
+from mmengine.logging import MessageHub
 from mmpose.models.heads.regression_heads.lift_head_rot_standard import \
     LiftNimbleHeadStandard
 from mmpose.registry import MODELS
@@ -76,6 +76,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         self.enhance_static = enhance_static
         self.static_data_date_list = ['20240516', '20240517', '20240522']
         self.fix_sigma_pars = fix_sigma_pars
+        self.pinch_loss_func = F.l1_loss
 
         if self.fix_sigma_pars:
             for param in self.liftnet.parameters():
@@ -91,9 +92,9 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
     ) -> Tensor:
         devices_cuda = feats.device
         B = feats.shape[0]
-        out_feats = self.liftnet(feats[..., 0])
+        out_feats = self.liftnet(feats[..., 0]).reshape(B, -1)
         if mems is None:
-            mems = torch.zeros(B, 2 * self.channel_num, 1, 1).to(devices_cuda)
+            mems = torch.zeros(B, out_feats.shpae[-1], 1, 1).to(devices_cuda)
         feat_mix = torch.cat([out_feats.reshape(B, -1),
                               mems.reshape(B, -1)],
                              dim=1)
@@ -322,6 +323,15 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             bone_loss = torch.tensor(0.0, device=loss_pre_root.device)
             major_bone_loss = torch.tensor(0.0, device=loss_pre_root.device)
 
+        pinch_mask = (dist_pred > dist_gt) & (dist_gt < 0.02)
+        mh = MessageHub.get_current_instance()
+        cur_epoch = mh.get_info('epoch')
+        if cur_epoch > 30:
+            pinch_loss_add = self.pinch_loss_func(dist_pred[pinch_mask],
+                                                  dist_gt[pinch_mask]) * 3
+        else:
+            pinch_loss_add = torch.tensor(0.0, device=loss_pre_root.device)
+
         if self.fix_sigma_pars:
             loss_rle = torch.tensor(0.0, device=loss_pre_root.device)
 
@@ -335,7 +345,8 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             loss_nimble_trans=loss_nimble_trans,
             smooth_shape_loss=smooth_shape_loss,
             loss_smooth=loss_smooth,
-            loss_rle=loss_rle)
+            loss_rle=loss_rle,
+            pinch_loss_add=pinch_loss_add)
 
         return losses_dict
 
