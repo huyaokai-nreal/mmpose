@@ -17,6 +17,7 @@ from xtcocotools.coco import COCO
 from mmpose.datasets.builder import DATASETS
 from ..base import BaseCocoStyleDataset
 from .pair_hand3d_dataset import PairHand3DDataset
+import random
 
 
 @DATASETS.register_module()
@@ -48,7 +49,8 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
                  sample_interval=1.0,
                  seq_len=4,
                  round_num=-1,
-                 epochs_per_round=-1):
+                 epochs_per_round=-1,
+                 choice_one=False):
         self.flip_left_to_right = flip_left_to_right
         self.data_ratio = data_ratio
         self.data_file_list = data_file_list
@@ -67,7 +69,9 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         self.round_num = round_num
         self.epochs_per_round = epochs_per_round
         self.filter_kpt_exceed = filter_kpt_exceed
-        self.sample_interval = sample_interval
+        self.choice_one = choice_one
+        if self.choice_one:
+            self.left_cam_sig = 1
         if dataset_weight_list:
             assert len(dataset_weight_list) == len(data_file_list)
         super().__init__(
@@ -288,6 +292,14 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
             data_info['meta']['right_R'])
         meta_right['virtual_baseline'] = copy.deepcopy(
             data_info['meta']['virtual_baseline'])
+        
+        meta_left['camera_name'] = 'left'
+        meta_right['camera_name'] = 'right'
+        left_cam_xf = meta_left['ori_camera'].camera_to_world_xf
+        right_cam_xf = meta_right['ori_camera'].camera_to_world_xf
+        left_to_right_rt = np.dot(np.linalg.inv(right_cam_xf), left_cam_xf)
+        meta_left['external'] = meta_right['external'] = left_to_right_rt
+
 
         if 'nimble_pose' in data_info.keys():
             meta_left['nimble_pose'] = data_info['nimble_pose']
@@ -350,33 +362,29 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
                 dict(mask=self.lmdb_client.get(data_info['left_mask_path'])))
             data_info_right.update(
                 dict(mask=self.lmdb_client.get(data_info['right_mask_path'])))
-
+            
         if data_info['cat_id'] == 1 and self.flip_left_to_right:
             data_info_left['meta']['flipped'] = True
             data_info_right['meta']['flipped'] = True
 
-        ppl_left = self.pipeline(data_info_left)
-        ppl_right = self.pipeline(data_info_right)
-
-        return ppl_left, ppl_right
+        if not self.choice_one:
+            ppl_left = self.pipeline(data_info_left)
+            ppl_right = self.pipeline(data_info_right)
+            return ppl_left, ppl_right
+        else:
+            if self.left_cam_sig == 1:
+                return self.pipeline(data_info_left)
+            else:
+                return self.pipeline(data_info_right)
 
     def get_seq_idx(self, idx) -> list:
         # 随机一个训练文件
-        seq_idx = np.random.choice(range(len(self.dataset_info_list)))
-        # 数据分批，并根据当前epoch随机从一个批次中抽一份数据
-        if self.round_num > 0:
-            num_per_round = len(self.dataset_info_list) // self.round_num
-            mh = MessageHub.get_current_instance()
-            cur_epoch = mh.get_info('epoch')
-            round_id = cur_epoch // self.epochs_per_round % self.round_num
-            seq_idx = random.randint(
-                round_id * num_per_round,
-                min(
-                    len(self.dataset_info_list) - 1,
-                    (round_id + 1) * num_per_round - 1))
-        seq_list = self.dataset_info_list[seq_idx]
-        seq_list_cur_idx = np.random.choice(
-            range(self.seq_len - 1, len(seq_list)))  # 避免选到重复起始数据
+        seq_list = []
+        while (len(seq_list) == 0):
+            seq_idx = np.random.choice(range(len(self.dataset_info_list)))
+            seq_list = self.dataset_info_list[seq_idx]
+        seq_list_cur_idx = np.random.choice(range(len(seq_list)))
+
         if self.test_mode:
             seq_list_cur_idx = idx
         idx_list = []
@@ -410,10 +418,14 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         """
         collate_list = []
         seq_idx_list = self.get_seq_idx(idx)
-
+        self.left_cam_sig = seq_idx_list[0]%2
         for i, idx in enumerate(seq_idx_list):
-            ppl_left, ppl_right = self.prepare_pair_data(idx, i == 0)
-            collate_list.extend([ppl_left, ppl_right])
+            if self.choice_one:
+                ppl_result = self.prepare_pair_data(idx, i == 0)
+                collate_list.append(ppl_result)
+            else:
+                ppl_left, ppl_right = self.prepare_pair_data(idx, i == 0)
+                collate_list.extend([ppl_left, ppl_right])
 
         all_results = default_collate(collate_list)
 

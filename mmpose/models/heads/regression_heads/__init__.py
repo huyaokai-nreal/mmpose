@@ -24,6 +24,7 @@ from .temporal_regression_head import TemporalRegressionHead
 from .trajectory_regression_head import TrajectoryRegressionHead
 from .rtmcc_ipr_head_nimble import RTMCCIPRHeadNimble
 from .ume_head import UmeHead
+from .temporal_rtmcc_ipr_head_nimble import TemporalRTMCCIPRHeadNimble
 
 __all__ = [
     'RegressionHead',

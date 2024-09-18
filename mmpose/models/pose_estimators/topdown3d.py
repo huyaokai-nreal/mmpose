@@ -21,7 +21,7 @@ from mmpose.utils.typing import (ConfigType, InstanceList, OptConfigType,
                                  OptMultiConfig, PixelDataList, SampleList)
 from .topdown import TopdownPoseEstimator
 from mmengine.structures import InstanceData
-
+from itertools import chain, zip_longest
 
 @MODELS.register_module()
 class TopdownPose3DEstimator(TopdownPoseEstimator):
@@ -468,7 +468,7 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
         return batch_data_samples
 
 
-    # 单目使用模版进行kpt3d求解
+    # 单目使用nimble结果保存
     def add_pred_to_datasample_nimble(
             self, pre_info,
             batch_pred_fields: Optional[PixelDataList],
@@ -529,3 +529,100 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             #         data_sample.meta['frame_width'] - 1 - gt_kpt[..., 0])
             data_sample.pred_instances = pred_instances
         return batch_data_samples
+
+
+
+@MODELS.register_module()
+class TopdownPose3DEstimatorSeq(TopdownPose3DEstimator):
+
+    def __init__(self,
+                 backbone: ConfigType,
+                 neck: OptConfigType = None,
+                 head: OptConfigType = None,
+                 train_cfg: OptConfigType = None,
+                 test_cfg: OptConfigType = None,
+                 data_preprocessor: OptConfigType = None,
+                 init_cfg: OptMultiConfig = None,
+                 camera_layout: str = 'monocular',
+                 root_id: int = 0,
+                 seq_len: int = 32):
+        super().__init__(backbone, neck, head, train_cfg, test_cfg,
+                         data_preprocessor, init_cfg, camera_layout, root_id)
+        self.seq_len = seq_len
+
+    def predict(self, inputs: Tensor, data_samples: SampleList) -> SampleList:
+
+        assert self.with_head, (
+            'The model must have head to perform prediction.')
+
+        if self.test_cfg.get('flip_test', False):
+            _feats = self.extract_feat(inputs)
+            _feats_flip = self.extract_feat(inputs.flip(-1))
+            feats = [_feats, _feats_flip]
+        else:
+            feats = self.extract_feat(inputs)
+            
+        batch_pred_instances = []
+        mem = None
+        assert inputs.shape[
+            0]  % self.seq_len == 0, \
+            f'batch size {inputs.shape[0]} can be divided by {self.seq_len}'
+        clip_len = feats[0].shape[0]
+        clip_num = inputs.shape[0] // clip_len
+        feats = feats[-1]
+        C, H, W = feats.shape[-3], feats.shape[-2], feats.shape[-1]
+        feats_input = feats.reshape(clip_num, clip_len, C, H, W)
+        for b in range(clip_len):
+            sub_feat_input = feats_input[:, b:b +1, ...].reshape(1, -1, C, H, W)
+            pred_kpt3d, pred_kpt2d, mem, sigma = self.head.predict(
+                sub_feat_input, [data_samples[b]],
+                mem,
+                test_cfg=self.test_cfg)
+            for b in range(pred_kpt3d.shape[0]):
+                batch_pred_instances.append(
+                    InstanceData(
+                        keypoints3d=pred_kpt3d[b:b + 1, ...],
+                        keypoints3d_scores=sigma[b:b + 1, ...],
+                        keypoints=pred_kpt2d[b:b + 1, ...],
+                        keypoint_scores=torch.ones((1, 21)),
+                    ))
+        final_pred_instances = []
+        for i in range(clip_num):
+            final_pred_instances += batch_pred_instances[i::clip_num]
+        
+        if self.camera_layout == "nimble":
+            results = self.add_pred_to_datasample_nimble_seq(
+                final_pred_instances, data_samples)
+        else:
+            if isinstance(preds, tuple):
+                batch_pred_instances, batch_pred_fields = preds
+            else:
+                batch_pred_instances = preds
+                batch_pred_fields = None
+            results = self.add_pred_to_datasample(
+                batch_pred_instances, batch_pred_fields, data_samples)
+
+        return results
+
+    def add_pred_to_datasample_nimble_seq(self, batch_pred_instances: InstanceList,
+                               batch_data_samples_seq: SampleList
+                               ) -> SampleList:
+
+
+        batch_data_samples = batch_data_samples_seq
+        assert len(batch_pred_instances) == len(batch_data_samples)
+
+        for pred_instances, data_sample in zip_longest(
+                batch_pred_instances, batch_data_samples):
+
+            pred_instances.keypoints3d = pred_instances.keypoints3d.cpu(
+            ).numpy()
+            pred_instances.keypoints3d_scores = pred_instances.keypoints3d_scores.cpu(
+            ).numpy()
+            pred_instances.keypoints = pred_instances.keypoints.cpu().numpy()
+            pred_instances.keypoint_scores = np.ones(
+                (1, pred_instances.keypoints.shape[1]))
+
+            data_sample.pred_instances = pred_instances
+        return batch_data_samples
+        
