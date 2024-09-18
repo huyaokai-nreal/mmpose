@@ -3,8 +3,9 @@ from typing import List, Tuple, Union
 
 import torch
 import torch.nn.functional as F
-from torch import Tensor, nn
 from mmengine.logging import MessageHub
+from torch import Tensor, nn
+
 from mmpose.models.heads.regression_heads.lift_head_rot_standard import \
     LiftNimbleHeadStandard
 from mmpose.registry import MODELS
@@ -94,7 +95,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         B = feats.shape[0]
         out_feats = self.liftnet(feats[..., 0]).reshape(B, -1)
         if mems is None:
-            mems = torch.zeros(B, out_feats.shpae[-1], 1, 1).to(devices_cuda)
+            mems = torch.zeros(B, out_feats.shape[-1], 1, 1).to(devices_cuda)
         feat_mix = torch.cat([out_feats.reshape(B, -1),
                               mems.reshape(B, -1)],
                              dim=1)
