@@ -93,7 +93,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
     ) -> Tensor:
         devices_cuda = feats.device
         B = feats.shape[0]
-        out_feats = self.liftnet(feats[..., 0]).reshape(B, -1)
+        out_feats = self.liftnet(feats.reshape(B, 21, -1)).reshape(B, -1)
         if mems is None:
             mems = torch.zeros(B, out_feats.shape[-1], 1, 1).to(devices_cuda)
         feat_mix = torch.cat([out_feats.reshape(B, -1),
@@ -103,7 +103,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         output = self.last_layer(feat_mix)
         shape, rot, svd_pt = self.simple_feature_layer(output[..., None, None])
         score = self.sigma_conv(out_feats.reshape(
-            B, -1)).sigmoid().mean().reshape(shape.shape)
+            B, -1)).sigmoid().mean(-1).reshape(shape.shape)
         return shape, rot, svd_pt, mems, score
 
     def forward(self,
@@ -136,10 +136,12 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         with torch.no_grad():
             data = self.preprocess(feats, batch_data_samples, 'predict')
         valid_mask = data['valid_mask'] == 1
-        output, mems, all_sigmas = self.forward(data['feats'], mems, 1)
+        shape, rot, svd_pt, mems, all_sigmas = self._forward(data['feats'], mems)
 
-        hand3d_pred = self.postprocess(
-            output,
+        hand3d_pred = self.postprocess_simple(
+            shape,
+            rot,
+            svd_pt, 
             data['left_hand'],
             data['leftcam_xy'],
             data['left_R'],
