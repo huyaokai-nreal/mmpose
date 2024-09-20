@@ -803,7 +803,19 @@ datasets_info = {
                 'data_hand/hand_keypoint/annotations3d/fit3d_merge_seqsmooth__binocular_coco/XS__20240903_030922__pinch__normal__right__1101__0010__undistort_tar__Flora304.json',
                 'data_hand/hand_keypoint/annotations3d/fit3d_merge_seqsmooth__binocular_coco/XS__20240903_031344__pinch__normal__left__1101__0010__undistort_tar__Flora304.json',
             ],
-        }
+        },
+        # 手持物体
+        '20240907': {
+            'Flora301': [
+                'data_hand/hand_keypoint/annotations3d/fit3d_merge_seqsmooth__binocular_coco/XS__20240709_075714__all__normal__right__1101__0015__undistort_tar__Flora301.json',
+            ],
+            'Flora303': [
+                'data_hand/hand_keypoint/annotations3d/fit3d_merge_seqsmooth__binocular_coco/XS__20240709_075714__all__normal__right__1101__0015__undistort_tar__Flora302.json',
+            ],
+            'Flora304': [
+                'data_hand/hand_keypoint/annotations3d/fit3d_merge_seqsmooth__binocular_coco/XS__20240709_075714__all__normal__right__1101__0015__undistort_tar__Flora303.json',
+            ],
+        },
     },
     'simu_train_data': {
         '20230809': {
