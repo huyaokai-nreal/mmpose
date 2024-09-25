@@ -405,8 +405,6 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                         last_kpt3d=None)
                     global_keypoints[..., 2] = kpt_depth
                     root_depth = 0
-                elif self.root_mode == 'rootnet':
-                    root_depth = pred_instances.root_depth
                 global_keypoints[..., 2] += root_depth
                 ori_keypoints3d = ori_cam.window_to_eye(global_keypoints[0])
                 pred_instances.keypoints3d = global_keypoints.copy()
