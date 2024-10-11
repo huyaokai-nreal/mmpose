@@ -138,9 +138,7 @@ class RTMCCIPRHead3D(RTMCCHead3D):
         feat_x, feat_y, feat_z = super().forward(feats)
         heatmaps = torch.cat([feat_x, feat_y, feat_z], dim=1)
         raw_feats = feats[-1]
-        pred_x, pred_y, pred_z = self.ipr_module(feat_x.squeeze(),
-                                                 feat_y.squeeze(),
-                                                 feat_z.squeeze())
+        pred_x, pred_y, pred_z = self.ipr_module(feat_x, feat_y, feat_z)
         output = torch.cat([pred_x, pred_y, pred_z], dim=-1)
         if self.output_sigma:
             x = self.gap(raw_feats)

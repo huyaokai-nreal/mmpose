@@ -2,6 +2,7 @@
 from typing import Optional, Sequence, Tuple, Union
 
 import torch
+from mmcv.cnn import build_upsample_layer
 from torch import Tensor, nn
 
 from mmpose.evaluation.functional import simcc_pck_accuracy
@@ -12,6 +13,42 @@ from mmpose.utils.typing import (ConfigType, InstanceList, OptConfigType,
 from .rtmcc_head import RTMCCHead
 
 OptIntSeq = Optional[Sequence[int]]
+
+
+def make_deconv_layers(in_channels: int, layer_out_channels: Sequence[int],
+                       layer_kernel_sizes: Sequence[int]) -> nn.Module:
+    """Create deconvolutional layers by given parameters."""
+
+    layers = []
+    for out_channels, kernel_size in zip(layer_out_channels,
+                                         layer_kernel_sizes):
+        if kernel_size == 4:
+            padding = 1
+            output_padding = 0
+        elif kernel_size == 3:
+            padding = 1
+            output_padding = 1
+        elif kernel_size == 2:
+            padding = 0
+            output_padding = 0
+        else:
+            raise ValueError(f'Unsupported kernel size {kernel_size} for'
+                             'deconvlutional layers')
+        cfg = dict(
+            type='deconv',
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=2,
+            padding=padding,
+            output_padding=output_padding,
+            bias=False)
+        layers.append(build_upsample_layer(cfg))
+        layers.append(nn.BatchNorm2d(num_features=out_channels))
+        layers.append(nn.ReLU(inplace=True))
+        in_channels = out_channels
+
+    return nn.Sequential(*layers)
 
 
 @MODELS.register_module()
@@ -70,22 +107,45 @@ class RTMCCHead3D(RTMCCHead):
                  decoder: OptConfigType = None,
                  init_cfg: OptConfigType = None,
                  with_gau: bool = False,
-                 mlp_with_conv: bool = False):
+                 mlp_with_conv: bool = False,
+                 conv_as_mlp: bool = False):
         if init_cfg is None:
             init_cfg = self.default_init_cfg
         super().__init__(in_channels, out_channels, input_size,
                          in_featuremap_size, simcc_split_ratio,
                          final_layer_kernel_size, gau_cfg, loss, decoder,
                          init_cfg, with_gau)
+        D = int(self.input_size[2] * self.simcc_split_ratio)
+        self.cls_z = nn.Linear(gau_cfg['hidden_dims'], D, bias=False)
         if mlp_with_conv:
             flatten_dims = self.in_featuremap_size[
                 0] * self.in_featuremap_size[1]
             self.mlp = nn.Sequential(
-                nn.Linear(flatten_dims, 128), nn.ReLU(), nn.Conv2d(21, 21, 1),
-                nn.ReLU(), nn.Linear(128, 128), nn.ReLU(),
-                nn.Conv2d(21, 21, 1))
-        D = int(self.input_size[2] * self.simcc_split_ratio)
-        self.cls_z = nn.Linear(gau_cfg['hidden_dims'], D, bias=False)
+                nn.Linear(flatten_dims, 128), nn.ReLU(),
+                nn.Conv2d(out_channels, out_channels, 1), nn.ReLU(),
+                nn.Linear(128, 128), nn.ReLU(),
+                nn.Conv2d(out_channels, out_channels, 1))
+        self.conv_as_mlp = conv_as_mlp
+        if conv_as_mlp:
+            self.mlp = make_deconv_layers(out_channels, [out_channels], [4])
+            self.cls_x = nn.Conv2d(
+                out_channels,
+                out_channels,
+                kernel_size=(1, 3),
+                padding=(0, 1),
+                groups=out_channels)
+            self.cls_y = nn.Conv2d(
+                out_channels,
+                out_channels,
+                kernel_size=(1, 3),
+                padding=(0, 1),
+                groups=out_channels)
+            self.cls_z = nn.Conv2d(
+                out_channels,
+                out_channels,
+                kernel_size=(1, 3),
+                padding=(0, 1),
+                groups=out_channels)
 
     def forward(self,
                 feats: Tuple[Tensor],

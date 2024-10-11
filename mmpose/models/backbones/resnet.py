@@ -557,7 +557,8 @@ class ResNet(BaseBackbone):
                          layer=['_BatchNorm', 'GroupNorm'])
                  ],
                  out_channels=[],
-                 bias_in_conv=False):
+                 bias_in_conv=False,
+                 stem_with_max_pool=True):
         # Protect mutable default arguments
         norm_cfg = copy.deepcopy(norm_cfg)
         self.out_channels = copy.deepcopy(out_channels)
@@ -587,6 +588,7 @@ class ResNet(BaseBackbone):
         self.stage_blocks = stage_blocks[:num_stages]
         self.expansion = get_expansion(self.block, expansion)
         self.bias_in_conv = bias_in_conv
+        self.stem_with_max_pool = stem_with_max_pool
 
         self._make_stem_layer(in_channels, stem_channels)
 
@@ -679,7 +681,19 @@ class ResNet(BaseBackbone):
                 self.norm_cfg, stem_channels, postfix=1)
             self.add_module(self.norm1_name, norm1)
             self.relu = nn.ReLU(inplace=True)
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        if self.stem_with_max_pool:
+            self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        else:
+            self.conv2 = build_conv_layer(
+                self.conv_cfg,
+                stem_channels,
+                stem_channels,
+                kernel_size=3,
+                stride=2,
+                padding=1,
+                bias=True)
+            self.norm2_name, self.norm2 = build_norm_layer(
+                self.norm_cfg, stem_channels, postfix=1)
 
     def _freeze_stages(self):
         """Freeze parameters."""
@@ -723,7 +737,12 @@ class ResNet(BaseBackbone):
             x = self.conv1(x)
             x = self.norm1(x)
             x = self.relu(x)
-        x = self.maxpool(x)
+        if self.stem_with_max_pool:
+            x = self.maxpool(x)
+        else:
+            x = self.conv2(x)
+            x = self.norm2(x)
+            x = self.relu(x)
         outs = []
         for i, layer_name in enumerate(self.res_layers):
             res_layer = getattr(self, layer_name)
