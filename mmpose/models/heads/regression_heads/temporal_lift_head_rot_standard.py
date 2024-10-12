@@ -136,12 +136,10 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         with torch.no_grad():
             data = self.preprocess(feats, batch_data_samples, 'predict')
         valid_mask = data['valid_mask'] == 1
-        shape, rot, svd_pt, mems, all_sigmas = self._forward(data['feats'], mems)
+        output, mems, all_sigmas = self.forward(data['feats'], mems, 1)
 
-        hand3d_pred = self.postprocess_simple(
-            shape,
-            rot,
-            svd_pt, 
+        hand3d_pred = self.postprocess(
+            output,
             data['left_hand'],
             data['leftcam_xy'],
             data['left_R'],
@@ -329,9 +327,13 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         pinch_mask = (dist_pred > dist_gt) & (dist_gt < 0.02)
         mh = MessageHub.get_current_instance()
         cur_epoch = mh.get_info('epoch')
-        if cur_epoch > 30:
-            pinch_loss_add = self.pinch_loss_func(dist_pred[pinch_mask],
-                                                  dist_gt[pinch_mask]) * 3
+
+        if cur_epoch > 30 and sum(pinch_mask) > 0:
+            softmax_weight = F.softmax(
+                -dist_gt[pinch_mask], dim=0) * len(dist_gt[pinch_mask])
+            pinch_loss_add = self.pinch_loss_func(
+                dist_pred[pinch_mask] * softmax_weight,
+                (dist_gt[pinch_mask] - 0.003) * softmax_weight) * 3
         else:
             pinch_loss_add = torch.tensor(0.0, device=loss_pre_root.device)
 

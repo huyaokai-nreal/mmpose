@@ -167,7 +167,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/stliu/mmpose_simliar_wx10/work_dirs/new_dataset/liftnimble_flip_res26sw_simple_0915/epoch_150.pth'
+        '/data/stliu/mmpose/work_dirs/new_dataset/liftnimble_flip_res26sw_simple_1008/epoch_150.pth'
     ),
 )
 

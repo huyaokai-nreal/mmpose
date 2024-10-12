@@ -81,19 +81,19 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         # self.channel_num = 43
         self.lambda_t = lambda_t
         self.kpt2d_with_depth = kpt2d_with_depth
-        feat_dim = 21 * 4
+        feat_dim = 21 * 5
         if self.kpt2d_with_depth:
             feat_dim = feat_dim + 21
         if reg_shape_type > 1:
             feat_dim = feat_dim + skeleton_feature_dim
         # self.liftnet = gMLP(d_model=feat_dim, d_ffn=d_ffn, num_layers=3)
         self.liftnet = gMLPForPose(
-            in_channels=4,
+            in_channels=5,
             d_model=16,
             d_ffn=64,
             num_layers=6,
             seq_len=21,
-            d_output=4,
+            d_output=5,
             with_att=False)
         self.rigid_samples = _gen_rigid_features()
 
@@ -214,10 +214,14 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         return shape_v, pre_local_matrix, pre_pt_features
 
     def _forward(self, feats: Tuple[Tensor]) -> Tensor:
-        output = self.liftnet(feats)
-        output = self.last_layer(output).view((feats.shape[0], -1, 1, 1))
-        kpt, rot, svd_pt = self.simple_feature_layer(output)
-        return kpt, rot, svd_pt
+        output = self.liftnet(
+            feats.reshape(feats.shape[0], feats.shape[1],
+                          -1)).reshape(feats.shape[0], -1)
+        mems = torch.zeros_like(output).to(output.device)
+        feat_mix = torch.cat([output, mems], dim=1)
+        output = self.last_layer(feat_mix).view((feats.shape[0], -1, 1, 1))
+        shape, rot, svd_pt = self.simple_feature_layer(output)
+        return shape, rot, svd_pt
 
     def forward(self, feats: Tuple[Tensor]) -> Tensor:
         output = self.liftnet(feats).reshape(feats.shape[0], -1)

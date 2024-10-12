@@ -403,6 +403,8 @@ class LiftHeadStandard(BaseModule):
         # feats = feats.reshape(B, self.feat_dim, 1, 1)
         feats = torch.cat(
             (norm_leftcam_xyz[:, :, :2], norm_rightcam_xyz[:, :, :2]), dim=-1)
+        hand_feat = left_hand[:, None, None].repeat(1, 21, 1)
+        feats = torch.cat((feats, hand_feat), dim=-1)
         return {
             'feats': feats,
             'norm_leftcam_xyz': norm_leftcam_xyz,
