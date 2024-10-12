@@ -4,8 +4,6 @@ from typing import List, Tuple, Union
 import cv2
 import numpy as np
 import torch
-import torch.nn.functional as F
-from mmengine.logging import MessageHub
 from mmengine.model import BaseModule
 from nreal_data_tool.utils import kpt_to_bbox
 from torch import Tensor, nn
@@ -48,8 +46,11 @@ class LiftHeadStandardOri(BaseModule):
             d_model=feat_dim, d_ffn=d_ffn, num_layers=num_layers)
         self.corruption_cam = corruption_cam
         self.last_layer = nn.Sequential(
-            nn.Conv2d(feat_dim*2, feat_dim, kernel_size=1), nn.ReLU(),
+            nn.Conv2d(feat_dim * 2, feat_dim, kernel_size=1), nn.ReLU(),
             nn.Conv2d(feat_dim, output_num, kernel_size=1))
+        self.corruption_layer = nn.Sequential(
+            nn.Conv2d(feat_dim * 2, feat_dim, kernel_size=1), nn.ReLU(),
+            nn.Conv2d(feat_dim, 21, kernel_size=1), nn.Sigmoid())
         self.feat_dim = feat_dim
         self.lift_loss = MODELS.build(lift_loss)
         self.reproj = reproj
@@ -62,9 +63,13 @@ class LiftHeadStandardOri(BaseModule):
     def forward(self, feats: Tuple[Tensor]) -> Tensor:
         B = feats.shape[0]
         liftnet_output = self.liftnet(feats)
-        liftnet_output = torch.cat((liftnet_output, torch.zeros(liftnet_output.shape).to(liftnet_output.device)), dim=1)
+        liftnet_output = torch.cat(
+            (liftnet_output, torch.zeros(liftnet_output.shape).to(
+                liftnet_output.device)),
+            dim=1)
+        corruptions = self.corruption_layer(liftnet_output).view(B, 21, 1)
         output = self.last_layer(liftnet_output).view(B, -1, 1, 1)
-        return output
+        return output, corruptions
 
     def preprocess(self, feats, batch_data_samples, mode):
         xy_coord = feats[..., :2]
@@ -281,9 +286,9 @@ class LiftHeadStandardOri(BaseModule):
             'nimble_info': nimble_info,
         }
 
-
-    def postprocess(self, output, norm_leftcam_xyz, norm_rightcam_xyz, left_R,
-                    right_R, lr_rot_matrix, lr_p, baseline_scale):
+    def postprocess(self, output, corruptions, norm_leftcam_xyz,
+                    norm_rightcam_xyz, left_R, right_R, lr_rot_matrix, lr_p,
+                    baseline_scale):
         B, K = norm_leftcam_xyz.shape[:2]
         baseline_scale = baseline_scale.view(B, 1, 1)
         lr_rot_matrix = lr_rot_matrix.view(B, 1, 3,
@@ -298,8 +303,7 @@ class LiftHeadStandardOri(BaseModule):
         leftcam_XYZ = torch.cat(
             (norm_leftcam_xyz[:, :, :2] * leftcam_Z, leftcam_Z),
             dim=2).view(B * K, 3, 1)
-        rightcam_Z = output[:, 21:21 * 2].reshape(
-            (B, 21, 1)) * baseline_scale
+        rightcam_Z = output[:, 21:21 * 2].reshape((B, 21, 1)) * baseline_scale
         rightcam_XYZ = torch.cat(
             (norm_rightcam_xyz[:, :, :2] * rightcam_Z, rightcam_Z),
             dim=2).view(B * K, 3, 1)
@@ -308,8 +312,7 @@ class LiftHeadStandardOri(BaseModule):
         rightcam_XYZ = (torch.bmm(lr_rot_matrix, rightcam_XYZ) +
                         lr_p).view(B, 21, 3)
         hand3d_pred = (
-            self.corruption_cam * leftcam_XYZ +
-            (1 - self.corruption_cam) * rightcam_XYZ)
+            corruptions * leftcam_XYZ + (1 - corruptions) * rightcam_XYZ)
         return hand3d_pred, leftcam_XYZ, rightcam_XYZ
 
     def predict(self,
@@ -318,10 +321,11 @@ class LiftHeadStandardOri(BaseModule):
                 test_cfg: ConfigType = {}) -> Predictions:
         with torch.no_grad():
             data = self.preprocess(feats, batch_data_samples, 'predict')
-        output = self.forward(data['feats'])
-        hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(output, data['norm_leftcam_xyz'],
-                                data['norm_rightcam_xyz'], data['left_R'], data['right_R'],
-                                data['lr_rot_matrix'], data['lr_p'], data['baseline_scale'])
+        output, corruptions = self.forward(data['feats'])
+        hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
+            output, corruptions, data['norm_leftcam_xyz'],
+            data['norm_rightcam_xyz'], data['left_R'], data['right_R'],
+            data['lr_rot_matrix'], data['lr_p'], data['baseline_scale'])
 
         if self.reproj:
             camera_model = batch_data_samples[0].meta['ori_camera']
@@ -340,31 +344,28 @@ class LiftHeadStandardOri(BaseModule):
         """Calculate losses from a batch of inputs and data samples."""
         with torch.no_grad():
             data = self.preprocess(feats, batch_data_samples, 'loss')
-        output = self.forward(data['feats'])
-        
-        hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(output, data['norm_leftcam_xyz'],
-                                data['norm_rightcam_xyz'], data['left_R'], data['right_R'],
-                                data['lr_rot_matrix'], data['lr_p'], data['baseline_scale'])
+        output, corruptions = self.forward(data['feats'])
+
+        hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
+            output, corruptions, data['norm_leftcam_xyz'],
+            data['norm_rightcam_xyz'], data['left_R'], data['right_R'],
+            data['lr_rot_matrix'], data['lr_p'], data['baseline_scale'])
         hand3d_gt = data['hand3d_gt']
-        major_gt = torch.cat((hand3d_gt[:, 1:10, :],
-                              hand3d_gt[:, 13, :].unsqueeze(1)),
-                             dim=1)
-        major_pred = torch.cat(
-            (hand3d_pred[:, 1:10, :], hand3d_pred[:, 13, :].unsqueeze(1)),
-            dim=1)
+
+        # corruption loss
+        corruptions = corruptions.squeeze(-1)
+        left_mpjpe = corruptions * torch.norm(hand3d_gt - leftcam_XYZ, dim=-1)
+        right_mpjpe = (1 - corruptions) * torch.norm(
+            hand3d_gt - rightcam_XYZ, dim=-1)
 
         # pinch distance, no norm
         dist_pred = torch.norm(
             hand3d_pred[:, 4, :] - hand3d_pred[:, 8, :], dim=-1)
-        dist_gt = torch.norm(
-            hand3d_gt[:, 4, :] - hand3d_gt[:, 8, :], dim=-1)
+        dist_gt = torch.norm(hand3d_gt[:, 4, :] - hand3d_gt[:, 8, :], dim=-1)
         pred_for_loss = [
-            hand3d_pred, leftcam_XYZ, rightcam_XYZ,
-            dist_pred
+            hand3d_pred, leftcam_XYZ, rightcam_XYZ, dist_pred, left_mpjpe
         ]
-        targ_for_loss = [
-            hand3d_gt, hand3d_gt, hand3d_gt, dist_gt
-        ]
+        targ_for_loss = [hand3d_gt, hand3d_gt, hand3d_gt, dist_gt, right_mpjpe]
 
         # filter abnormal GT
         self.filter_invalid_gt(
@@ -373,20 +374,15 @@ class LiftHeadStandardOri(BaseModule):
             targ_for_loss)
 
         losses = self.lift_loss(pred_for_loss, targ_for_loss)
-        (loss_mse_3d, loss_mse_3d_leftcam, loss_mse_3d_rightcam, loss_pinch) = losses
-        if self.lambda_t > 0:
-            mh = MessageHub.get_current_instance()
-            cur_epoch = mh.get_info('epoch')
-            if cur_epoch <= self.lambda_t:
-                loss_mse_2d_leftcam *= 0
-                loss_mse_2d_rightcam *= 0
+        (loss_mse_3d, loss_mse_3d_leftcam, loss_mse_3d_rightcam, loss_pinch,
+         loss_corruption) = losses
         losses_dict = dict(
             loss_mse_3d=loss_mse_3d,
             loss_mse_3d_leftcam=loss_mse_3d_leftcam,
             loss_mse_3d_rightcam=loss_mse_3d_rightcam,
-            loss_pinch=loss_pinch)
+            loss_pinch=loss_pinch,
+            loss_corruption=loss_corruption)
         return losses_dict
-
 
     def filter_invalid_gt(self, gt_kpt, pred_kpt, pred_for_loss,
                           targ_for_loss):

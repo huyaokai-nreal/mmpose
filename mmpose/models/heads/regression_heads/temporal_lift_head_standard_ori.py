@@ -43,13 +43,10 @@ class TemporalLiftHeadStandardOri(LiftHeadStandardOri):
             reproj_thre=reproj_thre,
             iou_thre=iou_thre,
             pad_2d=pad_2d)
-        self.score_dim=score_dim
+        self.score_dim = score_dim
         self.enhance_static = enhance_static
         self.static_data_date_list = ['20240516', '20240517', '20240522']
         self.seq_len = seq_len
-        self.last_layer = nn.Sequential(
-            nn.Conv2d(self.feat_dim * 2, self.feat_dim, kernel_size=1),
-            nn.ReLU(), nn.Conv2d(self.feat_dim, output_num, kernel_size=1))
         self.temporal = nn.Sequential(
             nn.Conv2d(
                 2 * self.channel_num * 2, 2 * self.channel_num, kernel_size=1),
@@ -74,15 +71,19 @@ class TemporalLiftHeadStandardOri(LiftHeadStandardOri):
             mems = torch.zeros(B, 2 * self.channel_num, 1, 1).cuda()
         feats = feats.view(B, seq_len, -1)
         outputs = torch.zeros((B, seq_len, 42, 1, 1)).cuda()
+        corruptions = torch.zeros((B, seq_len, 21, 1, 1)).cuda()
         for i in range(seq_len):
             feat = feats[:, i:i + 1, :].reshape(B, -1, 1, 1)
             feat_mix = torch.cat([feat, mems], dim=1)
             mems = self.temporal(feat_mix)
             output = self.last_layer(feat_mix)
+            corruption = self.corruption_layer(feat_mix)
             outputs[:, i, ...] = output
+            corruptions[:, i, ...] = corruption
         outputs = outputs.reshape(B * seq_len, -1, 1, 1)
+        corruptions = corruptions.reshape(B * seq_len, 21, 1)
         score = torch.ones(B, self.score_dim)
-        return outputs, mems, score
+        return outputs, mems, score, corruptions
 
     def _forward(self, feats, mems):
         feats = self.liftnet(feats)
@@ -93,8 +94,10 @@ class TemporalLiftHeadStandardOri(LiftHeadStandardOri):
         feat_mix = torch.cat([feats, mems], dim=1)
         mems = self.temporal(feat_mix)
         output = self.last_layer(feat_mix)
+        corruption = self.corruption_layer(feat_mix)
+        corruption = corruption.reshape(B, -1, 1, 1)
         output = output.reshape(B, -1, 1, 1) / self.baseline
-        return output, mems
+        return output, mems, corruption
 
     def predict(self,
                 feats: Tuple[Tensor],
@@ -103,10 +106,17 @@ class TemporalLiftHeadStandardOri(LiftHeadStandardOri):
                 test_cfg: ConfigType = {}) -> Predictions:
         with torch.no_grad():
             data = self.preprocess(feats, batch_data_samples, 'predict')
-        output, mems, score = self.forward(data['feats'], mems, 1)
-        hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(output, data['norm_leftcam_xyz'],
-                                data['norm_rightcam_xyz'], data['left_R'], data['right_R'],
-                                data['lr_rot_matrix'], data['lr_p'], data['baseline_scale'])
+        output, mems, score, corruptions = self.forward(data['feats'], mems, 1)
+        hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
+            output, corruptions, data['norm_leftcam_xyz'],
+            data['norm_rightcam_xyz'], data['left_R'], data['right_R'],
+            data['lr_rot_matrix'], data['lr_p'], data['baseline_scale'])
+        hand3d_gt = data['hand3d_gt']
+        left_mpjpe = torch.norm(hand3d_gt - leftcam_XYZ, dim=-1)
+        right_mpjpe = torch.norm(hand3d_gt - rightcam_XYZ, dim=-1)
+        score = self.evaluate_weight_mpjpe_relation(
+            left_mpjpe, right_mpjpe, corruptions.mean(-1),
+            (1 - corruptions).mean(-1)).mean(-1)
         if self.reproj:
             camera_model = batch_data_samples[0].meta['ori_camera']
             leftcam_uv_reproj_distort = camera_model.eye_to_window(
@@ -121,7 +131,7 @@ class TemporalLiftHeadStandardOri(LiftHeadStandardOri):
             return (hand3d_pred, data['uv_coord_im_pred_global_distort'], mems,
                     score) if self.score_dim else (
                         hand3d_pred, data['uv_coord_im_pred_global_distort'],
-                        mems)
+                        mems, score)
 
     def loss(self,
              feats: Tuple[Tensor],
@@ -130,45 +140,51 @@ class TemporalLiftHeadStandardOri(LiftHeadStandardOri):
         """Calculate losses from a batch of inputs and data samples."""
         with torch.no_grad():
             data = self.preprocess(feats, batch_data_samples, 'loss')
-        output, _, score = self.forward(data['feats'], None,
+        output, _, _, corruptions = self.forward(data['feats'], None,
                                                  self.seq_len)
-        hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(output, data['norm_leftcam_xyz'],
-                                data['norm_rightcam_xyz'], data['left_R'], data['right_R'],
-                                data['lr_rot_matrix'], data['lr_p'], data['baseline_scale'])
+        hand3d_pred, leftcam_XYZ, rightcam_XYZ = self.postprocess(
+            output, corruptions, data['norm_leftcam_xyz'],
+            data['norm_rightcam_xyz'], data['left_R'], data['right_R'],
+            data['lr_rot_matrix'], data['lr_p'], data['baseline_scale'])
         hand3d_gt = data['hand3d_gt']
         # pinch distance, no norm
         dist_pred = torch.norm(
             hand3d_pred[:, 4, :] - hand3d_pred[:, 8, :], dim=-1)
-        dist_gt = torch.norm(
-            hand3d_gt[:, 4, :] - hand3d_gt[:, 8, :], dim=-1)
+        dist_gt = torch.norm(hand3d_gt[:, 4, :] - hand3d_gt[:, 8, :], dim=-1)
 
+        # corruption loss1
+        corruptions = corruptions.squeeze(-1)
+        left_mpjpe = corruptions * torch.norm(hand3d_gt - leftcam_XYZ, dim=-1)
+        right_mpjpe = (1 - corruptions) * torch.norm(
+            hand3d_gt - rightcam_XYZ, dim=-1)
         if self.enhance_static:
             static_weight = 25
             static_mask = self.generate_static_mask(batch_data_samples)
-            _hand3d_pred = self.enhanced_fun(
-                hand3d_pred, static_mask, static_weight)
-            _hand3d_gt = self.enhanced_fun(
-                hand3d_gt, static_mask, static_weight)
+            _hand3d_pred = self.enhanced_fun(hand3d_pred, static_mask,
+                                             static_weight)
+            _hand3d_gt = self.enhanced_fun(hand3d_gt, static_mask,
+                                           static_weight)
         else:
             _hand3d_gt = hand3d_gt
             _hand3d_pred = hand3d_pred
         pred_for_loss = [
-            hand3d_pred, leftcam_XYZ, rightcam_XYZ,
-            dist_pred, _hand3d_pred
+            hand3d_pred, leftcam_XYZ, rightcam_XYZ, dist_pred, _hand3d_pred,
+            left_mpjpe
         ]
         targ_for_loss = [
-            hand3d_gt, hand3d_gt, hand3d_gt, dist_gt, _hand3d_gt
+            hand3d_gt, hand3d_gt, hand3d_gt, dist_gt, _hand3d_gt, right_mpjpe
         ]
 
         losses = self.lift_loss(pred_for_loss, targ_for_loss)
         (loss_mse_3d, loss_mse_3d_leftcam, loss_mse_3d_rightcam, loss_pinch,
-         loss_smooth) = losses
+         loss_smooth, loss_corruption) = losses
         losses_dict = dict(
             loss_mse_3d=loss_mse_3d,
             loss_mse_3d_leftcam=loss_mse_3d_leftcam,
             loss_mse_3d_rightcam=loss_mse_3d_rightcam,
             loss_pinch=loss_pinch,
-            loss_smooth=loss_smooth)
+            loss_smooth=loss_smooth,
+            loss_corruption=loss_corruption)
         return losses_dict
 
     def generate_static_mask(self, batch_data_samples):
@@ -187,3 +203,16 @@ class TemporalLiftHeadStandardOri(LiftHeadStandardOri):
         enhanced_kpt = kpt.clone()
         enhanced_kpt[mask] = enhanced_kpt[mask] * weight
         return enhanced_kpt
+
+    @staticmethod
+    def evaluate_weight_mpjpe_relation(mpjpe_left, mpjpe_right, weight_left,
+                                       weight_right):
+        mpjpe_ratio = mpjpe_left / mpjpe_right
+        weight_ratio = weight_left / weight_right
+
+        # score = mpjpe_ratio * weight_ratio
+
+        log_mpjpe_ratio = torch.log(mpjpe_ratio + 1e-8)
+        log_weight_ratio = torch.log(weight_ratio + 1e-8)
+        score = log_mpjpe_ratio + log_weight_ratio
+        return score
