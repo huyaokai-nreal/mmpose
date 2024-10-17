@@ -139,6 +139,11 @@ model = dict(
                     loss_weight=1.5,
                 ),
                 dict(
+                    type='MPJPAELoss',
+                    seq_length=seq_length,
+                    loss_weight=0.5,
+                ),
+                dict(
                     type='RLELoss',
                     dim=3,
                     enable_start_epoch=train_cfg['max_epochs'] // 2)
@@ -167,7 +172,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/stliu/mmpose/work_dirs/new_dataset/liftnimble_flip_res26sw_simple_1008/epoch_150.pth'
+        '/data/stliu/mmpose/work_dirs/new_dataset/liftnimble_flip_res26sw_simple_1014/epoch_150.pth'
     ),
 )
 
@@ -179,7 +184,7 @@ train_data_list = []
 train_date_list = [
     '20230824', '20230828', '20230906', '20230907', '20240220', '20240229',
     '20240401', '20231227', '20240517', '20240425', '20240522', '20240801',
-    '20240816', '20240826', '20240820', '20240903'
+    '20240816', '20240826', '20240820', '20240903', '20240907', '20240926'
 ]
 train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
 for data_date in train_date_list:

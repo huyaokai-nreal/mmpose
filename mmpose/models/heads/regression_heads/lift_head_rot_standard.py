@@ -96,6 +96,7 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             d_output=5,
             with_att=False)
         self.rigid_samples = _gen_rigid_features()
+        self.reverse_pinch_date_list = ['20240220', '20240229', '20240926']
 
         # define the full connection layer
         if reg_shape_type == 0:
@@ -521,9 +522,22 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
         pinch_mask = (dist_pred > dist_gt) & (dist_gt < 0.02)
         mh = MessageHub.get_current_instance()
         cur_epoch = mh.get_info('epoch')
-        if cur_epoch > 80:
-            pinch_loss_add = self.pinch_loss_func(dist_pred[pinch_mask],
-                                                  dist_gt[pinch_mask]) * 1.5
+
+        reverse_mask = self.generate_mask(batch_data_samples,
+                                          self.reverse_pinch_date_list).to(
+                                              pinch_mask.cuda())
+        reverse_mask = torch.concat([reverse_mask, reverse_mask])
+        pinch_reverse_mask = pinch_mask & reverse_mask
+
+        if cur_epoch > 80 and sum(pinch_mask) > 0:
+            valid_num = len(dist_gt[pinch_mask])
+            softmax_weight = F.softmax(-dist_gt[pinch_mask], dim=0) * valid_num
+            margin_value = torch.ones_like(dist_gt) * 0.003
+            margin_value[pinch_reverse_mask] = 0.005
+            pinch_loss_add = self.pinch_loss_func(
+                dist_pred[pinch_mask] * softmax_weight,
+                (dist_gt[pinch_mask] - margin_value[pinch_mask]) *
+                softmax_weight) * 3
         else:
             pinch_loss_add = torch.tensor(0.0, device=loss_pre_root.device)
 
@@ -545,3 +559,15 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             torch.sum(vector**2, dim=1, keepdim=True) + 1e-8)
         normalized_vector = vector / vector_norms
         return normalized_vector
+
+    def generate_mask(self, batch_data_samples, date_list):
+        mask = []
+        for batch_sample in batch_data_samples[::2]:
+            data_info = batch_sample.img_path.split('/')[-1].split(
+                '__')[1].split('_')[0]
+            if data_info in date_list:
+                mask.append(True)
+            else:
+                mask.append(False)
+        mask = torch.tensor(mask)
+        return mask

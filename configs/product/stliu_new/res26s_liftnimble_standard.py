@@ -159,7 +159,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/AI_DATA/data_hand/model/mmpose/td-hand_rtmtinyv2_26sw_nimble25d_scale_pcl_ipr_right_2d3d_handmix_dark_small_drop_aug_aio_240903data_8x128-100e-128x128/epoch_100.pth'  # 20240415 2D model
+        '/data/AI_DATA_WX/share/zuoxin/mmpose/work_dirs/td-hand_rtmtinyv3_26sw_nimble25d_scale_pcl_ipr_right_2d3d_hand_mix_dark_small_drop_aug_aio_240926data_8x128-100e-128x128/epoch_100.pth'  # 20240415 2D model
     ),
 )
 
@@ -171,7 +171,7 @@ train_data_list = []
 train_date_list = [
     '20230824', '20230828', '20230906', '20230907', '20240220', '20240229',
     '20240401', '20231227', '20240517', '20240425', '20240522', '20240801',
-    '20240816', '20240826', '20240820', '20240903'
+    '20240816', '20240826', '20240820', '20240903', '20240907', '20240926'
 ]
 train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
 for data_date in train_date_list:
