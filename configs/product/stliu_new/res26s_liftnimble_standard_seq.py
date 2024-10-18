@@ -158,6 +158,7 @@ model = dict(
         baseline=0.135,
         use_6d_pose_reg=False,
         use_9d_pose_reg=True,
+        direct_pose_reg=False,
         use_shape_smooth=True,
         data_flip_aug=True,
         reproj_thre=440,
@@ -184,7 +185,8 @@ train_data_list = []
 train_date_list = [
     '20230824', '20230828', '20230906', '20230907', '20240220', '20240229',
     '20240401', '20231227', '20240517', '20240425', '20240522', '20240801',
-    '20240816', '20240826', '20240820', '20240903', '20240907', '20240926'
+    '20240816', '20240826', '20240820', '20240903', '20240907', '20240926',
+    '20240914', '20240923', '20240930'
 ]
 train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
 for data_date in train_date_list:
