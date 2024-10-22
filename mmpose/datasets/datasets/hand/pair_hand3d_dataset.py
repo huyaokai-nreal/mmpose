@@ -14,7 +14,6 @@ from nreal_data_tool.schema.instance import (BinocularCameraInstance,
                                              CameraInstance)
 
 from nreal_data_tool.utils.camera import (build_from_BinocularCameraInstance,
-                                          build_ume_CameraInstance,
                                           get_virtual_camera_transform)
 from xtcocotools.coco import COCO
 
@@ -181,7 +180,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             meta['left_R'] = left_R
             meta['right_R'] = right_R
             meta['virtual_baseline'] = virtual_baseline
-
+        
         data_info = {
             'left_img_id': left_img_id,
             'right_img_id': right_img_id,
