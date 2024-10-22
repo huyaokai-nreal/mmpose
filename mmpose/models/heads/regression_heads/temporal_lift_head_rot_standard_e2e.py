@@ -34,7 +34,6 @@ class TemporalLiftNimbleHeadStandardE2e(LiftNimbleHeadStandard):
                  reproj_thre=0,
                  iou_thre=0,
                  pad_2d=0,
-                 e2e=False,
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
                  use_bone_loss: bool = True,
@@ -554,7 +553,7 @@ class TemporalLiftNimbleHeadStandardE2e(LiftNimbleHeadStandard):
         reverse_mask = torch.concat([reverse_mask, reverse_mask])
         pinch_reverse_mask = pinch_mask & reverse_mask
 
-        if cur_epoch > 30 and sum(pinch_mask) > 0:
+        if cur_epoch > 0 and sum(pinch_mask) > 0:
             valid_num = len(dist_gt[pinch_mask])
             softmax_weight = F.softmax(-dist_gt[pinch_mask], dim=0) * valid_num
             margin_value = torch.ones_like(dist_gt) * 0.003
