@@ -502,7 +502,7 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
                                                                       2:]),
                 axis=-1)
             ori_cam = data_sample.meta['ori_camera']
-            hand2d_gt = ori_cam.eye_to_window(data_sample.gt_instances.keypoints3d)
+            hand2d_gt = ori_cam.eye_to_window(data_sample.gt_instances.keypoints3d[0])
             
             # if 'virtual_camera' in data_sample.meta:
             #     ori_cam = data_sample.meta['ori_camera']

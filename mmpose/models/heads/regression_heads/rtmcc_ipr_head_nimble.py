@@ -479,9 +479,6 @@ class RTMCCIPRHeadNimble(RTMCCHead):
             return xyz_point
 
         if only_pre:
-            pre_nimble_pre_root_pre_shape__xyz = get_nimble_3d(
-                pre_root_xyz, pre_root_matrix, pre_local_matrix,
-                shape_vector, left_R, f_scale, True)
             
             hand3d_wo_root = get_nimble_3d(pre_root_zeros, pre_root_matrix,
                                             pre_local_matrix, shape_vector, left_R_zeros, f_scale, True)
@@ -700,9 +697,9 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         weight_ini = weight_ini.repeat(hand3d_gt.shape[0], 1,
                                        1).to(hand3d_gt.device)
         weight_for_loss = [
-            weight_ini,
-            weight_ini,
-            weight_ini,
+            weight_ini_part,
+            weight_ini_part,
+            weight_ini_ori,
             None,
             None,
             None,
