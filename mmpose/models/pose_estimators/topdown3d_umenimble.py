@@ -295,7 +295,6 @@ class TopdownPoseUmeNimbleEstimatorSeq(TopdownPoseUmeNimbleEstimator):
             f'batch size {inputs.shape[0]//2} can be divided by {self.seq_len}'
         clip_len = self.seq_len * 2
         clip_num = inputs.shape[0] // clip_len
-        # import ipdb;ipdb.set_trace()
         mem = None
         feats = feats.reshape((clip_num, clip_len) + feats.shape[1:])
         for b in range(self.seq_len):

@@ -7,7 +7,7 @@ from mmpose.configs._base_.datasets.xs3d_nimble import \
 
 # from configs._base_.datasets.xs3d import datasets_info as kpt3d_datasets_info
 
-train_cfg = dict(max_epochs=30, val_interval=5)
+train_cfg = dict(max_epochs=20, val_interval=5)
 
 # data_root = '/data/AI_DATA'
 data_root = '/data/AI_DATA_WX'
@@ -123,7 +123,7 @@ model = dict(
                     type='PinchLoss',
                     enter_thre=pinch_thre[0] / 1000,
                     exit_thre=pinch_thre[1] / 1000,
-                    loss_weight=5),
+                    loss_weight=10),
                 dict(type='L1Loss', loss_weight=5),  # nimble trans直接监督
                 dict(
                     type='MPJPAELoss',
@@ -194,7 +194,7 @@ overlap_train_data_list = [
 
 # train_data_list = [
 #     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_060805__all__normal__left__1111__0006__undistort_tar__Flora301.json',
-#     # ]
+# ]
 
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 overlap_dataset_weight_list = [1.0 / len(overlap_train_data_list)
@@ -274,9 +274,22 @@ train_pipeline = [
         type='GroupTransformers',
         trans_cfg_list=[
             dict(type='TopdownPCL', input_size=codec['input_size']),
+            dict(type='RandomDownSampleImage', min_ratio=0.5, prob=0.2),
+            dict(type='MixTwoHands', prob=0.1),
+            dict(
+                type='Albumentation',
+                transforms=[
+                    dict(
+                        type='CoarseDropout',
+                        p=0.2,
+                        max_holes=2,
+                        max_height=16,
+                        max_width=16,
+                    ),
+                ]),
             dict(
                 type='GenerateNoiseDarkImage',
-                prob=0.2,
+                prob=0.65,
                 gamma_limit=(0.85, 0.95),
                 alpha_limit=(0.2, 0.5),
                 concat_image=False),
@@ -304,6 +317,7 @@ val_pipeline = [
 train_dataloader = dict(
     batch_size=32,
     num_workers=4,
+    persistent_workers=True,
     sampler=dict(
         type='MultiSourceSampler', source_ratio=[0.5, 0.5], batch_size=128),
     collate_fn=dict(type='default_collate'),
@@ -329,7 +343,7 @@ train_dataloader = dict(
                 dataset_weight_list=overlap_dataset_weight_list,
                 data_root=data_root,
                 seq_len=seq_length,
-                data_ratio=2. / 5,
+                data_ratio=1. / 5,
                 serialize_data=True),
         ]),
 )

@@ -48,7 +48,6 @@ class SimpleConvRNN(nn.Module):
                                   prev_extrinsics):
         if prev_extrinsics is not None:
             prev_cam0_to_world_xf = torch.inverse(prev_extrinsics)
-            # import ipdb;ipdb.set_trace()
             prev_cam0_to_cur_cam0_xf = (cur_extrinsics @ prev_cam0_to_world_xf)
             prev_mem_features = apply_ftl_to_feature_maps(
                 prev_cam0_to_cur_cam0_xf,
@@ -60,7 +59,6 @@ class SimpleConvRNN(nn.Module):
         return prev_mem_features
 
     def forward_one_step(self, mem_features, cur_fused_features):
-        # import ipdb;ipdb.set_trace()
         temporal_out = torch.cat((mem_features, cur_fused_features), dim=1)
         temporal_out = self._temporal_module(temporal_out)
 
@@ -203,7 +201,6 @@ class UmeHeadSeq(UmeHead):
             # record the previous frame information and results
             mem = mem_features
             prev_extrinsics = _cam_xf[:, 0]
-            # import ipdb;ipdb.set_trace()
             temporal_features = temporal_features.view(B, -1, 1, 1)
             if self.use_gmlp:
                 temporal_features = self.gmlp(temporal_features)

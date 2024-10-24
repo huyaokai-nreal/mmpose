@@ -390,24 +390,11 @@ class TemporalLiftNimbleHeadStandardE2e(LiftNimbleHeadStandard):
         all_sigmas = all_sigmas[valid_mask]
         hand3d_gt = data['hand3d_gt'][valid_mask]
 
-        # from nreal_data_tool import LmdbClient
-        # lmdb_client = LmdbClient()
-        # img = lmdb_client.get(batch_data_samples[0].img_path)
-        # camera_model = batch_data_samples[0].meta['ori_camera']
-        # leftcam_uv_reproj_distort = camera_model.eye_to_window(
-        #     hand3d_pred.detach().cpu().numpy())
-        # coordinates = leftcam_uv_reproj_distort.astype(int)
-        # for point in coordinates[0]:
-        #     cv2.circle(img, tuple(point), 2, (255, 0, 0), -1)
-        # cv2.imwrite('./zz.png', img)
-        # import ipdb;ipdb.set_trace()
         # 直接监督rot和trans, 只考虑根节点的处理方式
         pre_nimble_trans = pre_trans_xyz
         gt_nimble_trans = data['nimble_info']['nimble_trans'][valid_mask]
 
         # oricam norm 2d loss
-        # norm_left_pred = data['ori_left_xyz'][...,:2]
-        # norm_right_pred = data['ori_right_xyz'][...,:2]
         # oricam norm reproj 2d loss
         norm_left_pred, norm_right_pred = self.reproj_norm_2d(
             hand3d_pred, data['lr_rot_matrix'].clone(), data['lr_p'].clone())

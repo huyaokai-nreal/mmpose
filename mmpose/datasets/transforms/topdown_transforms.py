@@ -505,7 +505,6 @@ class TopdownPCL(BaseTransform):
             results['meta']['root_depth'] = root_depth
         results['warp_mat'] = np.array([[1, 0, 0], [0, 1, 0]],
                                        dtype=np.float32)
-        # import ipdb;ipdb.set_trace()
         return results
 
 
@@ -544,9 +543,6 @@ class UmePCL(BaseTransform):
                 focal_multiplier=scale)
         image = results['img']
         crop_img = warp_image(ori_camera, virtual_camera, w, h, image)
-        # cv2.imwrite('/home/ykhu/workspace/mmpose/zz.png', image)
-        # cv2.imwrite('/home/ykhu/workspace/mmpose/zz1.png', crop_img)
-        # import ipdb;ipdb.set_trace()
         results['img'] = crop_img
         results['meta']['virtual_camera'] = virtual_camera
         kpt3d_in_virutal = virtual_camera.world_to_eye(world_points)
