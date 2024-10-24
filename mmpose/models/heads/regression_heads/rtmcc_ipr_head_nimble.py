@@ -573,7 +573,7 @@ class RTMCCIPRHeadNimble(RTMCCHead):
             hand2d_gt.append(keypoint_2d_lable)
             intrix_matrix.append(intrix_m)
 
-            if data.meta['nimble_pose'].shape == ():
+            if 'nimble_pose' not in data.meta or data.meta['nimble_pose'].shape == ():
                 nimble_lable_exist.append(False)
                 nimble_pose.append(np.zeros((20,3)))
                 nimble_trans.append(np.zeros(3))

@@ -6,7 +6,7 @@ _base_ = ['../../../_base_/default_runtime.py']
 from mmpose.configs._base_.datasets.xs3d_nimble import \
     datasets_info as kpt3d_datasets_info
 from mmpose.configs._base_.datasets.xs3d_ume import datasets_info as kpt3d_ume
-from mmpose.configs._base_.datasets.hot3d import get_quest3_anno_paths
+from mmpose.configs._base_.datasets.hot3d import get_quest3_anno_paths, get_aria_anno_paths
 
 # runtime
 train_cfg = dict(max_epochs=100, val_interval=5)
@@ -239,6 +239,8 @@ for hand in ['left', 'right']:
 ume_data_list = [os.path.join(data_root, item) for item in ume_data_list]
 pub_train_data_list += ume_data_list
 
+pub_aria_data_list, _ = get_aria_anno_paths(data_root)
+
 val_data_list = []
 val_date_list = ['20230830']
 val_glasses_list = ['Flora301']
@@ -262,7 +264,7 @@ train_dataloader = dict(
     persistent_workers=True,
     sampler=dict(
         type='MultiSourceSampler',
-        source_ratio=[0.3, 0.7],
+        source_ratio=[0.3, 0.6, 0.1],
         batch_size=128),
     collate_fn=dict(type='default_collate'),
 dataset=dict(
@@ -272,7 +274,7 @@ dataset=dict(
             dict(
                 type=dataset_type,
                 sample_interval=10,
-                data_ratio=1 / 3.0,
+                data_ratio=1 / 30.0,
                 data_file_list=pub_train_data_list,
                 data_mode=data_mode,
                 pipeline=train_pipeline,
@@ -285,9 +287,9 @@ dataset=dict(
                 epochs_per_round=5),
             dict(
                 type=dataset_type,
-                # sample_interval=2,
+                sample_interval=3,
                 # serialize_data=True,
-                # data_ratio=1 / 10.0,
+                data_ratio=1 / 10.0,
                 data_file_list=train_data_list,
                 data_mode=data_mode,
                 pipeline=train_pipeline,
@@ -296,7 +298,19 @@ dataset=dict(
                 flip_left_to_right=False,
                 filter_kpt_exceed=True,
                 point_type='2.5D',
-            )
+            ),
+            dict(
+                type="Hand3DDataset",
+                sample_interval=10,
+                data_ratio=1 / 10.0,
+                data_file_list=pub_aria_data_list,
+                data_mode=data_mode,
+                pipeline=train_pipeline,
+                dataset_weight_list=None,
+                data_root=data_root,
+                flip_left_to_right=False,
+                filter_kpt_exceed=True,
+                point_type='2.5D',),
         ]),
 )
 
