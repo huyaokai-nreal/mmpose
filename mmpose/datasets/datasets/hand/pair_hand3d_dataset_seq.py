@@ -8,7 +8,7 @@ import numpy as np
 from mmengine.dataset.base_dataset import force_full_init
 from mmengine.dataset.utils import default_collate
 from mmengine.logging import MessageHub, MMLogger
-from nreal_data_tool import LmdbClient
+from nreal_data_tool import LmdbClient, TarClient
 from nreal_data_tool.schema.instance import BinocularCameraInstance
 from nreal_data_tool.utils.camera import (build_from_BinocularCameraInstance,
                                           get_virtual_camera_transform)
@@ -17,7 +17,6 @@ from xtcocotools.coco import COCO
 from mmpose.datasets.builder import DATASETS
 from ..base import BaseCocoStyleDataset
 from .pair_hand3d_dataset import PairHand3DDataset
-import random
 
 
 @DATASETS.register_module()
@@ -48,13 +47,14 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
                  filter_kpt_exceed=False,
                  sample_interval=1.0,
                  seq_len=4,
+                 choice_one=False,
                  round_num=-1,
-                 epochs_per_round=-1,
-                 choice_one=False):
+                 epochs_per_round=-1):
         self.flip_left_to_right = flip_left_to_right
         self.data_ratio = data_ratio
         self.data_file_list = data_file_list
         self.lmdb_client = LmdbClient()
+        self.tar_client = TarClient()
         self.dataset_info_list = list()
         self.point_type = point_type
         self.dataset_weight_list = dataset_weight_list
@@ -261,18 +261,25 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
 
         return instance_list, image_list
 
+    def get_image(self, image_path):
+        if '_lmdb' in image_path:
+            return self.lmdb_client.get(image_path)
+        elif '.tar' in image_path:
+            return self.tar_client.get(image_path)
+        else:
+            raise NotImplementedError
+
     def get_data_info(self, idx):
         idx = idx % self.data_num
         data_info = super().get_data_info(idx)
-        if data_info['meta']['camera_angle']:
-            image = self.lmdb_client.get(data_info['left_img_path'])
+        if 'ume' in data_info['left_img_path']:
+            image = self.get_image(data_info['left_img_path'])
             image_list = np.split(image, 4, axis=1)
             data_info['left_img'] = image_list[1]
             data_info['right_img'] = image_list[2]
         else:
-            data_info['left_img'] = self.lmdb_client.get(
-                data_info['left_img_path'])
-            data_info['right_img'] = self.lmdb_client.get(
+            data_info['left_img'] = self.get_image(data_info['left_img_path'])
+            data_info['right_img'] = self.get_image(
                 data_info['right_img_path'])
         data_info['meta']['frame_height'] = data_info['left_img'].shape[0]
         data_info['meta']['frame_width'] = data_info['left_img'].shape[1]
@@ -382,18 +389,31 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         seq_list = []
         while (len(seq_list) == 0):
             seq_idx = np.random.choice(range(len(self.dataset_info_list)))
+            # 数据分批，并根据当前epoch随机从一个批次中抽一份数据
+            if self.round_num > 0:
+                num_per_round = len(self.dataset_info_list) // self.round_num
+                mh = MessageHub.get_current_instance()
+                cur_epoch = mh.get_info('epoch')
+                round_id = cur_epoch // self.epochs_per_round % self.round_num
+                seq_idx = random.randint(
+                    round_id * num_per_round,
+                    min(
+                        len(self.dataset_info_list) - 1,
+                        (round_id + 1) * num_per_round - 1))
             seq_list = self.dataset_info_list[seq_idx]
         seq_list_cur_idx = np.random.choice(range(len(seq_list)))
 
         if self.test_mode:
             seq_list_cur_idx = idx
         idx_list = []
-        for i in range(self.seq_len):
-            tmp = max(seq_list_cur_idx - i, 0)
-            idx_list.append(tmp)
-        # for i in range(0, 2 * self.seq_len, 2): # 隔帧取数据
-        #     tmp = max(seq_list_cur_idx - i, 0)
-        #     idx_list.append(tmp)
+        if "hot3d" in self.data_file_list[seq_idx]:
+            for i in range(self.seq_len):
+                tmp = max(seq_list_cur_idx - 2*i, 0)
+                idx_list.append(tmp)
+        else:
+            for i in range(self.seq_len):
+                tmp = max(seq_list_cur_idx - i, 0)
+                idx_list.append(tmp)
         idx_list.reverse()
 
         final_list = []

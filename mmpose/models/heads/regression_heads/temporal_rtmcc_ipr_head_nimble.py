@@ -83,6 +83,7 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
             nn.ReLU(),
             nn.Conv2d(self.nimble_hidden_num, self.input_dim, kernel_size=1))
         self.static_data_date_list = ['20240516', '20240517', '20240522']
+        self.reverse_pinch_date_list = ['20240220', '20240229', '20240926']
         self.enhance_static = enhance_static
 
     def forward(self, 
@@ -215,6 +216,7 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
         f_scale = []
         external_matrix = []
         nimble_info = dict()
+        nimble_lable_exist = []
         
         for i, data in enumerate(batch_data_samples):
             keypoint_label = data.gt_instance_labels.keypoint_labels
@@ -243,9 +245,16 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
             hand2d_gt.append(keypoint_2d_lable)
             intrix_matrix.append(intrix_m)
             
-            nimble_pose.append(data.meta['nimble_pose'])
-            nimble_trans.append(data.meta['nimble_translation'])
-            nimble_shape.append(data.meta['nimble_shape'])
+            if 'nimble_pose' not in data.meta or data.meta['nimble_pose'].shape == ():
+                nimble_lable_exist.append(False)
+                nimble_pose.append(np.zeros((20,3)))
+                nimble_trans.append(np.zeros(3))
+                nimble_shape.append(np.zeros(20))
+            else:
+                nimble_lable_exist.append(True)
+                nimble_pose.append(data.meta['nimble_pose'])
+                nimble_trans.append(data.meta['nimble_translation'])
+                nimble_shape.append(data.meta['nimble_shape'])
             
             virtual_cam = data.meta['virtual_camera']
             left_R.append(np.linalg.inv(virtual_cam.camera_to_world_xf[:3,:3]))
@@ -269,13 +278,15 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
         
         nimble_trans = torch.tensor(np.array(nimble_trans)).cuda().float()
         nimble_trans = torch.matmul(external_matrix, torch.concat((nimble_trans, torch.ones(nimble_trans.shape[0], 1).to(nimble_trans.device)),dim=1).unsqueeze(-1))[:,:3,0]
+        nimble_lable_exist = torch.tensor(nimble_lable_exist).cuda()
         
         nimble_info = {
             'nibmle_root_matrix': nibmle_root_matrix,
             'nimble_pose': nimble_pose,
             'nimble_trans': nimble_trans,
             'nimble_shape':
-            torch.tensor(np.array(nimble_shape)).cuda().float()
+            torch.tensor(np.array(nimble_shape)).cuda().float(),
+            'nimble_lable_exist':nimble_lable_exist
         }
         label_depth_id = torch.tensor(
             label_depth_id_list, dtype=torch.int32).cuda()
@@ -307,7 +318,7 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
 
         # 直接监督rot和trans, 只考虑根节点的处理方式
         pre_nimble_trans = pre_trans_xyz
-        gt_nimble_trans = gt_trans_xyz
+        gt_nimble_trans = hand3d_gt[:,0,:]
 
 
         # pinch 损失
@@ -321,7 +332,7 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
 
         if self.enhance_static:
             static_weight = 25
-            static_mask = self.generate_static_mask(batch_data_samples)
+            static_mask = self.generate_mask(batch_data_samples, self.static_data_date_list)
             enhanced_static_hand3d_pred = self.enhanced_fun(
                 hand3d_pred, static_mask, static_weight)
             enhanced_static_hand3d_gt = self.enhanced_fun(
@@ -337,7 +348,7 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
             enhanced_static_hand3d_pred
         ]
         targ_for_loss = [
-            hand3d_gt, hand3d_gt, hand3d_gt,
+            hand3d_gt[nimble_lable_exist], hand3d_gt[nimble_lable_exist], hand3d_gt,
             dist_gt, gt_nimble_trans, hand3d_gt, hand2d_gt_pcl,
             enhanced_static_hand3d_gt
         ]
@@ -345,12 +356,14 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
         weight_ini = torch.ones((1, 21, 3))
         weight_ini[0, :9, :] = 2
         weight_ini[0, 4, :], weight_ini[0, 8, :] = 4, 4
-        weight_ini = weight_ini.repeat(hand3d_gt.shape[0], 1,
+        weight_ini_ori = weight_ini.repeat(hand3d_gt.shape[0], 1,
                                        1).to(hand3d_gt.device)
+        weight_ini_part = weight_ini.repeat(pred_3d_way1.shape[0], 1,
+                                       1).to(pred_3d_way1.device)
         weight_for_loss = [
-            weight_ini,
-            weight_ini,
-            weight_ini,
+            weight_ini_part,
+            weight_ini_part,
+            weight_ini_ori,
             None,
             None,
             None,
@@ -399,15 +412,22 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
         major_bone_loss = torch.mean(torch.sum(
             local_squared_diff, dim=1)) * major_bone_loss_weight
 
-        pinch_mask = (dist_pred > dist_gt) & (dist_gt < 0.02)
+        pinch_mask = (dist_pred > dist_gt - 0.001) & (dist_gt < 0.03)
         mh = MessageHub.get_current_instance()
         cur_epoch = mh.get_info('epoch')
+        reverse_mask = self.generate_mask(batch_data_samples,
+                                          self.reverse_pinch_date_list).to(
+                                              pinch_mask.cuda())
+        pinch_reverse_mask = pinch_mask & reverse_mask
         if cur_epoch > 30 and sum(pinch_mask) > 0:
-            softmax_weight = F.softmax(
-                -dist_gt[pinch_mask], dim=0) * len(dist_gt[pinch_mask])
+            valid_num = len(dist_gt[pinch_mask])
+            softmax_weight = F.softmax(-dist_gt[pinch_mask], dim=0) * valid_num
+            margin_value = torch.ones_like(dist_gt) * 0.003
+            margin_value[pinch_reverse_mask] = 0.005
             pinch_loss_add = self.pinch_loss_func(
                 dist_pred[pinch_mask] * softmax_weight,
-                (dist_gt[pinch_mask] - 0.003) * softmax_weight) * 3
+                (dist_gt[pinch_mask] - margin_value[pinch_mask]) *
+                softmax_weight) * 3
         else:
             pinch_loss_add = torch.tensor(0.0, device=loss_pre_root.device)
 
@@ -464,18 +484,6 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
             torch.sum(vector**2, dim=1, keepdim=True) + 1e-8)
         normalized_vector = vector / vector_norms
         return normalized_vector
-    
-    def generate_static_mask(self, batch_data_samples):
-        mask = []
-        for batch_sample in batch_data_samples:
-            data_info = batch_sample.img_path.split('/')[-1].split(
-                '__')[1].split('_')[0]
-            if data_info in self.static_data_date_list:
-                mask.append(True)
-            else:
-                mask.append(False)
-        mask = torch.tensor(mask)
-        return mask
 
     def enhanced_fun(self, kpt, mask, weight):
         enhanced_kpt = kpt.clone()
