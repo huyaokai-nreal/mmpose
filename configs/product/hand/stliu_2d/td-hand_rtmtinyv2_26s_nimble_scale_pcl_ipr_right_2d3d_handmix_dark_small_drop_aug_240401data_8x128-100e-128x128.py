@@ -264,7 +264,7 @@ train_dataloader = dict(
     persistent_workers=True,
     sampler=dict(
         type='MultiSourceSampler',
-        source_ratio=[0.3, 0.6, 0.1],
+        source_ratio=[0.2, 0.7, 0.1],
         batch_size=128),
     collate_fn=dict(type='default_collate'),
 dataset=dict(
@@ -273,8 +273,8 @@ dataset=dict(
         datasets=[
             dict(
                 type=dataset_type,
-                sample_interval=10,
-                data_ratio=1 / 30.0,
+                sample_interval=5,    # sample interval会影响看到的图像数量
+                data_ratio=1 / 2.0,    # data ratio不会影响看到的图像数量
                 data_file_list=pub_train_data_list,
                 data_mode=data_mode,
                 pipeline=train_pipeline,
@@ -287,9 +287,9 @@ dataset=dict(
                 epochs_per_round=5),
             dict(
                 type=dataset_type,
-                sample_interval=3,
+                sample_interval=2,
                 # serialize_data=True,
-                data_ratio=1 / 10.0,
+                data_ratio=1 / 2.0,
                 data_file_list=train_data_list,
                 data_mode=data_mode,
                 pipeline=train_pipeline,
@@ -301,8 +301,8 @@ dataset=dict(
             ),
             dict(
                 type="Hand3DDataset",
-                sample_interval=10,
-                data_ratio=1 / 10.0,
+                sample_interval=5,
+                data_ratio=1 / 2.0,
                 data_file_list=pub_aria_data_list,
                 data_mode=data_mode,
                 pipeline=train_pipeline,
