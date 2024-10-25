@@ -247,7 +247,9 @@ class Hand3DDatasetSeq(BaseCocoStyleDataset):
                     self.cams_info[k] = CameraInstance.from_dict(v)
             keypoints3d_list = []
             ann_ids = coco.getAnnIds()
-            for ann_id in ann_ids[::self.sample_interval]:
+            used_ann_ids_num = int(len(ann_ids)*(1/self.sample_interval))
+            begin_num = random.randint(1, len(ann_ids)-used_ann_ids_num-1)
+            for ann_id in ann_ids[begin_num:begin_num+used_ann_ids_num]:
                 ann = coco.loadAnns(ann_id)[0]
                 img_id = int(ann['id'])//2
                 img = coco.loadImgs(img_id)[0]
