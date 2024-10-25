@@ -8,6 +8,7 @@ from .onehand10k_dataset import OneHand10KDataset
 from .pair_hand3d_dataset import PairHand3DDataset
 from .pair_hand3d_dataset_seq import PairHand3DDatasetSeq
 from .hand3d_dataset import Hand3DDataset
+from .hand3d_dataset_seq import Hand3DDatasetSeq
 from .panoptic_hand2d_dataset import PanopticHand2DDataset
 from .rhd2d_dataset import Rhd2DDataset
 
@@ -15,5 +16,5 @@ __all__ = [
     'OneHand10KDataset', 'FreiHandDataset', 'PanopticHand2DDataset',
     'Rhd2DDataset', 'CocoWholeBodyHandDataset', 'HANDDataset',
     'InterHand3DDataset', 'PairHand3DDataset', 'HandAttrDataset',
-    'PairHand3DDatasetSeq', 'Hand3DDataset'
+    'PairHand3DDatasetSeq', 'Hand3DDataset', 'Hand3DDatasetSeq'
 ]
