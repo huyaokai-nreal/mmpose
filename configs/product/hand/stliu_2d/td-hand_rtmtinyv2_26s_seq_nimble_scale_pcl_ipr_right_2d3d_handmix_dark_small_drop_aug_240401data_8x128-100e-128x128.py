@@ -3,11 +3,11 @@ import os
 
 _base_ = ['../../../_base_/default_runtime.py']
 
+from mmpose.configs._base_.datasets.hot3d import (get_aria_anno_paths,
+                                                  get_quest3_anno_paths)
 from mmpose.configs._base_.datasets.xs3d_nimble import \
     datasets_info as kpt3d_datasets_info
 from mmpose.configs._base_.datasets.xs3d_ume import datasets_info as kpt3d_ume
-from mmpose.configs._base_.datasets.hot3d import get_quest3_anno_paths, get_aria_anno_paths
-
 
 # runtime
 train_cfg = dict(max_epochs=60, val_interval=3)
@@ -125,7 +125,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/stliu/mmpose/work_dirs/new_datasets/RTMpose_nimble_47th/epoch_100.pth'
+        '/data/stliu/mmpose_simliar_wx10/work_dirs/new_dataset/RTMpose_nimble_51th/epoch_100.pth'
     ),
     camera_layout=camera_layout)
 
@@ -233,8 +233,6 @@ dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 #     '/data/AI_DATA/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble_fixed/XS__20240229_081341__pinch__normal__left__1110__0008__undistort_tar__Flora301.json'
 # ]
 
-
-
 pub_train_data_list, _ = get_quest3_anno_paths(data_root)
 ume_data_list = []
 for hand in ['left', 'right']:
@@ -270,55 +268,57 @@ train_dataloader = dict(
         batch_size=128),
     collate_fn=dict(type='default_collate'),
     dataset=dict(
-            type='CombinedDataset',
-            metainfo=dict(from_file='configs/_base_/datasets/nreal_hand.py'),
-            datasets=[
-                dict(
-                    type=dataset_type,
-                    sample_interval=3,    # sample interval会影响看到的图像数量
-                    data_ratio=1 / 2.0,    # data ratio不会影响看到的图像数量
-                    data_file_list=pub_train_data_list,
-                    data_mode=data_mode,
-                    pipeline=train_pipeline,
-                    dataset_weight_list=None,
-                    data_root=data_root,
-                    flip_left_to_right=False,
-                    filter_kpt_exceed=False,
-                    point_type='2.5D',
-                    round_num=2,
-                    epochs_per_round=5,
-                    seq_len=seq_length,
-                    choice_one = True,),
-                dict(
-                    type=dataset_type,
-                    sample_interval=2,
-                    # serialize_data=True,
-                    data_ratio=1 / 2.0,
-                    data_file_list=train_data_list,
-                    data_mode=data_mode,
-                    pipeline=train_pipeline,
-                    dataset_weight_list=dataset_weight_list,
-                    data_root=data_root,
-                    flip_left_to_right=False,
-                    filter_kpt_exceed=False,
-                    point_type='2.5D',
-                    seq_len=seq_length,
-                    choice_one = True,
-                ),
-                dict(
-                    type="Hand3DDatasetSeq",
-                    sample_interval=3,
-                    data_ratio=1 / 2.0,
-                    data_file_list=pub_aria_data_list,
-                    data_mode=data_mode,
-                    pipeline=train_pipeline,
-                    dataset_weight_list=None,
-                    data_root=data_root,
-                    flip_left_to_right=False,
-                    filter_kpt_exceed=False,
-                    point_type='2.5D',
-                    seq_len=seq_length,),
-            ]),
+        type='CombinedDataset',
+        metainfo=dict(from_file='configs/_base_/datasets/nreal_hand.py'),
+        datasets=[
+            dict(
+                type=dataset_type,
+                sample_interval=3,  # sample interval会影响看到的图像数量
+                data_ratio=1 / 2.0,  # data ratio不会影响看到的图像数量
+                data_file_list=pub_train_data_list,
+                data_mode=data_mode,
+                pipeline=train_pipeline,
+                dataset_weight_list=None,
+                data_root=data_root,
+                flip_left_to_right=False,
+                filter_kpt_exceed=False,
+                point_type='2.5D',
+                round_num=2,
+                epochs_per_round=5,
+                seq_len=seq_length,
+                choice_one=True,
+            ),
+            dict(
+                type=dataset_type,
+                sample_interval=2,
+                # serialize_data=True,
+                data_ratio=1 / 2.0,
+                data_file_list=train_data_list,
+                data_mode=data_mode,
+                pipeline=train_pipeline,
+                dataset_weight_list=dataset_weight_list,
+                data_root=data_root,
+                flip_left_to_right=False,
+                filter_kpt_exceed=False,
+                point_type='2.5D',
+                seq_len=seq_length,
+                choice_one=True,
+            ),
+            dict(
+                type='Hand3DDatasetSeq',
+                sample_interval=3,
+                data_ratio=1 / 2.0,
+                data_file_list=pub_aria_data_list,
+                data_mode=data_mode,
+                pipeline=train_pipeline,
+                dataset_weight_list=None,
+                data_root=data_root,
+                flip_left_to_right=False,
+                filter_kpt_exceed=False,
+                point_type='2.5D',
+                seq_len=seq_length,
+            ),
+        ]),
 )
 
 val_3d_dataset = dict(
@@ -333,15 +333,17 @@ val_3d_dataset = dict(
     # mean_bone_template_path=
     # '/data/AI_DATA/data_hand/model/mmpose/mean_hand_bones_230824.npz',
     #point_type='leftcam',
-    point_type='2.5D' if camera_layout in  ['monocular', 'nimble'] else '3D',
-    data_root=data_root,)
+    point_type='2.5D' if camera_layout in ['monocular', 'nimble'] else '3D',
+    data_root=data_root,
+)
 
 val_dataloader = dict(
     batch_size=64,
     num_workers=4,
     persistent_workers=True,
     drop_last=True,
-    sampler=dict(type='DistributedRangeSampler', shuffle=False, round_up=False),
+    sampler=dict(
+        type='DistributedRangeSampler', shuffle=False, round_up=False),
     collate_fn=dict(type='default_collate'),
     dataset=val_3d_dataset)
 test_dataloader = val_dataloader
@@ -349,13 +351,13 @@ test_dataloader = val_dataloader
 # evaluators
 val_evaluator = [dict(type='EPE'), dict(type='NrealKeypointAP', with_tag=True)]
 if test_type == '3d':
-   val_evaluator += [
-       dict(
-           type='MPJPEV2',
-           mode='mpjpe',
-           scale_metric=False,
-           with_tag=True,
-       ),
-       dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
-   ]
+    val_evaluator += [
+        dict(
+            type='MPJPEV2',
+            mode='mpjpe',
+            scale_metric=False,
+            with_tag=True,
+        ),
+        dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
+    ]
 test_evaluator = val_evaluator
