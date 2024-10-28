@@ -474,7 +474,7 @@ datasets_info = {
                 'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20240709_075714__all__normal__right__1101__0015__undistort_tar__Flora301.json',
             ],
             'Flora303': [
-                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20240709_075714__all__normal__right__1101__0015__undistort_tar__Flora302.json',
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20240709_075714__all__normal__right__1101__0015__undistort_tar__Flora303.json',
             ],
             'Flora304': [
                 'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20240709_075714__all__normal__right__1101__0015__undistort_tar__Flora304.json',
