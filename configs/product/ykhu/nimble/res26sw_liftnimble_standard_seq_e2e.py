@@ -9,9 +9,7 @@ from mmpose.configs._base_.datasets.xs3d_nimble import \
 
 train_cfg = dict(max_epochs=20, val_interval=5)
 
-# data_root = '/data/AI_DATA'
 data_root = '/data/AI_DATA_WX'
-# data_root = '/data/AI_DATA_LOCAL'
 seq_length = 4
 
 # optimizer
@@ -274,22 +272,9 @@ train_pipeline = [
         type='GroupTransformers',
         trans_cfg_list=[
             dict(type='TopdownPCL', input_size=codec['input_size']),
-            dict(type='RandomDownSampleImage', min_ratio=0.5, prob=0.2),
-            dict(type='MixTwoHands', prob=0.1),
-            dict(
-                type='Albumentation',
-                transforms=[
-                    dict(
-                        type='CoarseDropout',
-                        p=0.2,
-                        max_holes=2,
-                        max_height=16,
-                        max_width=16,
-                    ),
-                ]),
             dict(
                 type='GenerateNoiseDarkImage',
-                prob=0.65,
+                prob=0.,
                 gamma_limit=(0.85, 0.95),
                 alpha_limit=(0.2, 0.5),
                 concat_image=False),
@@ -318,34 +303,19 @@ train_dataloader = dict(
     batch_size=32,
     num_workers=4,
     persistent_workers=True,
-    sampler=dict(
-        type='MultiSourceSampler', source_ratio=[0.5, 0.5], batch_size=128),
+    sampler=dict(type='DefaultSampler', shuffle=True),
     collate_fn=dict(type='default_collate'),
     dataset=dict(
-        type='CombinedDataset',
-        metainfo=dict(from_file='configs/_base_/datasets/nreal_hand.py'),
-        datasets=[
-            dict(
-                type=dataset_type,
-                data_file_list=train_data_list,
-                data_mode=data_mode,
-                pipeline=train_pipeline,
-                dataset_weight_list=dataset_weight_list,
-                data_root=data_root,
-                seq_len=seq_length,
-                data_ratio=2. / 5,
-                serialize_data=True),
-            dict(
-                type=dataset_type,
-                data_file_list=overlap_train_data_list,
-                data_mode=data_mode,
-                pipeline=train_pipeline,
-                dataset_weight_list=overlap_dataset_weight_list,
-                data_root=data_root,
-                seq_len=seq_length,
-                data_ratio=1. / 5,
-                serialize_data=True),
-        ]),
+        type=dataset_type,
+        data_file_list=overlap_train_data_list,
+        data_mode=data_mode,
+        pipeline=train_pipeline,
+        dataset_weight_list=overlap_dataset_weight_list,
+        data_root=data_root,
+        seq_len=seq_length,
+        # data_ratio=2./3,
+        serialize_data=True,
+    ),
 )
 val_dataloader = dict(
     batch_size=128,
