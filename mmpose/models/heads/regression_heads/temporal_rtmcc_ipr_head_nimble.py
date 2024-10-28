@@ -213,13 +213,13 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
         external_matrix = []
         nimble_info = dict()
         nimble_lable_exist = []
-        truth_system_mask = []
+        use_3d_supervise_mask = []
 
         for i, data in enumerate(batch_data_samples):
-            if 'hot3d' in data.img_path or 'ume' in data.img_path:
-                truth_system_mask.append(False)
+            if 'ume' in data.img_path:
+                use_3d_supervise_mask.append(False)
             else:
-                truth_system_mask.append(True)
+                use_3d_supervise_mask.append(True)
 
             keypoint_label = data.gt_instance_labels.keypoint_labels
             label_2d_list.append(keypoint_label[..., :2])
@@ -249,7 +249,7 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
 
             if 'nimble_pose' not in data.meta or data.meta[
                     'nimble_pose'].shape == ():
-                nimble_lable_exist.append(True)
+                nimble_lable_exist.append(False)
                 nimble_pose.append(np.zeros((20, 3)))
                 nimble_trans.append(np.zeros(3))
                 nimble_shape.append(np.zeros(20))
@@ -290,8 +290,9 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
             torch.concat((nimble_trans, torch.ones(nimble_trans.shape[0],
                                                    1).to(nimble_trans.device)),
                          dim=1).unsqueeze(-1))[:, :3, 0]
+        use_3d_supervise_mask = torch.tensor(use_3d_supervise_mask).cuda()
         nimble_lable_exist = torch.tensor(nimble_lable_exist).cuda()
-        truth_system_mask = torch.tensor(truth_system_mask).cuda()
+        nimble_lable_exist = use_3d_supervise_mask & nimble_lable_exist
 
         nimble_info = {
             'nibmle_root_matrix': nibmle_root_matrix,
@@ -335,16 +336,17 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
                                                 hand3d_gt, f_scale, output_2d,
                                                 intrix_matrix, kpt_weight,
                                                 False)
-
-        hand3d_gt = hand3d_gt[truth_system_mask]
-        pred_3d_way1 = pred_3d_way1[truth_system_mask]
-        pred_3d_way2 = pred_3d_way2[truth_system_mask]
-        hand3d_pred = hand3d_pred[truth_system_mask]
-        hand3d_part_gt = hand3d_part_gt[truth_system_mask]
-        sigma = sigma[truth_system_mask]
+        
+        hand3d_gt_xreal = hand3d_gt[nimble_lable_exist]
+        hand3d_gt = hand3d_gt[use_3d_supervise_mask]
+        pred_3d_way1 = pred_3d_way1[nimble_lable_exist]
+        pred_3d_way2 = pred_3d_way2[nimble_lable_exist]
+        hand3d_pred = hand3d_pred[use_3d_supervise_mask]
+        hand3d_part_gt = hand3d_part_gt[nimble_lable_exist]
+        sigma = sigma[use_3d_supervise_mask]
 
         # 直接监督rot和trans, 只考虑根节点的处理方式
-        pre_nimble_trans = pre_trans_xyz[truth_system_mask]
+        pre_nimble_trans = pre_trans_xyz[use_3d_supervise_mask]
         gt_nimble_trans = hand3d_gt[:, 0, :]
 
         # pinch 损失
@@ -358,7 +360,7 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
             static_weight = 25
             static_mask = self.generate_mask(
                 batch_data_samples,
-                self.static_data_date_list).to('cuda')[truth_system_mask]
+                self.static_data_date_list).to('cuda')[use_3d_supervise_mask]
             enhanced_static_hand3d_pred = self.enhanced_fun(
                 hand3d_pred, static_mask, static_weight)
             enhanced_static_hand3d_gt = self.enhanced_fun(
@@ -373,7 +375,7 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
             enhanced_static_hand3d_pred
         ]
         targ_for_loss = [
-            hand3d_gt, hand3d_gt, hand3d_gt, dist_gt, gt_nimble_trans,
+            hand3d_gt_xreal, hand3d_gt_xreal, hand3d_gt, dist_gt, gt_nimble_trans,
             hand3d_gt, hand2d_gt_pcl, enhanced_static_hand3d_gt
         ]
 
@@ -432,7 +434,7 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
         cur_epoch = mh.get_info('epoch')
         reverse_mask = self.generate_mask(
             batch_data_samples, self.reverse_pinch_date_list).to(
-                pinch_mask.cuda())[truth_system_mask]
+                pinch_mask.cuda())[use_3d_supervise_mask]
         pinch_reverse_mask = pinch_mask & reverse_mask
         if cur_epoch > 30 and sum(pinch_mask) > 0:
             valid_num = len(dist_gt[pinch_mask])

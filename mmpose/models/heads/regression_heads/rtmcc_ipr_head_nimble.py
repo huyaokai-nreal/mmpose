@@ -437,7 +437,6 @@ class RTMCCIPRHeadNimble(RTMCCHead):
                 gt_local_matrix = convert_vector2matrix(
                     gt_rot_vector.view(B, -1)).reshape(B, -1, 9)
                 shape_vector = nimble_info['nimble_shape']
-                nimble_lable_exist = nimble_info['nimble_lable_exist']
 
         def get_root_xyz(hand3d_rel, cood_2d, intrix_matrix, W):
 
@@ -525,12 +524,11 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         else:
             pre_root__xyz = get_nimble_3d(gt_root_xyz, pre_root_matrix,
                                           gt_local_matrix, shape_vector,
-                                          left_R, f_scale)[nimble_lable_exist,
-                                                           ...]
+                                          left_R, f_scale)
             pre_nimble__xyz = get_nimble_3d(gt_root_xyz, gt_root_matrix,
                                             pre_local_matrix, shape_vector,
                                             left_R,
-                                            f_scale)[nimble_lable_exist, ...]
+                                            f_scale)
 
             hand3d_wo_root = get_nimble_3d(pre_root_zeros, pre_root_matrix,
                                            pre_local_matrix, shape_vector,
@@ -556,7 +554,7 @@ class RTMCCIPRHeadNimble(RTMCCHead):
 
             gt_all__xyz = get_nimble_3d(gt_root_xyz, gt_root_matrix,
                                         gt_local_matrix, shape_vector, left_R,
-                                        f_scale)[nimble_lable_exist, ...]
+                                        f_scale)
             return (pre_root__xyz, pre_nimble__xyz, pre_all__xyz, gt_all__xyz,
                     pre_all__xyz[:, 0, :], gt_all__xyz[:, 0, :])
 
@@ -586,13 +584,13 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         external_matrix = []
         nimble_info = dict()
         nimble_lable_exist = []
-        truth_system_mask = []
+        use_3d_supervise_mask = []
 
         for i, data in enumerate(batch_data_samples):
-            if 'hot3d' in data.img_path or 'ume' in data.img_path:
-                truth_system_mask.append(False)
+            if 'ume' in data.img_path:
+                use_3d_supervise_mask.append(False)
             else:
-                truth_system_mask.append(True)
+                use_3d_supervise_mask.append(True)
 
             keypoint_label = data.gt_instance_labels.keypoint_labels
             label_2d_list.append(keypoint_label[..., :2])
@@ -622,7 +620,7 @@ class RTMCCIPRHeadNimble(RTMCCHead):
 
             if 'nimble_pose' not in data.meta or data.meta[
                     'nimble_pose'].shape == ():
-                nimble_lable_exist.append(True)
+                nimble_lable_exist.append(False)
                 nimble_pose.append(np.zeros((20, 3)))
                 nimble_trans.append(np.zeros(3))
                 nimble_shape.append(np.zeros(20))
@@ -663,8 +661,10 @@ class RTMCCIPRHeadNimble(RTMCCHead):
             torch.concat((nimble_trans, torch.ones(nimble_trans.shape[0],
                                                    1).to(nimble_trans.device)),
                          dim=1).unsqueeze(-1))[:, :3, 0]
+        
+        use_3d_supervise_mask = torch.tensor(use_3d_supervise_mask).cuda()
         nimble_lable_exist = torch.tensor(nimble_lable_exist).cuda()
-        truth_system_mask = torch.tensor(truth_system_mask).cuda()
+        nimble_lable_exist = use_3d_supervise_mask & nimble_lable_exist
 
         nimble_info = {
             'nibmle_root_matrix': nibmle_root_matrix,
@@ -739,15 +739,17 @@ class RTMCCIPRHeadNimble(RTMCCHead):
                                                 intrix_matrix, kpt_weight,
                                                 False)
 
-        hand3d_gt = hand3d_gt[truth_system_mask]
-        pred_3d_way1 = pred_3d_way1[truth_system_mask]
-        pred_3d_way2 = pred_3d_way2[truth_system_mask]
-        hand3d_pred = hand3d_pred[truth_system_mask]
-        hand3d_part_gt = hand3d_part_gt[truth_system_mask]
-        sigma = sigma[truth_system_mask]
+        
+        hand3d_gt_xreal = hand3d_gt[nimble_lable_exist]
+        hand3d_gt = hand3d_gt[use_3d_supervise_mask]
+        pred_3d_way1 = pred_3d_way1[nimble_lable_exist]
+        pred_3d_way2 = pred_3d_way2[nimble_lable_exist]
+        hand3d_pred = hand3d_pred[use_3d_supervise_mask]
+        hand3d_part_gt = hand3d_part_gt[nimble_lable_exist]
+        sigma = sigma[use_3d_supervise_mask]
 
         # 直接监督rot和trans, 只考虑根节点的处理方式
-        pre_nimble_trans = pre_trans_xyz[truth_system_mask]
+        pre_nimble_trans = pre_trans_xyz[use_3d_supervise_mask]
         gt_nimble_trans = hand3d_gt[:, 0, :]
 
         # pinch 损失
@@ -762,7 +764,7 @@ class RTMCCIPRHeadNimble(RTMCCHead):
             pre_nimble_trans, re_all_sigmas, hand2d_pred_pcl
         ]
         targ_for_loss = [
-            hand3d_gt, hand3d_gt, hand3d_gt, dist_gt, gt_nimble_trans,
+            hand3d_gt_xreal, hand3d_gt_xreal, hand3d_gt, dist_gt, gt_nimble_trans,
             hand3d_gt, hand2d_gt_pcl
         ]
 
@@ -823,7 +825,7 @@ class RTMCCIPRHeadNimble(RTMCCHead):
 
         reverse_mask = self.generate_mask(
             batch_data_samples, self.reverse_pinch_date_list).to(
-                pinch_mask.cuda())[truth_system_mask]
+                pinch_mask.cuda())[use_3d_supervise_mask]
         pinch_reverse_mask = pinch_mask & reverse_mask
 
         if cur_epoch > 60 and sum(pinch_mask) > 0:
