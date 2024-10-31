@@ -125,7 +125,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/stliu/mmpose_simliar_wx10/work_dirs/new_dataset/RTMpose_nimble_51th/epoch_100.pth'
+        '/data/stliu/mmpose_simliar_wx10/work_dirs/new_dataset/RTMpose_nimble_52th/epoch_100.pth'
     ),
     camera_layout=camera_layout)
 
