@@ -1036,7 +1036,7 @@ datasets_info = {
         'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_nimble_hand_train/XS__20240930_055316__all__normal__right__1101__0007__undistort_tar__Flora303__marker_20240711113546.json',
         'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_nimble_hand_train/XS__20240930_055316__all__normal__right__1101__0007__undistort_tar__Flora304__marker_20240711113546.json',
         'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_nimble_hand_train/XS__20240930_061033__all__normal__left__1101__0008__undistort_tar__Flora301__kangyingjiayuan_house_random.json',
-        'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_nimble_hand_train/XS__20240930_061033A__all__normal__left__1101__0008__undistort_tar__Flora303__marker_20240711110634.json',
+        'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_nimble_hand_train/XS__20240930_061033__all__normal__left__1101__0008__undistort_tar__Flora303__marker_20240711110634.json',
         'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_nimble_hand_train/XS__20240930_061033__all__normal__left__1101__0008__undistort_tar__Flora304__marker_20240711110634.json',
         'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_nimble_hand_train/XS__20240930_061905__all__normal__right__1101__0008__undistort_tar__Flora301__marker_20240711113546.json',
         'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_nimble_hand_train/XS__20240930_061905__all__normal__right__1101__0008__undistort_tar__Flora303__15F_office.json',
