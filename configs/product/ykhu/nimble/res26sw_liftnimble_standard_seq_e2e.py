@@ -1,5 +1,6 @@
 # flake8: noqa
 import os
+import random
 
 _base_ = ['../../../_base_/default_runtime.py']
 from mmpose.configs._base_.datasets.xs3d_nimble import \
@@ -7,7 +8,7 @@ from mmpose.configs._base_.datasets.xs3d_nimble import \
 
 # from configs._base_.datasets.xs3d import datasets_info as kpt3d_datasets_info
 
-train_cfg = dict(max_epochs=20, val_interval=5)
+train_cfg = dict(max_epochs=30, val_interval=5)
 
 data_root = '/data/AI_DATA_WX'
 seq_length = 4
@@ -121,7 +122,7 @@ model = dict(
                     type='PinchLoss',
                     enter_thre=pinch_thre[0] / 1000,
                     exit_thre=pinch_thre[1] / 1000,
-                    loss_weight=10),
+                    loss_weight=5),
                 dict(type='L1Loss', loss_weight=5),  # nimble trans直接监督
                 dict(
                     type='MPJPAELoss',
@@ -164,7 +165,7 @@ model = dict(
     ),
     init_cfg=dict(
         type='Pretrained',
-        checkpoint='configs/product/stliu_new/liftnimble_seq_1017.pth'),
+        checkpoint='configs/product/stliu_new/epoch_60.pth'),
 )
 
 # base dataset settings
@@ -176,7 +177,7 @@ train_date_list = [
     '20230824', '20230828', '20230906', '20230907', '20240220', '20240229',
     '20240401', '20231227', '20240517', '20240425', '20240522', '20240801',
     '20240816', '20240826', '20240820', '20240903', '20240907', '20240926',
-    '20240914', '20240923'
+    '20240914', '20240923', '20240930'
 ]
 train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
 for data_date in train_date_list:
@@ -184,19 +185,20 @@ for data_date in train_date_list:
         if data_date in kpt3d_datasets_info['train_data']:
             train_data_list += kpt3d_datasets_info['train_data'][
                 data_date].get(glasses, [])
-overlap_train_data_list = kpt3d_datasets_info['overlap_train_data']
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 overlap_train_data_list = [
-    os.path.join(data_root, item) for item in overlap_train_data_list
+    os.path.join(data_root, item)
+    for item in kpt3d_datasets_info['overlap_train_data']
 ]
+overlap_train_data_list = random.sample(
+    overlap_train_data_list, int(len(overlap_train_data_list) * 0.3))
+train_data_list += overlap_train_data_list
 
 # train_data_list = [
 #     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_060805__all__normal__left__1111__0006__undistort_tar__Flora301.json',
 # ]
 
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
-overlap_dataset_weight_list = [1.0 / len(overlap_train_data_list)
-                               ] * len(overlap_train_data_list)
 
 val_data_list = [
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_070648__all__normal__right__1111__0005__undistort_tar__Flora301.json',
@@ -247,22 +249,22 @@ val_data_list = [
     # 'data_hand/hand_keypoint/annotations3d/fit3d_merge_seqsmooth__binocular_coco/XS__20240926_062106__pinch__normal__left__1101__0033__undistort_tar__Flora301.json',
 
     # 自然场景
-    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand_test/XS__20230830_070648__all__normal__right__1111__0005__undistort_tar__Flora301__kangyingjiayuan_house_random.json',
-    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand_test/XS__20230830_071804__all__bright__left__1111__0005__undistort_tar__Flora301__marker_20240711110634.json',
-    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand_test/XS__20230830_072334__pinch__dark__right__1111__0005__undistort_tar__Flora301__marker_20240711112656.json',
-    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand_test/XS__20230830_072715__pinch__normal__left__1111__0005__undistort_tar__Flora301__marker_20240711114343.json',
-    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand_test/XS__20230830_073026__pinch__bright__right__1111__0005__undistort_tar__Flora301__marker_20240711114343.json',
-    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand_test/XS__20230830_073556__pinch__bright__left__1111__0005__undistort_tar__Flora301__marker_20240711114343.json',
-    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand_test/XS__20230830_073857__pinch__normal__right__1111__0005__undistort_tar__Flora301__marker_20240711112656.json',
-    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand_test/XS__20230830_074601__pinch__bright__left__1111__0005__undistort_tar__Flora301__marker_20240711112656.json',
-    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand_test/XS__20230830_075055__all__bright__right__1111__0019__undistort_tar__Flora301__marker_20240711112656.json',
-    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand_test/XS__20230830_075728__all__dark__left__1111__0019__undistort_tar__Flora301__marker_20240711114343.json',
-    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand_test/XS__20230830_080158__pinch__normal__right__1111__0019__undistort_tar__Flora301__kangyingjiayuan_house_random.json',
-    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand_test/XS__20230830_080536__pinch__bright__left__1111__0019__undistort_tar__Flora301__marker_20240711113546.json',
-    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand_test/XS__20230830_080910__pinch__normal__left__1111__0019__undistort_tar__Flora301__marker_20240711113546.json',
-    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand_test/XS__20230830_081151__pinch__dark__right__1111__0019__undistort_tar__Flora301__marker_20240711110634.json',
-    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand_test/XS__20230830_081427__pinch__normal__right__1111__0019__undistort_tar__Flora301__kangyingjiayuan_house_random.json',
-    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand_test/XS__20230830_081909__pinch__bright__left__1111__0019__undistort_tar__Flora301__marker_20240711112656.json',
+    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_nimble_hand_test/XS__20230830_070648__all__normal__right__1111__0005__undistort_tar__Flora301__marker_20240711114343.json',
+    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_nimble_hand_test/XS__20230830_071804__all__bright__left__1111__0005__undistort_tar__Flora301__marker_20240711113546.json',
+    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_nimble_hand_test/XS__20230830_072334__pinch__dark__right__1111__0005__undistort_tar__Flora301__marker_20240711113546.json',
+    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_nimble_hand_test/XS__20230830_072715__pinch__normal__left__1111__0005__undistort_tar__Flora301__marker_20240711113546.json',
+    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_nimble_hand_test/XS__20230830_073026__pinch__bright__right__1111__0005__undistort_tar__Flora301__15F_office.json',
+    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_nimble_hand_test/XS__20230830_073556__pinch__bright__left__1111__0005__undistort_tar__Flora301__marker_20240711112656.json',
+    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_nimble_hand_test/XS__20230830_073857__pinch__normal__right__1111__0005__undistort_tar__Flora301__15F_office.json',
+    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_nimble_hand_test/XS__20230830_074601__pinch__bright__left__1111__0005__undistort_tar__Flora301__marker_20240711114913.json',
+    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_nimble_hand_test/XS__20230830_075055__all__bright__right__1111__0019__undistort_tar__Flora301__marker_20240711113546.json',
+    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_nimble_hand_test/XS__20230830_075728__all__dark__left__1111__0019__undistort_tar__Flora301__marker_20240711112656.json',
+    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_nimble_hand_test/XS__20230830_080158__pinch__normal__right__1111__0019__undistort_tar__Flora301__marker_20240711113546.json',
+    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_nimble_hand_test/XS__20230830_080536__pinch__bright__left__1111__0019__undistort_tar__Flora301__marker_20240711112656.json',
+    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_nimble_hand_test/XS__20230830_080910__pinch__normal__left__1111__0019__undistort_tar__Flora301__marker_20240711110634.json',
+    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_nimble_hand_test/XS__20230830_081151__pinch__dark__right__1111__0019__undistort_tar__Flora301__marker_20240711114343.json',
+    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_nimble_hand_test/XS__20230830_081427__pinch__normal__right__1111__0019__undistort_tar__Flora301__kangyingjiayuan_house_random.json',
+    # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_nimble_hand_test/XS__20230830_081909__pinch__bright__left__1111__0019__undistort_tar__Flora301__kangyingjiayuan_house_random.json',
 ]
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # pipelines
@@ -274,7 +276,7 @@ train_pipeline = [
             dict(type='TopdownPCL', input_size=codec['input_size']),
             dict(
                 type='GenerateNoiseDarkImage',
-                prob=0.,
+                prob=0.5,
                 gamma_limit=(0.85, 0.95),
                 alpha_limit=(0.2, 0.5),
                 concat_image=False),
@@ -307,13 +309,14 @@ train_dataloader = dict(
     collate_fn=dict(type='default_collate'),
     dataset=dict(
         type=dataset_type,
-        data_file_list=overlap_train_data_list,
+        data_file_list=train_data_list,
         data_mode=data_mode,
         pipeline=train_pipeline,
-        dataset_weight_list=overlap_dataset_weight_list,
+        dataset_weight_list=dataset_weight_list,
         data_root=data_root,
         seq_len=seq_length,
-        # data_ratio=2./3,
+        flip_left_to_right=True,
+        data_ratio=1. / 3,
         serialize_data=True,
     ),
 )
