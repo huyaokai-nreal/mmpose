@@ -550,6 +550,30 @@ class TopdownPose3DEstimatorSeq(TopdownPose3DEstimator):
                          data_preprocessor, init_cfg, camera_layout, root_id)
         self.seq_len = seq_len
 
+    def inference_getm(self, feats, inputs, data_samples, begin, step):
+        mem = None
+        pred_instances = []
+        clip_len = feats[0].shape[0]
+        clip_num = inputs.shape[0] // clip_len
+        feats = feats[-1]
+        C, H, W = feats.shape[-3], feats.shape[-2], feats.shape[-1]
+        feats_input = feats.reshape(clip_num, clip_len, C, H, W)
+        for b in range(begin, clip_len, step):
+            sub_feat_input = feats_input[:, b:b +1, ...].reshape(1, -1, C, H, W)
+            pred_kpt3d, pred_kpt2d, mem, sigma = self.head.predict(
+                sub_feat_input, [data_samples[b]],
+                mem,
+                test_cfg=self.test_cfg)
+            for b in range(pred_kpt3d.shape[0]):
+                pred_instances.append(
+                    InstanceData(
+                        keypoints3d=pred_kpt3d[b:b + 1, ...],
+                        keypoints3d_scores=sigma[b:b + 1, ...],
+                        keypoints=pred_kpt2d[b:b + 1, ...],
+                        keypoint_scores=torch.ones((1, 21)),
+                    ))
+        return pred_instances
+
     def predict(self, inputs: Tensor, data_samples: SampleList) -> SampleList:
 
         assert self.with_head, (
@@ -561,31 +585,23 @@ class TopdownPose3DEstimatorSeq(TopdownPose3DEstimator):
             feats = [_feats, _feats_flip]
         else:
             feats = self.extract_feat(inputs)
-            
+        
+        clip_len = feats[0].shape[0]
+        clip_num = inputs.shape[0] // clip_len
         batch_pred_instances = []
-        mem = None
         assert inputs.shape[
             0]  % self.seq_len == 0, \
             f'batch size {inputs.shape[0]} can be divided by {self.seq_len}'
-        clip_len = feats[0].shape[0]
-        clip_num = inputs.shape[0] // clip_len
-        feats = feats[-1]
-        C, H, W = feats.shape[-3], feats.shape[-2], feats.shape[-1]
-        feats_input = feats.reshape(clip_num, clip_len, C, H, W)
-        for b in range(clip_len):
-            sub_feat_input = feats_input[:, b:b +1, ...].reshape(1, -1, C, H, W)
-            pred_kpt3d, pred_kpt2d, mem, sigma = self.head.predict(
-                sub_feat_input, [data_samples[b]],
-                mem,
-                test_cfg=self.test_cfg)
-            for b in range(pred_kpt3d.shape[0]):
-                batch_pred_instances.append(
-                    InstanceData(
-                        keypoints3d=pred_kpt3d[b:b + 1, ...],
-                        keypoints3d_scores=sigma[b:b + 1, ...],
-                        keypoints=pred_kpt2d[b:b + 1, ...],
-                        keypoint_scores=torch.ones((1, 21)),
-                    ))
+
+        if "hot3d" in data_samples[0].img_path:
+            left_batch_pred_instances = self.inference_getm(feats, inputs, data_samples, begin=0, step=2)
+            right_batch_pred_instances = self.inference_getm(feats, inputs, data_samples, begin=1, step=2)
+            for left_instance, right_instance in zip(left_batch_pred_instances, right_batch_pred_instances):
+                batch_pred_instances.append(left_instance)
+                batch_pred_instances.append(right_instance)
+        else:
+            batch_pred_instances = self.inference_getm(feats, inputs, data_samples, begin=0, step=1)
+
         final_pred_instances = []
         for i in range(clip_num):
             final_pred_instances += batch_pred_instances[i::clip_num]

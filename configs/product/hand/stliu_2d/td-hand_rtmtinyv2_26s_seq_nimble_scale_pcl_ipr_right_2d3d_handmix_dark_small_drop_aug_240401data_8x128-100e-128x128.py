@@ -112,7 +112,7 @@ model = dict(
                     type='RLELoss',
                     dim=3,
                     enable_start_epoch=train_cfg['max_epochs'] // 2),
-                dict(type='L1Loss', use_target_weight=False),
+                dict(type='L1Loss', use_target_weight=False, loss_weight=2),
                 dict(
                     type='MPJPAELoss',
                     seq_length=seq_length,

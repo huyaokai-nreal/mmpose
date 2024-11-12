@@ -440,7 +440,8 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         """
         collate_list = []
         seq_idx_list = self.get_seq_idx(idx)
-        self.left_cam_sig = seq_idx_list[0]%2
+        # self.left_cam_sig = seq_idx_list[0]%2
+        self.left_cam_sig = np.random.choice([0,1])
         for i, idx in enumerate(seq_idx_list):
             if self.choice_one:
                 ppl_result = self.prepare_pair_data(idx, i == 0)
