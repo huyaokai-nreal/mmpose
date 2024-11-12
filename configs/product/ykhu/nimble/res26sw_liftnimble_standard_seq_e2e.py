@@ -190,15 +190,14 @@ overlap_train_data_list = [
     os.path.join(data_root, item)
     for item in kpt3d_datasets_info['overlap_train_data']
 ]
-overlap_train_data_list = random.sample(
-    overlap_train_data_list, int(len(overlap_train_data_list) * 0.3))
-train_data_list += overlap_train_data_list
 
 # train_data_list = [
 #     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_060805__all__normal__left__1111__0006__undistort_tar__Flora301.json',
 # ]
 
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
+overlap_dataset_weight_list = [1.0 / len(overlap_train_data_list)
+                               ] * len(overlap_train_data_list)
 
 val_data_list = [
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_070648__all__normal__right__1111__0005__undistort_tar__Flora301.json',
@@ -280,6 +279,7 @@ train_pipeline = [
                 gamma_limit=(0.85, 0.95),
                 alpha_limit=(0.2, 0.5),
                 concat_image=False),
+            dict(type='RandomMonocularOcclusion', prob=0.5, board=1)
         ],
         enable_epoch_num=int(train_cfg['max_epochs'])),
     dict(type='PackPoseInputs')
@@ -300,25 +300,42 @@ val_pipeline = [
         enable_epoch_num=0),
     dict(type='PackPoseInputs')
 ]
-# data loaders
 train_dataloader = dict(
     batch_size=32,
     num_workers=4,
     persistent_workers=True,
-    sampler=dict(type='DefaultSampler', shuffle=True),
+    sampler=dict(
+        type='MultiSourceSampler', source_ratio=[0.5, 0.5], batch_size=128),
     collate_fn=dict(type='default_collate'),
     dataset=dict(
-        type=dataset_type,
-        data_file_list=train_data_list,
-        data_mode=data_mode,
-        pipeline=train_pipeline,
-        dataset_weight_list=dataset_weight_list,
-        data_root=data_root,
-        seq_len=seq_length,
-        flip_left_to_right=True,
-        data_ratio=1. / 3,
-        serialize_data=True,
-    ),
+        type='CombinedDataset',
+        metainfo=dict(from_file='configs/_base_/datasets/nreal_hand.py'),
+        datasets=[
+            dict(
+                type=dataset_type,
+                data_file_list=train_data_list,
+                data_mode=data_mode,
+                pipeline=train_pipeline,
+                dataset_weight_list=dataset_weight_list,
+                data_root=data_root,
+                seq_len=seq_length,
+                flip_left_to_right=True,
+                data_ratio=1. / 3,
+                serialize_data=True,
+            ),
+            dict(
+                type=dataset_type,
+                data_file_list=train_data_list,
+                data_mode=data_mode,
+                pipeline=train_pipeline,
+                dataset_weight_list=dataset_weight_list,
+                data_root=data_root,
+                seq_len=seq_length,
+                flip_left_to_right=True,
+                data_ratio=1. / 10,
+                serialize_data=True,
+            ),
+        ]),
 )
 val_dataloader = dict(
     batch_size=128,

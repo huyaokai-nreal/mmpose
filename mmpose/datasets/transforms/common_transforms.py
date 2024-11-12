@@ -704,26 +704,78 @@ class GenerateNoiseDarkImage(BaseTransform):
         self.alpha_limit = alpha_limit
         self.gamma_limit = gamma_limit
         self.concat_image = concat_image
+        self.saved_params = None  # 保存左目的增强参数
 
     def transform(self, results: Dict) -> Dict:
-        if np.random.rand() < self.prob:
-            gamma = np.random.uniform(self.gamma_limit[0], self.gamma_limit[1])
-            alpha = np.random.uniform(self.alpha_limit[0], self.alpha_limit[1])
+        # 检查是否是左目
+        if results['camera_name'] == 'left':
+            if np.random.rand() < self.prob:
+                # 生成增强参数
+                gamma = np.random.uniform(self.gamma_limit[0],
+                                          self.gamma_limit[1])
+                alpha = np.random.uniform(self.alpha_limit[0],
+                                          self.alpha_limit[1])
+                self.saved_params = (gamma, alpha)  # 保存左目的增强参数
+
+                raw_img = (results['img'].copy().astype('float32') - 128) / 128
+                noise_map = random_utils.normal(0, 1, raw_img.shape[:2])
+                target_img = np.clip(
+                    (raw_img * gamma + (1 - gamma) * noise_map), -1, 1)
+                result_img = ((target_img * 128 + 128) * alpha).astype('uint8')
+
+                if self.concat_image:
+                    results['img'] = [results['img'].copy(), result_img]
+                else:
+                    results['img'] = result_img.copy()
+
+        # 检查是否是右目，且左目已被增强过
+        elif results[
+                'camera_name'] == 'right' and self.saved_params is not None:
+            gamma, alpha = self.saved_params  # 复用左目的增强参数
+
             raw_img = (results['img'].copy().astype('float32') - 128) / 128
             noise_map = random_utils.normal(0, 1, raw_img.shape[:2])
             target_img = np.clip((raw_img * gamma + (1 - gamma) * noise_map),
                                  -1, 1)
             result_img = ((target_img * 128 + 128) * alpha).astype('uint8')
+
             if self.concat_image:
                 results['img'] = [results['img'].copy(), result_img]
             else:
                 results['img'] = result_img.copy()
-        else:
-            if self.concat_image:
-                results['img'] = [results['img'].copy(), results['img'].copy()]
-            else:
-                results['img'] = results['img'].copy()
+            self.saved_params = None
+        return results
 
+
+@TRANSFORMS.register_module()
+@avoid_cache_randomness
+class RandomMonocularOcclusion(BaseTransform):
+
+    def __init__(self, board=0.5, prob=0.1) -> None:
+        super().__init__()
+        self.prob = prob
+        self.board = board
+        self.left_flag = False
+
+    def transform(self, results: Dict) -> Dict:
+        if np.random.rand() < self.prob:
+            board = np.random.randint(
+                0, int(results['img'].shape[0] * self.board))
+            left_able = random.choice([True, False])
+            if results['camera_name'] == 'left' and left_able:
+                if random.choice([True, False]):  # 随机从左侧，或右侧开始填充黑色
+                    results['img'][:, :board] = 0
+                else:
+                    results['img'][:, -board:] = 0
+                self.left_flag = True
+            if results['camera_name'] == 'right':
+                if not self.left_flag:
+                    if random.choice([True, False]):
+                        results['img'][:, :board] = 0
+                    else:
+                        results['img'][:, -board:] = 0
+                else:
+                    self.left_flag = False
         return results
 
 

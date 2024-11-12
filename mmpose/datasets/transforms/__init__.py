@@ -6,7 +6,7 @@ from .common_transforms import (Albumentation, ChangeImageQuality,
                                 GetBBoxCenterScale, GetNegtiveBBox,
                                 GroupTransformers, PhotometricDistortion,
                                 RandomBBoxTransform, RandomFlip,
-                                RandomHalfBody)
+                                RandomHalfBody, RandomMonocularOcclusion)
 from .converting import KeypointConverter, KeypointTo25DLabel
 from .formatting import PackPoseInputs
 from .loading import LoadImage, LoadImageFromMultiLMDB
@@ -29,5 +29,5 @@ __all__ = [
     'RandomFlipAroundRoot', 'KeypointTo25DLabel', 'RandomStereoParamAug',
     'RandomStereoParamAugV2', 'RandomStereoParamAugForClip', 'MixTwoHands',
     'GroupTransformers', 'RandomDownSampleImage', 'GenerateNoiseDarkImage',
-    'UmePCL'
+    'UmePCL', 'RandomMonocularOcclusion'
 ]
