@@ -125,7 +125,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/stliu/mmpose_simliar_wx10/work_dirs/new_dataset/RTMpose_nimble_52th/epoch_100.pth'
+        '/data/stliu/mmpose/work_dirs/new_datasets/RTMpose_nimble_53th/epoch_100.pth'
     ),
     camera_layout=camera_layout)
 
@@ -242,6 +242,9 @@ pub_train_data_list += ume_data_list
 
 pub_aria_data_list, _ = get_aria_anno_paths(data_root)
 
+overlap_dateset = kpt3d_datasets_info['overlap_train_data']
+overlap_dateset = [os.path.join(data_root, item) for item in overlap_dateset]
+
 val_data_list = []
 val_date_list = ['20230830']
 val_glasses_list = ['Flora301']
@@ -264,7 +267,7 @@ train_dataloader = dict(
     persistent_workers=True,
     sampler=dict(
         type='MultiSourceSampler',
-        source_ratio=[0.2, 0.7, 0.1],
+        source_ratio=[0.1, 0.4, 0.45, 0.05],
         batch_size=128),
     collate_fn=dict(type='default_collate'),
     dataset=dict(
@@ -290,7 +293,7 @@ train_dataloader = dict(
             ),
             dict(
                 type=dataset_type,
-                sample_interval=2,
+                sample_interval=3,
                 # serialize_data=True,
                 data_ratio=1 / 2.0,
                 data_file_list=train_data_list,
@@ -303,6 +306,20 @@ train_dataloader = dict(
                 point_type='2.5D',
                 seq_len=seq_length,
                 choice_one=True,
+            ),
+            dict(
+                type=dataset_type,
+                sample_interval=3,
+                # serialize_data=True,
+                data_ratio=1 / 2.0,
+                data_file_list=overlap_dateset,
+                data_mode=data_mode,
+                pipeline=train_pipeline,
+                dataset_weight_list=None,
+                data_root=data_root,
+                flip_left_to_right=False,
+                filter_kpt_exceed=True,
+                point_type='2.5D',
             ),
             dict(
                 type='Hand3DDatasetSeq',
