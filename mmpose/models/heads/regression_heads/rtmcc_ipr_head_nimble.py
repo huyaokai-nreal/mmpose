@@ -360,20 +360,20 @@ class RTMCCIPRHeadNimble(RTMCCHead):
                                              kpt_weight, True)
 
         result = []
+        # 模型重投影的2d结果
         for hand3d_sin, batch_data_sample in zip(hand3d_pred,
                                                  batch_data_samples):
             ori_cam = batch_data_sample.meta['ori_camera']
             result.append(ori_cam.eye_to_window(hand3d_sin.cpu().numpy()))
 
-        # output_2d = output_2d.detach().cpu().numpy()
-        # for output_2d_sin, batch_data_sample in zip(output_2d, batch_data_samples):
-        #     visual_cam = batch_data_sample.meta['virtual_camera']
+        # 模型直出的2d结果
+        # for output_2d_sin, batch_data_sample in zip(output_2d,
+        #                                          batch_data_samples):
         #     ori_cam = batch_data_sample.meta['ori_camera']
-
-        #     kpt_norm_eye = virtual_cam.window_to_eye(output_2d_sin)
-        #     kpt_norm_world = virtual_cam.eye_to_world(kpt_norm_eye)
-        #     kpt2d_ori = ori_cam.eye_to_window(kpt_norm_world)
-        #     result.append(kpt2d_ori)
+        #     virtual_cam = batch_data_sample.meta['virtual_camera']
+        #     virtual_3d = virtual_cam.window_to_eye(output_2d_sin.detach().cpu().numpy())
+        #     world_3d = virtual_cam.eye_to_world(virtual_3d)
+        #     result.append(ori_cam.eye_to_window(world_3d))
         uv_reproj = torch.tensor(result).cuda()
 
         return hand3d_pred, uv_reproj, sigma

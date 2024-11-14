@@ -329,6 +329,17 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
         #     torch.inverse(left_R),
         #     hand3d_pred.permute(0, 2, 1)).permute(0, 2, 1)
 
+        # 模型直出的2d结果
+        # result = []
+        # for output_2d_sin, batch_data_sample in zip(output_2d,
+        #                                          batch_data_samples):
+        #     ori_cam = batch_data_sample.meta['ori_camera']
+        #     virtual_cam = batch_data_sample.meta['virtual_camera']
+        #     virtual_3d = virtual_cam.window_to_eye(output_2d_sin.detach().cpu().numpy())
+        #     world_3d = virtual_cam.eye_to_world(virtual_3d)
+        #     result.append(ori_cam.eye_to_window(world_3d))
+        
+        # 重投影后的2d结果
         result = []
         for hand3d_sin, batch_data_sample in zip(hand3d_pred,
                                                  batch_data_samples):
@@ -467,7 +478,7 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
         weight_num = sigma.shape[1] * 2
         kpt_weight = torch.eye(weight_num).unsqueeze(0).repeat(
             batch_size, 1, 1).to(sigma.device)
-        if cur_epoch > 70:
+        if cur_epoch > 35:
             sigma_kpt = torch.mean(sigma, dim=-1)
             sigma_kpt_softmax = torch.softmax(sigma_kpt, dim=1)
             sigma_kpt_softmax = sigma_kpt_softmax.unsqueeze(2).repeat(

@@ -318,8 +318,10 @@ train_dataloader = dict(
                 dataset_weight_list=None,
                 data_root=data_root,
                 flip_left_to_right=False,
-                filter_kpt_exceed=True,
+                filter_kpt_exceed=False,
                 point_type='2.5D',
+                seq_len=seq_length,
+                choice_one=True,
             ),
             dict(
                 type='Hand3DDatasetSeq',
