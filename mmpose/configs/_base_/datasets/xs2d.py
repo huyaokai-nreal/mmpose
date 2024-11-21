@@ -38,6 +38,7 @@ datasets_info = {
             'data_hand/hand_keypoint/annotations/hand_train_flora_keypoint_decoration_1_231017_20k__1__binocular__lmdb.json',
             'data_hand/hand_keypoint/annotations/hand_train_flora_keypoint_bottom_1_231017_20k__1__binocular__lmdb.json',
             'data_hand/hand_keypoint/annotations/hand_train_flora_ces_240709_25k__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_ces_241106_20k__1__binocular__lmdb.json',
             'data_hand/hand_keypoint/annotations/hand_train_flora_home_240911_5k__1__binocular__lmdb.json'
         ],
         'quest_system': [
