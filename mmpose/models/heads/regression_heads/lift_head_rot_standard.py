@@ -279,14 +279,15 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             pre_local_matrix = self.nimble_layer.generate_pose_matrix(
                 rot_vector_t, normalized=True, with_root=False)
         pre_shape_vector = shape_v.clone()
-        pre_shape_vector[(B // 2):] = pre_shape_vector[:(B // 2)]
+        if self.data_flip_aug:
+            pre_shape_vector[(B // 2):] = pre_shape_vector[:(B // 2)]
 
         if not only_pre:
             with torch.no_grad():
                 gt_root_xyz = torch.bmm(
                     left_R, nimble_info['nimble_trans'].unsqueeze(
                         -1))[:, :, 0] / baseline_scale[0]
-                gt_root_matrix = batch_rodrigues(
+                gt_root_matrix = batch_rodrigues(  # 轴角 -> rot
                     nimble_info['nimble_pose'][:, 0, :]).reshape(-1, 3, 3)
                 gt_root_matrix = torch.matmul(left_R, gt_root_matrix)
 
@@ -304,7 +305,7 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
                           baseline_scale, left_R):
 
             _, bone_joints = self.nimble_layer.forward_simple(
-                local_matrix, shape_vector)
+                local_matrix, shape_vector)  # 通过局部点旋转，scale，将默认局部手型得到实际局部手型
             rebuild_joints = bone_joints[:, self.kp_index, :]
             root_rebuild_joints = rebuild_joints[:, 0:1, :]
             rebuild_joints_temp = rebuild_joints - root_rebuild_joints
@@ -317,8 +318,7 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             root_matrix = torch.matmul(root_matrix, add_matrix)
             rebuild_joints_temp = torch.matmul(rebuild_joints_temp,
                                                root_matrix.transpose(1, 2))
-            rebuild_joints_with_scale = \
-                rebuild_joints_temp / self.scale_parameter
+            rebuild_joints_with_scale = rebuild_joints_temp / self.scale_parameter
 
             new_root_xyz = torch.bmm(
                 root_xyz.unsqueeze(1),

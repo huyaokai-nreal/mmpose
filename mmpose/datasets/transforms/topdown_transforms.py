@@ -509,6 +509,57 @@ class TopdownPCL(BaseTransform):
 
 
 @TRANSFORMS.register_module()
+class TopdownPCL2D(BaseTransform):
+
+    def __init__(self,
+                 input_size: Tuple[int, int],
+                 root_id: int = 0,
+                 norm_depth: bool = False) -> None:
+        self.input_size = input_size
+        self.root_id = root_id
+        self.norm_depth = norm_depth
+
+    def transform(self, results: Dict) -> Dict:
+        w, h = self.input_size
+        with_depth = 'root_depth' in results['meta']  # 已过KeypointTo25DLabel
+        results['input_size'] = self.input_size
+        results['bbox_scale'] = TopdownAffine._fix_aspect_ratio(
+            results['bbox_scale'], aspect_ratio=w / h)
+        ori_camera = results['meta']['ori_camera']
+        if not with_depth:
+            results['meta']['ori_xf'] = results['meta'][
+                'ori_camera'].camera_to_world_xf
+            results['meta']['ori_camera'].camera_to_world_xf = np.eye(4)
+        center = results['bbox_center'][0].copy()
+        scale = self.input_size[0] / results['bbox_scale'][0][0]
+        camera_angle = results['meta'].get('camera_angle', 0)
+        try:
+            virtual_camera: PinholePlaneCameraModel = \
+                gen_crop_parameters_from_points(
+                    ori_camera,
+                    center,
+                    self.input_size,
+                    mirror_img_x=False,
+                    camera_angle=camera_angle,
+                    focal_multiplier=scale)
+        except Exception:
+            virtual_camera: PinholePlaneCameraModel = gen_ume_virutal_cam(
+                ori_camera,
+                results['keypoints3d'][0],
+                self.input_size,
+                mirror_img_x=False,
+                camera_angle=camera_angle,
+                focal_multiplier=0.8)
+        image = results['img']
+        crop_img = warp_image(ori_camera, virtual_camera, w, h, image)
+        results['img'] = crop_img
+        results['meta']['virtual_camera'] = virtual_camera
+        if results['cat_id'] == 1 and results['meta']['flipped']:
+            results['img'] = np.flip(results['img'], axis=1)
+        return results
+
+
+@TRANSFORMS.register_module()
 class UmePCL(BaseTransform):
 
     def __init__(self, input_size: Tuple[int, int], root_id: int = 0) -> None:

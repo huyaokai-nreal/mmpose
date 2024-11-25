@@ -1,33 +1,24 @@
 # Copyright (c) XREAL. All rights reserved.
 from typing import List, Tuple, Union
 
+import numpy as np
 import torch
-from torch import Tensor, nn
+import torch.nn.functional as F
+from torch import Tensor
 
-from mmpose.models.heads.nimble.nimble_utils import (SkeletonEncoder,
-                                                     _gen_rigid_features,
-                                                     batch_rodrigues,
-                                                     convert_vector2matrix,
-                                                     decode_svd,
-                                                     euler_angles_to_matrix,
-                                                     rot6D_to_matirx,
-                                                     rot9D_to_matirx)
-from mmpose.models.heads.nimble.simple_NIMBLELayer import sim_NIMBLELayer
-from mmpose.models.heads.regression_heads.lift_head_standard_ori_e2e import \
-    LiftHeadStandardOriE2e
-from mmpose.models.utils.gmlp import gMLP
+from mmpose.models.heads.regression_heads.lift_head_rot_standard import \
+    LiftNimbleHeadStandard
 from mmpose.registry import MODELS
 from mmpose.utils.typing import ConfigType, OptSampleList, Predictions
 
 
 @MODELS.register_module()
-class LiftNimbleHeadStandardE2e(LiftHeadStandardOriE2e):
+class LiftNimbleHeadStandardE2e(LiftNimbleHeadStandard):
     """liftHead for getting 3d rotation from pair 2d keypoints."""
 
     def __init__(self,
                  lift_loss: ConfigType,
                  d_ffn: int = 220,
-                 undistort: bool = False,
                  kpt2d_with_depth: bool = False,
                  use_svd: bool = True,
                  use_nimble_part_para: bool = False,
@@ -41,328 +32,300 @@ class LiftNimbleHeadStandardE2e(LiftHeadStandardOriE2e):
                  reproj_thre=0,
                  iou_thre=0,
                  pad_2d=0,
-                 e2e=False,
                  lambda_t: int = -1,
                  corruption_cam: float = 0.5,
                  use_bone_loss: bool = True,
-                 use_6d_pose_reg: bool = False,
                  use_9d_pose_reg: bool = False,
-                 direct_pose_reg: bool = False,
+                 use_6d_pose_reg: bool = False,
                  all_use_kp2d_gt: bool = False,
+                 fix_sigma_pars=False,
+                 data_flip_aug: bool = False,
                  init_cfg: Union[dict, List[dict], None] = None):
         super().__init__(
             lift_loss=lift_loss,
             d_ffn=d_ffn,
             reproj=reproj,
+            pose_ncomp=pose_ncomp,
             baseline=baseline,
+            use_svd=use_svd,
             reproj_thre=reproj_thre,
             iou_thre=iou_thre,
             pad_2d=pad_2d,
-            e2e=e2e,
+            use_bone_loss=use_bone_loss,
+            use_6d_pose_reg=use_6d_pose_reg,
+            use_9d_pose_reg=use_9d_pose_reg,
             lambda_t=lambda_t,
             all_use_kp2d_gt=all_use_kp2d_gt,
+            data_flip_aug=data_flip_aug,
             init_cfg=init_cfg)
 
-        # define the fix parameters
-        self.used_nimble_para = [
-            3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 16, 18, 21, 27, 28, 30, 33,
-            39, 40, 42, 45, 51, 52, 54, 57
-        ]
-        self.used_nimble_para = [x - 3 for x in self.used_nimble_para]
-        self.kp_index = [
-            0, 1, 2, 3, 4, 6, 7, 8, 9, 11, 12, 13, 14, 16, 17, 18, 19, 21, 22,
-            23, 24
-        ]
+        self.fix_sigma_pars = fix_sigma_pars
+        self.pinch_loss_func = F.l1_loss
 
-        # define the liftnet model
-        self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
-        self.channel_num = 43
-        self.lambda_t = lambda_t
-        self.kpt2d_with_depth = kpt2d_with_depth
-        feat_dim = 2 * self.channel_num
-        if self.kpt2d_with_depth:
-            feat_dim = feat_dim + 21
-        if reg_shape_type > 1:
-            feat_dim = feat_dim + skeleton_feature_dim
-        self.liftnet = gMLP(d_model=feat_dim, d_ffn=d_ffn, num_layers=3)
-        self.rigid_samples = _gen_rigid_features()
-
-        # define the full connection layer
-        if reg_shape_type == 0:
-            self.shape_ncomp = shape_ncomp
-        elif reg_shape_type == 1 or reg_shape_type == 2:
-            self.shape_ncomp = 1
-        elif reg_shape_type == 3:
-            self.shape_ncomp = 24
-        self.pose_ncomp = pose_ncomp
-        if use_nimble_part_para:
-            self.pose_ncomp = len(self.used_nimble_para)
-        if use_6d_pose_reg:
-            self.pose_ncomp = 19 * 6
-        if use_9d_pose_reg:
-            self.pose_ncomp = 19 * 9
-        if direct_pose_reg:
-            self.pose_ncomp = 21
-        output_num = self.shape_ncomp + self.pose_ncomp + 3
-        if use_svd:
-            self.output_num = output_num + 18  # 21 - 3
-        else:
-            self.output_num = output_num
-        self.sigma_conv = nn.Sequential(
-            nn.Conv2d(feat_dim, feat_dim, kernel_size=1),
-            nn.Conv2d(feat_dim, 21 * 3, kernel_size=1))
-        self.last_layer = nn.Sequential(
-            nn.Conv2d(self.feat_dim * 2, self.feat_dim, kernel_size=1),
-            nn.ReLU(),
-            nn.Conv2d(self.feat_dim, self.output_num, kernel_size=1))
-        self.lift_loss = MODELS.build(lift_loss)
-
-        # define the fllow parameters
-        self.use_bone_loss = use_bone_loss
-        self.feat_dim = feat_dim
-        self.reproj = reproj
-        self.baseline = baseline
-        self.reproj_thre = reproj_thre
-        self.iou_thre = iou_thre
-        self.pad_2d = pad_2d
-        self.center_rot = None
-        self.use_svd = use_svd
-        self.scale_parameter = 1000
-        self.corruption_cam = corruption_cam
-        self.undistort = undistort
-        self.all_use_kp2d_gt = all_use_kp2d_gt
-        self.use_nimble_part_para = use_nimble_part_para
-        self.use_6d_pose_reg = use_6d_pose_reg
-        self.use_9d_pose_reg = use_9d_pose_reg
-        self.direct_pose_reg = direct_pose_reg
-
-        # define nimble layer
-        self.nimble_layer = sim_NIMBLELayer(
-            device='cuda',
-            shape_ncomp=self.shape_ncomp,
-            pose_ncomp=self.pose_ncomp,
-            use_pose_pca=use_pose_pca,
-            reg_shape_type=reg_shape_type)
-
-        # define the shape regression type
-        self.reg_shape_type = reg_shape_type
-        if self.reg_shape_type > 1:
-            self.skeleton_feature_dim = skeleton_feature_dim
-            self.skeleton_encoder = SkeletonEncoder(skeleton_feature_dim)
-
-        self.direct_pose_reg_index = [
-            3, 4, 6, 7, 9, 15, 16, 18, 21, 27, 28, 30, 33, 39, 40, 42, 45, 51,
-            52, 54, 57
-        ]
-
-        self.joint_parents = [
-            0, 0, 1, 2, 3, 0, 5, 6, 7, 0, 9, 10, 11, 0, 13, 14, 15, 0, 17, 18,
-            19
-        ]
-        self.non_root_indices = []
-        for i in range(len(self.joint_parents)):
-            if i != self.joint_parents[i]:
-                self.non_root_indices.append(i)
-
-    def get_full_pose_with_part_pars(self, pose_reg):
-        used_nimble_para = torch.tensor(self.used_nimble_para)
-        pose_out = torch.zeros((pose_reg.shape[0], 57),
-                               device=pose_reg.device,
-                               dtype=torch.float32)
-        pose_out[:, used_nimble_para] = pose_reg.to(torch.float32)
-        return pose_out
-
-    def simple_feature_layer(self, output, left_hand):
-        B = output.shape[0]
-        pose_len = self.pose_ncomp
-        rot_vector_t = output[:, :pose_len, 0, 0]
-        svd_begin = self.pose_ncomp + self.shape_ncomp
-        shape_v = output[:, pose_len:svd_begin, 0, 0]
-        pre_pt_features = output[:, svd_begin:, 0, 0]
-        if self.use_6d_pose_reg:
-            pre_local_matrix = rot6D_to_matirx(rot_vector_t.reshape(
-                -1, 6)).reshape(B, 19, -1)
-        elif self.use_9d_pose_reg:
-            # pre_local_matrix = rot9D_to_matirx(rot_vector_t.reshape(
-            #     -1, 9)).reshape(B, 19, -1)
-            pre_local_matrix = rot_vector_t.reshape(B, 19, -1)
-        else:
-            pre_local_matrix = self.nimble_layer.generate_pose_matrix(
-                rot_vector_t, normalized=True, with_root=False)
-
-        # cuda_device = output.device
-        # mask = left_hand == 1
-        # hand_matrix = torch.eye(3).unsqueeze(0).expand(B, -1,
-        #                                                -1).to(cuda_device)
-        # hand_matrix[mask, 0, 0] = -1
-        # _, bone_joints = self.nimble_layer.forward_simple(
-        #     pre_local_matrix, shape_v)
-        # rebuild_joints = bone_joints[:, self.kp_index, :]
-        # root_rebuild_joints = rebuild_joints[:, 0:1, :]
-        # rebuild_joints_temp = rebuild_joints - root_rebuild_joints
-        # rebuild_joints_temp = rebuild_joints_temp / self.scale_parameter
-        return shape_v, pre_local_matrix, pre_pt_features
-
-    def _forward(self, feats: Tuple[Tensor]) -> Tensor:
-        output = self.liftnet(feats)
-        output = self.last_layer(output).view((feats.shape[0], -1, 1, 1))
-        kpt, rot, svd_pt = self.simple_feature_layer(output, feats[:, -1, 0,
-                                                                   0])
-        return kpt, rot, svd_pt
+        if self.fix_sigma_pars:
+            for param in self.liftnet.parameters():
+                param.requires_grad = False
+            for param in self.sigma_conv.parameters():
+                param.requires_grad = False
 
     def forward(self, feats: Tuple[Tensor]) -> Tensor:
-        output = self.liftnet(feats)
-        mems = torch.zeros_like(feats).to(output.device)
+        output = self.liftnet(feats).reshape(feats.shape[0], -1)
+        mems = torch.zeros_like(output).to(output.device)
         sigma = self.sigma_conv(output).reshape(feats.shape[0], 21, 3)
         feat_mix = torch.cat([output, mems], dim=1)
         output = self.last_layer(feat_mix).view((feats.shape[0], -1, 1, 1))
         return output, sigma
 
-    def postprocess(self,
-                    output,
-                    left_hand,
-                    leftcam_xy,
-                    left_R,
-                    nimble_info,
-                    hand3d_gt,
-                    baseline_scale,
-                    only_pre=False):
+    def preprocess(self, feats, batch_data_samples, mode):
+        xy_coord = feats[..., :2]
+        B = int(len(batch_data_samples) / 2)
+        N = 2
+        H, W = batch_data_samples[0].input_size
+        K = xy_coord.shape[1]
+        # kpt2d output to crop wh
+        uv_coord_im_pred_crop_right = xy_coord * torch.tensor([W, H]).cuda()
+        uv_coord_im_pred_crop = uv_coord_im_pred_crop_right.view(B, N, K, 2)
+        leftcam_cam_matrix = []
+        rightcam_cam_matrix = []
+        left_vir_cam_matrix = []
+        right_vir_cam_matrix = []
+        left_vircam_xf = []
+        right_vircam_xf = []
+        left_R = []
+        right_R = []
+        baseline_scale = []
+        lr_p = []
+        lr_rot_matrix = []
+        hand3d_gt = []
+        is_left_hands = []
+        nimble_pose = []
+        nimble_trans = []
+        nimble_shape = []
+        nimble_info = dict()
+        uv_coord_im_gt_global = []
 
-        B = output.shape[0]
-        cuda_device = output.device
-        baseline_scale = baseline_scale.view(B, 1, 1)
+        for i, data_sample in enumerate(batch_data_samples):
+            if i % 2 == 0:
+                left_vir_camera = data_sample.meta['virtual_camera']
+                left_camera = data_sample.meta['ori_camera']
+                left_vir_cam_matrix.append(
+                    left_vir_camera.uv_to_window_matrix())
+                leftcam_cam_matrix.append(left_camera.uv_to_window_matrix())
+                left_R.append(data_sample.meta['cam_to_virtual_R'])
+                hand3d_gt.append(data_sample.gt_instances.keypoints3d[0])
+                if 'nimble_pose' in data_sample.meta.keys() and not np.equal(
+                        data_sample.meta['nimble_pose'].any(), None):
+                    nimble_pose.append(data_sample.meta['nimble_pose'])
+                    nimble_trans.append(data_sample.meta['nimble_translation'])
+                    nimble_shape.append(data_sample.meta['nimble_shape'])
+                if data_sample.meta['category_id'] == 1:
+                    is_left_hands.append(1)
+                    if data_sample.meta['flipped']:
+                        uv_coord_im_pred_crop[
+                            i // 2, :, :,
+                            0] = W - 1 - uv_coord_im_pred_crop[i // 2, :, :, 0]
+                else:
+                    is_left_hands.append(0)
+            else:
+                right_camera = data_sample.meta['ori_camera']
+                rightcam_cam_matrix.append(right_camera.uv_to_window_matrix())
+                right_vir_camera = data_sample.meta['virtual_camera']
+                right_vir_cam_matrix.append(
+                    right_vir_camera.uv_to_window_matrix())
+                right_R.append(data_sample.meta['cam_to_virtual_R'])
+                left_vircam_xf.append(
+                    left_vir_camera.camera_to_world_xf[:3, :3])
+                right_vircam_xf.append(
+                    right_vir_camera.camera_to_world_xf[:3, :3])
+                left_cam_xf = left_camera.camera_to_world_xf
+                right_cam_xf = data_sample.meta['ori_xf']
+                lr_t = np.dot(np.linalg.inv(left_cam_xf),
+                              right_cam_xf).astype(np.float32)
+                left_to_right_rt = np.linalg.inv(right_cam_xf)
+                lr_rot_matrix.append(lr_t[:3, :3])
+                lr_p.append(lr_t[:3, 3])
+                baseline_scale.append(data_sample.meta['virtual_baseline'] /
+                                      self.baseline)
 
-        pose_len = self.pose_ncomp
-        rot_vector_t = output[:, :pose_len, 0, 0].float()
-        if self.use_nimble_part_para:
-            rot_vector_t = self.get_full_pose_with_part_pars(rot_vector_t)
-        svd_begin = self.pose_ncomp + self.shape_ncomp
-        shape_v = output[:, pose_len:svd_begin, 0, 0]
-        pre_pt_features = output[:, svd_begin:, 0, 0]
+            uv_coord_im_gt_global.append(data_sample.gt_instances.keypoints)
 
-        matrix_svd = decode_svd(
-            pre_pt_features,
-            self.rigid_samples,
-        )
+        leftcam_cam_matrix = torch.tensor(
+            np.array(leftcam_cam_matrix)).cuda().float()
+        rightcam_cam_matrix = torch.tensor(
+            np.array(rightcam_cam_matrix)).cuda().float()
+        left_vir_cam_matrix = torch.tensor(
+            np.array(left_vir_cam_matrix)).cuda().float()
+        right_vir_cam_matrix = torch.tensor(
+            np.array(right_vir_cam_matrix)).cuda().float()
+        left_vircam_xf = torch.tensor(np.array(left_vircam_xf)).cuda().float()
+        right_vircam_xf = torch.tensor(
+            np.array(right_vircam_xf)).cuda().float()
+        left_R = torch.tensor(np.array(left_R)).cuda().float()
+        right_R = torch.tensor(np.array(right_R)).cuda().float()
+        baseline_scale = torch.tensor(np.array(baseline_scale)).cuda().float()
+        lr_p = torch.tensor(np.array(lr_p)).cuda().float()
+        lr_rot_matrix = torch.tensor(np.array(lr_rot_matrix)).cuda().float()
+        left_to_right_rt = torch.tensor(
+            np.array(left_to_right_rt)).cuda().float()
+        hand3d_gt = torch.tensor(np.array(hand3d_gt)).cuda().float()
+        if len(nimble_pose) > 0:
+            nimble_pose = torch.tensor(np.array(nimble_pose)).cuda().float()
+            nimble_trans = torch.tensor(np.array(nimble_trans)).cuda().float()
+            nimble_shape = torch.tensor(np.array(nimble_shape)).cuda().float()
+        left_hand = torch.tensor(np.array(is_left_hands)).cuda().float()
+        uv_coord_im_gt_global = torch.tensor(
+            np.array(uv_coord_im_gt_global)).cuda().float()
+        uv_coord_im_gt_global = uv_coord_im_gt_global[..., :2]
+        uv_coord_im_gt_global = uv_coord_im_gt_global.view(-1, K, 2)
 
-        pre_root_xyz = matrix_svd[:, 0:3, 3]
-        pre_root_matrix = matrix_svd[:, 0:3, 0:3]
-        if self.use_6d_pose_reg:
-            pre_local_matrix = rot6D_to_matirx(rot_vector_t.reshape(
-                -1, 6)).reshape(B, 19, -1)
-        elif self.use_9d_pose_reg:
-            pre_local_matrix = rot9D_to_matirx(rot_vector_t.reshape(
-                -1, 9)).reshape(B, 19, -1)
-        elif self.direct_pose_reg:
-            rot_vector_t = torch.mul(rot_vector_t, torch.pi)
-            pre_euler_value = torch.zeros((B, 60), device=cuda_device)
-            pre_euler_value[:, self.direct_pose_reg_index] = rot_vector_t.to(
-                torch.float32)
-            pre_euler_value = pre_euler_value.reshape(-1, 3)
-            pre_local_matrix = euler_angles_to_matrix(pre_euler_value).reshape(
-                B, 20, -1)[:, 1:, :]
+        uv_coord_im_pred_global = uv_coord_im_pred_crop.view(B, N, K, 2)
+
+        def exchange_value(value):
+            tmp = value.clone()
+            tmp[:, 0, ...] = value[:, 1, ...]
+            tmp[:, 1, ...] = value[:, 0, ...]
+            value = tmp
+            return value
+
+        if self.data_flip_aug:
+            right_hand = torch.ones_like(
+                left_hand).cuda().float() - left_hand.clone().cuda().float()
+            new_uv_coord_im_pred_global = uv_coord_im_pred_global.clone()
+            new_uv_coord_im_pred_global = exchange_value(
+                new_uv_coord_im_pred_global)
+            left_hand = torch.concat([left_hand, right_hand])
+            uv_coord_im_pred_global = torch.concat(
+                [uv_coord_im_pred_global, new_uv_coord_im_pred_global], dim=0)
+
+            B *= 2
+            left_vir_cam_matrix = torch.concat(
+                [left_vir_cam_matrix, left_vir_cam_matrix])
+            right_vir_cam_matrix = torch.concat(
+                [right_vir_cam_matrix, right_vir_cam_matrix])
+            left_vircam_xf = torch.concat([left_vircam_xf, left_vircam_xf])
+            right_vircam_xf = torch.concat([right_vircam_xf, right_vircam_xf])
+            left_R = torch.concat([left_R, left_R])
+            right_R = torch.concat([right_R, right_R])
+            baseline_scale = torch.concat([baseline_scale, baseline_scale])
+            hand3d_gt = torch.concat([hand3d_gt, hand3d_gt])
+            valid_mask = torch.concat(
+                [torch.ones(B // 2), torch.zeros(B // 2)]).cuda().float()
+            if len(nimble_pose) > 0:
+                nimble_pose = torch.concat([nimble_pose, nimble_pose])
+                nimble_trans = torch.concat([nimble_trans, nimble_trans])
+                nimble_shape = torch.concat([nimble_shape, nimble_shape])
         else:
-            pre_local_matrix = self.nimble_layer.generate_pose_matrix(
-                rot_vector_t, normalized=True, with_root=False)
-        pre_shape_vector = shape_v
+            valid_mask = torch.ones_like(left_hand).cuda().float()
 
-        if not only_pre:
-            with torch.no_grad():
-                gt_root_xyz = torch.bmm(
-                    left_R, nimble_info['nimble_trans'].unsqueeze(
-                        -1))[:, :, 0] / baseline_scale[0]
-                gt_root_matrix = batch_rodrigues(
-                    nimble_info['nimble_pose'][:, 0, :]).reshape(-1, 3, 3)
-                gt_root_matrix = torch.matmul(left_R, gt_root_matrix)
+        try:
+            nimble_info = {
+                'nimble_pose': nimble_pose,
+                'nimble_trans': nimble_trans,
+                'nimble_shape': nimble_shape
+            }
+        except Exception as e:
+            nimble_info = {
+                'nimble_pose': None,
+                'nimble_trans': None,
+                'nimble_shape': None,
+            }
+            print(f'An error occurred: {e}')
 
-                init_root_rot = torch.zeros((B, 1, 3),
-                                            requires_grad=True,
-                                            device=cuda_device)
-                gt_rot_vector = torch.cat(
-                    (init_root_rot, nimble_info['nimble_pose'][:, 1:, :]),
-                    dim=1)
-                gt_local_matrix = convert_vector2matrix(
-                    gt_rot_vector.view(B, -1)).reshape(B, -1, 9)
-                # gt_shape_vector = nimble_info['nimble_shape']
+        leftcam_uv = uv_coord_im_pred_global[:, 0].clone()
+        leftcam_x = (leftcam_uv[:, :, 0] - left_vir_cam_matrix[:, 0, 2].view(
+            (B, 1))) / left_vir_cam_matrix[:, 0, 0].view(B, 1)
+        leftcam_y = (leftcam_uv[:, :, 1] - left_vir_cam_matrix[:, 1, 2].view(
+            (B, 1))) / left_vir_cam_matrix[:, 1, 1].view(B, 1)
+        leftcam_xy = torch.cat(
+            (leftcam_x.unsqueeze(-1), leftcam_y.unsqueeze(-1)), dim=2)
+        rightcam_uv = uv_coord_im_pred_global[:, 1].clone()
+        rightcam_x = (rightcam_uv[:, :, 0] -
+                      right_vir_cam_matrix[:, 0, 2].view(
+                          (B, 1))) / right_vir_cam_matrix[:, 0, 0].view(B, 1)
+        rightcam_y = (rightcam_uv[:, :, 1] -
+                      right_vir_cam_matrix[:, 1, 2].view(
+                          (B, 1))) / right_vir_cam_matrix[:, 1, 1].view(B, 1)
+        rightcam_xy = torch.cat(
+            (rightcam_x.unsqueeze(-1), rightcam_y.unsqueeze(-1)), dim=2)
 
-        def get_nimble_3d(root_xyz, root_matrix, local_matrix, shape_vector,
-                          baseline_scale, left_R):
+        uv_coord_im_pred_global = uv_coord_im_pred_global.view(-1, K, 2)
 
-            _, bone_joints = self.nimble_layer.forward_simple(
-                local_matrix, shape_vector)
-            rebuild_joints = bone_joints[:, self.kp_index, :]
-            root_rebuild_joints = rebuild_joints[:, 0:1, :]
-            rebuild_joints_temp = rebuild_joints - root_rebuild_joints
+        # 2D GT 转归一化平面坐标：先去畸变，再转系
+        for i, data_sample in enumerate(batch_data_samples):
+            camera_model = data_sample.meta['ori_camera']
+            kpt2d_u = camera_model.undistort(
+                uv_coord_im_gt_global[i].cpu().numpy())
+            uv_coord_im_gt_global[i] = torch.from_numpy(kpt2d_u).cuda()
+        uv_coord_im_gt_global = uv_coord_im_gt_global.view(B, N, K, 2)
 
-            mask = left_hand == 1
-            add_matrix = torch.eye(3).unsqueeze(0).expand(B, -1,
-                                                          -1).to(cuda_device)
-            add_matrix[mask, 0, 0] = -add_matrix[mask, 0, 0]
-            root_matrix = torch.matmul(torch.inverse(left_R), root_matrix)
-            root_matrix = torch.matmul(root_matrix, add_matrix)
-            rebuild_joints_temp = torch.matmul(rebuild_joints_temp,
-                                               root_matrix.transpose(1, 2))
-            rebuild_joints_with_scale = \
-                rebuild_joints_temp / self.scale_parameter
+        leftcam_uv_gt = uv_coord_im_gt_global[:, 0]
+        leftcam_x_gt = (leftcam_uv_gt[:, :, 0] -
+                        leftcam_cam_matrix[:, 0, 2].view(
+                            (B, 1))) / leftcam_cam_matrix[:, 0, 0].view(B, 1)
+        leftcam_y_gt = (leftcam_uv_gt[:, :, 1] -
+                        leftcam_cam_matrix[:, 1, 2].view(
+                            (B, 1))) / leftcam_cam_matrix[:, 1, 1].view(B, 1)
+        norm_leftcam_xyz_gt = torch.cat(
+            (leftcam_x_gt.unsqueeze(-1), leftcam_y_gt.unsqueeze(-1)), dim=2)
+        rightcam_uv_gt = uv_coord_im_gt_global[:, 1]
+        rightcam_x_gt = (
+            rightcam_uv_gt[:, :, 0] - rightcam_cam_matrix[:, 0, 2].view(
+                (B, 1))) / rightcam_cam_matrix[:, 0, 0].view(B, 1)
+        rightcam_y_gt = (
+            rightcam_uv_gt[:, :, 1] - rightcam_cam_matrix[:, 1, 2].view(
+                (B, 1))) / rightcam_cam_matrix[:, 1, 1].view(B, 1)
+        norm_rightcam_xyz_gt = torch.cat(
+            (rightcam_x_gt.unsqueeze(-1), rightcam_y_gt.unsqueeze(-1)), dim=2)
 
-            new_root_xyz = torch.bmm(
-                root_xyz.unsqueeze(1),
-                torch.inverse(left_R).permute(0, 2, 1))
-            xyz_point = rebuild_joints_with_scale + new_root_xyz
-            xyz_point *= baseline_scale
-            return xyz_point
+        # 2D 模型推理的2D点，用于指标测试
+        # for i, data_sample in enumerate(batch_data_samples):
+        #     virtual_cam = batch_data_samples[i].meta['virtual_camera']
+        #     ori_cam = batch_data_samples[i].meta['ori_camera']
+        #     kpt_norm_eye = virtual_cam.window_to_eye(uv_coord_im_pred_global[i].clone().detach().cpu())
+        #     kpt_norm_world = virtual_cam.eye_to_world(kpt_norm_eye)
+        #     kpt2d_ori = ori_cam.eye_to_window(kpt_norm_world)
+        #     uv_coord_im_pred_global[i] = torch.tensor(kpt2d_ori).cuda().float()
 
-        if only_pre:
-            pre_nimble_pre_root_pre_shape__xyz = get_nimble_3d(
-                pre_root_xyz, pre_root_matrix, pre_local_matrix,
-                pre_shape_vector, baseline_scale, left_R)
+        # 相机坐标转标准双目
+        norm_leftcam_xyz, norm_rightcam_xyz = self.standardize_stereo(
+            leftcam_xy, rightcam_xy, left_R, right_R, left_vircam_xf,
+            right_vircam_xf)
 
-            return pre_nimble_pre_root_pre_shape__xyz, \
-                pre_root_xyz, pre_root_matrix, pre_local_matrix
-        else:
-            pre_root__xyz = get_nimble_3d(pre_root_xyz, pre_root_matrix,
-                                          gt_local_matrix, pre_shape_vector,
-                                          baseline_scale, left_R)
-            pre_nimble__xyz = get_nimble_3d(gt_root_xyz, gt_root_matrix,
-                                            pre_local_matrix, pre_shape_vector,
-                                            baseline_scale, left_R)
-            pre_all__xyz = get_nimble_3d(pre_root_xyz, pre_root_matrix,
-                                         pre_local_matrix, pre_shape_vector,
-                                         baseline_scale, left_R)
-            gt_all__xyz = get_nimble_3d(gt_root_xyz, gt_root_matrix,
-                                        gt_local_matrix, pre_shape_vector,
-                                        baseline_scale, left_R)
-
-            pre_root_xyz = torch.bmm(
-                pre_root_xyz.unsqueeze(1),
-                torch.inverse(left_R).permute(0, 2, 1)) * baseline_scale
-            pre_root_matrix = torch.matmul(
-                torch.inverse(left_R), pre_root_matrix)
-
-            gt_matrix = torch.cat(
-                (gt_root_matrix.reshape(B, 1, 9), gt_local_matrix), dim=1)
-            pre_matrix = torch.cat(
-                (pre_root_matrix.reshape(B, 1, 9), pre_local_matrix), dim=1)
-
-            return (pre_root__xyz, pre_nimble__xyz, pre_all__xyz, gt_all__xyz,
-                    pre_root_xyz[:, 0, :], pre_shape_vector, gt_matrix,
-                    pre_matrix)
+        feats = torch.cat(
+            (norm_leftcam_xyz[:, :, :2], norm_rightcam_xyz[:, :, :2]), dim=-1)
+        hand_feat = left_hand[:, None, None].repeat(1, 21, 1)
+        feats = torch.cat((feats, hand_feat), dim=-1)
+        return {
+            'feats': feats,
+            'norm_leftcam_xyz': norm_leftcam_xyz,
+            'norm_rightcam_xyz': norm_rightcam_xyz,
+            'norm_leftcam_xyz_gt': norm_leftcam_xyz_gt,
+            'norm_rightcam_xyz_gt': norm_rightcam_xyz_gt,
+            'lr_rot_matrix': lr_rot_matrix,
+            'lr_p': lr_p,
+            'left_to_right_rt': left_to_right_rt,
+            'left_vir_cam_matrix': left_vir_cam_matrix,
+            'right_vir_cam_matrix': right_vir_cam_matrix,
+            'uv_coord_im_pred_global': uv_coord_im_pred_global,
+            'hand3d_gt': hand3d_gt,
+            'left_R': left_R,
+            'right_R': right_R,
+            'leftcam_xy': leftcam_xy,
+            'left_hand': left_hand,
+            'baseline_scale': baseline_scale,
+            'nimble_info': nimble_info,
+            'valid_mask': valid_mask
+        }
 
     def predict(self,
                 feats: Tuple[Tensor],
                 batch_data_samples: OptSampleList,
                 test_cfg: ConfigType = {}) -> Predictions:
         with torch.no_grad():
-            data = self.preprocess(feats, batch_data_samples)
-        if self.reg_shape_type > 1:
-            batch_num = data['feats'].shape[0]
-            skeleton_joints_info = self.skeleton_joints_info.repeat(
-                batch_num, 1).to(data['feats'].device)
-            skeleton_feature = self.skeleton_encoder(
-                skeleton_joints_info).view(batch_num,
-                                           self.skeleton_feature_dim, 1, -1)
-            data['feats'] = torch.cat((data['feats'], skeleton_feature), dim=1)
-        output, sigma = self.forward(data['feats'])
+            data = self.preprocess(feats, batch_data_samples, 'predict')
+        valid_mask = data['valid_mask'] == 1
+        output, all_sigmas = self.forward(data['feats'])
+
         hand3d_pred = self.postprocess(
             output,
             data['left_hand'],
@@ -372,38 +335,25 @@ class LiftNimbleHeadStandardE2e(LiftHeadStandardOriE2e):
             data['hand3d_gt'],
             data['baseline_scale'],
             only_pre=True)[0]
+        hand3d_pred = hand3d_pred[valid_mask]
         camera_model = batch_data_samples[0].meta['ori_camera']
         leftcam_uv_reproj_distort = camera_model.eye_to_window(
             hand3d_pred.cpu().numpy())
         leftcam_uv_reproj_distort = torch.tensor(
             leftcam_uv_reproj_distort).cuda()
-        return hand3d_pred, leftcam_uv_reproj_distort, sigma
+        return hand3d_pred, leftcam_uv_reproj_distort, all_sigmas
 
     def loss(self,
              feats: Tuple[Tensor],
              batch_data_samples: OptSampleList,
              train_cfg: ConfigType = {}) -> dict:
         """Calculate losses from a batch of inputs and data samples."""
-        if self.e2e:
-            data = self.preprocess(
-                feats,
-                batch_data_samples,
-            )
-        else:
-            with torch.no_grad():
-                data = self.preprocess(feats, batch_data_samples)
+        data = self.preprocess(feats, batch_data_samples, 'loss')
 
-        if self.reg_shape_type > 1:
-            batch_num = data['feats'].shape[0]
-            skeleton_joints_info = self.skeleton_joints_info.repeat(
-                batch_num, 1).to(data['feats'].device)
-            skeleton_feature = self.skeleton_encoder(
-                skeleton_joints_info).view(batch_num,
-                                           self.skeleton_feature_dim, 1, -1)
-            data['feats'] = torch.cat((data['feats'], skeleton_feature), dim=1)
+        valid_mask = data['valid_mask'] == 1
+        output, all_sigmas = self.forward(data['feats'])
 
-        output, sigma = self.forward(data['feats'])
-
+        hand3d_gt = data['hand3d_gt']
         # 3d 损失
         (pred_3d_way1, pred_3d_way2, hand3d_pred, hand3d_part_gt,
          pre_trans_xyz, pre_shape, gt_all_matrix,
@@ -412,49 +362,75 @@ class LiftNimbleHeadStandardE2e(LiftHeadStandardOriE2e):
                                             data['nimble_info'],
                                             data['hand3d_gt'],
                                             data['baseline_scale'], False)
+        pred_3d_way1 = pred_3d_way1[valid_mask]
+        hand3d_pred = hand3d_pred[valid_mask]
+        pre_trans_xyz = pre_trans_xyz[valid_mask]
+        all_sigmas = all_sigmas[valid_mask]
+        hand3d_gt = data['hand3d_gt'][valid_mask]
 
         # 直接监督rot和trans, 只考虑根节点的处理方式
         pre_nimble_trans = pre_trans_xyz
-        gt_nimble_trans = data['nimble_info']['nimble_trans']
+        gt_nimble_trans = data['nimble_info']['nimble_trans'][valid_mask]
 
-        hand3d_gt = data['hand3d_gt']
+        # oricam norm 2d loss
         # oricam norm reproj 2d loss
         norm_left_pred, norm_right_pred = self.reproj_norm_2d(
-            hand3d_pred, data['lr_rot_matrix'].clone(), data['lr_p'].clone())
-        norm_left_gt, norm_right_gt = self.reproj_norm_2d(
-            hand3d_gt, data['lr_rot_matrix'].clone(), data['lr_p'].clone())
+            hand3d_pred.clone(), data['lr_rot_matrix'].clone(),
+            data['lr_p'].clone())
+        norm_left_gt, norm_right_gt = data['norm_leftcam_xyz_gt'], data[
+            'norm_rightcam_xyz_gt']
+        # 2d转3d的数据不计算3d相关loss
+        convert_2d_mask = self.generate_2d_mask(batch_data_samples)
+        pred_3d_way1[convert_2d_mask] *= 0.
+        pred_3d_way2[convert_2d_mask] *= 0.
+        pred_3d_way2[convert_2d_mask] *= 0.
+        hand3d_part_gt[convert_2d_mask] *= 0.
+        all_sigmas[convert_2d_mask] *= 0.
+        hand3d_pred[convert_2d_mask] *= 0.
+        pre_trans_xyz[convert_2d_mask] *= 0.
         # pinch 损失
         dist_pred = torch.norm(
-            hand3d_pred[:, 4, :] - hand3d_pred[:, 8, :], dim=-1)
-        dist_gt = torch.norm(hand3d_gt[:, 4, :] - hand3d_gt[:, 8, :], dim=-1)
+            pred_3d_way2[:, 4, :] - pred_3d_way2[:, 8, :], dim=-1)
+        dist_gt = torch.norm(
+            hand3d_part_gt[:, 4, :] - hand3d_part_gt[:, 8, :], dim=-1)
 
-        re_all_sigmas = torch.cat((hand3d_pred, sigma), dim=-1)
+        re_all_sigmas = torch.cat((hand3d_pred, all_sigmas), dim=-1)
 
         pred_for_loss = [
             pred_3d_way1, pred_3d_way2, hand3d_pred, dist_pred,
             pre_nimble_trans, re_all_sigmas, norm_left_pred, norm_right_pred
         ]
         targ_for_loss = [
-            hand3d_gt, hand3d_gt, hand3d_gt, dist_gt, gt_nimble_trans,
+            hand3d_gt, hand3d_part_gt, hand3d_gt, dist_gt, gt_nimble_trans,
             hand3d_gt, norm_left_gt, norm_right_gt
         ]
 
         weight_ini = torch.ones((1, 21, 3))
         weight_ini[0, :9, :] = 2
         weight_ini[0, 4, :], weight_ini[0, 8, :] = 4, 4
-        weight_ini = weight_ini.repeat(hand3d_gt.shape[0], 1,
-                                       1).to(hand3d_gt.device)
+        weight_ini_ori = weight_ini.repeat(hand3d_gt.shape[0], 1,
+                                           1).to(hand3d_gt.device)
+
+        weight_ini_for_pre_nimble = weight_ini.repeat(
+            hand3d_part_gt.shape[0], 1, 1).to(hand3d_part_gt.device)
+        weight_ini_for_pre_nimble[:, :9, :] = 4
+        weight_ini_for_pre_nimble[:,
+                                  4, :], weight_ini_for_pre_nimble[:,
+                                                                   8, :] = 8, 8
+        weight_ini_ori_ = weight_ini_ori.clone()
+        weight_ini_ori_[convert_2d_mask] *= 0
         weight_for_loss = [
-            weight_ini, weight_ini, weight_ini, None, None, None, None, None
+            weight_ini_ori, weight_ini_for_pre_nimble, weight_ini_ori, None,
+            None, weight_ini_ori_, None, None
         ]
 
         losses = self.lift_loss(pred_for_loss, targ_for_loss, weight_for_loss)
         (loss_pre_root, loss_pre_nimble, loss_pre_all, loss_pinch,
-         loss_nimble_trans, loss_rle_all, loss_2d_left, loss_2d_right) = losses
+         loss_nimble_trans, loss_rle, loss_left_2d, loss_right_2d) = losses
 
         # # 子骨骼向量监督
         if self.use_bone_loss:
-            bone_loss_weight = 0.1
+            bone_loss_weight = 0.15
             bone_3d_pre = (hand3d_pred - hand3d_pred[:, self.joint_parents, :]
                            )[:, self.non_root_indices].reshape(-1, 3)
             bone_3d_gt = (hand3d_gt - hand3d_gt[:, self.joint_parents, :]
@@ -468,7 +444,7 @@ class LiftNimbleHeadStandardE2e(LiftHeadStandardOriE2e):
                                              dim=1)) * bone_loss_weight
 
             # 局部子骨骼监督
-            major_bone_loss_weight = 0.3
+            major_bone_loss_weight = 0.5
             local_bone_3d_pre = (
                 pred_3d_way2 -
                 pred_3d_way2[:, self.joint_parents, :])[:,
@@ -493,6 +469,9 @@ class LiftNimbleHeadStandardE2e(LiftHeadStandardOriE2e):
             bone_loss = torch.tensor(0.0, device=loss_pre_root.device)
             major_bone_loss = torch.tensor(0.0, device=loss_pre_root.device)
 
+        if self.fix_sigma_pars:
+            loss_rle = torch.tensor(0.0, device=loss_pre_root.device)
+
         losses_dict = dict(
             loss_pre_root=loss_pre_root,
             loss_pre_nimble=loss_pre_nimble,
@@ -501,11 +480,9 @@ class LiftNimbleHeadStandardE2e(LiftHeadStandardOriE2e):
             major_bone_loss=major_bone_loss,
             loss_pinch=loss_pinch,
             loss_nimble_trans=loss_nimble_trans,
-            loss_rle_all=loss_rle_all,
-            loss_2d_left=loss_2d_left,
-            loss_2d_right=loss_2d_right,
-        )
-
+            loss_rle=loss_rle,
+            loss_left_2d=loss_left_2d,
+            loss_right_2d=loss_right_2d)
         return losses_dict
 
     def cal_normalize_vector(self, vector):
@@ -513,6 +490,43 @@ class LiftNimbleHeadStandardE2e(LiftHeadStandardOriE2e):
             torch.sum(vector**2, dim=1, keepdim=True) + 1e-8)
         normalized_vector = vector / vector_norms
         return normalized_vector
+
+    def standardize_stereo(self, leftcam_xy, rightcam_xy, left_R, right_R,
+                           left_vircam_xf, right_vircam_xf):
+        """transform to standard stereo system."""
+        standard_left_xyz = self.align_monocular_to_parallel_stereo(
+            leftcam_xy, left_R, left_vircam_xf)
+        standard_right_xyz = self.align_monocular_to_parallel_stereo(
+            rightcam_xy, right_R, right_vircam_xf)
+        norm_left_xyz = standard_left_xyz / standard_left_xyz[:, :, 2:]
+        norm_right_xyz = standard_right_xyz / standard_right_xyz[:, :, 2:]
+        return norm_left_xyz, norm_right_xyz
+
+    @staticmethod
+    def align_monocular_to_parallel_stereo(cam_xy, R, vircam_xf):
+        """Aligns a monocular camera to a parallel stereo setup using the given
+        rotation matrix."""
+        B, K = cam_xy.shape[:2]
+        cam_xyz = torch.cat((cam_xy, torch.ones(B, K, 1).cuda()),
+                            dim=-1).view(B * K, 3, 1)
+        vircam_xf = vircam_xf.view(B, 1, 3, 3).repeat(1, K, 1,
+                                                      1).view(B * K, 3, 3)
+        R = R.view(B, 1, 3, 3).repeat(1, K, 1, 1).view(B * K, 3, 3)
+
+        oricam_cam_xyz = torch.matmul(vircam_xf, cam_xyz)
+        standard_cam_xyz = torch.matmul(R, oricam_cam_xyz).view(B, K, 3)
+        return standard_cam_xyz
+
+    @staticmethod
+    def generate_2d_mask(batch_data_samples):
+        mask = []
+        for batch_sample in batch_data_samples[::2]:
+            if 'hand_train_flora' in batch_sample.img_path:
+                mask.append(True)
+            else:
+                mask.append(False)
+        mask = torch.tensor(mask)
+        return mask
 
     def reproj_norm_2d(self, hand3d, lr_rot_matrix, lr_p):
         B, K = hand3d.shape[:2]

@@ -16,7 +16,7 @@ from .pose3d_transforms import (RandomFlipAroundRoot, RandomStereoParamAug,
 from .topdown_transforms import (AffineTransformConsistency, GenerateAttrLabel,
                                  MixTwoHands, RandomBackground,
                                  RandomDownSampleImage, TopdownAffine,
-                                 TopdownPCL, UmePCL)
+                                 TopdownPCL, TopdownPCL2D, UmePCL)
 
 __all__ = [
     'GetBBoxCenterScale', 'RandomBBoxTransform', 'RandomFlip',
@@ -29,5 +29,5 @@ __all__ = [
     'RandomFlipAroundRoot', 'KeypointTo25DLabel', 'RandomStereoParamAug',
     'RandomStereoParamAugV2', 'RandomStereoParamAugForClip', 'MixTwoHands',
     'GroupTransformers', 'RandomDownSampleImage', 'GenerateNoiseDarkImage',
-    'UmePCL', 'RandomMonocularOcclusion'
+    'UmePCL', 'RandomMonocularOcclusion', 'TopdownPCL2D'
 ]

@@ -109,7 +109,7 @@ class RLELoss(nn.Module):
             log_sigma = torch.log(sigma).reshape(target.shape[0],
                                                  target.shape[1], dim)
             nf_loss = log_sigma - log_phi
-        except:
+        except:  # noqa
             return torch.tensor(0.0, device=pred.device)
 
         if self.residual:
@@ -126,7 +126,7 @@ class RLELoss(nn.Module):
 
         if self.use_target_weight:
             assert target_weight is not None
-            loss *= target_weight.unsqueeze(-1)
+            loss *= target_weight
 
         # if self.size_average:
         #     loss /= len(loss)
