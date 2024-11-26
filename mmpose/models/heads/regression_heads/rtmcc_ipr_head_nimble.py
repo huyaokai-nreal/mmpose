@@ -170,6 +170,7 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         self.non_root_indices = []
         self.reverse_pinch_date_list = ['20240220', '20240229', '20240926']
         self.pinch_loss_func = F.l1_loss
+        self.reproject_2d_loss = F.l1_loss
         for i in range(len(self.joint_parents)):
             if i != self.joint_parents[i]:
                 self.non_root_indices.append(i)
@@ -587,7 +588,7 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         use_3d_supervise_mask = []
 
         for i, data in enumerate(batch_data_samples):
-            if 'ume' in data.img_path:
+            if 'ume' in data.img_path or 'hand_train_flora' in data.img_path:
                 use_3d_supervise_mask.append(False)
             else:
                 use_3d_supervise_mask.append(True)
@@ -636,8 +637,9 @@ class RTMCCIPRHeadNimble(RTMCCHead):
             hand3d_pcl_sin = virtual_cam.world_to_eye(
                 data.gt_instances.keypoints3d[0])
             hand3d_gt_pcl.append(hand3d_pcl_sin)
-            hand2d_gt_pcl.append(virtual_cam.eye_to_window(hand3d_pcl_sin))
-
+            kpt3d_tmp = camera_model.window_to_eye(data.gt_instances.keypoints[0, :, :2])
+            hand2d_gt_pcl.append(vritual_camera.world_to_window(kpt3d_tmp))
+            
         label_2d = torch.cat(label_2d_list)
         left_R = torch.tensor(np.array(left_R)).cuda().float()
         left_hand = torch.tensor(np.array(is_left_hands)).cuda().float()
@@ -694,44 +696,13 @@ class RTMCCIPRHeadNimble(RTMCCHead):
             indices = torch.arange(weight_num)
             kpt_weight[:, indices, indices] = sigma_kpt_softmax * 21
 
-        # hand3d_gt_pcl_rel = hand3d_gt_pcl - hand3d_gt_pcl[:,:1,:]
-        # hand2d_pcl = torch.matmul(intrix_matrix, hand3d_gt_pcl.permute(0,2,1)).permute(0,2,1)
-        # hand2d_pcl = hand2d_pcl/(hand2d_pcl[...,2:] +1e-9)
-        # hand2d_pcl_leftmatrix = torch.matmul(torch.inverse(intrix_matrix), hand2d_pcl.permute(0,2,1)).permute(0,2,1)[...,:2].to(hand3d_gt_pcl_rel.device)
-        # batch_size,K = hand3d_gt_pcl.shape[0], hand3d_gt_pcl.shape[1]
-
-        # A = torch.zeros((batch_size, 2 * K, 3), device=hand2d_pcl_leftmatrix.device)
-        # A[:, ::2, 0] = -1
-        # A[:, 1::2, 1] = -1
-        # A[:, ::2, 2] = hand2d_pcl_leftmatrix[:, :, 0].view(batch_size, K)
-        # A[:, 1::2, 2] = hand2d_pcl_leftmatrix[:, :, 1].view(batch_size, K)
-
-        # B = torch.zeros((batch_size, 2 * K, 1), device=hand3d_gt_pcl_rel.device)
-        # B[:, ::2, 0] = hand3d_gt_pcl_rel[:, :, 0] - hand3d_gt_pcl_rel[:, :, 2] * hand2d_pcl_leftmatrix[:, :, 0]
-        # B[:, 1::2, 0] = hand3d_gt_pcl_rel[:, :, 1] - hand3d_gt_pcl_rel[:, :, 2] * hand2d_pcl_leftmatrix[:, :, 1]
-        # result = torch.matmul(torch.matmul(torch.inverse(torch.matmul(A.permute(0,2,1), A)), A.permute(0,2,1)), B)
-        # hand3d = hand3d_gt_pcl_rel + result.permute(0,2,1)
-        # error = np.linalg.norm(hand3d.cpu().detach().numpy() - hand3d_gt_pcl.cpu().detach().numpy(), ord=2, axis=-1).mean() * 1000
-
-        # 重投影损失
-        # hand2d_pred = torch.matmul(intrix_matrix, pred_3d_way1.permute(0,2,1)).permute(0,2,1)
-        # hand2d_pred = hand2d_pred[...,:2] / (hand2d_pred[...,2:]+1e-8)
-        # hand2d_gt = torch.matmul(intrix_matrix, hand3d_part_gt.permute(0,2,1)).permute(0,2,1)
-        # hand2d_gt = hand2d_gt[...,:2] / (hand2d_gt[...,2:]+1e-8)
-        # hand3d_pred_pcl = torch.matmul(left_R, hand3d_pred.permute(0,2,1)).permute(0,2,1)
-        # hand2d_pred_pcl = torch.matmul(intrix_matrix, hand3d_pred_pcl.permute(0,2,1)).permute(0,2,1)
-        # hand2d_pred_pcl = (hand2d_pred_pcl/(hand2d_pred_pcl[...,2:] +1e-9))[...,:2]
         hand2d_gt_pcl = hand2d_gt_pcl / 128
         mask = left_hand == 1
         hand2d_pred_pcl = output_2d.clone()
         hand2d_pred_pcl[mask, :, 0] = (127 - hand2d_pred_pcl[mask, :, 0])
-        hand2d_pred_pcl = hand2d_pred_pcl / 128
-        # hand3d_pred_pcl = torch.matmul(left_R, hand3d_pred.permute(0,2,1)).permute(0,2,1)
-        # hand2d_pred_pcl = torch.matmul(intrix_matrix, hand3d_pred_pcl.permute(0,2,1)).permute(0,2,1)
-        # hand2d_pred_pcl = (hand2d_pred_pcl/(hand2d_pred_pcl[...,2:] +1e-9))[...,:2]
-        # hand2d_pred_pcl = hand2d_pred_pcl / 128
+        hand2d_pred_pcl_direct = hand2d_pred_pcl / 128
 
-        (pred_3d_way1, pred_3d_way2, hand3d_pred, hand3d_part_gt,
+        (pred_3d_way1, pred_3d_way2, hand3d_pred_total, hand3d_part_gt,
          pre_trans_xyz,
          gt_trans_xyz) = self.decode_nimble_fun(nimble_output, left_R,
                                                 nimble_info, left_hand,
@@ -744,9 +715,14 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         hand3d_gt = hand3d_gt[use_3d_supervise_mask]
         pred_3d_way1 = pred_3d_way1[nimble_lable_exist]
         pred_3d_way2 = pred_3d_way2[nimble_lable_exist]
-        hand3d_pred = hand3d_pred[use_3d_supervise_mask]
+        hand3d_pred = hand3d_pred_total[use_3d_supervise_mask]
         hand3d_part_gt = hand3d_part_gt[nimble_lable_exist]
         sigma = sigma[use_3d_supervise_mask]
+        
+        hand3d_pred_pcl = torch.matmul(left_R, hand3d_pred_total.permute(0,2,1)).permute(0,2,1)
+        hand3d_pred_rep = torch.matmul(intrix_matrix, hand3d_pred_pcl.permute(0,2,1)).permute(0,2,1)
+        hand2d_pred_pcl_reproject = (hand3d_pred_rep / hand3d_pred_rep[:,:,-1:])[:,:,:2]
+        hand2d_pred_pcl_reproject = hand2d_pred_pcl_reproject / 128
 
         # 直接监督rot和trans, 只考虑根节点的处理方式
         pre_nimble_trans = pre_trans_xyz[use_3d_supervise_mask]
@@ -761,7 +737,7 @@ class RTMCCIPRHeadNimble(RTMCCHead):
 
         pred_for_loss = [
             pred_3d_way1, pred_3d_way2, hand3d_pred, dist_pred,
-            pre_nimble_trans, re_all_sigmas, hand2d_pred_pcl
+            pre_nimble_trans, re_all_sigmas, hand2d_pred_pcl_direct
         ]
         targ_for_loss = [
             hand3d_gt_xreal, hand3d_gt_xreal, hand3d_gt, dist_gt, gt_nimble_trans,
@@ -784,7 +760,7 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         losses = self.loss_module(pred_for_loss, targ_for_loss,
                                   weight_for_loss)
         (loss_pre_root, loss_pre_nimble, loss_pre_all, loss_pinch,
-         loss_nimble_trans, loss_rle_all, loss_reproject) = losses
+         loss_nimble_trans, loss_rle_all, loss_2d_direct) = losses
 
         # # 子骨骼向量监督
         bone_loss_weight = 0.1
@@ -839,6 +815,11 @@ class RTMCCIPRHeadNimble(RTMCCHead):
                 softmax_weight) * 3
         else:
             pinch_loss_add = torch.tensor(0.0, device=loss_pre_root.device)
+        
+        if cur_epoch > 70:
+            loss_2d_reproject = self.reproject_2d_loss(hand2d_pred_pcl_reproject, hand2d_gt_pcl)
+        else:
+            loss_2d_reproject = torch.tensor(0.0, device=hand2d_gt_pcl.device)
 
         losses = dict(
             # loss_kpt2d=loss_kpt2d,
@@ -851,7 +832,8 @@ class RTMCCIPRHeadNimble(RTMCCHead):
             loss_pinch=loss_pinch,
             loss_nimble_trans=loss_nimble_trans,
             loss_rle_all=loss_rle_all,
-            loss_reproject=loss_reproject,
+            loss_2d_direct=loss_2d_direct,
+            loss_2d_reproject=loss_2d_reproject,
             pinch_loss_add=pinch_loss_add)
 
         # claculate 3d metric

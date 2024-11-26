@@ -198,7 +198,7 @@ train_date_list = [
     '20230824', '20230828', '20230906', '20230907', '20240220', '20240229',
     '20240401', '20231227', '20240517', '20240425', '20240522', '20240801',
     '20240816', '20240826', '20240820', '20240903', '20240907', '20240926',
-    '20240914', '20240923', '20240930'
+    '20240914', '20240923', '20240930', '20241018', '20241030'
 ]
 train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
 for data_date in train_date_list:
@@ -244,6 +244,8 @@ pub_aria_data_list, _ = get_aria_anno_paths(data_root)
 overlap_dateset = kpt3d_datasets_info['overlap_train_data']
 overlap_dateset = [os.path.join(data_root, item) for item in overlap_dateset]
 
+converted_2d_dateset = kpt3d_datasets_info['converted_2dto3d_data']
+converted_2d_dateset = [os.path.join(data_root, item) for item in converted_2d_dateset]
 
 val_data_list = []
 val_date_list = ['20230830']
@@ -268,7 +270,7 @@ train_dataloader = dict(
     persistent_workers=True,
     sampler=dict(
         type='MultiSourceSampler',
-        source_ratio=[0.1, 0.4, 0.45, 0.05],
+        source_ratio=[0.1, 0.2, 0.4, 0.25, 0.05],
         batch_size=128),
     collate_fn=dict(type='default_collate'),
 dataset=dict(
@@ -291,7 +293,7 @@ dataset=dict(
                 epochs_per_round=5),
             dict(
                 type=dataset_type,
-                sample_interval=3,
+                sample_interval=4,
                 # serialize_data=True,
                 data_ratio=1 / 2.0,
                 data_file_list=train_data_list,
@@ -305,7 +307,21 @@ dataset=dict(
             ),
             dict(
                 type=dataset_type,
-                sample_interval=3,
+                sample_interval=2,
+                # serialize_data=True,
+                data_ratio=1 / 2.0,
+                data_file_list=converted_2d_dateset,
+                data_mode=data_mode,
+                pipeline=train_pipeline,
+                dataset_weight_list=None,
+                data_root=data_root,
+                flip_left_to_right=False,
+                filter_kpt_exceed=True,
+                point_type='2.5D',
+            ),
+            dict(
+                type=dataset_type,
+                sample_interval=4,
                 # serialize_data=True,
                 data_ratio=1 / 2.0,
                 data_file_list=overlap_dateset,

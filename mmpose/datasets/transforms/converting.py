@@ -31,7 +31,7 @@ class KeypointTo25DLabel(BaseTransform):
         ],
                                               axis=-1)
         if self.norm_depth:
-            results['keypoints'][..., -1] /= results['meta']['hand_scale']
+            results['keypoints'][..., -1] /= (results['meta']['hand_scale']+1e-8)
             results['meta']['norm_depth'] = True
         results['meta']['root_depth'] = root_depth
         return results
