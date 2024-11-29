@@ -45,6 +45,7 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
                  data_ratio=-1,
                  point_type='3D',
                  filter_kpt_exceed=False,
+                 sample_interval=1.0,
                  seq_len=4,
                  round_num=-1,
                  epochs_per_round=-1):
@@ -199,9 +200,10 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
             for k, v in coco.dataset['cameras_info'].items():
                 self.cams_info[k] = BinocularCameraInstance.from_dict(v)
             ann_ids = coco.getAnnIds()
-            used_ann_ids_num = int(len(ann_ids)*(self.sample_interval))
-            begin_num = np.random.choice(range(len(ann_ids)-used_ann_ids_num))
-            for ann_id in ann_ids[begin_num:begin_num+used_ann_ids_num]:
+            used_ann_ids_num = int(len(ann_ids) * (self.sample_interval))
+            begin_num = np.random.choice(
+                range(len(ann_ids) - used_ann_ids_num))
+            for ann_id in ann_ids[begin_num:begin_num + used_ann_ids_num]:
                 ann = coco.loadAnns(ann_id)[0]
                 left_img_id = int(ann['image_id'].split('_')[0])
                 right_img_id = int(ann['image_id'].split('_')[1])
