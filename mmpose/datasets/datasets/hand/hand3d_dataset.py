@@ -69,6 +69,7 @@ class Hand3DDataset(BaseCocoStyleDataset):
         self.standard_stereo = standard_stereo
         self.round_num = round_num
         self.epochs_per_round = epochs_per_round
+        self.flip_left_to_right = flip_left_to_right
         super().__init__(
             data_root='',
             data_mode=data_mode,
@@ -311,6 +312,7 @@ class Hand3DDataset(BaseCocoStyleDataset):
         data_info['img'] = self.get_image(data_info['img_path'])
         data_info['meta']['frame_height'] = data_info['img'].shape[0]
         data_info['meta']['frame_width'] = data_info['img'].shape[1]
+        data_info['meta']['flipped'] = False
         return data_info
 
     @force_full_init
@@ -359,5 +361,7 @@ class Hand3DDataset(BaseCocoStyleDataset):
             'keypoints_visible': data_info['keypoints_visible'].copy(),
             'camera_name': 'left'
         }
+        if self.flip_left_to_right and data_info['cat_id'] == 1:
+            data_info['meta']['flipped'] = True
         all_results = self.pipeline(data_info)
         return all_results

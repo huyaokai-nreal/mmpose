@@ -49,7 +49,6 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
                  seq_len=4,
                  choice_one=False,
                  round_num=-1,
-                 sample_interval = 1,
                  epochs_per_round=-1):
         self.flip_left_to_right = flip_left_to_right
         self.data_ratio = data_ratio

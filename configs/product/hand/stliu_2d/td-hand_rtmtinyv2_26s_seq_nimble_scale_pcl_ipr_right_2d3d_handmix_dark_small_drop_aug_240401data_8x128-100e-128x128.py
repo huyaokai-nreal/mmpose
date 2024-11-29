@@ -280,14 +280,14 @@ train_dataloader = dict(
         datasets=[
             dict(
                 type=dataset_type,
-                sample_interval=5,  # sample interval会影响看到的图像数量
+                sample_interval=1.0/5,  # sample interval会影响看到的图像数量
                 data_ratio=1 / 2.0,  # data ratio不会影响看到的图像数量
                 data_file_list=pub_train_data_list,
                 data_mode=data_mode,
                 pipeline=train_pipeline,
                 dataset_weight_list=None,
                 data_root=data_root,
-                flip_left_to_right=False,
+                flip_left_to_right=True,
                 filter_kpt_exceed=False,
                 point_type='2.5D',
                 round_num=2,
@@ -297,7 +297,7 @@ train_dataloader = dict(
             ),
             dict(
                 type=dataset_type,
-                sample_interval=4,
+                sample_interval=1.0/4,
                 # serialize_data=True,
                 data_ratio=1 / 2.0,
                 data_file_list=train_data_list,
@@ -305,7 +305,7 @@ train_dataloader = dict(
                 pipeline=train_pipeline,
                 dataset_weight_list=dataset_weight_list,
                 data_root=data_root,
-                flip_left_to_right=False,
+                flip_left_to_right=True,
                 filter_kpt_exceed=False,
                 point_type='2.5D',
                 seq_len=seq_length,
@@ -321,7 +321,7 @@ train_dataloader = dict(
                 pipeline=train_pipeline,
                 dataset_weight_list=None,
                 data_root=data_root,
-                flip_left_to_right=False,
+                flip_left_to_right=True,
                 filter_kpt_exceed=False,
                 point_type='2.5D',
                 seq_len=seq_length,
@@ -329,7 +329,7 @@ train_dataloader = dict(
             ),
             dict(
                 type=dataset_type,
-                sample_interval=5,
+                sample_interval=1.0/5,
                 # serialize_data=True,
                 data_ratio=1 / 2.0,
                 data_file_list=overlap_dateset,
@@ -337,7 +337,7 @@ train_dataloader = dict(
                 pipeline=train_pipeline,
                 dataset_weight_list=None,
                 data_root=data_root,
-                flip_left_to_right=False,
+                flip_left_to_right=True,
                 filter_kpt_exceed=False,
                 point_type='2.5D',
                 seq_len=seq_length,
@@ -345,14 +345,14 @@ train_dataloader = dict(
             ),
             dict(
                 type='Hand3DDatasetSeq',
-                sample_interval=5,
+                sample_interval=1.0/5,
                 data_ratio=1 / 2.0,
                 data_file_list=pub_aria_data_list,
                 data_mode=data_mode,
                 pipeline=train_pipeline,
                 dataset_weight_list=None,
                 data_root=data_root,
-                flip_left_to_right=False,
+                flip_left_to_right=True,
                 filter_kpt_exceed=False,
                 point_type='2.5D',
                 seq_len=seq_length,
@@ -368,7 +368,7 @@ val_3d_dataset = dict(
     #extern_hand_template_path = '/home/zx_li/workspace/mmpose/work_dirs/binocular_hand_template.npy',
     test_mode=True,
     pipeline=val_pipeline,
-    flip_left_to_right=False,
+    flip_left_to_right=True,
     # mean_bone_template_path=
     # '/data/AI_DATA/data_hand/model/mmpose/mean_hand_bones_230824.npz',
     #point_type='leftcam',

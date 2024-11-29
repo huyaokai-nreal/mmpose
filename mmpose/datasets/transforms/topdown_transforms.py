@@ -462,14 +462,23 @@ class TopdownPCL(BaseTransform):
         scale = self.input_size[0] / results['bbox_scale'][0][0]
         camera_angle = results['meta'].get('camera_angle', 0)
 
-        virtual_camera: PinholePlaneCameraModel = \
-            gen_crop_parameters_from_points(
+        try:
+            virtual_camera: PinholePlaneCameraModel = \
+                gen_crop_parameters_from_points(
+                    ori_camera,
+                    center,
+                    self.input_size,
+                    mirror_img_x=False,
+                    camera_angle=camera_angle,
+                    focal_multiplier=scale)
+        except Exception:
+            virtual_camera: PinholePlaneCameraModel = gen_ume_virutal_cam(
                 ori_camera,
                 results['keypoints3d'][0],
                 self.input_size,
                 mirror_img_x=False,
                 camera_angle=camera_angle,
-                focal_multiplier=scale)
+                focal_multiplier=0.8)
         image = results['img']
         crop_img = warp_image(ori_camera, virtual_camera, w, h, image)
         results['img'] = crop_img
