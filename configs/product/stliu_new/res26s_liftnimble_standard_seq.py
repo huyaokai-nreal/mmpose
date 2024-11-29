@@ -173,7 +173,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/stliu/mmpose/work_dirs/new_dataset/liftnimble_flip_res26sw_simple_1014/epoch_150.pth'
+        '/data/stliu/mmpose/work_dirs/new_dataset/liftnimble_flip_res26sw_simple_1112/epoch_150.pth'
     ),
 )
 
@@ -186,7 +186,7 @@ train_date_list = [
     '20230824', '20230828', '20230906', '20230907', '20240220', '20240229',
     '20240401', '20231227', '20240517', '20240425', '20240522', '20240801',
     '20240816', '20240826', '20240820', '20240903', '20240907', '20240926',
-    '20240914', '20240923', '20240930'
+    '20240914', '20240923', '20240930', '20241018', '20241030', '20241107'
 ]
 train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
 for data_date in train_date_list:
@@ -268,13 +268,14 @@ val_pipeline = [
 # data loaders
 train_dataloader = dict(
     batch_size=32,
-    num_workers=4,
+    num_workers=2,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
     collate_fn=dict(type='default_collate'),
     dataset=dict(
         type=dataset_type,
         # data_ratio=1.0/30,
+        sample_interval=4.0/5,
         data_file_list=train_data_list,
         data_mode=data_mode,
         pipeline=train_pipeline,
@@ -288,7 +289,7 @@ train_dataloader = dict(
 )
 val_dataloader = dict(
     batch_size=128,
-    num_workers=4,
+    num_workers=2,
     persistent_workers=True,
     drop_last=True,
     sampler=dict(

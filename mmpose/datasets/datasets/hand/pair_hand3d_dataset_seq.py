@@ -66,6 +66,7 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         self.round_num = round_num
         self.epochs_per_round = epochs_per_round
         self.filter_kpt_exceed = filter_kpt_exceed
+        self.sample_interval = sample_interval
         if dataset_weight_list:
             assert len(dataset_weight_list) == len(data_file_list)
         super().__init__(
@@ -198,7 +199,9 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
             for k, v in coco.dataset['cameras_info'].items():
                 self.cams_info[k] = BinocularCameraInstance.from_dict(v)
             ann_ids = coco.getAnnIds()
-            for ann_id in ann_ids:
+            used_ann_ids_num = int(len(ann_ids)*(self.sample_interval))
+            begin_num = np.random.choice(range(len(ann_ids)-used_ann_ids_num))
+            for ann_id in ann_ids[begin_num:begin_num+used_ann_ids_num]:
                 ann = coco.loadAnns(ann_id)[0]
                 left_img_id = int(ann['image_id'].split('_')[0])
                 right_img_id = int(ann['image_id'].split('_')[1])

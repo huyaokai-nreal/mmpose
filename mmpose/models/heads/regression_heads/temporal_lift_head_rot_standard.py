@@ -78,7 +78,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         self.enhance_lefthand = enhance_lefthand
         self.enhance_static = enhance_static
         self.static_data_date_list = ['20240516', '20240517', '20240522']
-        self.reverse_pinch_date_list = ['20240220', '20240229', '20240926']
+        self.reverse_pinch_date_list = ['20240220', '20240229', '20240926', '20241030']
         self.fix_sigma_pars = fix_sigma_pars
         self.pinch_loss_func = F.l1_loss
 
@@ -331,7 +331,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             bone_loss = torch.tensor(0.0, device=loss_pre_root.device)
             major_bone_loss = torch.tensor(0.0, device=loss_pre_root.device)
 
-        pinch_mask = (dist_pred > dist_gt - 0.001) & (dist_gt < 0.02)
+        pinch_mask = (dist_pred > dist_gt - 0.002) & (dist_gt < 0.02)
         mh = MessageHub.get_current_instance()
         cur_epoch = mh.get_info('epoch')
 
@@ -345,7 +345,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             valid_num = len(dist_gt[pinch_mask])
             softmax_weight = F.softmax(-dist_gt[pinch_mask], dim=0) * valid_num
             margin_value = torch.ones_like(dist_gt) * 0.003
-            margin_value[pinch_reverse_mask] = 0.005
+            margin_value[pinch_reverse_mask] = 0.006
             pinch_loss_add = self.pinch_loss_func(
                 dist_pred[pinch_mask] * softmax_weight,
                 (dist_gt[pinch_mask] - margin_value[pinch_mask]) *

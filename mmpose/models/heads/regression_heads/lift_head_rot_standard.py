@@ -96,7 +96,7 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             d_output=5,
             with_att=False)
         self.rigid_samples = _gen_rigid_features()
-        self.reverse_pinch_date_list = ['20240220', '20240229', '20240926']
+        self.reverse_pinch_date_list = ['20240220', '20240229', '20240926', '20241030']
 
         # define the full connection layer
         if reg_shape_type == 0:
@@ -519,7 +519,7 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             bone_loss = torch.tensor(0.0, device=loss_pre_root.device)
             major_bone_loss = torch.tensor(0.0, device=loss_pre_root.device)
 
-        pinch_mask = (dist_pred > dist_gt) & (dist_gt < 0.02)
+        pinch_mask = (dist_pred > dist_gt - 0.002) & (dist_gt < 0.02)
         mh = MessageHub.get_current_instance()
         cur_epoch = mh.get_info('epoch')
 
@@ -533,7 +533,7 @@ class LiftNimbleHeadStandard(LiftHeadStandard):
             valid_num = len(dist_gt[pinch_mask])
             softmax_weight = F.softmax(-dist_gt[pinch_mask], dim=0) * valid_num
             margin_value = torch.ones_like(dist_gt) * 0.003
-            margin_value[pinch_reverse_mask] = 0.005
+            margin_value[pinch_reverse_mask] = 0.006
             pinch_loss_add = self.pinch_loss_func(
                 dist_pred[pinch_mask] * softmax_weight,
                 (dist_gt[pinch_mask] - margin_value[pinch_mask]) *
