@@ -78,7 +78,9 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         self.enhance_lefthand = enhance_lefthand
         self.enhance_static = enhance_static
         self.static_data_date_list = ['20240516', '20240517', '20240522']
-        self.reverse_pinch_date_list = ['20240220', '20240229', '20240926', '20241030']
+        self.reverse_pinch_date_list = [
+            '20240220', '20240229', '20240926', '20241030'
+        ]
         self.fix_sigma_pars = fix_sigma_pars
         self.pinch_loss_func = F.l1_loss
 
@@ -331,10 +333,9 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             bone_loss = torch.tensor(0.0, device=loss_pre_root.device)
             major_bone_loss = torch.tensor(0.0, device=loss_pre_root.device)
 
-        pinch_mask = (dist_pred > dist_gt - 0.002) & (dist_gt < 0.02)
         mh = MessageHub.get_current_instance()
         cur_epoch = mh.get_info('epoch')
-
+        pinch_mask = (dist_pred > dist_gt - 0.002) & (dist_gt < 0.02)
         reverse_mask = self.generate_mask(batch_data_samples,
                                           self.reverse_pinch_date_list).to(
                                               pinch_mask.cuda())
@@ -353,6 +354,28 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         else:
             pinch_loss_add = torch.tensor(0.0, device=loss_pre_root.device)
 
+        plam_ratio = torch.norm(
+            hand3d_gt[:, 9, :] - hand3d_gt[:, 0, :], dim=-1) / 0.08
+        standard_hand3d_gt = hand3d_gt / plam_ratio[:, None, None]
+        dis = (standard_hand3d_gt[:, 8, :] +
+               standard_hand3d_gt[:, 5, :]) / 2 - standard_hand3d_gt[:, 6, :]
+        dis_norm = torch.norm(dis, dim=1)
+        poke_mask = dis_norm < 0.012
+        poke_mask = torch.concat([poke_mask, poke_mask])
+        if cur_epoch > 30 and sum(poke_mask) > 0:
+            direction_vector1 = pred_3d_way2[poke_mask,
+                                             5, :] - pred_3d_way2[poke_mask,
+                                                                  6, :]
+            direction_vector2 = pred_3d_way2[poke_mask,
+                                             6, :] - pred_3d_way2[poke_mask,
+                                                                  8, :]
+            vector1_norm = F.normalize(direction_vector1, dim=1)
+            vector2_norm = F.normalize(direction_vector2, dim=1)
+            cosine_similarity = (vector1_norm * vector2_norm).sum(dim=1)
+            loss_poke = (1 - torch.abs(cosine_similarity)).mean() / 5
+        else:
+            loss_poke = torch.tensor(0.0, device=hand3d_gt.device)
+
         if self.fix_sigma_pars:
             loss_rle = torch.tensor(0.0, device=loss_pre_root.device)
 
@@ -367,6 +390,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             smooth_shape_loss=smooth_shape_loss,
             loss_smooth=loss_smooth,
             loss_smooth_root=loss_smooth_root,
+            loss_poke=loss_poke,
             loss_rle=loss_rle,
             pinch_loss_add=pinch_loss_add)
 
