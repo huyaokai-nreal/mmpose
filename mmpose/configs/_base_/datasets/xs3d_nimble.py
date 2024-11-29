@@ -643,8 +643,8 @@ datasets_info = {
                 'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20241030_074241__pinch__normal__right__1101__0008__undistort_tar__Flora304.json',
                 'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20241030_074844__pinch__normal__left__1101__0008__undistort_tar__Flora304.json',
             ]
-        },
-        # 横向pinch手势
+        }, 
+        # poke手势
         '20241107': {
             'Flora301': [
                 'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20241107_073247__poke__normal__right__1101__0007__undistort_tar__Flora301.json',
@@ -1156,6 +1156,22 @@ datasets_info = {
         'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_stliu/hand_train_flora_keypoint_decoration_1_231017_20k__1__binocular__lmdb.json',
         'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_stliu/hand_train_flora_quest_system_240222_7k_1__binocular__lmdb.json',
         'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_stliu/hand_train_flora_quest_system_240227_12k_1__binocular__lmdb.json',
+    },
+    'test_2d_data':{
+        'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_stliu_for_test/hand_test_chichi_keypoint_230912_5k__1__binocular__lmdb.json',
+        'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_stliu_for_test/hand_test_chichis_keypoint_230918_5k__1__binocular__lmdb.json',
+        'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_stliu_for_test/hand_test_dynamic_keypoint_230907_20k__1__binocular__lmdb.json',
+        'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_stliu_for_test/hand_test_flora_dark_light_240315_3k__1__binocular__lmdb.json',
+        'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_stliu_for_test/hand_test_flora_keypoint_car_231208_2k__1__binocular__lmdb.json',
+        'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_stliu_for_test/hand_test_flora_keypoint_decoration_1_231208_1k__1__binocular__lmdb.json',
+        'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_stliu_for_test/hand_test_flora_keypoint_decoration_2_231208_1k__1__binocular__lmdb.json',
+        'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_stliu_for_test/hand_test_flora_keypoint_decoration_3_231208_1k__1__binocular__lmdb.json',
+        'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_stliu_for_test/hand_test_flora_near_two_hands_240202_2k_1__binocular__lmdb.json',
+        'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_stliu_for_test/hand_test_flora_static_benchmark_230627_10k_lmdb.json',
+        'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_stliu_for_test/hand_test_flora_static_benchmark_230703_10k_lmdb.json',
+        'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_stliu_for_test/hand_test_flora_static_benchmark_230712_8k_lmdb.json',
+        'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_stliu_for_test/hand_test_flora_tattoo_240417_6k__1__binocular__lmdb.json',
+        'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_stliu_for_test/hand_test_flora_wrist_occlusion_240417_2k__1__binocular__lmdb.json',
     },
     'test_data': {
         # 竖向握拳pinch

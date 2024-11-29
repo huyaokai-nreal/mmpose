@@ -81,6 +81,7 @@ class RTMCCIPRHeadNimble(RTMCCHead):
     def __init__(self,
                  in_channels: Union[int, Sequence[int]],
                  out_channels: int,
+                 use_DLT: bool,
                  input_size: Tuple[int, int],
                  in_featuremap_size: Tuple[int, int],
                  simcc_split_ratio: float = 2.0,
@@ -126,6 +127,7 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         self.deploy = deploy
 
         # nimble相关
+        self.use_DLT = use_DLT
         self.pose_num = 19 * 9
         self.scale_parameter = 1000
         self.nimble_output_num = self.pose_num + 21
@@ -511,48 +513,48 @@ class RTMCCIPRHeadNimble(RTMCCHead):
             return xyz_point
 
         if only_pre:
-
-            hand3d_wo_root = get_nimble_3d(pre_root_zeros, pre_root_matrix,
+            if self.use_DLT:
+                hand3d_wo_root = get_nimble_3d(pre_root_zeros, pre_root_matrix,
+                                pre_local_matrix, shape_vector,
+                                left_R_zeros, f_scale, True)
+                pred_3d_in_virtual = get_root_xyz(hand3d_wo_root, uv_cood,
+                                                intrix_matrix, kpt3d_weight)
+                pre_all__xyz = torch.matmul(
+                    torch.inverse(left_R),
+                    pred_3d_in_virtual.permute(0, 2, 1)).permute(0, 2, 1)
+            else:
+                pre_all__xyz = get_nimble_3d(pre_root_xyz, pre_root_matrix,
                                            pre_local_matrix, shape_vector,
-                                           left_R_zeros, f_scale, True)
-            pred_3d_in_virtual = get_root_xyz(hand3d_wo_root, uv_cood,
-                                              intrix_matrix, kpt3d_weight)
-            pre_all__xyz = torch.matmul(
-                torch.inverse(left_R),
-                pred_3d_in_virtual.permute(0, 2, 1)).permute(0, 2, 1)
+                                           left_R, f_scale, True)
 
             return pre_all__xyz
         else:
-            pre_root__xyz = get_nimble_3d(gt_root_xyz, pre_root_matrix,
-                                          gt_local_matrix, shape_vector,
-                                          left_R, f_scale)
+            if self.use_DLT:
+                pre_root__xyz = get_nimble_3d(gt_root_xyz, pre_root_matrix,
+                                            gt_local_matrix, shape_vector,
+                                            left_R, f_scale)
+                hand3d_wo_root = get_nimble_3d(pre_root_zeros, pre_root_matrix,
+                                            pre_local_matrix, shape_vector,
+                                            left_R_zeros, f_scale)
+                pred_3d_in_virtual = get_root_xyz(hand3d_wo_root, uv_cood,
+                                                intrix_matrix, kpt3d_weight)
+                pre_all__xyz = torch.matmul(
+                    torch.inverse(left_R),
+                    pred_3d_in_virtual.permute(0, 2, 1)).permute(0, 2, 1)
+
+            else:
+
+                pre_root__xyz = get_nimble_3d(pre_root_xyz, pre_root_matrix,
+                                            gt_local_matrix, shape_vector,
+                                            left_R, f_scale)
+                pre_all__xyz = get_nimble_3d(pre_root_xyz, pre_root_matrix,
+                                            pre_local_matrix, shape_vector,
+                                            left_R, f_scale)
+
             pre_nimble__xyz = get_nimble_3d(gt_root_xyz, gt_root_matrix,
                                             pre_local_matrix, shape_vector,
                                             left_R,
                                             f_scale)
-
-            hand3d_wo_root = get_nimble_3d(pre_root_zeros, pre_root_matrix,
-                                           pre_local_matrix, shape_vector,
-                                           left_R_zeros, f_scale)
-            pred_3d_in_virtual = get_root_xyz(hand3d_wo_root, uv_cood,
-                                              intrix_matrix, kpt3d_weight)
-            pre_all__xyz = torch.matmul(
-                torch.inverse(left_R),
-                pred_3d_in_virtual.permute(0, 2, 1)).permute(0, 2, 1)
-
-            # from IPython import embed; embed()
-            # # debug
-            # hand3d_gt_pcl = torch.matmul(left_R, hand3d_gt.permute(0,2,1)).permute(0,2,1)
-            # hand2d_gt = torch.matmul(intrix_matrix, hand3d_gt_pcl.permute(0,2,1)).permute(0,2,1)
-            # hand2d_gt = (hand2d_gt / hand2d_gt[:,:,2:])[:,:,:2]
-
-            # uv_cood = hand2d_gt
-            # hand3d_wo_root = get_nimble_3d(pre_root_zeros, gt_root_matrix,
-            #                                 gt_local_matrix, shape_vector, left_R_zeros, f_scale)
-            # pred_3d_in_virtual = get_root_xyz(hand3d_wo_root, uv_cood, intrix_matrix)
-            # pre_all__xyz = torch.matmul(torch.inverse(left_R), pred_3d_in_virtual.permute(0,2,1)).permute(0,2,1)
-            # # debug
-
             gt_all__xyz = get_nimble_3d(gt_root_xyz, gt_root_matrix,
                                         gt_local_matrix, shape_vector, left_R,
                                         f_scale)
@@ -777,7 +779,7 @@ class RTMCCIPRHeadNimble(RTMCCHead):
                                          dim=1)) * bone_loss_weight
 
         # 局部子骨骼监督
-        major_bone_loss_weight = 0.3
+        major_bone_loss_weight = 0.6
         local_bone_3d_pre = (
             pred_3d_way2 -
             pred_3d_way2[:, self.joint_parents, :])[:, self.non_root_indices]

@@ -71,6 +71,7 @@ model = dict(
         type='RTMCCIPRHeadNimble',
         in_channels=384,
         out_channels=21,
+        use_DLT=True,
         input_size=codec['input_size'],
         in_featuremap_size=(8, 8),
         simcc_split_ratio=2,
@@ -198,7 +199,7 @@ train_date_list = [
     '20230824', '20230828', '20230906', '20230907', '20240220', '20240229',
     '20240401', '20231227', '20240517', '20240425', '20240522', '20240801',
     '20240816', '20240826', '20240820', '20240903', '20240907', '20240926',
-    '20240914', '20240923', '20240930', '20241018', '20241030'
+    '20240914', '20240923', '20240930', '20241018', '20241030', '20241107'
 ]
 train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
 for data_date in train_date_list:
@@ -270,7 +271,7 @@ train_dataloader = dict(
     persistent_workers=True,
     sampler=dict(
         type='MultiSourceSampler',
-        source_ratio=[0.1, 0.2, 0.4, 0.25, 0.05],
+        source_ratio=[0.1, 0.4, 0.35, 0.1, 0.05],
         batch_size=128),
     collate_fn=dict(type='default_collate'),
 dataset=dict(
@@ -279,7 +280,7 @@ dataset=dict(
         datasets=[
             dict(
                 type=dataset_type,
-                sample_interval=5,    # sample interval会影响看到的图像数量
+                sample_interval=10,    # sample interval会影响看到的图像数量
                 data_ratio=1 / 2.0,    # data ratio不会影响看到的图像数量
                 data_file_list=pub_train_data_list,
                 data_mode=data_mode,
@@ -307,7 +308,7 @@ dataset=dict(
             ),
             dict(
                 type=dataset_type,
-                sample_interval=2,
+                sample_interval=1,
                 # serialize_data=True,
                 data_ratio=1 / 2.0,
                 data_file_list=converted_2d_dateset,
@@ -321,7 +322,7 @@ dataset=dict(
             ),
             dict(
                 type=dataset_type,
-                sample_interval=4,
+                sample_interval=10,
                 # serialize_data=True,
                 data_ratio=1 / 2.0,
                 data_file_list=overlap_dateset,
@@ -335,7 +336,7 @@ dataset=dict(
             ),
             dict(
                 type="Hand3DDataset",
-                sample_interval=5,
+                sample_interval=10,
                 data_ratio=1 / 2.0,
                 data_file_list=pub_aria_data_list,
                 data_mode=data_mode,
