@@ -152,7 +152,7 @@ model = dict(
         use_6d_pose_reg=False,
         use_9d_pose_reg=True,
         use_shape_smooth=True,
-        data_flip_aug=True,
+        data_flip_aug=False,
         reproj_thre=440,
         iou_thre=0.5,
         pad_2d=0,
@@ -165,7 +165,9 @@ model = dict(
     ),
     init_cfg=dict(
         type='Pretrained',
-        checkpoint='configs/product/stliu_new/epoch_60.pth'),
+        checkpoint=
+        '/data/AI_DATA_WX/ykhu/model/liftnimble_flip_res26sw_simple_1112_seq_epoch60.pth'
+    ),
 )
 
 # base dataset settings
@@ -177,7 +179,7 @@ train_date_list = [
     '20230824', '20230828', '20230906', '20230907', '20240220', '20240229',
     '20240401', '20231227', '20240517', '20240425', '20240522', '20240801',
     '20240816', '20240826', '20240820', '20240903', '20240907', '20240926',
-    '20240914', '20240923', '20240930'
+    '20240914', '20240923', '20240930', '20241018', '20241030'
 ]
 train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
 for data_date in train_date_list:
@@ -279,7 +281,7 @@ train_pipeline = [
                 gamma_limit=(0.85, 0.95),
                 alpha_limit=(0.2, 0.5),
                 concat_image=False),
-            dict(type='RandomMonocularOcclusion', prob=0.5, board=1)
+            # dict(type='RandomMonocularOcclusion', prob=0.5, board=1)
         ],
         enable_epoch_num=int(train_cfg['max_epochs'])),
     dict(type='PackPoseInputs')
@@ -325,10 +327,10 @@ train_dataloader = dict(
             ),
             dict(
                 type=dataset_type,
-                data_file_list=train_data_list,
+                data_file_list=overlap_train_data_list,
                 data_mode=data_mode,
                 pipeline=train_pipeline,
-                dataset_weight_list=dataset_weight_list,
+                dataset_weight_list=overlap_dataset_weight_list,
                 data_root=data_root,
                 seq_len=seq_length,
                 flip_left_to_right=True,

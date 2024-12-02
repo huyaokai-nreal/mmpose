@@ -537,7 +537,8 @@ class TemporalLiftNimbleHeadStandardE2e(LiftNimbleHeadStandard):
         reverse_mask = self.generate_mask(batch_data_samples,
                                           self.reverse_pinch_date_list).to(
                                               pinch_mask.cuda())
-        reverse_mask = torch.concat([reverse_mask, reverse_mask])
+        if self.data_flip_aug:
+            reverse_mask = torch.concat([reverse_mask, reverse_mask])
         pinch_reverse_mask = pinch_mask & reverse_mask
 
         if cur_epoch > 0 and sum(pinch_mask) > 0:
