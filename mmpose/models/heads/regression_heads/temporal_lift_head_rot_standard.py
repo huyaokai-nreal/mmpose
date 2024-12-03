@@ -382,7 +382,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             loss_rle = torch.tensor(0.0, device=loss_pre_root.device)
 
         hand_constraint_loss = self.hand_constraint(
-            hand3d_pred, self.hand_constraint_index_list) * 0.01
+            hand3d_pred, self.hand_constraint_index_list) * 0.02
 
         losses_dict = dict(
             loss_pre_root=loss_pre_root,

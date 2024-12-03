@@ -619,7 +619,7 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
 
         # 手型约束
         hand_constraint_loss = self.hand_constraint(
-            hand3d_pred_total, self.hand_constraint_index_list) * 0.006
+            hand3d_pred_total, self.hand_constraint_index_list) * 0.02
 
         plam_ratio = torch.norm(
             hand3d_gt[:, 9, :] - hand3d_gt[:, 0, :], dim=-1) / 0.08
