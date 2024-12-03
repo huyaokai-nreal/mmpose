@@ -75,6 +75,7 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
             nn.Conv2d(self.nimble_hidden_num, self.input_dim, kernel_size=1))
         self.static_data_date_list = ['20240516', '20240517', '20240522']
         self.reverse_pinch_date_list = ['20240220', '20240229', '20240926']
+        self.hand_constraint_index_list = [[5,6,7,8],[9,10,11,12],[13,14,15,16],[17,18,19,20]]
         self.enhance_static = enhance_static
 
     def independent_part1(self, feat_x, feat_y, left_hand):
@@ -623,6 +624,9 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
         else:
             loss_2d_reproject = torch.tensor(0.0, device=hand2d_gt_pcl.device)
 
+        # 手型约束
+        hand_constraint_loss = self.hand_constraint(hand3d_pred_total, self.hand_constraint_index_list) * 0.006
+
         losses = dict(
             # loss_kpt2d=loss_kpt2d,
             # label_depth=loss_depth,
@@ -637,7 +641,8 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
             loss_2d_direct=loss_2d_direct,
             loss_2d_reproject=loss_2d_reproject,
             loss_smooth=loss_smooth,
-            pinch_loss_add=pinch_loss_add)
+            pinch_loss_add=pinch_loss_add,
+            hand_constraint_loss=hand_constraint_loss)
 
         # claculate 3d metric
         def cal_mpjpe(pre_kpt, gt_kpt):
@@ -683,3 +688,19 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
         enhanced_kpt = kpt.clone()
         enhanced_kpt[mask] = enhanced_kpt[mask] * weight
         return enhanced_kpt
+
+    def hand_constraint(self, kpt3d, index_list):
+        hand_constraint_loss = 0
+        for index_sin in index_list:
+            vector_1 = kpt3d[:, index_sin[0], :] - kpt3d[:, index_sin[1], :]
+            vector_2 = kpt3d[:, index_sin[1], :] - kpt3d[:, index_sin[2], :]
+            vector_3 = kpt3d[:, index_sin[2], :] - kpt3d[:, index_sin[3], :]
+            out_vector_1 = torch.cross(vector_1, vector_2, dim=1)
+            out_vector_2 = torch.cross(vector_2, vector_3, dim=1)
+            
+            vector1_norm = F.normalize(out_vector_1, dim=1)
+            vector2_norm = F.normalize(out_vector_2, dim=1)
+            cosine_similarity = (vector1_norm * vector2_norm).sum(dim=1)
+            loss_part = (1 - torch.abs(cosine_similarity)).mean()
+            hand_constraint_loss += loss_part
+        return hand_constraint_loss
