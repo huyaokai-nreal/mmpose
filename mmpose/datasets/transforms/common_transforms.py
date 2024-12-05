@@ -778,6 +778,35 @@ class RandomMonocularOcclusion(BaseTransform):
                     self.left_flag = False
         return results
 
+@TRANSFORMS.register_module()
+@avoid_cache_randomness
+class RandomMonocularOcclusionv2(BaseTransform):
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.left_flag = False
+
+    @staticmethod
+    def is_kpt2d_allin_image(keypoints_2d):
+        # 如果有任意一个关键点在图像范围内，返回 True；否则返回 False
+        x_in_bounds = (keypoints_2d[:, 0] >= 0) & (keypoints_2d[:, 0] < 480)
+        y_in_bounds = (keypoints_2d[:, 1] >= 0) & (keypoints_2d[:, 1] < 640)
+        keypoints_in_bounds = x_in_bounds & y_in_bounds
+        return np.any(keypoints_in_bounds)
+
+    def transform(self, results: Dict) -> Dict:
+        results['meta']['edge_able'] = False
+        kpt2d = results['keypoints'][0].copy()
+        if results['camera_name'] == 'left' and not self.is_kpt2d_allin_image(kpt2d):
+            results['meta']['edge_able'] = True
+            self.left_flag = True
+        if results['camera_name'] == 'right' and not self.is_kpt2d_allin_image(kpt2d):
+            if not self.left_flag:
+                results['meta']['edge_able'] = True
+            else:
+                self.left_flag = False
+        return results
+
 
 @TRANSFORMS.register_module()
 @avoid_cache_randomness

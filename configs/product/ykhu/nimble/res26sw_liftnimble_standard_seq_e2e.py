@@ -152,7 +152,7 @@ model = dict(
         use_6d_pose_reg=False,
         use_9d_pose_reg=True,
         use_shape_smooth=True,
-        data_flip_aug=False,
+        data_flip_aug=True,
         reproj_thre=440,
         iou_thre=0.5,
         pad_2d=0,
@@ -166,7 +166,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/AI_DATA_WX/ykhu/model/liftnimble_flip_res26sw_simple_1112_seq_epoch60.pth'
+        '/data/AI_DATA_WX/ykhu/model/iftnimble_flip_res26sw_simple_1129_seq_epoch_60.pth'
     ),
 )
 
@@ -196,6 +196,9 @@ overlap_train_data_list = [
 # train_data_list = [
 #     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_060805__all__normal__left__1111__0006__undistort_tar__Flora301.json',
 # ]
+# overlap_train_data_list = [
+#     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_060805__all__normal__left__1111__0006__undistort_tar__Flora301.json',
+# ]
 
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 overlap_dataset_weight_list = [1.0 / len(overlap_train_data_list)
@@ -218,6 +221,8 @@ val_data_list = [
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081151__pinch__dark__right__1111__0019__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081427__pinch__normal__right__1111__0019__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081909__pinch__bright__left__1111__0019__undistort_tar__Flora301.json'
+    
+    # '/home/ykhu/new_space/mmpose/XS__20230830_081909__pinch__bright__left__1111__0019__undistort_tar__Flora301_bak.json'
 
     # 边缘半手
     # 'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20240508_032300__pinch__normal__right__1101__0006__undistort_tar__Flora301.json',
@@ -281,7 +286,7 @@ train_pipeline = [
                 gamma_limit=(0.85, 0.95),
                 alpha_limit=(0.2, 0.5),
                 concat_image=False),
-            # dict(type='RandomMonocularOcclusion', prob=0.5, board=1)
+            # dict(type='RandomMonocularOcclusionv2')
         ],
         enable_epoch_num=int(train_cfg['max_epochs'])),
     dict(type='PackPoseInputs')
@@ -322,7 +327,8 @@ train_dataloader = dict(
                 data_root=data_root,
                 seq_len=seq_length,
                 flip_left_to_right=True,
-                data_ratio=1. / 3,
+                sample_interval=1./3,
+                # data_ratio=1. / 3,
                 serialize_data=True,
             ),
             dict(
@@ -334,7 +340,8 @@ train_dataloader = dict(
                 data_root=data_root,
                 seq_len=seq_length,
                 flip_left_to_right=True,
-                data_ratio=1. / 10,
+                sample_interval=1./10,
+                # data_ratio=1. / 3,
                 serialize_data=True,
             ),
         ]),

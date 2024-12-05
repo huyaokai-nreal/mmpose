@@ -76,6 +76,7 @@ class TemporalLiftNimbleHeadStandardE2e(LiftNimbleHeadStandard):
         self.enhance_static = enhance_static
         self.static_data_date_list = ['20240516', '20240517', '20240522']
         self.reverse_pinch_date_list = ['20240220', '20240229', '20240926']
+        self.poke_date_list = ['20241107']
         self.fix_sigma_pars = fix_sigma_pars
         self.pinch_loss_func = F.l1_loss
 
@@ -147,6 +148,7 @@ class TemporalLiftNimbleHeadStandardE2e(LiftNimbleHeadStandard):
         lr_rot_matrix = []
         hand3d_gt = []
         is_left_hands = []
+        edge_able = [[],[]]
         nimble_pose = []
         nimble_trans = []
         nimble_shape = []
@@ -163,6 +165,7 @@ class TemporalLiftNimbleHeadStandardE2e(LiftNimbleHeadStandard):
                     left_vir_camera.uv_to_window_matrix())
                 left_R.append(data_sample.meta['cam_to_virtual_R'])
                 hand3d_gt.append(data_sample.gt_instances.keypoints3d[0])
+                edge_able[0].append(data_sample.meta.get('edge_able', False))
                 if 'nimble_pose' in data_sample.meta.keys() and not np.equal(
                         data_sample.meta['nimble_pose'].any(), None):
                     nimble_pose.append(data_sample.meta['nimble_pose'])
@@ -194,6 +197,7 @@ class TemporalLiftNimbleHeadStandardE2e(LiftNimbleHeadStandard):
                 lr_p.append(lr_t[:3, 3])
                 baseline_scale.append(data_sample.meta['virtual_baseline'] /
                                       self.baseline)
+                edge_able[1].append(data_sample.meta.get('edge_able', False))
             warp_mat = data_sample.metainfo['warp_mat']
             inv_warp_mat = cv2.invertAffineTransform(warp_mat).astype(
                 np.float32)
@@ -216,6 +220,7 @@ class TemporalLiftNimbleHeadStandardE2e(LiftNimbleHeadStandard):
         left_to_right_rt = torch.tensor(
             np.array(left_to_right_rt)).cuda().float()
         hand3d_gt = torch.tensor(np.array(hand3d_gt)).cuda().float()
+        edge_able = torch.tensor(np.array(edge_able)).cuda().float()
         if len(nimble_pose) > 0:
             nimble_pose = torch.tensor(np.array(nimble_pose)).cuda().float()
             nimble_trans = torch.tensor(np.array(nimble_trans)).cuda().float()
@@ -227,7 +232,6 @@ class TemporalLiftNimbleHeadStandardE2e(LiftNimbleHeadStandard):
         uv_coord_im_gt_global = uv_coord_im_gt_global.view(-1, K, 2)
 
         uv_coord_im_pred_global = uv_coord_im_pred_crop.view(B, N, K, 2)
-
         def exchange_value(value):
             tmp = value.clone()
             tmp[:, 0, ...] = value[:, 1, ...]
@@ -256,6 +260,7 @@ class TemporalLiftNimbleHeadStandardE2e(LiftNimbleHeadStandard):
             right_R = torch.concat([right_R, right_R])
             baseline_scale = torch.concat([baseline_scale, baseline_scale])
             hand3d_gt = torch.concat([hand3d_gt, hand3d_gt])
+            edge_able = torch.concat([edge_able, edge_able])
             valid_mask = torch.concat(
                 [torch.ones(B // 2), torch.zeros(B // 2)]).cuda().float()
             if len(nimble_pose) > 0:
@@ -311,7 +316,10 @@ class TemporalLiftNimbleHeadStandardE2e(LiftNimbleHeadStandard):
         norm_leftcam_xyz, norm_rightcam_xyz = self.standardize_stereo(
             leftcam_xy, rightcam_xy, left_R, right_R, left_vircam_xf,
             right_vircam_xf)
-
+        edge_able = (1-edge_able).reshape(2, B, 1, 1)
+        norm_leftcam_xyz *= edge_able[0]
+        norm_rightcam_xyz *= edge_able[1]
+        
         feats = torch.cat(
             (norm_leftcam_xyz[:, :, :2], norm_rightcam_xyz[:, :, :2]), dim=-1)
         hand_feat = left_hand[:, None, None].repeat(1, 21, 1)
@@ -362,6 +370,7 @@ class TemporalLiftNimbleHeadStandardE2e(LiftNimbleHeadStandard):
         leftcam_uv_reproj_distort = torch.tensor(
             leftcam_uv_reproj_distort).cuda()
         return hand3d_pred, leftcam_uv_reproj_distort, mems, all_sigmas
+        # return hand3d_pred,  data['uv_coord_im_pred_global'], mems, all_sigmas
 
     def loss(self,
              feats: Tuple[Tensor],
@@ -556,7 +565,12 @@ class TemporalLiftNimbleHeadStandardE2e(LiftNimbleHeadStandard):
         dis = (standard_hand3d_gt[:, 8, :] +
                standard_hand3d_gt[:, 5, :]) / 2 - standard_hand3d_gt[:, 6, :]
         dis_norm = torch.norm(dis, dim=1)
-        poke_mask = dis_norm < 0.012
+        poke_dist_mask = dis_norm < 0.012
+        
+        poke_date_mask = self.generate_mask(batch_data_samples,
+                                          self.poke_date_list).to(
+                                              pinch_mask.cuda())
+        poke_mask = poke_dist_mask & poke_date_mask
         if self.data_flip_aug:
             poke_mask = torch.concat([poke_mask, poke_mask])
         if sum(poke_mask) > 0:
@@ -570,6 +584,9 @@ class TemporalLiftNimbleHeadStandardE2e(LiftNimbleHeadStandard):
             vector2_norm = F.normalize(direction_vector2, dim=1)
             cosine_similarity = (vector1_norm * vector2_norm).sum(dim=1)
             loss_poke = (1 - torch.abs(cosine_similarity)).mean() / 5
+            
+            loss_poke += torch.norm(
+                pred_3d_way2[:, 8, :] - hand3d_gt[:, 8, :], dim=-1)
         else:
             loss_poke = torch.tensor(0.0, device=hand3d_gt.device)
 

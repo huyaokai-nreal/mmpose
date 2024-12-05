@@ -702,8 +702,8 @@ def rot9D_to_matirx(x, **kwargs):
     device = torch.device('cpu')
     det = torch.det(torch.matmul(u.to(device), vt.to(device)))
     det = det.view(-1, 1, 1).to(x_device)
-    vt = torch.cat((vt[:, :2, :], vt[:, -1:, :] * det), 1)
-    pred_matrix = torch.matmul(u, vt).view(batch_size, -1, 3, 3)
+    vt = torch.cat((vt[:, :2, :], vt[:, -1:, :] * det), 1) # 消除翻转
+    pred_matrix = torch.matmul(u, vt).view(batch_size, -1, 3, 3) # 组合旋转矩阵
     return pred_matrix
 
 
