@@ -148,7 +148,7 @@ class TemporalLiftNimbleHeadStandardE2e(LiftNimbleHeadStandard):
         lr_rot_matrix = []
         hand3d_gt = []
         is_left_hands = []
-        edge_able = [[],[]]
+        edge_able = [[], []]
         nimble_pose = []
         nimble_trans = []
         nimble_shape = []
@@ -232,6 +232,7 @@ class TemporalLiftNimbleHeadStandardE2e(LiftNimbleHeadStandard):
         uv_coord_im_gt_global = uv_coord_im_gt_global.view(-1, K, 2)
 
         uv_coord_im_pred_global = uv_coord_im_pred_crop.view(B, N, K, 2)
+
         def exchange_value(value):
             tmp = value.clone()
             tmp[:, 0, ...] = value[:, 1, ...]
@@ -316,10 +317,10 @@ class TemporalLiftNimbleHeadStandardE2e(LiftNimbleHeadStandard):
         norm_leftcam_xyz, norm_rightcam_xyz = self.standardize_stereo(
             leftcam_xy, rightcam_xy, left_R, right_R, left_vircam_xf,
             right_vircam_xf)
-        edge_able = (1-edge_able).reshape(2, B, 1, 1)
+        edge_able = (1 - edge_able).reshape(2, B, 1, 1)
         norm_leftcam_xyz *= edge_able[0]
         norm_rightcam_xyz *= edge_able[1]
-        
+
         feats = torch.cat(
             (norm_leftcam_xyz[:, :, :2], norm_rightcam_xyz[:, :, :2]), dim=-1)
         hand_feat = left_hand[:, None, None].repeat(1, 21, 1)
@@ -566,10 +567,9 @@ class TemporalLiftNimbleHeadStandardE2e(LiftNimbleHeadStandard):
                standard_hand3d_gt[:, 5, :]) / 2 - standard_hand3d_gt[:, 6, :]
         dis_norm = torch.norm(dis, dim=1)
         poke_dist_mask = dis_norm < 0.012
-        
-        poke_date_mask = self.generate_mask(batch_data_samples,
-                                          self.poke_date_list).to(
-                                              pinch_mask.cuda())
+
+        poke_date_mask = self.generate_mask(
+            batch_data_samples, self.poke_date_list).to(pinch_mask.cuda())
         poke_mask = poke_dist_mask & poke_date_mask
         if self.data_flip_aug:
             poke_mask = torch.concat([poke_mask, poke_mask])
@@ -584,9 +584,9 @@ class TemporalLiftNimbleHeadStandardE2e(LiftNimbleHeadStandard):
             vector2_norm = F.normalize(direction_vector2, dim=1)
             cosine_similarity = (vector1_norm * vector2_norm).sum(dim=1)
             loss_poke = (1 - torch.abs(cosine_similarity)).mean() / 5
-            
             loss_poke += torch.norm(
-                pred_3d_way2[:, 8, :] - hand3d_gt[:, 8, :], dim=-1)
+                pred_3d_way2[valid_mask][:, 8, :] - hand3d_gt[:, 8, :],
+                dim=-1).mean()
         else:
             loss_poke = torch.tensor(0.0, device=hand3d_gt.device)
 
