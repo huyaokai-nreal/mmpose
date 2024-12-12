@@ -42,6 +42,7 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
                  with_mask: bool = False,
                  mask_ext: str = 'mask',
                  sub_data_index=-1,
+                 static_prob=0,
                  data_ratio=-1,
                  point_type='3D',
                  filter_kpt_exceed=False,
@@ -71,6 +72,7 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         self.filter_kpt_exceed = filter_kpt_exceed
         self.sample_interval = sample_interval
         self.choice_one = choice_one
+        self.static_prob = static_prob
         if self.choice_one:
             self.left_cam_sig = 1
         if dataset_weight_list:
@@ -303,14 +305,13 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
             data_info['meta']['right_R'])
         meta_right['virtual_baseline'] = copy.deepcopy(
             data_info['meta']['virtual_baseline'])
-        
+
         meta_left['camera_name'] = 'left'
         meta_right['camera_name'] = 'right'
         left_cam_xf = meta_left['ori_camera'].camera_to_world_xf
         right_cam_xf = meta_right['ori_camera'].camera_to_world_xf
         left_to_right_rt = np.dot(np.linalg.inv(right_cam_xf), left_cam_xf)
         meta_left['external'] = meta_right['external'] = left_to_right_rt
-
 
         if 'nimble_pose' in data_info.keys():
             meta_left['nimble_pose'] = data_info['nimble_pose']
@@ -373,7 +374,7 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
                 dict(mask=self.lmdb_client.get(data_info['left_mask_path'])))
             data_info_right.update(
                 dict(mask=self.lmdb_client.get(data_info['right_mask_path'])))
-            
+
         if data_info['cat_id'] == 1 and self.flip_left_to_right:
             data_info_left['meta']['flipped'] = True
             data_info_right['meta']['flipped'] = True
@@ -410,16 +411,17 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         if self.test_mode:
             seq_list_cur_idx = idx
         idx_list = []
-        if "hot3d" in self.data_file_list[seq_idx]:
+        if 'hot3d' in self.data_file_list[seq_idx]:
             for i in range(self.seq_len):
-                tmp = max(seq_list_cur_idx - 2*i, 0)
+                tmp = max(seq_list_cur_idx - 2 * i, 0)
                 idx_list.append(tmp)
         else:
             for i in range(self.seq_len):
                 tmp = max(seq_list_cur_idx - i, 0)
                 idx_list.append(tmp)
         idx_list.reverse()
-
+        if self.static_prob > 0 and np.random.rand() < self.static_prob:
+            idx_list = np.full(self.seq_len, np.random.choice(idx_list))
         final_list = []
         for idx in idx_list:
             tmp = seq_list[idx]
@@ -443,7 +445,7 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         collate_list = []
         seq_idx_list = self.get_seq_idx(idx)
         # self.left_cam_sig = seq_idx_list[0]%2
-        self.left_cam_sig = np.random.choice([0,1])
+        self.left_cam_sig = np.random.choice([0, 1])
         for i, idx in enumerate(seq_idx_list):
             if self.choice_one:
                 ppl_result = self.prepare_pair_data(idx, i == 0)

@@ -8,7 +8,7 @@ from mmpose.configs._base_.datasets.xs3d_nimble import \
 
 # from configs._base_.datasets.xs3d import datasets_info as kpt3d_datasets_info
 
-train_cfg = dict(max_epochs=30, val_interval=5)
+train_cfg = dict(max_epochs=20, val_interval=5)
 
 data_root = '/data/AI_DATA_WX'
 seq_length = 4
@@ -138,8 +138,8 @@ model = dict(
                     type='RLELoss',
                     dim=3,
                 ),
-                dict(type='L1Loss', loss_weight=0),
-                dict(type='L1Loss', loss_weight=0)
+                dict(type='L1Loss', loss_weight=0.1),
+                dict(type='L1Loss', loss_weight=0.1)
             ]),
         seq_len=4,
         all_use_kp2d_gt=False,
@@ -166,7 +166,8 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/AI_DATA_WX/ykhu/model/iftnimble_flip_res26sw_simple_1129_seq_epoch_60.pth'
+        # '/data/AI_DATA_WX/ykhu/model/iftnimble_flip_res26sw_simple_1129_seq_epoch_60.pth'
+        'work_dirs/liftnimble_res26sw_e2e/new_poke/res26sw_liftnimble_standard_seq_e2e_trans_lr5e-6_data0.3_overlap0.1_fixdark_1107data_poke/epoch_20.pth'
     ),
 )
 
@@ -179,7 +180,8 @@ train_date_list = [
     '20230824', '20230828', '20230906', '20230907', '20240220', '20240229',
     '20240401', '20231227', '20240517', '20240425', '20240522', '20240801',
     '20240816', '20240826', '20240820', '20240903', '20240907', '20240926',
-    '20240914', '20240923', '20240930', '20241018', '20241030', '20241107'
+    '20240914', '20240923', '20240930', '20241018', '20241030', '20241107',
+    '20241114', '20241121'
 ]
 train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
 for data_date in train_date_list:
@@ -221,7 +223,7 @@ val_data_list = [
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081151__pinch__dark__right__1111__0019__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081427__pinch__normal__right__1111__0019__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081909__pinch__bright__left__1111__0019__undistort_tar__Flora301.json'
-    
+
     # '/home/ykhu/new_space/mmpose/XS__20230830_081909__pinch__bright__left__1111__0019__undistort_tar__Flora301_bak.json'
 
     # 边缘半手
@@ -311,8 +313,7 @@ train_dataloader = dict(
     batch_size=32,
     num_workers=4,
     persistent_workers=True,
-    sampler=dict(
-        type='MultiSourceSampler', source_ratio=[0.5, 0.5], batch_size=128),
+    sampler=dict(type='MultiSourceSampler', source_ratio=[1], batch_size=128),
     collate_fn=dict(type='default_collate'),
     dataset=dict(
         type='CombinedDataset',
@@ -327,23 +328,24 @@ train_dataloader = dict(
                 data_root=data_root,
                 seq_len=seq_length,
                 flip_left_to_right=True,
-                sample_interval=1./3,
-                # data_ratio=1. / 3,
+                static_prob=0.3,
+                # sample_interval=1./3,
+                data_ratio=1. / 4,
                 serialize_data=True,
             ),
-            dict(
-                type=dataset_type,
-                data_file_list=overlap_train_data_list,
-                data_mode=data_mode,
-                pipeline=train_pipeline,
-                dataset_weight_list=overlap_dataset_weight_list,
-                data_root=data_root,
-                seq_len=seq_length,
-                flip_left_to_right=True,
-                sample_interval=1./10,
-                # data_ratio=1. / 3,
-                serialize_data=True,
-            ),
+            # dict(
+            #     type=dataset_type,
+            #     data_file_list=overlap_train_data_list,
+            #     data_mode=data_mode,
+            #     pipeline=train_pipeline,
+            #     dataset_weight_list=overlap_dataset_weight_list,
+            #     data_root=data_root,
+            #     seq_len=seq_length,
+            #     flip_left_to_right=True,
+            #     sample_interval=1./10,
+            #     # data_ratio=1. / 3,
+            #     serialize_data=True,
+            # ),
         ]),
 )
 val_dataloader = dict(

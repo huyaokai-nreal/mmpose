@@ -74,7 +74,9 @@ class TemporalLiftNimbleHeadStandardE2e(LiftNimbleHeadStandard):
             nn.Linear(self.feat_dim * 2, self.feat_dim))
         self.enhance_lefthand = enhance_lefthand
         self.enhance_static = enhance_static
-        self.static_data_date_list = ['20240516', '20240517', '20240522']
+        self.static_data_date_list = [
+            '20240516', '20240517', '20240522', '20241114'
+        ]
         self.reverse_pinch_date_list = ['20240220', '20240229', '20240926']
         self.poke_date_list = ['20241107']
         self.fix_sigma_pars = fix_sigma_pars
