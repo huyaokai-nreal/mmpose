@@ -166,8 +166,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        # '/data/AI_DATA_WX/ykhu/model/iftnimble_flip_res26sw_simple_1129_seq_epoch_60.pth'
-        'work_dirs/liftnimble_res26sw_e2e/new_poke/res26sw_liftnimble_standard_seq_e2e_trans_lr5e-6_data0.3_overlap0.1_fixdark_1107data_poke/epoch_20.pth'
+        '/data/AI_DATA_WX/ykhu/model/iftnimble_flip_res26sw_simple_1129_seq_epoch_60.pth'
     ),
 )
 
@@ -313,7 +312,8 @@ train_dataloader = dict(
     batch_size=32,
     num_workers=4,
     persistent_workers=True,
-    sampler=dict(type='MultiSourceSampler', source_ratio=[1], batch_size=128),
+    sampler=dict(
+        type='MultiSourceSampler', source_ratio=[0.5, 0.5], batch_size=128),
     collate_fn=dict(type='default_collate'),
     dataset=dict(
         type='CombinedDataset',
@@ -328,24 +328,21 @@ train_dataloader = dict(
                 data_root=data_root,
                 seq_len=seq_length,
                 flip_left_to_right=True,
-                static_prob=0.3,
-                # sample_interval=1./3,
-                data_ratio=1. / 4,
+                data_ratio=1. / 3,
                 serialize_data=True,
             ),
-            # dict(
-            #     type=dataset_type,
-            #     data_file_list=overlap_train_data_list,
-            #     data_mode=data_mode,
-            #     pipeline=train_pipeline,
-            #     dataset_weight_list=overlap_dataset_weight_list,
-            #     data_root=data_root,
-            #     seq_len=seq_length,
-            #     flip_left_to_right=True,
-            #     sample_interval=1./10,
-            #     # data_ratio=1. / 3,
-            #     serialize_data=True,
-            # ),
+            dict(
+                type=dataset_type,
+                data_file_list=overlap_train_data_list,
+                data_mode=data_mode,
+                pipeline=train_pipeline,
+                dataset_weight_list=overlap_dataset_weight_list,
+                data_root=data_root,
+                seq_len=seq_length,
+                flip_left_to_right=True,
+                data_ratio=1. / 10,
+                serialize_data=True,
+            ),
         ]),
 )
 val_dataloader = dict(
