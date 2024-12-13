@@ -16,6 +16,8 @@ from .temporal_lift_head import TemporalLiftHead
 from .temporal_lift_head_rot_standard import TemporalLiftNimbleHeadStandard
 from .temporal_lift_head_rot_standard_e2e import \
     TemporalLiftNimbleHeadStandardE2e
+from .temporal_lift_head_rot_standard_ume_e2e import \
+    TemporalUmeLiftNimbleHeadStandardE2e
 from .temporal_lift_head_rot_standard_predict import \
     TemporalLiftNimbleHeadStandardPredict
 from .temporal_lift_head_standard import TemporalLiftHeadStandard
@@ -46,6 +48,13 @@ __all__ = [
     'TemporalLiftHeadStandard',
     'LiftNimbleHeadStandard',
     'RTMCCIPRHeadNimble',
+    'UmeHead',
+    'UmeHeadSeq',
+    'LiftHeadStandardOriE2e',
+    'TemporalLiftHeadStandardOri',
+    'LiftNimbleHeadStandardE2e',
+    'TemporalLiftNimbleHeadStandardE2e',
+    'TemporalUmeLiftNimbleHeadStandardE2e',
     # 'PCT_Head', 'PCT_Tokenizer',
     # 'LiftClassifierHead', 'SwinV2TransformerRPE2FC'
 ]
