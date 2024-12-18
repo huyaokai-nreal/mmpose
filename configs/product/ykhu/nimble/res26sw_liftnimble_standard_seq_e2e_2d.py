@@ -10,14 +10,14 @@ from mmpose.configs._base_.datasets.xs3d_nimble import \
 
 # from configs._base_.datasets.xs3d import datasets_info as kpt3d_datasets_info_nimble
 
-train_cfg = dict(max_epochs=20, val_interval=20)
+train_cfg = dict(max_epochs=20, val_interval=5)
 
 data_root = '/data/AI_DATA_WX'
 seq_length = 4
 
 # optimizer
 optim_wrapper = dict(
-    optimizer=dict(type='Adam', lr=8e-6, weight_decay=1e-4),
+    optimizer=dict(type='Adam', lr=2e-5, weight_decay=1e-4),
     paramwise_cfg=dict(
         norm_decay_mult=0,
         bias_decay_mult=0,
@@ -110,7 +110,7 @@ model = dict(
             ]),
         decoder=codec),
     kpt3d_lift=dict(
-        type='TemporalLiftNimbleHeadStandardE2e',
+        type='TemporalLiftNimbleHeadStandardE2e2D',
         lift_loss=dict(
             type='MultipleLossWrapper',
             losses=[
@@ -140,8 +140,8 @@ model = dict(
                     type='RLELoss',
                     dim=3,
                 ),
-                dict(type='L1Loss', loss_weight=0.1),
-                dict(type='L1Loss', loss_weight=0.1)
+                dict(type='L1Loss', loss_weight=1),
+                dict(type='L1Loss', loss_weight=1)
             ]),
         seq_len=4,
         all_use_kp2d_gt=False,
