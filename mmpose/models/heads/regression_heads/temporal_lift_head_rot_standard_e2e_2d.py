@@ -445,9 +445,9 @@ class TemporalLiftNimbleHeadStandardE2e2D(LiftNimbleHeadStandard):
         pre_nimble_trans = pre_trans_xyz
         gt_nimble_trans = data['nimble_info']['nimble_trans'][valid_mask]
 
-        # 监督中间2d输出
-        # norm_left_pred, norm_right_pred = self.reproj_norm_2d(
-        #     hand3d_pred, data['lr_rot_matrix'].clone(), data['lr_p'].clone())
+        # 监督中间2d输出和最终2d
+        norm_left_pred_reproj, norm_right_pred_reproj = self.reproj_norm_2d(
+            hand3d_pred, data['lr_rot_matrix'].clone(), data['lr_p'].clone())
         norm_left_pred, norm_right_pred = data['oricam_left_xyz'][valid_mask][
             ..., :2], data['oricam_right_xyz'][valid_mask][..., :2]
         norm_left_gt, norm_right_gt = data['leftcam_xyz_gt'], data[
@@ -510,13 +510,14 @@ class TemporalLiftNimbleHeadStandardE2e2D(LiftNimbleHeadStandard):
             enhanced_left_pred_3d_way1, enhanced_left_pred_3d_way2,
             enhanced_left_hand3d_pred, dist_pred, pre_nimble_trans,
             enhanced_static_hand3d_pred, enhanced_static_pred_3d_way1,
-            re_all_sigmas, norm_left_pred, norm_right_pred
+            re_all_sigmas, norm_left_pred, norm_right_pred,
+            norm_left_pred_reproj, norm_right_pred_reproj
         ]
         targ_for_loss = [
             enhanced_left_hand3d_gt, enhanced_left_hand3d_part_gt,
             enhanced_left_hand3d_gt, dist_gt, gt_nimble_trans,
             enhanced_static_hand3d_gt, enhanced_static_hand3d_gt, hand3d_gt,
-            norm_left_gt, norm_right_gt
+            norm_left_gt, norm_right_gt, norm_left_gt, norm_right_gt
         ]
 
         weight_ini = torch.ones((1, 21, 3))
@@ -534,13 +535,14 @@ class TemporalLiftNimbleHeadStandardE2e2D(LiftNimbleHeadStandard):
 
         weight_for_loss = [
             weight_ini_ori, weight_ini_for_pre_nimble, weight_ini_ori, None,
-            None, None, None, None, None, None
+            None, None, None, None, None, None, None, None
         ]
 
         losses = self.lift_loss(pred_for_loss, targ_for_loss, weight_for_loss)
         (loss_pre_root, loss_pre_nimble, loss_pre_all, loss_pinch,
          loss_nimble_trans, loss_smooth, loss_smooth_root, loss_rle,
-         loss_left_2d, loss_right_2d) = losses
+         loss_left_2d, loss_right_2d, loss_left_2d_reproj,
+         loss_right_2d_reproj) = losses
 
         if self.use_shape_smooth:
             pre_shape_reshape = pre_shape.reshape(-1, self.seq_len)
@@ -665,7 +667,10 @@ class TemporalLiftNimbleHeadStandardE2e2D(LiftNimbleHeadStandard):
             loss_poke=loss_poke,
             pinch_loss_add=pinch_loss_add,
             loss_left_2d=loss_left_2d,
-            loss_right_2d=loss_right_2d)
+            loss_right_2d=loss_right_2d,
+            loss_left_2d_reproj=loss_left_2d_reproj,
+            loss_right_2d_reproj=loss_right_2d_reproj,
+        )
 
         return losses_dict
 

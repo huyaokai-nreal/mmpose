@@ -17,7 +17,7 @@ seq_length = 4
 
 # optimizer
 optim_wrapper = dict(
-    optimizer=dict(type='Adam', lr=2e-5, weight_decay=1e-4),
+    optimizer=dict(type='Adam', lr=5e-6, weight_decay=1e-4),
     paramwise_cfg=dict(
         norm_decay_mult=0,
         bias_decay_mult=0,
@@ -141,7 +141,9 @@ model = dict(
                     dim=3,
                 ),
                 dict(type='L1Loss', loss_weight=1),
-                dict(type='L1Loss', loss_weight=1)
+                dict(type='L1Loss', loss_weight=1),
+                dict(type='L1Loss', loss_weight=1),
+                dict(type='L1Loss', loss_weight=1),
             ]),
         seq_len=4,
         all_use_kp2d_gt=False,
@@ -353,7 +355,7 @@ train_dataloader = dict(
                 seq_len=seq_length,
                 flip_left_to_right=True,
                 sample_interval=4. / 5,
-                data_ratio=1. / 3,
+                data_ratio=1. / 2,
                 serialize_data=True,
             ),
             dict(
@@ -366,7 +368,7 @@ train_dataloader = dict(
                 seq_len=seq_length,
                 flip_left_to_right=True,
                 sample_interval=4. / 5,
-                data_ratio=1. / 3,
+                # data_ratio=1. / 3,
                 serialize_data=True,
             ),
         ]),
