@@ -3,8 +3,6 @@ import os
 import random
 
 _base_ = ['../../../_base_/default_runtime.py']
-from mmpose.configs._base_.datasets.xs3d import \
-    datasets_info as kpt3d_datasets_info
 from mmpose.configs._base_.datasets.xs3d_nimble import \
     datasets_info as kpt3d_datasets_info_nimble
 
@@ -142,8 +140,8 @@ model = dict(
                 ),
                 dict(type='L1Loss', loss_weight=1),
                 dict(type='L1Loss', loss_weight=1),
-                dict(type='L1Loss', loss_weight=1),
-                dict(type='L1Loss', loss_weight=1),
+                dict(type='L1Loss', loss_weight=0.1),
+                dict(type='L1Loss', loss_weight=0.1),
             ]),
         seq_len=4,
         all_use_kp2d_gt=False,
@@ -210,9 +208,9 @@ overlap_dataset_weight_list = [1.0 / len(overlap_train_data_list)
                                ] * len(overlap_train_data_list)
 train_2d_data_list = [
     os.path.join(data_root, item)
-    for item in kpt3d_datasets_info['convert_train_data']
+    for item in kpt3d_datasets_info_nimble['converted_2dto3d_data']
 ]
-# train_2d_data_list = ['/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/convert2d_to_3d/hand_train_flora_bad_bg_240808_2k__1__binocular__lmdb.json']
+# train_2d_data_list = ['/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/convert2d_to_3d_e2e/hand_train_flora_e2e_24121220__1__binocular__lmdb.json']
 dataset2d_weight_list = [1.0 / len(train_2d_data_list)
                          ] * len(train_2d_data_list)
 val_data_list = [
