@@ -3,12 +3,14 @@ import os
 import random
 
 _base_ = ['../../../_base_/default_runtime.py']
+from mmpose.configs._base_.datasets.xs3d import \
+    datasets_info as kpt3d_datasets_info
 from mmpose.configs._base_.datasets.xs3d_nimble import \
     datasets_info as kpt3d_datasets_info_nimble
 
 # from configs._base_.datasets.xs3d import datasets_info as kpt3d_datasets_info_nimble
 
-train_cfg = dict(max_epochs=20, val_interval=5)
+train_cfg = dict(max_epochs=30, val_interval=30)
 
 data_root = '/data/AI_DATA_WX'
 seq_length = 4
@@ -138,8 +140,8 @@ model = dict(
                     type='RLELoss',
                     dim=3,
                 ),
-                dict(type='L1Loss', loss_weight=1),
-                dict(type='L1Loss', loss_weight=1),
+                dict(type='L1Loss', loss_weight=0.1),
+                dict(type='L1Loss', loss_weight=0.1),
                 dict(type='L1Loss', loss_weight=0.1),
                 dict(type='L1Loss', loss_weight=0.1),
             ]),
@@ -208,7 +210,7 @@ overlap_dataset_weight_list = [1.0 / len(overlap_train_data_list)
                                ] * len(overlap_train_data_list)
 train_2d_data_list = [
     os.path.join(data_root, item)
-    for item in kpt3d_datasets_info_nimble['converted_2dto3d_data']
+    for item in kpt3d_datasets_info['convert_2d_to_3d']
 ]
 # train_2d_data_list = ['/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/convert2d_to_3d_e2e/hand_train_flora_e2e_24121220__1__binocular__lmdb.json']
 dataset2d_weight_list = [1.0 / len(train_2d_data_list)
@@ -336,6 +338,7 @@ train_dataloader = dict(
     batch_size=32,
     num_workers=4,
     persistent_workers=True,
+    # drop_last=True,
     sampler=dict(
         type='MultiSourceSampler', source_ratio=[1, 1], batch_size=128),
     collate_fn=dict(type='default_collate'),
@@ -353,7 +356,7 @@ train_dataloader = dict(
                 seq_len=seq_length,
                 flip_left_to_right=True,
                 sample_interval=4. / 5,
-                data_ratio=1. / 2,
+                data_ratio=1. / 3,
                 serialize_data=True,
             ),
             dict(
@@ -366,7 +369,7 @@ train_dataloader = dict(
                 seq_len=seq_length,
                 flip_left_to_right=True,
                 sample_interval=4. / 5,
-                # data_ratio=1. / 3,
+                data_ratio=1. / 3,
                 serialize_data=True,
             ),
         ]),

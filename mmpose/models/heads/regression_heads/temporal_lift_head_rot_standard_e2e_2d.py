@@ -450,15 +450,27 @@ class TemporalLiftNimbleHeadStandardE2e2D(LiftNimbleHeadStandard):
             hand3d_pred, data['lr_rot_matrix'].clone(), data['lr_p'].clone())
         norm_left_pred, norm_right_pred = data['oricam_left_xyz'][valid_mask][
             ..., :2], data['oricam_right_xyz'][valid_mask][..., :2]
-        norm_left_gt, norm_right_gt = data['leftcam_xyz_gt'], data[
-            'rightcam_xyz_gt']
+        norm_left_gt, norm_right_gt = data['leftcam_xyz_gt'].clone(
+        ), data['rightcam_xyz_gt'].clone()
+        norm_left_gt_reproj, norm_right_gt_reproj = data[
+            'leftcam_xyz_gt'].clone(), data['rightcam_xyz_gt'].clone()
         # 2d转3d的数据不计算3d相关loss
-        convert_2d_mask = self.generate_2d_mask(batch_data_samples).to(
-            hand3d_pred.device)
+        convert_2d_mask = self.generate_2d_maskv1(batch_data_samples).to(
+            hand3d_pred.device)  # 所有2d，都不计算3d loss
+        convert_2d_maskv2 = self.generate_2d_maskv1(batch_data_samples).to(
+            hand3d_pred.device)  # 仅时序2d，可以计算重投影
         pred_3d_way1 = pred_3d_way1 * (1 - convert_2d_mask.float())
         all_sigmas = all_sigmas * (1 - convert_2d_mask.float())
         hand3d_pred = hand3d_pred * (1 - convert_2d_mask.float())
         pre_trans_xyz = pre_trans_xyz * (1 - convert_2d_mask.float())
+        norm_left_pred_reproj = norm_left_pred_reproj * (
+            1 - convert_2d_maskv2.float())
+        norm_right_pred_reproj = norm_right_pred_reproj * (
+            1 - convert_2d_maskv2.float())
+        norm_left_gt_reproj = norm_left_gt_reproj * (1 -
+                                                     convert_2d_maskv2.float())
+        norm_right_gt_reproj = norm_right_gt_reproj * (
+            1 - convert_2d_maskv2.float())
         convert_2d_mask = torch.concat([convert_2d_mask, convert_2d_mask],
                                        dim=0)
         hand3d_part_gt = hand3d_part_gt * (1 - convert_2d_mask.float())
@@ -517,7 +529,8 @@ class TemporalLiftNimbleHeadStandardE2e2D(LiftNimbleHeadStandard):
             enhanced_left_hand3d_gt, enhanced_left_hand3d_part_gt,
             enhanced_left_hand3d_gt, dist_gt, gt_nimble_trans,
             enhanced_static_hand3d_gt, enhanced_static_hand3d_gt, hand3d_gt,
-            norm_left_gt, norm_right_gt, norm_left_gt, norm_right_gt
+            norm_left_gt, norm_right_gt, norm_left_gt_reproj,
+            norm_right_gt_reproj
         ]
 
         weight_ini = torch.ones((1, 21, 3))
@@ -741,11 +754,25 @@ class TemporalLiftNimbleHeadStandardE2e2D(LiftNimbleHeadStandard):
         return norm_left, norm_right
 
     @staticmethod
-    def generate_2d_mask(batch_data_samples):
+    def generate_2d_maskv1(batch_data_samples):
         mask = []
         for batch_sample in batch_data_samples[::2]:
             if 'hand_train_flora' in batch_sample.img_path:
                 mask.append(True)
+            else:
+                mask.append(False)
+        mask = torch.tensor(mask).unsqueeze(1).unsqueeze(2)
+        return mask
+
+    @staticmethod
+    def generate_2d_maskv2(batch_data_samples):
+        mask = []
+        for batch_sample in batch_data_samples[::2]:
+            if 'hand_train_flora' in batch_sample.img_path:
+                if 'hand_train_flora_e2e' in batch_sample.img_path:
+                    mask.append(False)
+                else:
+                    mask.append(True)
             else:
                 mask.append(False)
         mask = torch.tensor(mask).unsqueeze(1).unsqueeze(2)
