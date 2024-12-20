@@ -55,6 +55,14 @@ datasets_info = {
         ],
         'black_hand': [
             'data_hand/hand_keypoint/annotations/hand_train_flora_backlight_241012_6k__1__binocular__4k__lmdb.json'
+        ],
+        'e2e': [
+            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_241212160__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_241212180__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_241212184__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_24121220__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_24121221__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_24121222__1__binocular__lmdb.json',
         ]
     },
     'test_data': {
