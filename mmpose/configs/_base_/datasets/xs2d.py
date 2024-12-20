@@ -63,6 +63,14 @@ datasets_info = {
             'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_24121220__1__binocular__lmdb.json',
             'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_24121221__1__binocular__lmdb.json',
             'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_24121222__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20241220_1__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20241220_2__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20241220_3__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20241220_4__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20241220_5__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20241220_6__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20241220_7__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20241220_8__1__binocular__lmdb.json',
         ]
     },
     'test_data': {
