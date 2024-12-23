@@ -10,7 +10,7 @@ from mmpose.configs._base_.datasets.xs3d_nimble import \
 
 # from configs._base_.datasets.xs3d import datasets_info as kpt3d_datasets_info_nimble
 
-train_cfg = dict(max_epochs=30, val_interval=30)
+train_cfg = dict(max_epochs=20, val_interval=20)
 
 data_root = '/data/AI_DATA_WX'
 seq_length = 4
@@ -139,11 +139,12 @@ model = dict(
                 dict(
                     type='RLELoss',
                     dim=3,
+                    use_target_weight=True
                 ),
-                dict(type='L1Loss', loss_weight=0.1),
-                dict(type='L1Loss', loss_weight=0.1),
-                dict(type='L1Loss', loss_weight=0.1),
-                dict(type='L1Loss', loss_weight=0.1),
+                dict(type='L1Loss', loss_weight=1.),
+                dict(type='L1Loss', loss_weight=1.),
+                dict(type='L1Loss', loss_weight=1.),
+                dict(type='L1Loss', loss_weight=1.),
             ]),
         seq_len=4,
         all_use_kp2d_gt=False,
@@ -422,7 +423,7 @@ test_evaluator = val_evaluator
 # fp16 settings
 fp16 = dict(loss_scale='dynamic')
 # model wrapper
-find_unused_parameters = False
+find_unused_parameters = True
 
 # visualizer
 vis_backends = [

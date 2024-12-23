@@ -457,12 +457,13 @@ class TemporalLiftNimbleHeadStandardE2e2D(LiftNimbleHeadStandard):
         # 2d转3d的数据不计算3d相关loss
         convert_2d_mask = self.generate_2d_maskv1(batch_data_samples).to(
             hand3d_pred.device)  # 所有2d，都不计算3d loss
-        convert_2d_maskv2 = self.generate_2d_maskv1(batch_data_samples).to(
+        convert_2d_maskv2 = self.generate_2d_maskv2(batch_data_samples).to(
             hand3d_pred.device)  # 仅时序2d，可以计算重投影
         pred_3d_way1 = pred_3d_way1 * (1 - convert_2d_mask.float())
         all_sigmas = all_sigmas * (1 - convert_2d_mask.float())
         hand3d_pred = hand3d_pred * (1 - convert_2d_mask.float())
-        pre_trans_xyz = pre_trans_xyz * (1 - convert_2d_mask.float())
+        pre_shape = pre_shape * (1 - convert_2d_mask.float())
+        pre_nimble_trans = pre_nimble_trans * (1 - convert_2d_mask[...,0].float())
         norm_left_pred_reproj = norm_left_pred_reproj * (
             1 - convert_2d_maskv2.float())
         norm_right_pred_reproj = norm_right_pred_reproj * (
@@ -471,8 +472,9 @@ class TemporalLiftNimbleHeadStandardE2e2D(LiftNimbleHeadStandard):
                                                      convert_2d_maskv2.float())
         norm_right_gt_reproj = norm_right_gt_reproj * (
             1 - convert_2d_maskv2.float())
-        convert_2d_mask = torch.concat([convert_2d_mask, convert_2d_mask],
-                                       dim=0)
+        if self.data_flip_aug:
+            convert_2d_mask = torch.concat([convert_2d_mask, convert_2d_mask],
+                                        dim=0)
         hand3d_part_gt = hand3d_part_gt * (1 - convert_2d_mask.float())
         pred_3d_way2 = pred_3d_way2 * (1 - convert_2d_mask.float())
         # pinch 损失
@@ -532,7 +534,8 @@ class TemporalLiftNimbleHeadStandardE2e2D(LiftNimbleHeadStandard):
             norm_left_gt, norm_right_gt, norm_left_gt_reproj,
             norm_right_gt_reproj
         ]
-
+        if self.data_flip_aug:
+            convert_2d_mask = convert_2d_mask[convert_2d_mask.shape[0]//2:]
         weight_ini = torch.ones((1, 21, 3))
         weight_ini[0, :9, :] = 2
         weight_ini[0, 4, :], weight_ini[0, 8, :] = 4, 4
@@ -545,10 +548,10 @@ class TemporalLiftNimbleHeadStandardE2e2D(LiftNimbleHeadStandard):
         weight_ini_for_pre_nimble[:,
                                   4, :], weight_ini_for_pre_nimble[:,
                                                                    8, :] = 8, 8
-
+        weight_ini_ori_rle = weight_ini_ori * (1 - convert_2d_mask.float())
         weight_for_loss = [
             weight_ini_ori, weight_ini_for_pre_nimble, weight_ini_ori, None,
-            None, None, None, None, None, None, None, None
+            None, None, None, weight_ini_ori_rle, None, None, None, None
         ]
 
         losses = self.lift_loss(pred_for_loss, targ_for_loss, weight_for_loss)
@@ -556,7 +559,6 @@ class TemporalLiftNimbleHeadStandardE2e2D(LiftNimbleHeadStandard):
          loss_nimble_trans, loss_smooth, loss_smooth_root, loss_rle,
          loss_left_2d, loss_right_2d, loss_left_2d_reproj,
          loss_right_2d_reproj) = losses
-
         if self.use_shape_smooth:
             pre_shape_reshape = pre_shape.reshape(-1, self.seq_len)
             mean_shape = torch.mean(
