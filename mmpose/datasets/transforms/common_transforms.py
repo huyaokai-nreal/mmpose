@@ -708,7 +708,7 @@ class GenerateNoiseDarkImage(BaseTransform):
 
     def transform(self, results: Dict) -> Dict:
         # 检查是否是左目
-        if results['camera_name'] == 'left':
+        if 'camera_name' not in results or results['camera_name'] == 'left':
             if np.random.rand() < self.prob:
                 # 生成增强参数
                 gamma = np.random.uniform(self.gamma_limit[0],
@@ -778,6 +778,7 @@ class RandomMonocularOcclusion(BaseTransform):
                     self.left_flag = False
         return results
 
+
 @TRANSFORMS.register_module()
 @avoid_cache_randomness
 class RandomMonocularOcclusionv2(BaseTransform):
@@ -797,10 +798,12 @@ class RandomMonocularOcclusionv2(BaseTransform):
     def transform(self, results: Dict) -> Dict:
         results['meta']['edge_able'] = False
         kpt2d = results['keypoints'][0].copy()
-        if results['camera_name'] == 'left' and not self.is_kpt2d_allin_image(kpt2d):
+        if results['camera_name'] == 'left' and not self.is_kpt2d_allin_image(
+                kpt2d):
             results['meta']['edge_able'] = True
             self.left_flag = True
-        if results['camera_name'] == 'right' and not self.is_kpt2d_allin_image(kpt2d):
+        if results['camera_name'] == 'right' and not self.is_kpt2d_allin_image(
+                kpt2d):
             if not self.left_flag:
                 results['meta']['edge_able'] = True
             else:

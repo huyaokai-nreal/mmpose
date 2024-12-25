@@ -221,11 +221,14 @@ val_2d_pipeline = [
 dataset_type = 'PairHand3DDataset'
 data_mode = 'topdown'
 train_data_list = []
+
 train_date_list = [
-    '20230809', '20230815', '20230817', '20230822', '20230824', '20230828',
-    '20230906', '20230907', '20231031', '20240220', '20240229', '20240401',
+    '20230809', '20230815', '20230817', '20230822', '20231031', '20230824',
+    '20230828', '20230906', '20230907', '20240220', '20240229', '20240401',
     '20231227', '20240517', '20240425', '20240522', '20240801', '20240816',
-    '20240826', '20240926'
+    '20240826', '20240820', '20240903', '20240907', '20240926', '20240914',
+    '20240923', '20240930', '20241018', '20241030', '20241107', '20241121',
+    '20241114'
 ]
 train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
 for data_date in train_date_list:
@@ -248,7 +251,7 @@ for data_date in train_date_list:
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 train_2d_datasets = [
-    'ella', 'flora', 'quest_system', 'hoi', 'bad_bg', 'black_hand'
+    'ella', 'flora', 'quest_system', 'hoi', 'bad_bg', 'black_hand', 'e2e'
 ]
 train_2d_data_list = [
     kpt2d_datasets_info['train_data'][key] for key in train_2d_datasets

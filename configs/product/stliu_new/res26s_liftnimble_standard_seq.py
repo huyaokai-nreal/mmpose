@@ -7,7 +7,7 @@ from mmpose.configs._base_.datasets.xs3d_nimble import \
 
 # from configs._base_.datasets.xs3d import datasets_info as kpt3d_datasets_info
 
-train_cfg = dict(max_epochs=60, val_interval=3)
+train_cfg = dict(max_epochs=45, val_interval=3)
 
 # data_root = '/data/AI_DATA'
 data_root = '/data/AI_DATA_WX'
@@ -16,7 +16,7 @@ seq_length = 4
 
 # optimizer
 optim_wrapper = dict(
-    optimizer=dict(type='Adam', lr=2e-4, weight_decay=1e-4),
+    optimizer=dict(type='Adam', lr=1e-4, weight_decay=1e-4),
     paramwise_cfg=dict(
         norm_decay_mult=0,
         bias_decay_mult=0,
@@ -173,7 +173,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/stliu/mmpose/work_dirs/new_dataset/liftnimble_flip_res26sw_simple_1112/epoch_150.pth'
+        '/data/stliu/mmpose_simliar_wx10/work_dirs/new_dataset/liftnimble__20241220/epoch_150.pth'
     ),
 )
 
@@ -186,7 +186,8 @@ train_date_list = [
     '20230824', '20230828', '20230906', '20230907', '20240220', '20240229',
     '20240401', '20231227', '20240517', '20240425', '20240522', '20240801',
     '20240816', '20240826', '20240820', '20240903', '20240907', '20240926',
-    '20240914', '20240923', '20240930', '20241018', '20241030', '20241107'
+    '20240914', '20240923', '20240930', '20241018', '20241030', '20241107',
+    '20241121', '20241114'
 ]
 train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
 for data_date in train_date_list:
@@ -275,7 +276,8 @@ train_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         # data_ratio=1.0/30,
-        sample_interval=4.0/5,
+        data_ratio=1.0 / 2,
+        sample_interval=4.0 / 5,
         data_file_list=train_data_list,
         data_mode=data_mode,
         pipeline=train_pipeline,

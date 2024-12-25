@@ -77,7 +77,9 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             nn.Linear(self.feat_dim * 2, self.feat_dim))
         self.enhance_lefthand = enhance_lefthand
         self.enhance_static = enhance_static
-        self.static_data_date_list = ['20240516', '20240517', '20240522']
+        self.static_data_date_list = [
+            '20240516', '20240517', '20240522', '20241114'
+        ]
         self.reverse_pinch_date_list = [
             '20240220', '20240229', '20240926', '20241030'
         ]
@@ -382,7 +384,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             loss_rle = torch.tensor(0.0, device=loss_pre_root.device)
 
         hand_constraint_loss = self.hand_constraint(
-            hand3d_pred, self.hand_constraint_index_list) * 0.02
+            hand3d_pred, self.hand_constraint_index_list) * 1.5
 
         losses_dict = dict(
             loss_pre_root=loss_pre_root,
