@@ -56,6 +56,7 @@ datasets_info = {
         'black_hand': [
             'data_hand/hand_keypoint/annotations/hand_train_flora_backlight_241012_6k__1__binocular__4k__lmdb.json'
         ],
+        # 2025 CES小屋等自然场景
         'e2e': [
             'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_241212160__1__binocular__lmdb.json',
             'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_241212180__1__binocular__lmdb.json',
