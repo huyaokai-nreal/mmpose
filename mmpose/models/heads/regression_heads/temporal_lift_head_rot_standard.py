@@ -339,7 +339,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
 
         mh = MessageHub.get_current_instance()
         cur_epoch = mh.get_info('epoch')
-        pinch_mask = (dist_pred > dist_gt - 0.002) & (dist_gt < 0.02)
+        pinch_mask = (dist_pred > dist_gt - 0.003) & (dist_gt < 0.02)
         reverse_mask = self.generate_mask(batch_data_samples,
                                           self.reverse_pinch_date_list).to(
                                               pinch_mask.cuda())
@@ -349,7 +349,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         if cur_epoch > 30 and sum(pinch_mask) > 0:
             valid_num = len(dist_gt[pinch_mask])
             softmax_weight = F.softmax(-dist_gt[pinch_mask], dim=0) * valid_num
-            margin_value = torch.ones_like(dist_gt) * 0.003
+            margin_value = torch.ones_like(dist_gt) * 0.005
             margin_value[pinch_reverse_mask] = 0.006
             pinch_loss_add = self.pinch_loss_func(
                 dist_pred[pinch_mask] * softmax_weight,
