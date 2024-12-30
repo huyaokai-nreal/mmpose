@@ -7,7 +7,7 @@ from mmpose.configs._base_.datasets.xs3d_nimble import \
 
 # from configs._base_.datasets.xs3d import datasets_info as kpt3d_datasets_info
 
-train_cfg = dict(max_epochs=45, val_interval=3)
+train_cfg = dict(max_epochs=60, val_interval=3)
 
 # data_root = '/data/AI_DATA'
 data_root = '/data/AI_DATA_WX'
@@ -16,7 +16,7 @@ seq_length = 4
 
 # optimizer
 optim_wrapper = dict(
-    optimizer=dict(type='Adam', lr=1e-4, weight_decay=1e-4),
+    optimizer=dict(type='Adam', lr=5e-5, weight_decay=1e-4),
     paramwise_cfg=dict(
         norm_decay_mult=0,
         bias_decay_mult=0,
@@ -173,7 +173,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/stliu/mmpose_simliar_wx10/work_dirs/new_dataset/liftnimble__20241220/epoch_150.pth'
+        '/data/AI_DATA_WX/stliu/liftnimble__20241220_epoch_150.pth'
     ),
 )
 
@@ -276,7 +276,7 @@ train_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         # data_ratio=1.0/30,
-        data_ratio=1.0 / 2,
+        # data_ratio=1.0 / 2,
         sample_interval=4.0 / 5,
         data_file_list=train_data_list,
         data_mode=data_mode,
