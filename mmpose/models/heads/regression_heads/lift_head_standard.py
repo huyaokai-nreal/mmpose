@@ -273,16 +273,18 @@ class LiftHeadStandard(BaseModule):
 
         def exchange_value(value):
             tmp = value.clone()
-            tmp[:, 0, ...] = value[:, 1, ...]
-            tmp[:, 1, ...] = value[:, 0, ...]
+            tmp[::2, ...] = value[1::2, ...]
+            tmp[1::2, ...] = value[::2, ...]
             value = tmp
             return value
 
+        origin_W = batch_data_samples[0].meta['frame_width']
         if self.data_flip_aug:
             right_hand = torch.ones_like(
                 left_hand).cuda().float() - left_hand.clone().cuda().float()
             new_uv_coord_im_pred_global_distort = uv_coord_im_pred_global_distort.clone(
             )
+            new_uv_coord_im_pred_global_distort[...,0] = origin_W - 1 - uv_coord_im_pred_global_distort[...,0]
             new_uv_coord_im_pred_global_distort = exchange_value(
                 new_uv_coord_im_pred_global_distort)
             left_hand = torch.concat([left_hand, right_hand])
@@ -293,6 +295,7 @@ class LiftHeadStandard(BaseModule):
                                                            dim=0)
 
             new_uv_coord_im_gt_global = uv_coord_im_gt_global.clone()
+            new_uv_coord_im_gt_global[...,0] = origin_W - 1 - uv_coord_im_gt_global[...,0]
             new_uv_coord_im_gt_global = exchange_value(
                 new_uv_coord_im_gt_global)
             uv_coord_im_gt_global = torch.concat(
