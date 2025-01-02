@@ -964,6 +964,8 @@ datasets_info = {
         'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_e2e/hand_train_flora_20241222__1__binocular__lmdb.json',
         'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_e2e/hand_train_flora_20241223__1__binocular__lmdb.json',
         'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_e2e/hand_train_flora_20241226__1__binocular__lmdb.json',
+        'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_e2e/hand_train_flora_20241230__1__binocular__lmdb.json',
+        'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_e2e/hand_train_flora_20250102__1__binocular__lmdb.json',
     },
     'simu_test_data': {
         '20230830': {
