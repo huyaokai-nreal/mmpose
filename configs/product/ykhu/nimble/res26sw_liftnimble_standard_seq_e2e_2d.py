@@ -10,7 +10,7 @@ from mmpose.configs._base_.datasets.xs3d_nimble import \
 
 # from configs._base_.datasets.xs3d import datasets_info as kpt3d_datasets_info_nimble
 
-train_cfg = dict(max_epochs=20, val_interval=20)
+train_cfg = dict(max_epochs=30, val_interval=30)
 
 data_root = '/data/AI_DATA_WX'
 seq_length = 4
@@ -136,11 +136,7 @@ model = dict(
                     seq_length=seq_length,
                     loss_weight=1,
                 ),
-                dict(
-                    type='RLELoss',
-                    dim=3,
-                    use_target_weight=True
-                ),
+                dict(type='RLELoss', dim=3, use_target_weight=True),
                 dict(type='L1Loss', loss_weight=1.),
                 dict(type='L1Loss', loss_weight=1.),
                 dict(type='L1Loss', loss_weight=1.),
@@ -171,8 +167,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/AI_DATA_WX/ykhu/model/iftnimble_flip_res26sw_simple_1129_seq_epoch_60.pth'
-    ),
+        '/data/AI_DATA_WX/stliu/liftnimble__20241226_seq_epoch_45.pth'),
 )
 
 # base dataset settings
