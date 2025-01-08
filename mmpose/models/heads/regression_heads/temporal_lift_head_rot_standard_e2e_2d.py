@@ -239,15 +239,18 @@ class TemporalLiftNimbleHeadStandardE2e2D(LiftNimbleHeadStandard):
 
         def exchange_value(value):
             tmp = value.clone()
-            tmp[:, 0, ...] = value[:, 1, ...]
-            tmp[:, 1, ...] = value[:, 0, ...]
+            tmp[::2, ...] = value[1::2, ...]
+            tmp[1::2, ...] = value[::2, ...]
             value = tmp
             return value
 
+        origin_W = batch_data_samples[0].meta['frame_width']
         if self.data_flip_aug:
             right_hand = torch.ones_like(
                 left_hand).cuda().float() - left_hand.clone().cuda().float()
             new_uv_coord_im_pred_global = uv_coord_im_pred_global.clone()
+            new_uv_coord_im_pred_global[
+                ..., 0] = origin_W - 1 - uv_coord_im_pred_global[..., 0]
             new_uv_coord_im_pred_global = exchange_value(
                 new_uv_coord_im_pred_global)
             left_hand = torch.concat([left_hand, right_hand])
@@ -463,7 +466,8 @@ class TemporalLiftNimbleHeadStandardE2e2D(LiftNimbleHeadStandard):
         all_sigmas = all_sigmas * (1 - convert_2d_mask.float())
         hand3d_pred = hand3d_pred * (1 - convert_2d_mask.float())
         pre_shape = pre_shape * (1 - convert_2d_mask.float())
-        pre_nimble_trans = pre_nimble_trans * (1 - convert_2d_mask[...,0].float())
+        pre_nimble_trans = pre_nimble_trans * (1 -
+                                               convert_2d_mask[..., 0].float())
         norm_left_pred_reproj = norm_left_pred_reproj * (
             1 - convert_2d_maskv2.float())
         norm_right_pred_reproj = norm_right_pred_reproj * (
@@ -474,7 +478,7 @@ class TemporalLiftNimbleHeadStandardE2e2D(LiftNimbleHeadStandard):
             1 - convert_2d_maskv2.float())
         if self.data_flip_aug:
             convert_2d_mask = torch.concat([convert_2d_mask, convert_2d_mask],
-                                        dim=0)
+                                           dim=0)
         hand3d_part_gt = hand3d_part_gt * (1 - convert_2d_mask.float())
         pred_3d_way2 = pred_3d_way2 * (1 - convert_2d_mask.float())
         # pinch 损失
@@ -535,7 +539,7 @@ class TemporalLiftNimbleHeadStandardE2e2D(LiftNimbleHeadStandard):
             norm_right_gt_reproj
         ]
         if self.data_flip_aug:
-            convert_2d_mask = convert_2d_mask[convert_2d_mask.shape[0]//2:]
+            convert_2d_mask = convert_2d_mask[convert_2d_mask.shape[0] // 2:]
         weight_ini = torch.ones((1, 21, 3))
         weight_ini[0, :9, :] = 2
         weight_ini[0, 4, :], weight_ini[0, 8, :] = 4, 4
