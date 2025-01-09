@@ -514,6 +514,113 @@ class TopdownPoseLiftNimbleEstimatorSeq(TopdownPoseLiftNimbleEstimator):
 
 
 @MODELS.register_module()
+class TopdownPoseLiftNimbleEstimatorSeqMono(TopdownPoseLiftNimbleEstimatorSeq):
+
+    def __init__(self,
+                 backbone: ConfigType,
+                 neck: OptConfigType = None,
+                 head: OptConfigType = None,
+                 kpt3d_lift: OptConfigType = None,
+                 train_cfg: OptConfigType = None,
+                 test_cfg: OptConfigType = None,
+                 data_preprocessor: OptConfigType = None,
+                 init_cfg: OptMultiConfig = None,
+                 metainfo: Optional[dict] = None,
+                 seq_len: int = 32,
+                 e2e=False):
+        super().__init__(
+            backbone=backbone,
+            neck=neck,
+            head=head,
+            kpt3d_lift=kpt3d_lift,
+            train_cfg=train_cfg,
+            test_cfg=test_cfg,
+            data_preprocessor=data_preprocessor,
+            init_cfg=init_cfg,
+            metainfo=metainfo,
+            e2e=e2e,
+            seq_len=seq_len)
+
+    @format_data
+    def predict(self, inputs: Tensor, data_samples: SampleList) -> SampleList:
+        """Predict results from a batch of inputs and data samples with post-
+        processing.
+
+        Args:
+            inputs (Tensor): Inputs with shape (N, C, H, W)
+            data_samples (List[:obj:`PoseDataSample`]): The batch
+                data samples
+
+        Returns:
+            list[:obj:`PoseDataSample`]: The pose estimation results of the
+            input images. The return value is `PoseDataSample` instances with
+            ``pred_instances`` and ``pred_fields``(optional) field , and
+            ``pred_instances`` usually contains the following keys:
+
+                - keypoints (Tensor): predicted keypoint coordinates in shape
+                    (num_instances, K, D) where K is the keypoint number and D
+                    is the keypoint dimension
+                - keypoint_scores (Tensor): predicted keypoint scores in shape
+                    (num_instances, K)
+        """
+        assert self.with_head, (
+            'The model must have head to perform prediction.')
+
+        if self.test_cfg.get('flip_test', False):
+            _feats = self.extract_feat(inputs)
+            _feats_flip = self.extract_feat(inputs.flip(-1))
+            feats = [_feats, _feats_flip]
+        else:
+            feats = self.extract_feat(inputs)
+            outputs = self.head.forward(feats)
+            xy_sigma, heatmap = outputs[:2]
+            if self.kpt2d_with_depth:
+                depth = outputs[2]
+                depth = (depth - 0.5) * 0.4  # 0.4 is the depth bound
+                xy_sigma = torch.cat([xy_sigma, depth], dim=-1)
+        batch_pred_instances = []
+        mem, mem_bino = None, None
+        assert inputs.shape[
+            0] // 2 % self.seq_len == 0, \
+            f'batch size {inputs.shape[0]//2} can be divided by {self.seq_len}'
+        clip_len = self.seq_len * 2
+        clip_num = inputs.shape[0] // clip_len
+        N = xy_sigma.shape[-2]
+        K = xy_sigma.shape[-1]
+        xy_sigma_input = xy_sigma.reshape(clip_num, clip_len, N, K)
+        for b in range(self.seq_len):
+            sub_xy_input = xy_sigma_input[:, 2 * b:2 * b +
+                                          2, :].reshape(-1, N, K)
+            data_sample_id_list = [[
+                2 * b + clip_id * clip_len, 2 * b + 1 + clip_id * clip_len
+            ] for clip_id in range(clip_num)]
+            data_sample_id_list = list(
+                chain.from_iterable(data_sample_id_list))
+            pred, pred_bino_kp2d, mem, mem_bino, sigma = self.kpt3d_lift.predict(
+                sub_xy_input, [data_samples[i] for i in data_sample_id_list],
+                mem,
+                mem_bino,
+                test_cfg=self.test_cfg)
+            pred_bino_kp2d = pred_bino_kp2d.reshape(pred.shape[0], -1, 21, 2)
+            for b in range(pred.shape[0]):
+                keypoints = pred_bino_kp2d[b:b + 1, 0, ...]  # gt为左目信息
+                batch_pred_instances.append(
+                    InstanceData(
+                        keypoints3d=pred[b:b + 1, ...],
+                        keypoints3d_scores=sigma[b:b + 1, ...],
+                        keypoints=keypoints,
+                        keypoint_scores=torch.ones((1, 21)),
+                    ))
+        final_pred_instances = []
+        for i in range(clip_num):
+            final_pred_instances += batch_pred_instances[i::clip_num]
+
+        results = self.add_pred_to_datasample(final_pred_instances, None,
+                                              data_samples)
+        return results
+
+
+@MODELS.register_module()
 class TopdownPoseLiftNimbleEstimatorSeqPredict(TopdownPoseLiftNimbleEstimator):
 
     def __init__(self,

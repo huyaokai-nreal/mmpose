@@ -19,6 +19,8 @@ from .temporal_lift_head_rot_standard_e2e import \
     TemporalLiftNimbleHeadStandardE2e
 from .temporal_lift_head_rot_standard_e2e_2d import \
     TemporalLiftNimbleHeadStandardE2e2D
+from .temporal_lift_head_rot_standard_e2e_2d_mono import \
+    TemporalLiftNimbleHeadStandardE2e2DMono
 from .temporal_lift_head_rot_standard_predict import \
     TemporalLiftNimbleHeadStandardPredict
 from .temporal_lift_head_rot_standard_ume_e2e import \
@@ -57,6 +59,7 @@ __all__ = [
     'LiftNimbleHeadStandardE2e',
     'TemporalLiftNimbleHeadStandardE2e',
     'TemporalLiftNimbleHeadStandardE2e2D',
+    'TemporalLiftNimbleHeadStandardE2e2DMono',
     'TemporalUmeLiftNimbleHeadStandardE2e',
     'TemporalRTMCCIPRHeadNimble',
     # 'PCT_Head', 'PCT_Tokenizer',
