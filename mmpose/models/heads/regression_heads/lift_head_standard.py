@@ -279,6 +279,13 @@ class LiftHeadStandard(BaseModule):
             return value
 
         origin_W = batch_data_samples[0].meta['frame_width']
+        left_uv_coord = uv_coord_im_gt_global[::2, 0, 0]
+        right_uv_coor = uv_coord_im_gt_global[1::2, 0, 0]
+        patch_num = 3
+        left_edge_w = origin_W//patch_num
+        right_edge_w = origin_W//patch_num * (patch_num-1)
+        edge_mask = (left_uv_coord > right_edge_w) | (right_uv_coor < left_edge_w)
+        
         if self.data_flip_aug:
             right_hand = torch.ones_like(
                 left_hand).cuda().float() - left_hand.clone().cuda().float()
@@ -288,6 +295,7 @@ class LiftHeadStandard(BaseModule):
             new_uv_coord_im_pred_global_distort = exchange_value(
                 new_uv_coord_im_pred_global_distort)
             left_hand = torch.concat([left_hand, right_hand])
+            edge_mask = torch.concat([edge_mask, edge_mask])
             uv_coord_im_pred_global_distort = torch.concat([
                 uv_coord_im_pred_global_distort,
                 new_uv_coord_im_pred_global_distort
@@ -430,7 +438,8 @@ class LiftHeadStandard(BaseModule):
             'baseline_scale': baseline_scale,
             'hand_scale': hand_scale,
             'nimble_info': nimble_info,
-            'valid_mask': valid_mask
+            'valid_mask': valid_mask,
+            'edge_mask': edge_mask
         }
 
     def postprocess(self, hand3d_standard, left_to_right_rt, left_R,

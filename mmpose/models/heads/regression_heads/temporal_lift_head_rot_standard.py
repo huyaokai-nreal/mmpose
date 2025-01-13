@@ -81,7 +81,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             '20240516', '20240517', '20240522', '20241114'
         ]
         self.reverse_pinch_date_list = [
-            '20240220', '20240229', '20240926', '20241030'
+            '20240220', '20240229', '20240926', '20241030', '20250107'
         ]
         self.fix_sigma_pars = fix_sigma_pars
         self.pinch_loss_func = F.l1_loss
@@ -208,6 +208,10 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         # 直接监督rot和trans, 只考虑根节点的处理方式
         pre_nimble_trans = pre_trans_xyz
         gt_nimble_trans = data['nimble_info']['nimble_trans'][valid_mask]
+        edge_mask = data['edge_mask'][valid_mask]
+        enhanced_pre_nimble_trans  = self.enhanced_fun(pre_nimble_trans, edge_mask, 3)
+        enhanced_gt_nimble_trans = self.enhanced_fun(gt_nimble_trans, edge_mask, 3)
+        
 
         # pinch 损失
         dist_pred = torch.norm(
@@ -254,13 +258,13 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
 
         pred_for_loss = [
             enhanced_left_pred_3d_way1, enhanced_left_pred_3d_way2,
-            enhanced_left_hand3d_pred, dist_pred, pre_nimble_trans,
+            enhanced_left_hand3d_pred, dist_pred, enhanced_pre_nimble_trans,
             enhanced_static_hand3d_pred, enhanced_static_pred_3d_way1,
             re_all_sigmas
         ]
         targ_for_loss = [
             enhanced_left_hand3d_gt, enhanced_left_hand3d_part_gt,
-            enhanced_left_hand3d_gt, dist_gt, gt_nimble_trans,
+            enhanced_left_hand3d_gt, dist_gt, enhanced_gt_nimble_trans,
             enhanced_static_hand3d_gt, enhanced_static_hand3d_gt, hand3d_gt
         ]
 
@@ -339,7 +343,8 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
 
         mh = MessageHub.get_current_instance()
         cur_epoch = mh.get_info('epoch')
-        pinch_mask = (dist_pred > dist_gt - 0.003) & (dist_gt < 0.02)
+        magin_value = 0.005
+        pinch_mask = (dist_pred > dist_gt - magin_value) & (dist_gt < 0.0225)
         reverse_mask = self.generate_mask(batch_data_samples,
                                           self.reverse_pinch_date_list).to(
                                               pinch_mask.cuda())
@@ -348,13 +353,11 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
 
         if cur_epoch > 30 and sum(pinch_mask) > 0:
             valid_num = len(dist_gt[pinch_mask])
-            softmax_weight = F.softmax(-dist_gt[pinch_mask], dim=0) * valid_num
-            margin_value = torch.ones_like(dist_gt) * 0.005
-            margin_value[pinch_reverse_mask] = 0.006
+            # softmax_weight = F.softmax(-dist_gt[pinch_mask], dim=0) * valid_num
+            margin_value = torch.ones_like(dist_gt) * magin_value
+            margin_value[pinch_reverse_mask] = magin_value * 1.5
             pinch_loss_add = self.pinch_loss_func(
-                dist_pred[pinch_mask] * softmax_weight,
-                (dist_gt[pinch_mask] - margin_value[pinch_mask]) *
-                softmax_weight) * 3
+                dist_pred[pinch_mask], (dist_gt[pinch_mask] - margin_value[pinch_mask])) * 3
         else:
             pinch_loss_add = torch.tensor(0.0, device=loss_pre_root.device)
 

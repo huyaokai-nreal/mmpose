@@ -132,7 +132,7 @@ model = dict(
                     exit_thre=pinch_thre[1] / 1000,
                     loss_weight=15,
                     enable_start_epoch=train_cfg['max_epochs'] // 2),
-                dict(type='MSELoss', loss_weight=20),  # nimble trans直接监督
+                dict(type='MSELoss', loss_weight=50),  # nimble trans直接监督
                 dict(
                     type='MPJPAELoss',
                     seq_length=seq_length,
@@ -187,7 +187,7 @@ train_date_list = [
     '20240401', '20231227', '20240517', '20240425', '20240522', '20240801',
     '20240816', '20240826', '20240820', '20240903', '20240907', '20240926',
     '20240914', '20240923', '20240930', '20241018', '20241030', '20241107',
-    '20241121', '20241114', '20241216'
+    '20241121', '20241114', '20241216', '20250107'
 ]
 train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
 for data_date in train_date_list:
