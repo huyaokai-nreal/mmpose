@@ -285,6 +285,8 @@ class LiftHeadStandard(BaseModule):
         left_edge_w = origin_W//patch_num
         right_edge_w = origin_W//patch_num * (patch_num-1)
         edge_mask = (left_uv_coord > right_edge_w) | (right_uv_coor < left_edge_w)
+        right_edge_mask = left_uv_coord > right_edge_w
+        left_edge_mask = right_uv_coor < left_edge_w
         
         if self.data_flip_aug:
             right_hand = torch.ones_like(
@@ -296,6 +298,9 @@ class LiftHeadStandard(BaseModule):
                 new_uv_coord_im_pred_global_distort)
             left_hand = torch.concat([left_hand, right_hand])
             edge_mask = torch.concat([edge_mask, edge_mask])
+            right_edge_mask = torch.concat([right_edge_mask, right_edge_mask])
+            left_edge_mask = torch.concat([left_edge_mask, left_edge_mask])
+            
             uv_coord_im_pred_global_distort = torch.concat([
                 uv_coord_im_pred_global_distort,
                 new_uv_coord_im_pred_global_distort
@@ -439,7 +444,9 @@ class LiftHeadStandard(BaseModule):
             'hand_scale': hand_scale,
             'nimble_info': nimble_info,
             'valid_mask': valid_mask,
-            'edge_mask': edge_mask
+            'edge_mask': edge_mask,
+            'right_edge_mask':right_edge_mask,
+            'left_edge_mask':left_edge_mask
         }
 
     def postprocess(self, hand3d_standard, left_to_right_rt, left_R,

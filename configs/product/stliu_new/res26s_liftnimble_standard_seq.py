@@ -173,7 +173,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/AI_DATA_WX/stliu/liftnimble__20241220_epoch_150.pth'
+        '/data/stliu/mmpose_simliar_wx10/work_dirs/new_dataset/liftnimble__20250109_seq/epoch_60.pth'
     ),
 )
 

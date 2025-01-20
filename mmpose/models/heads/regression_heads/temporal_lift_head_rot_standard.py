@@ -85,6 +85,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         ]
         self.fix_sigma_pars = fix_sigma_pars
         self.pinch_loss_func = F.l1_loss
+        self.edge_loss_func = F.l1_loss
         self.hand_constraint_index_list = [[5, 6, 7, 8], [9, 10, 11, 12],
                                            [13, 14, 15, 16], [17, 18, 19, 20]]
 
@@ -201,6 +202,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
                                             data['baseline_scale'], False)
         pred_3d_way1 = pred_3d_way1[valid_mask]
         hand3d_pred = hand3d_pred[valid_mask]
+        pre_trans_xyz_copy = pre_trans_xyz.clone()
         pre_trans_xyz = pre_trans_xyz[valid_mask]
         all_sigmas = all_sigmas[valid_mask]
         hand3d_gt = data['hand3d_gt'][valid_mask]
@@ -350,6 +352,45 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
                                               pinch_mask.cuda())
         reverse_mask = torch.concat([reverse_mask, reverse_mask])
         pinch_reverse_mask = pinch_mask & reverse_mask
+        
+        left_edge_mask = data['left_edge_mask'][valid_mask]
+        right_edge_mask = data['right_edge_mask'][valid_mask]
+        
+        magin_edge = 0.015
+        add_trans_weight = 0.5
+        if cur_epoch > 30 and sum(left_edge_mask) > 0 and sum(hand3d_pred[left_edge_mask,0,2] > hand3d_gt[left_edge_mask,0,2]) > 0:
+            z_dim_mask = hand3d_pred[:,0,2] > hand3d_gt[:,0,2]
+            left_edge_mask = left_edge_mask & z_dim_mask
+            
+            hand3d_pred_left_edge = hand3d_pred[left_edge_mask,0,:]
+            hand3d_gt_left_edge = hand3d_gt[left_edge_mask,0,:]
+            
+            left_add_trans_loss = self.edge_loss_func(hand3d_pred_left_edge, hand3d_gt_left_edge)
+        else:
+            left_add_trans_loss = torch.tensor(0.0, device=loss_pre_root.device)
+        
+        if  cur_epoch > 30 and sum(right_edge_mask) > 0 and (sum(hand3d_pred[right_edge_mask,0,2] < hand3d_gt[right_edge_mask,0,2]+magin_edge) > 0 or sum(hand3d_pred[right_edge_mask,0,1] < hand3d_gt[right_edge_mask,0,1]+magin_edge) > 0):
+            z_dim_mask = (hand3d_pred[:,0,2] < hand3d_gt[:,0,2]) | (hand3d_pred[:,0,1] < hand3d_gt[:,0,1])
+            right_edge_mask = right_edge_mask & z_dim_mask
+            
+            hand3d_pred_right_edge = hand3d_pred[right_edge_mask,0,:].clone()
+            hand3d_gt_right_edge = hand3d_gt[right_edge_mask,0,:].clone()
+            hand3d_gt_right_edge[:,1:] += magin_edge
+            
+            right_add_trans_loss = self.edge_loss_func(hand3d_pred_right_edge, hand3d_gt_right_edge)
+        else:
+            right_add_trans_loss = torch.tensor(0.0, device=loss_pre_root.device)
+        
+        if left_add_trans_loss > -1e-8 and right_add_trans_loss > -1e-8:
+            add_trans_loss = left_add_trans_loss + right_add_trans_loss
+            add_trans_loss *= add_trans_weight
+        else:
+            add_trans_loss = torch.tensor(0.0, device=loss_pre_root.device)
+            
+        pre_nimble_trans_yz = pre_trans_xyz_copy[:,:2]
+        gt_nimble_trans_yz = data['nimble_info']['nimble_trans'][:,:2]
+        add_flip_trans_loss = self.edge_loss_func(pre_nimble_trans_yz, gt_nimble_trans_yz)*add_trans_weight
+        
 
         if cur_epoch > 30 and sum(pinch_mask) > 0:
             valid_num = len(dist_gt[pinch_mask])
@@ -403,7 +444,9 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             loss_poke=loss_poke,
             loss_hand_constraint=hand_constraint_loss,
             loss_rle=loss_rle,
-            pinch_loss_add=pinch_loss_add)
+            pinch_loss_add=pinch_loss_add,
+            trans_loss_add = add_trans_loss,
+            flip_trans_loss_add = add_flip_trans_loss)
 
         return losses_dict
 
