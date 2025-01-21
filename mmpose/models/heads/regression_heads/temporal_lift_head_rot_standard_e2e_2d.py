@@ -244,13 +244,12 @@ class TemporalLiftNimbleHeadStandardE2e2D(LiftNimbleHeadStandard):
             value = tmp
             return value
 
-        origin_W = batch_data_samples[0].meta['frame_width']
         if self.data_flip_aug:
             right_hand = torch.ones_like(
                 left_hand).cuda().float() - left_hand.clone().cuda().float()
             new_uv_coord_im_pred_global = uv_coord_im_pred_global.clone()
             new_uv_coord_im_pred_global[
-                ..., 0] = origin_W - 1 - uv_coord_im_pred_global[..., 0]
+                ..., 0] = W - 1 - uv_coord_im_pred_global[..., 0]
             new_uv_coord_im_pred_global = exchange_value(
                 new_uv_coord_im_pred_global)
             left_hand = torch.concat([left_hand, right_hand])
