@@ -173,7 +173,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/stliu/mmpose_simliar_wx10/work_dirs/new_dataset/liftnimble__20250109_seq/epoch_60.pth'
+        '/data/AI_DATA_WX/stliu/epoch_60.pth'
     ),
 )
 
@@ -187,7 +187,7 @@ train_date_list = [
     '20240401', '20231227', '20240517', '20240425', '20240522', '20240801',
     '20240816', '20240826', '20240820', '20240903', '20240907', '20240926',
     '20240914', '20240923', '20240930', '20241018', '20241030', '20241107',
-    '20241121', '20241114', '20241216', '20250107'
+    '20241121', '20241114', '20241216', '20250107', '20240113'
 ]
 train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
 for data_date in train_date_list:
