@@ -25,6 +25,10 @@ class sim_NIMBLELayer(torch.nn.Module):
         self.base_nimble_path = '/data/AI_DATA_WX/data_hand/nimble_model/nimble_simple.npy'
         nimble_info = np.load(self.base_nimble_path, allow_pickle=True).item()
 
+        pm_dict = np.load(
+            '/data/AI_DATA_WX/share/stliu/NIMBLE_model/assets/NIMBLE_DICT_9137.pkl',
+            allow_pickle=True)
+
         identity_rot = torch.eye(3).to(self.device)
         self.register_buffer('identity_rot', identity_rot)
 
@@ -32,6 +36,10 @@ class sim_NIMBLELayer(torch.nn.Module):
         self.pose_ncomp = pose_ncomp
         self.use_pose_pca = use_pose_pca
         self.reg_shape_type = reg_shape_type
+        self.landmark_index = [
+            1143, 3788, 567, 2963, 342, 2382, 2269, 3108, 3444, 3139, 114,
+            2514, 123, 2380, 4430, 1184, 1859, 3754, 880, 3817, 1906
+        ]
 
         self.register_buffer('th_verts', torch.tensor(
             nimble_info['th_verts']))  # shape (2500, 3)
@@ -51,6 +59,16 @@ class sim_NIMBLELayer(torch.nn.Module):
                              torch.tensor(nimble_info['pose_pm_std']))
         self.register_buffer('pose_pm_mean',
                              torch.tensor(nimble_info['pose_pm_mean']))
+
+        self.register_buffer('skinning_weight',
+                             pm_dict['all_sw'].clone().detach())
+        self.register_buffer('points_pose_bs',
+                             pm_dict['all_pbs'].clone().detach())
+        self.register_buffer('skin_v', pm_dict['vert'].clone().detach())
+
+        self.skinning_weight = self.skinning_weight[self.skin_v_index:]
+        self.points_pose_bs = self.points_pose_bs[self.skin_v_index:]
+        self.skin_v = self.skin_v[self.skin_v_index:]
 
         self.kp_index = [
             0, 1, 2, 3, 4, 6, 7, 8, 9, 11, 12, 13, 14, 16, 17, 18, 19, 21, 22,
@@ -164,6 +182,14 @@ class sim_NIMBLELayer(torch.nn.Module):
             jreg_joints = scale_factor.view(
                 scale_factor.shape[0], 1,
                 1) * jreg_joints_relative + root_jreg_joints
+
+            B = jreg_joints.shape[0]
+            skin_v = self.skin_v.clone().unsqueeze(0).repeat(B, 1, 1)
+            root_skin_kpt = skin_v[:, :1, :]
+            skin_v_relative = skin_v - root_skin_kpt
+            skin_v = scale_factor.view(scale_factor.shape[0], 1,
+                                       1) * skin_v_relative + root_skin_kpt
+
         elif self.reg_shape_type == 3:
             # ** original Nimble joint order
             #                 4- 3- 2- 1-\
@@ -229,12 +255,18 @@ class sim_NIMBLELayer(torch.nn.Module):
 
     def forward_simple(self, pose_matrix, shape_param, init_shape_pose=False):
 
-        jreg_joints = self.get_hand_joints(shape_param, init_shape_pose)
-        bone_joints = self.forward_full(pose_matrix, jreg_joints)
+        jreg_joints, skin_lmk = self.get_hand_joints(shape_param,
+                                                     init_shape_pose)
+        bone_joints, skin_landmarks = self.forward_full(
+            pose_matrix, jreg_joints, skin_lmk)
 
         return None, bone_joints
 
-    def forward_full(self, local_pose_matrix, joints, global_scale=None):
+    def forward_full(self,
+                     local_pose_matrix,
+                     joints,
+                     skin_lmk,
+                     global_scale=None):
         batch_size = local_pose_matrix.shape[0]
 
         # Convert axis-angle representation to rotation matrix rep.
@@ -273,6 +305,24 @@ class sim_NIMBLELayer(torch.nn.Module):
 
         th_results_global = th_results
         th_jtr = torch.stack(th_results_global, dim=1)[:, :, :3, 3]
+
+        th_results2 = torch.zeros((batch_size, 4, 4, STATIC_JOINT_NUM),
+                                  dtype=root_j.dtype,
+                                  device=root_j.device)
+        for i in range(STATIC_JOINT_NUM):
+            padd_zero = torch.zeros(1, dtype=th_j.dtype, device=th_j.device)
+            joint_j = torch.cat(
+                [th_j[:, i],
+                 padd_zero.view(1, 1).repeat(batch_size, 1)], 1)
+            tmp = torch.bmm(th_results[i], joint_j.unsqueeze(2))
+            th_results2[:, :, :, i] = th_results[i] - th_pack(tmp)
+
+        points_pose_bs = skin_lmk + torch.matmul(
+            self.points_pose_bs, th_pose_map.transpose(0, 1)).permute(2, 0, 1)
+
+        skinning_weight = self.skinning_weight.reshape(1, -1, STATIC_JOINT_NUM)
+        th_verts = self.compute_warp(batch_size, points_pose_bs,
+                                     skinning_weight, th_results2)
 
         # global scaling
         if global_scale is not None:
