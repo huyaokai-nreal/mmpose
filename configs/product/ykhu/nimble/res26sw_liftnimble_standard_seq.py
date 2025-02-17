@@ -120,6 +120,8 @@ model = dict(
         lift_loss=dict(
             type='MultipleLossWrapper',
             losses=[
+                dict(type='L1Loss', use_target_weight=False,
+                     loss_weight=0),  # 3d landmark kpts
                 dict(type='L1Loss', use_target_weight=True,
                      loss_weight=1),  # 3d kpts
                 dict(type='L1Loss', use_target_weight=True,
@@ -130,18 +132,18 @@ model = dict(
                     type='PinchLoss',
                     enter_thre=pinch_thre[0] / 1000,
                     exit_thre=pinch_thre[1] / 1000,
-                    loss_weight=15,
+                    loss_weight=1,
                     enable_start_epoch=train_cfg['max_epochs'] // 2),
-                dict(type='MSELoss', loss_weight=20),  # nimble trans直接监督
+                dict(type='MSELoss', loss_weight=1),  # nimble trans直接监督
                 dict(
                     type='MPJPAELoss',
                     seq_length=seq_length,
-                    loss_weight=1.5,
+                    loss_weight=1,
                 ),
                 dict(
                     type='MPJPAELoss',
                     seq_length=seq_length,
-                    loss_weight=0.5,
+                    loss_weight=1,
                 ),
                 dict(
                     type='RLELoss',
@@ -154,27 +156,25 @@ model = dict(
         undistort=True,
         use_svd=True,
         lambda_t=train_cfg['max_epochs'],
-        reproj=True,
         pose_ncomp=30,
         baseline=0.135,
         use_6d_pose_reg=False,
         use_9d_pose_reg=True,
+        direct_pose_reg=False,
         use_shape_smooth=True,
-        data_flip_aug=False,
+        data_flip_aug=True,
         reproj_thre=440,
         iou_thre=0.5,
         pad_2d=0,
-        fix_sigma_pars=False),
+        fix_sigma_pars=False,
+        max_epochs=train_cfg['max_epochs']),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
         shift_heatmap=False,
     ),
     init_cfg=dict(
-        type='Pretrained',
-        checkpoint=
-        '/data/stliu/mmpose/work_dirs/new_dataset/liftnimble_flip_res26sw_simple_1014/epoch_150.pth'
-    ),
+        type='Pretrained', checkpoint='/data/AI_DATA_WX/stliu/epoch_60.pth'),
 )
 
 # base dataset settings
@@ -185,7 +185,9 @@ train_data_list = []
 train_date_list = [
     '20230824', '20230828', '20230906', '20230907', '20240220', '20240229',
     '20240401', '20231227', '20240517', '20240425', '20240522', '20240801',
-    '20240816', '20240826', '20240820', '20240903', '20240907', '20240926'
+    '20240816', '20240826', '20240820', '20240903', '20240907', '20240926',
+    '20240914', '20240923', '20240930', '20241018', '20241030', '20241107',
+    '20241121', '20241114', '20241216', '20250107', '20250113'
 ]
 train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
 for data_date in train_date_list:
@@ -195,10 +197,10 @@ for data_date in train_date_list:
                 data_date].get(glasses, [])
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 
-# train_data_list = [train_data_sin for train_data_sin in train_data_list if '__20240220_' in train_data_sin and ('Flora302' in train_data_sin or 'Flora303' in train_data_sin)]
-# train_data_list = [train_data_sin for train_data_sin in train_data_list if '__20230824_' in train_data_sin]
-# train_data_list = ['/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_060805__all__normal__left__1111__0006__undistort_tar__Flora301.json',]
-#                    '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230828_072918__all__normal__right__1111__0017__undistort_tar__Flora301.json']
+# train_data_list = [
+#     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_060805__all__normal__left__1111__0006__undistort_tar__Flora301.json',
+#     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230828_072918__all__normal__right__1111__0017__undistort_tar__Flora301.json'
+# ]
 
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
@@ -308,18 +310,7 @@ train_pipeline = [
 ]
 val_pipeline = [
     dict(type='GetBBoxCenterScale', padding=1.0),
-    dict(
-        type='GroupTransformers',
-        trans_cfg_list=[
-            dict(type='TopdownAffine', input_size=codec['input_size'][:2]),
-            dict(
-                type='GenerateNoiseDarkImage',
-                prob=0,
-                gamma_limit=(0.85, 0.95),
-                alpha_limit=(0.2, 0.5),
-                concat_image=False),
-        ],
-        enable_epoch_num=0),
+    dict(type='TopdownAffine', input_size=codec['input_size']),
     dict(type='PackPoseInputs')
 ]
 
@@ -332,7 +323,8 @@ train_dataloader = dict(
     collate_fn=dict(type='default_collate'),
     dataset=dict(
         type=dataset_type,
-        # data_ratio=1.0/30,
+        data_ratio=1.0 / 2,
+        sample_interval=4.0 / 5,
         data_file_list=train_data_list,
         data_mode=data_mode,
         pipeline=train_pipeline,

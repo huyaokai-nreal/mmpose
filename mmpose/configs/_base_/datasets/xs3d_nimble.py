@@ -1595,6 +1595,7 @@ datasets_info = {
                 'data_hand/hand_keypoint/annotations3d/Flora304/XS__20230911_063405__pinch__normal__right__1111__0023__undistort_tar__Flora304.json'
             ],
         },
+        # ok类pinch、握拳类pinch
         '20240816': {
             'Flora301': [
                 'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20240816_101603__pinch__normal__left__1101__0033__undistort_tar__Flora301.json',
