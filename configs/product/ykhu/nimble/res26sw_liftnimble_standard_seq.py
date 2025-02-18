@@ -7,7 +7,7 @@ from mmpose.configs._base_.datasets.xs3d_nimble import \
 
 # from configs._base_.datasets.xs3d import datasets_info as kpt3d_datasets_info
 
-train_cfg = dict(max_epochs=60, val_interval=3)
+train_cfg = dict(max_epochs=60, val_interval=10)
 
 # data_root = '/data/AI_DATA'
 data_root = '/data/AI_DATA_WX'
@@ -120,8 +120,6 @@ model = dict(
         lift_loss=dict(
             type='MultipleLossWrapper',
             losses=[
-                dict(type='L1Loss', use_target_weight=False,
-                     loss_weight=0),  # 3d landmark kpts
                 dict(type='L1Loss', use_target_weight=True,
                      loss_weight=1),  # 3d kpts
                 dict(type='L1Loss', use_target_weight=True,
@@ -132,18 +130,18 @@ model = dict(
                     type='PinchLoss',
                     enter_thre=pinch_thre[0] / 1000,
                     exit_thre=pinch_thre[1] / 1000,
-                    loss_weight=1,
+                    loss_weight=15,
                     enable_start_epoch=train_cfg['max_epochs'] // 2),
-                dict(type='MSELoss', loss_weight=1),  # nimble trans直接监督
+                dict(type='MSELoss', loss_weight=20),  # nimble trans直接监督
                 dict(
                     type='MPJPAELoss',
                     seq_length=seq_length,
-                    loss_weight=1,
+                    loss_weight=1.5,
                 ),
                 dict(
                     type='MPJPAELoss',
                     seq_length=seq_length,
-                    loss_weight=1,
+                    loss_weight=0.5,
                 ),
                 dict(
                     type='RLELoss',
@@ -160,14 +158,12 @@ model = dict(
         baseline=0.135,
         use_6d_pose_reg=False,
         use_9d_pose_reg=True,
-        direct_pose_reg=False,
         use_shape_smooth=True,
         data_flip_aug=True,
         reproj_thre=440,
         iou_thre=0.5,
         pad_2d=0,
-        fix_sigma_pars=False,
-        max_epochs=train_cfg['max_epochs']),
+        fix_sigma_pars=False),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
@@ -323,8 +319,8 @@ train_dataloader = dict(
     collate_fn=dict(type='default_collate'),
     dataset=dict(
         type=dataset_type,
-        data_ratio=1.0 / 2,
-        sample_interval=4.0 / 5,
+        # data_ratio=1.0 / 2,
+        # sample_interval=1. / 20,
         data_file_list=train_data_list,
         data_mode=data_mode,
         pipeline=train_pipeline,
@@ -378,7 +374,7 @@ val_evaluator = [
         rearrange_result=True,
         result_dir='.'),
     # dict(type='EPE'),
-    dict(type='NrealKeypointAP'),
+    # dict(type='NrealKeypointAP'),
 ]
 
 test_evaluator = val_evaluator
