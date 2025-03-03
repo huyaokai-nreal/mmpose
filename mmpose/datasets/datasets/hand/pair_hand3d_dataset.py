@@ -245,7 +245,11 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                     self.cams_info[k] = BinocularCameraInstance.from_dict(v)
             keypoints3d_list = []
             ann_ids = coco.getAnnIds()
-            for ann_id in ann_ids[::self.sample_interval]:
+            if 'hot3d' in anno_file or 'ume' in anno_file:
+                ann_ids = sorted(random.sample(ann_ids, len(ann_ids) // self.sample_interval))
+            else:
+                ann_ids = ann_ids[::self.sample_interval]
+            for ann_id in ann_ids:
                 ann = coco.loadAnns(ann_id)[0]
                 left_img_id = int(ann['image_id'].split('_')[0])
                 right_img_id = int(ann['image_id'].split('_')[1])
