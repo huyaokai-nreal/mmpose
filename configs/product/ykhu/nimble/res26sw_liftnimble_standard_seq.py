@@ -7,7 +7,7 @@ from mmpose.configs._base_.datasets.xs3d_nimble import \
 
 # from configs._base_.datasets.xs3d import datasets_info as kpt3d_datasets_info
 
-train_cfg = dict(max_epochs=60, val_interval=10)
+train_cfg = dict(max_epochs=30, val_interval=10)
 
 # data_root = '/data/AI_DATA'
 data_root = '/data/AI_DATA_WX'
@@ -121,32 +121,30 @@ model = dict(
             type='MultipleLossWrapper',
             losses=[
                 dict(type='L1Loss', use_target_weight=True,
-                     loss_weight=1),  # 3d kpts
+                     loss_weight=1),  # 预测根节点位置、旋转约束
                 dict(type='L1Loss', use_target_weight=True,
-                     loss_weight=1),  # 3d kpts leftcam
+                     loss_weight=1),  # 预测局部手势约束
                 dict(type='L1Loss', use_target_weight=True,
-                     loss_weight=1),  # 3d kpts rightcam
+                     loss_weight=1),  # 预测整体约束
                 dict(
                     type='PinchLoss',
                     enter_thre=pinch_thre[0] / 1000,
                     exit_thre=pinch_thre[1] / 1000,
-                    loss_weight=15,
-                    enable_start_epoch=train_cfg['max_epochs'] // 2),
-                dict(type='MSELoss', loss_weight=20),  # nimble trans直接监督
+                    loss_weight=1),
+                dict(type='L1Loss', loss_weight=1),  # 根节点监督
                 dict(
                     type='MPJPAELoss',
                     seq_length=seq_length,
-                    loss_weight=1.5,
+                    loss_weight=1,
                 ),
                 dict(
                     type='MPJPAELoss',
                     seq_length=seq_length,
-                    loss_weight=0.5,
+                    loss_weight=1,
                 ),
                 dict(
                     type='RLELoss',
-                    dim=3,
-                    enable_start_epoch=train_cfg['max_epochs'] // 2)
+                    dim=3)
             ]),
         seq_len=4,
         all_use_kp2d_gt=False,
@@ -284,17 +282,17 @@ train_pipeline = [
             dict(type='TopdownAffine', input_size=codec['input_size'][:2]),
             dict(type='RandomDownSampleImage', min_ratio=0.5, prob=0.2),
             dict(type='MixTwoHands', prob=0.1),
-            dict(
-                type='Albumentation',
-                transforms=[
-                    dict(
-                        type='CoarseDropout',
-                        p=0.2,
-                        max_holes=2,
-                        max_height=16,
-                        max_width=16,
-                    ),
-                ]),
+            # dict(
+            #     type='Albumentation',
+            #     transforms=[
+            #         dict(
+            #             type='CoarseDropout',
+            #             p=0.2,
+            #             max_holes=2,
+            #             max_height=16,
+            #             max_width=16,
+            #         ),
+            #     ]),
             dict(
                 type='GenerateNoiseDarkImage',
                 prob=0.65,
@@ -357,7 +355,7 @@ test_dataloader = val_dataloader
 
 # hooks
 default_hooks = dict(
-    checkpoint=dict(interval=3, save_best='all_mpjpe', rule='less'),
+    checkpoint=dict(interval=10, save_best='all_mpjpe', rule='less'),
     run_time_info=dict(type='RuntimeInfoHookV2'))
 
 # evaluators
@@ -389,7 +387,7 @@ find_unused_parameters = True
 vis_backends = [
     dict(type='LocalVisBackend'),
     # this will slow the training process ???
-    dict(type='TensorboardVisBackend')
+    # dict(type='TensorboardVisBackend')
 ]
 
 visualizer = dict(
