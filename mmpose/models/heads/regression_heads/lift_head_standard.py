@@ -282,25 +282,28 @@ class LiftHeadStandard(BaseModule):
         left_uv_coord = uv_coord_im_gt_global[::2, 0, 0]
         right_uv_coor = uv_coord_im_gt_global[1::2, 0, 0]
         patch_num = 3
-        left_edge_w = origin_W//patch_num
-        right_edge_w = origin_W//patch_num * (patch_num-1)
-        edge_mask = (left_uv_coord > right_edge_w) | (right_uv_coor < left_edge_w)
+        left_edge_w = origin_W // patch_num
+        right_edge_w = origin_W // patch_num * (patch_num - 1)
+        edge_mask = (left_uv_coord > right_edge_w) | (
+            right_uv_coor < left_edge_w)
         right_edge_mask = left_uv_coord > right_edge_w
         left_edge_mask = right_uv_coor < left_edge_w
-        
+
         if self.data_flip_aug:
             right_hand = torch.ones_like(
                 left_hand).cuda().float() - left_hand.clone().cuda().float()
             new_uv_coord_im_pred_global_distort = uv_coord_im_pred_global_distort.clone(
             )
-            new_uv_coord_im_pred_global_distort[...,0] = origin_W - 1 - uv_coord_im_pred_global_distort[...,0]
+            new_uv_coord_im_pred_global_distort[
+                ...,
+                0] = origin_W - 1 - uv_coord_im_pred_global_distort[..., 0]
             new_uv_coord_im_pred_global_distort = exchange_value(
                 new_uv_coord_im_pred_global_distort)
             left_hand = torch.concat([left_hand, right_hand])
             edge_mask = torch.concat([edge_mask, edge_mask])
             right_edge_mask = torch.concat([right_edge_mask, right_edge_mask])
             left_edge_mask = torch.concat([left_edge_mask, left_edge_mask])
-            
+
             uv_coord_im_pred_global_distort = torch.concat([
                 uv_coord_im_pred_global_distort,
                 new_uv_coord_im_pred_global_distort
@@ -308,7 +311,8 @@ class LiftHeadStandard(BaseModule):
                                                            dim=0)
 
             new_uv_coord_im_gt_global = uv_coord_im_gt_global.clone()
-            new_uv_coord_im_gt_global[...,0] = origin_W - 1 - uv_coord_im_gt_global[...,0]
+            new_uv_coord_im_gt_global[
+                ..., 0] = origin_W - 1 - uv_coord_im_gt_global[..., 0]
             new_uv_coord_im_gt_global = exchange_value(
                 new_uv_coord_im_gt_global)
             uv_coord_im_gt_global = torch.concat(
@@ -338,9 +342,9 @@ class LiftHeadStandard(BaseModule):
             nimble_shape = None
 
         nimble_info = {
-            'nimble_pose': nimble_pose,
-            'nimble_trans': nimble_trans,
-            'nimble_shape': nimble_shape
+            'nimble_pose': nimble_pose,  # B, 20, 3
+            'nimble_trans': nimble_trans,  # B, 3
+            'nimble_shape': nimble_shape  # B, 20
         }
 
         # Pad 2D keypoints exceeding boundaries
@@ -445,8 +449,8 @@ class LiftHeadStandard(BaseModule):
             'nimble_info': nimble_info,
             'valid_mask': valid_mask,
             'edge_mask': edge_mask,
-            'right_edge_mask':right_edge_mask,
-            'left_edge_mask':left_edge_mask
+            'right_edge_mask': right_edge_mask,
+            'left_edge_mask': left_edge_mask
         }
 
     def postprocess(self, hand3d_standard, left_to_right_rt, left_R,

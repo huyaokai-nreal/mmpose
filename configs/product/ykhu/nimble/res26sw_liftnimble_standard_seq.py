@@ -142,9 +142,7 @@ model = dict(
                     seq_length=seq_length,
                     loss_weight=1,
                 ),
-                dict(
-                    type='RLELoss',
-                    dim=3)
+                dict(type='RLELoss', dim=3)
             ]),
         seq_len=4,
         all_use_kp2d_gt=False,
@@ -161,8 +159,7 @@ model = dict(
         reproj_thre=440,
         iou_thre=0.5,
         pad_2d=0,
-        fix_sigma_pars=False,
-        max_epochs=train_cfg['max_epochs']),
+        fix_sigma_pars=False),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
