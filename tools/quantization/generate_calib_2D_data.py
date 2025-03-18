@@ -106,6 +106,14 @@ def main():
             # # hoi
             '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations/hand_train_flora_hoi_240716_5k__1__binocular__lmdb.json',
             
+            # # 3d, PCL preprocess
+            # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/Flora301/XS__all__normal__left__1000__0007__20230809_090503__undistort_tar__Flora301.json',
+            # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/Flora301/XS__20230815_080834__pinch__normal__left__1111__0008__undistort_tar__Flora301.json',
+            # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/Flora302/XS__20230815_080834__pinch__normal__left__1111__0008__undistort_tar__Flora302.json',
+            # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/Flora301/XS__20230828_071551__all__normal__left__1111__0017__undistort_tar__Flora301.json',
+            # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/fit3d_merge_seqsmooth__binocular_coco/XS__20240401_062729__pinch__normal__right__1110__0006__undistort_tar__Flora301.json',
+
+
         ]
     else:
         dataset_list = [
@@ -130,7 +138,8 @@ def main():
             for j in range(B):
                 img_id = str(idx * args.nr_sample + i * B + j).zfill(8)
                 img = item['inputs'][j].unsqueeze(0).unsqueeze(0).numpy().astype(np.float32)
-                # img = (img - 114.495) / 57.63
+                img = (img - 0.449 * 255) / (0.226 * 255)
+                
                 if args.type == 'npy':
                     np.save(os.path.join(args.output_dir, f'{img_id}.npy'), img)
                 if args.type == 'raw':
@@ -138,7 +147,7 @@ def main():
                         img = img.transpose((0, 2, 3, 1))  # (N,H,W,C)
                     elif args.quantize_type == 'mnn':
                         pass  # (N,C,H,W)
-                    img.tofile(os.path.join(args.output_dir, f'{img_id}.raw'))
+                    img.tofile(os.path.join(args.output_dir, f'{args.data_type}_{img_id}.raw'))
                 if args.type == 'png':
                     img = img[0].transpose((1, 2, 0))
                     cv2.imwrite(

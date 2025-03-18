@@ -104,13 +104,13 @@ def main():
             '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations/hand_test_flora_static_benchmark_230627_10k_lmdb.json',
             '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations/hand_test_flora_static_benchmark_230703_10k_lmdb.json',  # flora test
             
-            # flora_dynamic
+            # # flora_dynamic
             '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations/hand_test_dynamic_keypoint_230907_20k__1__binocular__lmdb.json',
             
-            # flora decoration
+            # # flora decoration
             '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations/hand_test_flora_keypoint_decoration_1_231208_1k__1__binocular__lmdb.json',
 
-            # wrist_occlusion
+            # # wrist_occlusion
             '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations/hand_test_flora_wrist_occlusion_240417_2k__1__binocular__lmdb.json'
             
         ]
@@ -135,20 +135,23 @@ def main():
             inputs = item['inputs']  # 1x128x128
             
             img_id = str(item['data_samples'].metainfo['img_id']).zfill(8)
+            anno_id = str(item['data_samples'].id).zfill(8)            
+                       
             img = inputs.unsqueeze(0).numpy().astype(np.float32)
-            # img = (img - 114.495) / 57.63
+            img = (img - 0.449 * 255) / (0.226 * 255)
+
             if args.type == 'npy':
                 np.save(os.path.join(args.output_dir, f'{img_id}.npy'), img)
             if args.type == 'raw':
                 # for mnn                
-                img.tofile(os.path.join(args.output_dir, "NCHW", f'{dataset_name}_{img_id}.raw'))
+                img.tofile(os.path.join(args.output_dir, "NCHW", f'{dataset_name}_{img_id}_{anno_id}.raw'))
                 # for snpe
                 img = img.transpose((0, 2, 3, 1))  # (N,H,W,C)
-                img.tofile(os.path.join(args.output_dir, "NHWC", f'{dataset_name}_{img_id}.raw'))
+                img.tofile(os.path.join(args.output_dir, "NHWC", f'{dataset_name}_{img_id}_{anno_id}.raw'))
             if args.type == 'png':
                 img = img[0].transpose((1, 2, 0))
                 cv2.imwrite(
-                    os.path.join(args.output_dir, f'{dataset_name}_{img_id}.png'), img)
-
+                    os.path.join(args.output_dir, f'{img_id}.png'), img)
+            
 if __name__ == '__main__':
     main()

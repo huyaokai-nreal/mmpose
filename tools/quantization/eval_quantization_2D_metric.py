@@ -246,13 +246,14 @@ def main():
             idx += 1
 
             img_id = str(item['data_samples'].metainfo['img_id']).zfill(8)
-            if f'{dataset_name}_{img_id}' not in result_files:
+            anno_id = str(item['data_samples'].id).zfill(8)            
+            if f'{dataset_name}_{img_id}_{anno_id}' not in result_files:
                 continue
             
             valid_num += 1
-            feat_x = np.fromfile(os.path.join(args.result_dir, f'{dataset_name}_{img_id}_feat_x.raw'), dtype=np.float32)
-            feat_y = np.fromfile(os.path.join(args.result_dir, f'{dataset_name}_{img_id}_feat_y.raw'), dtype=np.float32)
-            feat_z = np.fromfile(os.path.join(args.result_dir, f'{dataset_name}_{img_id}_feat_z.raw'), dtype=np.float32)
+            feat_x = np.fromfile(os.path.join(args.result_dir, f'{dataset_name}_{img_id}_{anno_id}_feat_x.raw'), dtype=np.float32)
+            feat_y = np.fromfile(os.path.join(args.result_dir, f'{dataset_name}_{img_id}_{anno_id}_feat_y.raw'), dtype=np.float32)
+            feat_z = np.fromfile(os.path.join(args.result_dir, f'{dataset_name}_{img_id}_{anno_id}_feat_z.raw'), dtype=np.float32)
             
             feat_x = feat_x.reshape(2, 21, input_size*2)
             feat_y = feat_y.reshape(2, 21, input_size*2)
@@ -266,7 +267,6 @@ def main():
             keypoints = np.concatenate([pred_x[0], pred_y[0], pred_z[0]], axis=1)
             keypoints = keypoints * np.array([input_size, input_size, 1])
             keypoints[..., 2] = (keypoints[..., 2] - 0.5) * 0.4
-            
             data_sample = item['data_samples']
 
             preds = [
@@ -275,9 +275,21 @@ def main():
             # samplelist_boxtype2tensor(data_sample)
             
             data_samples=add_pred_to_datasample_monocular(preds, None, [data_sample])
-            
+
             evaluator.process(data_samples=data_samples, data_batch=None)
-                                
+
+            # vis_img = item['inputs'].permute(1, 2, 0).numpy()
+            # # keypoints = item['data_samples'].gt_instances.transformed_keypoints[0]
+            
+            # for point in keypoints_tmp:
+            #     x, y = point[:2]
+            #     print(point)
+            #     cv2.circle(vis_img, (int(x), int(y)), 5, (255, 255, 0))
+
+            # cv2.imwrite("./vis_key.jpg", vis_img)
+            
+            # break
+
     metrics = evaluator.evaluate(valid_num)
     print(metrics)
 

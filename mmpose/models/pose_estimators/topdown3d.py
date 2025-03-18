@@ -8,6 +8,7 @@ import numpy as np
 from mmengine import MMLogger
 from torch import Tensor
 import torch
+import torch.nn as nn
 
 from nreal_data_tool.utils.camera import NoDistortion, PinholePlaneCameraModel
 
@@ -530,7 +531,75 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
             data_sample.pred_instances = pred_instances
         return batch_data_samples
 
+@MODELS.register_module()
+class TopdownPose3DAndHeldLabelEstimator(TopdownPoseEstimator):
 
+    def __init__(self,
+                 backbone: ConfigType,
+                 neck: OptConfigType = None,
+                 head: OptConfigType = None,
+                 train_cfg: OptConfigType = None,
+                 test_cfg: OptConfigType = None,
+                 data_preprocessor: OptConfigType = None,
+                 init_cfg: OptMultiConfig = None,
+                 camera_layout: str = 'monocular',
+                 root_mode: str = 'gt',
+                 refine_kpt: bool = False,
+                 root_id: int = 0):
+        super().__init__(backbone, neck, head, train_cfg, test_cfg,
+                         data_preprocessor, init_cfg)
+        # 冻结backbone权重
+        for param in self.backbone.parameters():
+                param.requires_grad = False
+        
+        # 冻结head中非cls的权重
+        for name, param in self.head.named_parameters():
+            if "cls_module" not in name:
+                param.requires_grad = False
+        
+    def predict(self, inputs: Tensor, data_samples: SampleList) -> SampleList:
+
+        assert self.with_head, (
+            'The model must have head to perform prediction.')
+
+        if self.test_cfg.get('flip_test', False):
+            _feats = self.extract_feat(inputs)
+            _feats_flip = self.extract_feat(inputs.flip(-1))
+            feats = [_feats, _feats_flip]
+        else:
+            feats = self.extract_feat(inputs)
+        preds = self.head.predict(feats, data_samples, test_cfg=self.test_cfg)
+        
+        return self.add_pred_to_datasample(data_samples, preds)
+    
+    def add_pred_to_datasample(self, data_samples: SampleList,
+                               results_list: InstanceList) -> SampleList:
+        """Add predictions to `DetDataSample`.
+
+        Args:
+            data_samples (list[:obj:`DetDataSample`], optional): A batch of
+                data samples that contain annotations and predictions.
+            results_list (list[:obj:`InstanceData`]): Detection results of
+                each image.
+
+        Returns:
+            list[:obj:`DetDataSample`]: Detection results of the
+            input images. Each DetDataSample usually contain
+            'pred_instances'. And the ``pred_instances`` usually
+            contains following keys.
+
+                - scores (Tensor): Classification scores, has a shape
+                    (num_instance, )
+                - labels (Tensor): Labels of bboxes, has a shape
+                    (num_instances, ).
+                - bboxes (Tensor): Has a shape (num_instances, 4),
+                    the last dimension 4 arrange as (x1, y1, x2, y2).
+        """
+        for data_sample, pred_instances in zip(data_samples, results_list):
+            data_sample.pred_instances = pred_instances
+        
+        return data_samples
+    
 
 @MODELS.register_module()
 class TopdownPose3DEstimatorSeq(TopdownPose3DEstimator):
@@ -619,7 +688,7 @@ class TopdownPose3DEstimatorSeq(TopdownPose3DEstimator):
                 batch_pred_instances, batch_pred_fields, data_samples)
 
         return results
-
+    
     def add_pred_to_datasample_nimble_seq(self, batch_pred_instances: InstanceList,
                                batch_data_samples_seq: SampleList
                                ) -> SampleList:

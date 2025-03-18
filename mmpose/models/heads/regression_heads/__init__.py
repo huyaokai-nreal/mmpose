@@ -12,6 +12,7 @@ from .regression_head import RegressionHead
 from .rle_head import RLEHead
 from .rtmcc_ipr_head import RTMCCIPRHead
 from .rtmcc_ipr_head_3d import RTMCCIPRHead3D
+from .rtmcc_ipr_head_3d_cls import RTMCCIPRHead3DAndClsHead
 from .rtmcc_ipr_head_nimble import RTMCCIPRHeadNimble
 from .temporal_lift_head import TemporalLiftHead
 from .temporal_lift_head_rot_standard import TemporalLiftNimbleHeadStandard
@@ -44,6 +45,7 @@ __all__ = [
     'AttrMlpHead',
     'LiftHead',
     'RTMCCIPRHead3D',
+    'RTMCCIPRHead3DAndClsHead',
     'LiftHeadStandard',
     'LiftNimbleHead',
     'TemporalLiftHead',

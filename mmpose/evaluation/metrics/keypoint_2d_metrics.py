@@ -627,6 +627,102 @@ class AUC(BaseMetric):
 
         return metrics
 
+@METRICS.register_module()
+class SelfStability2D(BaseMetric):
+    """self-stability metric.
+    """
+
+    def __init__(self, filter_exceed: bool = False) -> None:
+        super().__init__()
+        self.filter_exceed = filter_exceed
+
+    def process(self, data_batch: Sequence[dict],
+                data_samples: Sequence[dict]) -> None:
+        """Process one batch of data samples and predictions. The processed
+        results should be stored in ``self.results``, which will be used to
+        compute the metrics when all batches have been processed.
+
+        Args:
+            data_batch (Sequence[dict]): A batch of data
+                from the dataloader.
+            data_samples (Sequence[dict]): A batch of outputs from
+                the model.
+        """
+        for data_sample in data_samples:
+            # predicted keypoints coordinates, [1, K, D]
+            pred_coords = data_sample['pred_instances']['keypoints'][..., :2]
+            # ground truth data_info
+            gt = data_sample['gt_instances']
+            # ground truth keypoints coordinates, [1, K, D]
+            gt_coords = gt['keypoints'][..., :2]
+            if self.filter_exceed:
+                gt_keypoints = np.array(gt['keypoints'])[..., :2]
+                gt['keypoints_visible'] = (
+                    (gt_keypoints[..., 0] < data_sample['meta']['frame_width'])
+                    & (gt_keypoints[..., 1] <
+                       data_sample['meta']['frame_height']))
+            mask = gt['keypoints_visible'].astype(bool).reshape(1, -1)
+
+            result = {
+                'pred_coords': pred_coords,
+                'gt_coords': gt_coords,
+                # 'gt_coords_3d': gt_coords_3d,
+                'mask': mask,
+            }
+
+            self.results.append(result)
+
+    def compute_metrics(self, results: list) -> Dict[str, float]:
+        """Compute the metrics from processed results.
+
+        Args:
+            results (list): The processed results of each batch.
+
+        Returns:
+            Dict[str, float]: The computed metrics. The keys are the names of
+            the metrics, and the values are corresponding results.
+        """
+        logger: MMLogger = MMLogger.get_current_instance()
+        # pred_coords: [N, K, D]
+        pred_coords = np.concatenate(
+            [result['pred_coords'] for result in results])
+        # gt_coords: [N, K, D]
+        gt_coords = np.concatenate([result['gt_coords'] for result in results])
+        
+        if pred_coords.shape[0] <= 3:
+            logger.warning('pred shape not meet requirement')
+
+        pred_acc_xyz = (pred_coords[2:, :] + pred_coords[:-2, :] -
+                        2 * pred_coords[1:-1, :])
+        pred_acc_error = np.square(pred_acc_xyz[1:,...] - pred_acc_xyz[:-1,...]).reshape(-1,2)
+
+        pred_acc_error = pred_acc_error.mean(axis=0)
+        
+        gt_acc_xyz = (gt_coords[2:, :] + gt_coords[:-2, :] -
+                        2 * gt_coords[1:-1, :])
+        gt_acc_error = np.square(gt_acc_xyz[1:,...] - gt_acc_xyz[:-1,...]).reshape(-1,2)
+
+        gt_acc_error = gt_acc_error.mean(axis=0)
+        
+        # analyze diff between preds and gts
+        diffs = (pred_coords - gt_coords).mean(axis=1)
+        diff_x = diffs[:, 0]
+        diff_y = diffs[:, 1]
+        
+        ret = dict(
+            frame=pred_acc_xyz.shape[0],
+            pred_acc_x=np.abs(pred_acc_xyz[:, 0]).mean(),
+            pred_acc_y=np.abs(pred_acc_xyz[:, 1]).mean(),
+            pred_mean_acc=np.linalg.norm(pred_acc_xyz, axis=-1).mean(),
+            pred_acc_error_x=pred_acc_error[0],
+            pred_acc_error_y=pred_acc_error[1],
+            pred_acc_error=pred_acc_error.mean(),
+            gt_acc_error=gt_acc_error.mean(),
+            diff_x_var=diff_x.var(),
+            diff_y_var=diff_y.var()
+            )
+        
+        return ret
 
 @METRICS.register_module()
 class EPE(BaseMetric):

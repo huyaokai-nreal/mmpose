@@ -9,7 +9,7 @@ from .common_transforms import (Albumentation, ChangeImageQuality,
                                 RandomHalfBody, RandomMonocularOcclusion,
                                 RandomMonocularOcclusionv2)
 from .converting import KeypointConverter, KeypointTo25DLabel
-from .formatting import PackPoseInputs
+from .formatting import PackPoseInputs, PackPoseHoldLabelInputs
 from .loading import LoadImage, LoadImageFromMultiLMDB
 from .pose3d_transforms import (RandomFlipAroundRoot, RandomStereoParamAug,
                                 RandomStereoParamAugForClip,
@@ -22,7 +22,7 @@ from .topdown_transforms import (AffineTransformConsistency, GenerateAttrLabel,
 __all__ = [
     'GetBBoxCenterScale', 'RandomBBoxTransform', 'RandomFlip',
     'RandomHalfBody', 'TopdownAffine', 'Albumentation',
-    'PhotometricDistortion', 'PackPoseInputs', 'LoadImage',
+    'PhotometricDistortion', 'PackPoseInputs', 'PackPoseHoldLabelInputs', 'LoadImage',
     'BottomupGetHeatmapMask', 'BottomupRandomAffine', 'BottomupResize',
     'GenerateTarget', 'KeypointConverter', 'GetNegtiveBBox',
     'ChangeImageQuality', 'RandomBackground', 'LoadImageFromMultiLMDB',
