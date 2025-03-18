@@ -98,8 +98,15 @@ class RLELoss(nn.Module):
                 Weights across different joint types.
         """
         dim = self.dim
-        pos_pred = pred[:, :, :dim]
-        sigma = pred[:, :, dim:dim * 2]
+        if target_weight is not None:
+            mask = target_weight.sum((1, 2)) > 0
+            target_weight = target_weight[mask]
+        else:
+            mask = torch.ones((len(pred))).bool().to(pred.device)
+        pos_pred = pred[:, :, :dim][mask]
+        target = target[mask]
+        sigma = pred[:, :, dim:dim * 2][mask]
+        # import ipdb;ipdb.set_trace()
         sigma = sigma.sigmoid()
         error = (pos_pred - target) / (sigma + 1e-9)
         # (B, K, 2)
@@ -123,7 +130,7 @@ class RLELoss(nn.Module):
             loss = nf_loss + loss_q
         else:
             loss = nf_loss
-
+        # import ipdb;ipdb.set_trace()
         if self.use_target_weight:
             assert target_weight is not None
             loss *= target_weight

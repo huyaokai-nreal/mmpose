@@ -1,6 +1,7 @@
 # Copyright (c) XREAL. All rights reserved.
 from typing import List, Tuple, Union
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 from mmengine.logging import MessageHub
@@ -150,6 +151,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         valid_mask = data['valid_mask'] == 1
         output, mems, all_sigmas = self.forward(data['feats'], mems, 1)
 
+        # import ipdb;ipdb.set_trace()
         hand3d_pred = self.postprocess(
             output,
             data['left_hand'],
@@ -169,8 +171,10 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
 
         if self.reproj:
             camera_model = batch_data_samples[0].meta['ori_camera']
-            leftcam_uv_reproj_distort = camera_model.eye_to_window(
-                hand3d_pred.cpu().numpy())
+            leftcam_uv_reproj_distort = np.array([
+                camera_model.eye_to_window(hand3d_pred.cpu().numpy()[i])
+                for i in range(len(hand3d_pred))
+            ])
             leftcam_uv_reproj_distort = torch.tensor(
                 leftcam_uv_reproj_distort).cuda()
             return (hand3d_pred, leftcam_uv_reproj_distort[:, None, ...], mems,
@@ -218,6 +222,42 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         enhanced_gt_nimble_trans = self.enhanced_fun(gt_nimble_trans,
                                                      edge_mask, 1.5)
 
+        # 监督中间2d输出和最终2d
+        norm_left_pred_reproj_gt, norm_right_pred_reproj_gt = self.reproj_norm_2d(
+            hand3d_gt, data['lr_rot_matrix'].clone(), data['lr_p'].clone())
+        norm_left_pred_reproj, norm_right_pred_reproj = self.reproj_norm_2d(
+            hand3d_pred, data['lr_rot_matrix'].clone(), data['lr_p'].clone())
+        norm_left_gt_reproj, norm_right_gt_reproj = data[
+            'leftcam_xyz_gt'].clone(), data['rightcam_xyz_gt'].clone()
+        # import ipdb;ipdb.set_trace()
+        # 所有数据都计算重投影loss，但2d转3d的数据不计算3d相关loss
+        convert_2d_mask = self.generate_2d_mask(batch_data_samples).to(
+            hand3d_pred.device)  # 时序2d，可以计算重投影，但不计算3d loss
+        pred_3d_way1 = pred_3d_way1 * (1 - convert_2d_mask.float())
+        all_sigmas = all_sigmas * (1 - convert_2d_mask.float())
+        hand3d_pred = hand3d_pred * (1 - convert_2d_mask.float())
+        pre_shape = pre_shape * (1 - convert_2d_mask.float())
+        pre_nimble_trans = pre_nimble_trans * (1 -
+                                               convert_2d_mask[..., 0].float())
+        enhanced_pre_nimble_trans = enhanced_pre_nimble_trans * (
+            1 - convert_2d_mask[..., 0].float())
+        enhanced_gt_nimble_trans = enhanced_gt_nimble_trans * (
+            1 - convert_2d_mask[..., 0].float())
+        # norm_left_pred_reproj = norm_left_pred_reproj * (
+        #     1 - convert_2d_mask.float())
+        # norm_right_pred_reproj = norm_right_pred_reproj * (
+        #     1 - convert_2d_mask.float())
+        # norm_left_gt_reproj = norm_left_gt_reproj * (1 -
+        #                                              convert_2d_mask.float())
+        # norm_right_gt_reproj = norm_right_gt_reproj * (
+        #     1 - convert_2d_mask.float())
+        if self.data_flip_aug:
+            convert_2d_mask = torch.concat([convert_2d_mask, convert_2d_mask],
+                                           dim=0)
+        hand3d_part_gt = hand3d_part_gt * (1 - convert_2d_mask.float())
+        pred_3d_way2 = pred_3d_way2 * (1 - convert_2d_mask.float())
+        pre_trans_xyz_copy = pre_trans_xyz_copy * (
+            1 - convert_2d_mask[..., 0].float())
         # pinch 损失
         dist_pred = torch.norm(
             pred_3d_way2[:, 4, :] - pred_3d_way2[:, 8, :], dim=-1)
@@ -266,12 +306,13 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             enhanced_left_pred_3d_way1, enhanced_left_pred_3d_way2,
             enhanced_left_hand3d_pred, dist_pred, enhanced_pre_nimble_trans,
             enhanced_static_hand3d_pred, enhanced_static_pred_3d_way1,
-            re_all_sigmas
+            re_all_sigmas, norm_left_pred_reproj, norm_right_pred_reproj
         ]
         targ_for_loss = [
             enhanced_left_hand3d_gt, enhanced_left_hand3d_part_gt,
             enhanced_left_hand3d_gt, dist_gt, enhanced_gt_nimble_trans,
-            enhanced_static_hand3d_gt, enhanced_static_hand3d_gt, hand3d_gt
+            enhanced_static_hand3d_gt, enhanced_static_hand3d_gt, hand3d_gt,
+            norm_left_gt_reproj, norm_right_gt_reproj
         ]
 
         weight_ini = torch.ones((1, 21, 3))
@@ -286,16 +327,21 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         weight_ini_for_pre_nimble[:,
                                   4, :], weight_ini_for_pre_nimble[:,
                                                                    8, :] = 8, 8
-
+        weight_ini_2d = weight_ini_ori.clone()[..., :2]
+        convert_2d_mask = convert_2d_mask[:convert_2d_mask.shape[0] // 2]
+        weight_ini_ori_rle = weight_ini_ori.clone()
+        weight_ini_ori_rle[:] = 1
+        weight_ini_ori_rle *= (1 - convert_2d_mask.float())
         weight_for_loss = [
             weight_ini_ori, weight_ini_for_pre_nimble, weight_ini_ori, None,
-            None, None, None, None
+            None, None, None, weight_ini_ori_rle, weight_ini_2d, weight_ini_2d
         ]
-
         losses = self.lift_loss(pred_for_loss, targ_for_loss, weight_for_loss)
         (loss_pre_root, loss_pre_nimble, loss_pre_all, loss_pinch,
-         loss_nimble_trans, loss_smooth, loss_smooth_root, loss_rle) = losses
+         loss_nimble_trans, loss_smooth, loss_smooth_root, loss_rle,
+         loss_left_2d_reproj, loss_right_2d_reproj) = losses
 
+        # import ipdb;ipdb.set_trace()
         if self.use_shape_smooth:
             pre_shape_reshape = pre_shape.reshape(-1, self.seq_len)
             mean_shape = torch.mean(
@@ -354,48 +400,48 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
                                           self.reverse_pinch_date_list).to(
                                               pinch_mask.cuda())
         reverse_mask = torch.concat([reverse_mask, reverse_mask])
-        pinch_reverse_mask = pinch_mask & reverse_mask
+        # pinch_reverse_mask = pinch_mask & reverse_mask
 
-        left_edge_mask = data['left_edge_mask'][valid_mask]
-        right_edge_mask = data['right_edge_mask'][valid_mask]
+        # left_edge_mask = data['left_edge_mask'][valid_mask]
+        # right_edge_mask = data['right_edge_mask'][valid_mask]
 
         # 以下edge操作是解决：左侧手膜较远，右侧手膜较近
         # 当手在左边缘且深度比gt更大
-        if cur_epoch >= self.max_epochs // 2 and sum(
-                left_edge_mask) > 0 and sum(
-                    hand3d_pred[left_edge_mask, 0,
-                                2] > hand3d_gt[left_edge_mask, 0, 2]) > 0:
-            z_dim_mask = hand3d_pred[:, 0, 2] > hand3d_gt[:, 0, 2]
-            left_edge_mask = left_edge_mask & z_dim_mask
+        # if cur_epoch >= self.max_epochs // 2 and sum(
+        #         left_edge_mask) > 0 and sum(
+        #             hand3d_pred[left_edge_mask, 0,
+        #                         2] > hand3d_gt[left_edge_mask, 0, 2]) > 0:
+        #     z_dim_mask = hand3d_pred[:, 0, 2] > hand3d_gt[:, 0, 2]
+        #     left_edge_mask = left_edge_mask & z_dim_mask
 
-            hand3d_pred_left_edge = hand3d_pred[left_edge_mask, 0, :]
-            hand3d_gt_left_edge = hand3d_gt[left_edge_mask, 0, :]
+        #     hand3d_pred_left_edge = hand3d_pred[left_edge_mask, 0, :]
+        #     hand3d_gt_left_edge = hand3d_gt[left_edge_mask, 0, :]
 
-            left_add_trans_loss = self.edge_loss_func(hand3d_pred_left_edge,
-                                                      hand3d_gt_left_edge)
-        else:
-            left_add_trans_loss = torch.tensor(
-                0.0, device=loss_pre_root.device)
+        #     left_add_trans_loss = self.edge_loss_func(hand3d_pred_left_edge,
+        #                                               hand3d_gt_left_edge)
+        # else:
+        #     left_add_trans_loss = torch.tensor(
+        #         0.0, device=loss_pre_root.device)
 
-        # 当手在右边缘且深度比gt更小
-        if cur_epoch >= self.max_epochs // 2 and sum(right_edge_mask) > 0 and (
-                sum(hand3d_pred[right_edge_mask, 0,
-                                2] < hand3d_gt[right_edge_mask, 0, 2]) > 0
-                or sum(hand3d_pred[right_edge_mask, 0,
-                                   1] < hand3d_gt[right_edge_mask, 0, 1]) > 0):
-            z_dim_mask = (hand3d_pred[:, 0, 2] < hand3d_gt[:, 0, 2]) | (
-                hand3d_pred[:, 0, 1] < hand3d_gt[:, 0, 1])
-            right_edge_mask = right_edge_mask & z_dim_mask
+        # # 当手在右边缘且深度比gt更小
+        # if cur_epoch >= self.max_epochs // 2 and sum(right_edge_mask) > 0 and (
+        #         sum(hand3d_pred[right_edge_mask, 0,
+        #                         2] < hand3d_gt[right_edge_mask, 0, 2]) > 0
+        #         or sum(hand3d_pred[right_edge_mask, 0,
+        #                            1] < hand3d_gt[right_edge_mask, 0, 1]) > 0):
+        #     z_dim_mask = (hand3d_pred[:, 0, 2] < hand3d_gt[:, 0, 2]) | (
+        #         hand3d_pred[:, 0, 1] < hand3d_gt[:, 0, 1])
+        #     right_edge_mask = right_edge_mask & z_dim_mask
 
-            hand3d_pred_right_edge = hand3d_pred[right_edge_mask, 0, :]
-            hand3d_gt_right_edge = hand3d_gt[right_edge_mask, 0, :]
+        #     hand3d_pred_right_edge = hand3d_pred[right_edge_mask, 0, :]
+        #     hand3d_gt_right_edge = hand3d_gt[right_edge_mask, 0, :]
 
-            right_add_trans_loss = self.edge_loss_func(hand3d_pred_right_edge,
-                                                       hand3d_gt_right_edge)
-        else:
-            right_add_trans_loss = torch.tensor(
-                0.0, device=loss_pre_root.device)
-        add_trans_loss = left_add_trans_loss + right_add_trans_loss
+        #     right_add_trans_loss = self.edge_loss_func(hand3d_pred_right_edge,
+        #                                                hand3d_gt_right_edge)
+        # else:
+        #     right_add_trans_loss = torch.tensor(
+        #         0.0, device=loss_pre_root.device)
+        # add_trans_loss = left_add_trans_loss + right_add_trans_loss
 
         pre_nimble_trans_yz = pre_trans_xyz_copy[:, :2]
         gt_nimble_trans_yz = data['nimble_info']['nimble_trans'][:, :2]
@@ -403,14 +449,14 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
                                                   gt_nimble_trans_yz)
 
         # 当实际为pinch时，试图将dist约束为比gt还小，容易pinch
-        if cur_epoch >= self.max_epochs // 2 and sum(pinch_mask) > 0:
-            margin_value = torch.ones_like(dist_gt) * magin_value
-            margin_value[pinch_reverse_mask] = magin_value * 1.5
-            pinch_loss_add = self.pinch_loss_func(
-                dist_pred[pinch_mask],
-                (dist_gt[pinch_mask] - margin_value[pinch_mask])) * 3
-        else:
-            pinch_loss_add = torch.tensor(0.0, device=loss_pre_root.device)
+        # if cur_epoch >= self.max_epochs // 2 and sum(pinch_mask) > 0:
+        #     margin_value = torch.ones_like(dist_gt) * magin_value
+        #     margin_value[pinch_reverse_mask] = magin_value * 1.5
+        #     pinch_loss_add = self.pinch_loss_func(
+        #         dist_pred[pinch_mask],
+        #         (dist_gt[pinch_mask] - margin_value[pinch_mask])) * 3
+        # else:
+        #     pinch_loss_add = torch.tensor(0.0, device=loss_pre_root.device)
 
         plam_ratio = torch.norm(
             hand3d_gt[:, 9, :] - hand3d_gt[:, 0, :], dim=-1) / 0.08
@@ -439,7 +485,8 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
 
         # 约束除拇指外的其余四指上四点共面，尽量直
         hand_constraint_loss = self.hand_constraint(
-            hand3d_pred, self.hand_constraint_index_list) * 0.1
+            hand3d_pred, self.hand_constraint_index_list,
+            convert_2d_mask) * 0.1
 
         losses_dict = dict(
             loss_pre_root=loss_pre_root,
@@ -455,9 +502,11 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             loss_poke=loss_poke,
             loss_hand_constraint=hand_constraint_loss,
             loss_rle=loss_rle,
-            pinch_loss_add=pinch_loss_add,
-            trans_loss_add=add_trans_loss,
-            flip_trans_loss_add=add_flip_trans_loss)
+            # pinch_loss_add=pinch_loss_add,
+            # trans_loss_add=add_trans_loss,
+            flip_trans_loss_add=add_flip_trans_loss,
+            loss_left_2d_reproj=loss_left_2d_reproj,
+            loss_right_2d_reproj=loss_right_2d_reproj)
 
         return losses_dict
 
@@ -484,7 +533,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         enhanced_kpt[mask] = enhanced_kpt[mask] * weight
         return enhanced_kpt
 
-    def hand_constraint(self, kpt3d, index_list):
+    def hand_constraint(self, kpt3d, index_list, convert_2d_mask):
         hand_constraint_loss = 0
         for index_sin in index_list:
             vector_1 = kpt3d[:, index_sin[0], :] - kpt3d[:, index_sin[1], :]
@@ -496,6 +545,31 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             vector1_norm = F.normalize(out_vector_1, dim=1)
             vector2_norm = F.normalize(out_vector_2, dim=1)
             cosine_similarity = (vector1_norm * vector2_norm).sum(dim=1)
-            loss_part = (1 - torch.abs(cosine_similarity)).mean()
-            hand_constraint_loss += loss_part
+            loss_part = (1 - torch.abs(cosine_similarity))
+            loss_part = loss_part * (
+                1 - convert_2d_mask.float()).squeeze(1).squeeze(1)
+            hand_constraint_loss += loss_part.mean()
         return hand_constraint_loss
+
+    def reproj_norm_2d(self, hand3d, lr_rot_matrix, lr_p):
+        B, K = hand3d.shape[:2]
+        norm_left = hand3d[..., :2] / hand3d[..., 2:]
+        lr_rot_matrix = torch.inverse(lr_rot_matrix).view(B, 1, 3, 3).repeat(
+            1, K, 1, 1).view(B * K, 3, 3)
+        lr_p = lr_p.view(B, 1, 3, 1).repeat(1, K, 1, 1).view(B * K, 3, 1)
+        norm_right = (torch.bmm(lr_rot_matrix,
+                                hand3d.view(B * K, 3, 1) -
+                                lr_p)).view(B, K, 3)
+        norm_right = norm_right[..., :2] / norm_right[..., 2:]
+        return norm_left, norm_right
+
+    @staticmethod
+    def generate_2d_mask(batch_data_samples):
+        mask = []
+        for batch_sample in batch_data_samples[::2]:
+            if 'hand_train_flora' in batch_sample.img_path:
+                mask.append(True)
+            else:
+                mask.append(False)
+        mask = torch.tensor(mask).unsqueeze(1).unsqueeze(2)
+        return mask

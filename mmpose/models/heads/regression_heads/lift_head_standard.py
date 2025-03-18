@@ -409,6 +409,35 @@ class LiftHeadStandard(BaseModule):
         else:
             hand_scale = torch.ones(leftcam_xy.shape[0]).cuda()
 
+        # 2D GT 转归一化平面坐标：先去畸变，再转系
+        # B //= 2
+        for i, data_sample in enumerate(batch_data_samples):
+            camera_model = data_sample.meta['ori_camera']
+            kpt2d_u = camera_model.undistort(
+                uv_coord_im_gt_global[i].cpu().numpy())
+            uv_coord_im_gt_global[i] = torch.from_numpy(kpt2d_u).cuda()
+        uv_coord_im_gt_global = uv_coord_im_gt_global.view(B, N, K, 2)
+        leftcam_uv_gt = uv_coord_im_gt_global[:, 0]
+        leftcam_x_gt = (leftcam_uv_gt[:, :, 0] -
+                        leftcam_cam_matrix[:, 0, 2].view(
+                            (B, 1))) / leftcam_cam_matrix[:, 0, 0].view(B, 1)
+        leftcam_y_gt = (leftcam_uv_gt[:, :, 1] -
+                        leftcam_cam_matrix[:, 1, 2].view(
+                            (B, 1))) / leftcam_cam_matrix[:, 1, 1].view(B, 1)
+        leftcam_xyz_gt = torch.cat(
+            (leftcam_x_gt.unsqueeze(-1), leftcam_y_gt.unsqueeze(-1)),
+            dim=2)[:B // 2]
+        rightcam_uv_gt = uv_coord_im_gt_global[:, 1]
+        rightcam_x_gt = (
+            rightcam_uv_gt[:, :, 0] - rightcam_cam_matrix[:, 0, 2].view(
+                (B, 1))) / rightcam_cam_matrix[:, 0, 0].view(B, 1)
+        rightcam_y_gt = (
+            rightcam_uv_gt[:, :, 1] - rightcam_cam_matrix[:, 1, 2].view(
+                (B, 1))) / rightcam_cam_matrix[:, 1, 1].view(B, 1)
+        rightcam_xyz_gt = torch.cat(
+            (rightcam_x_gt.unsqueeze(-1), rightcam_y_gt.unsqueeze(-1)),
+            dim=2)[:B // 2]
+
         # 相机坐标转标准双目
         norm_leftcam_xyz, norm_rightcam_xyz = self.standardize_stereo(
             leftcam_xy, rightcam_xy, left_R, right_R)
@@ -429,6 +458,8 @@ class LiftHeadStandard(BaseModule):
             'feats': feats,
             'norm_leftcam_xyz': norm_leftcam_xyz,
             'norm_rightcam_xyz': norm_rightcam_xyz,
+            'leftcam_xyz_gt': leftcam_xyz_gt,
+            'rightcam_xyz_gt': rightcam_xyz_gt,
             'lr_rot_matrix': lr_rot_matrix,
             'lr_p': lr_p,
             'left_to_right_rt': left_to_right_rt,

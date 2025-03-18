@@ -39,7 +39,18 @@ datasets_info = {
             'data_hand/hand_keypoint/annotations/hand_train_flora_keypoint_bottom_1_231017_20k__1__binocular__lmdb.json',
             'data_hand/hand_keypoint/annotations/hand_train_flora_ces_240709_25k__1__binocular__lmdb.json',
             'data_hand/hand_keypoint/annotations/hand_train_flora_ces_241106_20k__1__binocular__lmdb.json',
-            'data_hand/hand_keypoint/annotations/hand_train_flora_home_240911_5k__1__binocular__lmdb.json'
+            'data_hand/hand_keypoint/annotations/hand_train_flora_home_240911_5k__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_20241123__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_20241129__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_20241222__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_20241223__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_20241226__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_20241230__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_20250102__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_20250103__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_20250104__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_20250106__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_20250115__1__binocular__lmdb.json',
         ],
         'quest_system': [
             'data_hand/hand_keypoint/annotations/hand_train_flora_quest_system_240222_7k_1__binocular__lmdb.json',
@@ -56,7 +67,7 @@ datasets_info = {
         'black_hand': [
             'data_hand/hand_keypoint/annotations/hand_train_flora_backlight_241012_6k__1__binocular__4k__lmdb.json'
         ],
-        # 2025 CES小屋等自然场景
+        # 时序双目2d
         'e2e': [
             'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_241212160__1__binocular__lmdb.json',
             'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_241212180__1__binocular__lmdb.json',
@@ -73,17 +84,6 @@ datasets_info = {
             'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20241220_7__1__binocular__lmdb.json',
             'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20241220_8__1__binocular__lmdb.json',
             'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20250123__1__binocular__lmdb.json',
-            'data_hand/hand_keypoint/annotations/hand_train_flora_20241123__1__binocular__lmdb.json',
-            'data_hand/hand_keypoint/annotations/hand_train_flora_20241129__1__binocular__lmdb.json',
-            'data_hand/hand_keypoint/annotations/hand_train_flora_20241222__1__binocular__lmdb.json',
-            'data_hand/hand_keypoint/annotations/hand_train_flora_20241223__1__binocular__lmdb.json',
-            'data_hand/hand_keypoint/annotations/hand_train_flora_20241226__1__binocular__lmdb.json',
-            'data_hand/hand_keypoint/annotations/hand_train_flora_20241230__1__binocular__lmdb.json',
-            'data_hand/hand_keypoint/annotations/hand_train_flora_20250102__1__binocular__lmdb.json',
-            'data_hand/hand_keypoint/annotations/hand_train_flora_20250103__1__binocular__lmdb.json',
-            'data_hand/hand_keypoint/annotations/hand_train_flora_20250104__1__binocular__lmdb.json',
-            'data_hand/hand_keypoint/annotations/hand_train_flora_20250106__1__binocular__lmdb.json',
-            'data_hand/hand_keypoint/annotations/hand_train_flora_20250115__1__binocular__lmdb.json',
         ]
     },
     'test_data': {

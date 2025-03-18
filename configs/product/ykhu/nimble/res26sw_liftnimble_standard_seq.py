@@ -142,7 +142,9 @@ model = dict(
                     seq_length=seq_length,
                     loss_weight=1,
                 ),
-                dict(type='RLELoss', dim=3)
+                dict(type='RLELoss', dim=3, use_target_weight=True),
+                dict(type='L1Loss', loss_weight=1.),  # 左目重投影误差
+                dict(type='L1Loss', loss_weight=1.),  # 右目重投影误差
             ]),
         seq_len=4,
         all_use_kp2d_gt=False,
@@ -159,7 +161,8 @@ model = dict(
         reproj_thre=440,
         iou_thre=0.5,
         pad_2d=0,
-        fix_sigma_pars=False),
+        fix_sigma_pars=False,
+        reproj=True),
     test_cfg=dict(
         flip_test=False,
         shift_coords=False,
@@ -187,13 +190,13 @@ for data_date in train_date_list:
         if data_date in kpt3d_datasets_info['train_data']:
             train_data_list += kpt3d_datasets_info['train_data'][
                 data_date].get(glasses, [])
-train_data_list = [os.path.join(data_root, item) for item in train_data_list]
-
 # train_data_list = [
-#     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_060805__all__normal__left__1111__0006__undistort_tar__Flora301.json',
-#     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230828_072918__all__normal__right__1111__0017__undistort_tar__Flora301.json'
+#     'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250228_140704__pinch__normal__right__1101__0003__undistort_tar__Flora301.json',
+#     'data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_062443__all__normal__right__1111__0006__undistort_tar__Flora301.json',
 # ]
 
+train_data_list += kpt3d_datasets_info['convert2d_to_3d_e2e']
+train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
@@ -279,17 +282,17 @@ train_pipeline = [
             dict(type='TopdownAffine', input_size=codec['input_size'][:2]),
             dict(type='RandomDownSampleImage', min_ratio=0.5, prob=0.2),
             dict(type='MixTwoHands', prob=0.1),
-            # dict(
-            #     type='Albumentation',
-            #     transforms=[
-            #         dict(
-            #             type='CoarseDropout',
-            #             p=0.2,
-            #             max_holes=2,
-            #             max_height=16,
-            #             max_width=16,
-            #         ),
-            #     ]),
+            dict(
+                type='Albumentation',
+                transforms=[
+                    dict(
+                        type='CoarseDropout',
+                        p=0.2,
+                        max_holes=2,
+                        max_height=16,
+                        max_width=16,
+                    ),
+                ]),
             dict(
                 type='GenerateNoiseDarkImage',
                 prob=0.65,
@@ -315,8 +318,8 @@ train_dataloader = dict(
     collate_fn=dict(type='default_collate'),
     dataset=dict(
         type=dataset_type,
-        data_ratio=4. / 5,
-        sample_interval=4. / 5,
+        data_ratio=0.7,
+        sample_interval=0.7,
         data_file_list=train_data_list,
         data_mode=data_mode,
         pipeline=train_pipeline,
