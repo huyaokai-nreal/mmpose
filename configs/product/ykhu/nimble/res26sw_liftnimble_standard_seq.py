@@ -265,6 +265,7 @@ val_data_list = [
     # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand_test/XS__20230830_081427__pinch__normal__right__1111__0019__undistort_tar__Flora301__kangyingjiayuan_house_random.json',
     # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand_test/XS__20230830_081909__pinch__bright__left__1111__0019__undistort_tar__Flora301__marker_20240711112656.json',
 ]
+# val_data_list = kpt3d_datasets_info['test_data']['20240219']['Flora301']  # 多背景3d真值数据
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # pipelines
 train_pipeline = [
@@ -318,8 +319,8 @@ train_dataloader = dict(
     collate_fn=dict(type='default_collate'),
     dataset=dict(
         type=dataset_type,
-        data_ratio=0.7,
-        sample_interval=0.7,
+        data_ratio=0.6,
+        sample_interval=0.6,
         data_file_list=train_data_list,
         data_mode=data_mode,
         pipeline=train_pipeline,
@@ -373,7 +374,7 @@ val_evaluator = [
         rearrange_result=True,
         result_dir='.'),
     # dict(type='EPE'),
-    # dict(type='NrealKeypointAP'),
+    dict(type='NrealKeypointAP'),
 ]
 
 test_evaluator = val_evaluator

@@ -487,6 +487,12 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         hand_constraint_loss = self.hand_constraint(
             hand3d_pred, self.hand_constraint_index_list,
             convert_2d_mask) * 0.1
+        
+        # score loss
+        score_lambda = 1.
+        mpjpe = torch.norm(hand3d_pred - hand3d_gt,dim=(1,2)) 
+        score = all_sigmas.sigmoid().reshape(len(all_sigmas),-1).mean(-1)
+        score_loss = (1 - self.pearson_corr(mpjpe, score)) * score_lambda
 
         losses_dict = dict(
             loss_pre_root=loss_pre_root,
@@ -506,7 +512,8 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             # trans_loss_add=add_trans_loss,
             flip_trans_loss_add=add_flip_trans_loss,
             loss_left_2d_reproj=loss_left_2d_reproj,
-            loss_right_2d_reproj=loss_right_2d_reproj)
+            loss_right_2d_reproj=loss_right_2d_reproj,
+            score_loss=score_loss)
 
         return losses_dict
 
@@ -573,3 +580,15 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
                 mask.append(False)
         mask = torch.tensor(mask).unsqueeze(1).unsqueeze(2)
         return mask
+    
+    @staticmethod
+    def pearson_corr(x, y, eps=1e-8):
+        """
+        计算两个一维张量 x, y 的皮尔逊相关系数
+        """
+        x_mean = torch.mean(x)
+        y_mean = torch.mean(y)
+        cov = torch.mean((x - x_mean) * (y - y_mean))
+        std_x = torch.std(x)
+        std_y = torch.std(y)
+        return cov / (std_x * std_y + eps)
