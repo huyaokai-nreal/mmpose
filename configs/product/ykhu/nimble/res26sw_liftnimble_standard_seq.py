@@ -151,7 +151,7 @@ model = dict(
         kpt2d_with_depth=kpt2d_with_depth,
         undistort=True,
         use_svd=True,
-        lambda_t=train_cfg['max_epochs'],
+        max_epochs=train_cfg['max_epochs'],
         pose_ncomp=30,
         baseline=0.135,
         use_6d_pose_reg=False,
@@ -169,7 +169,7 @@ model = dict(
         shift_heatmap=False,
     ),
     init_cfg=dict(
-        type='Pretrained', checkpoint='/data/AI_DATA_WX/stliu/epoch_60.pth'),
+        type='Pretrained', checkpoint='/data/AI_DATA_WX/ykhu/model/liftnimble_20250326_e30.pth'),
 )
 
 # base dataset settings

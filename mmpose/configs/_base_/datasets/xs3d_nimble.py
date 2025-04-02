@@ -1325,7 +1325,10 @@ datasets_info = {
         'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_e2e/hand_train_flora_e2e_241212184__1__binocular__lmdb.json',
         'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_e2e/hand_train_flora_e2e_24121220__1__binocular__lmdb.json',
         'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_e2e/hand_train_flora_e2e_24121221__1__binocular__lmdb.json',
-        'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_e2e/hand_train_flora_e2e_24121222__1__binocular__lmdb.json'
+        'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_e2e/hand_train_flora_e2e_24121222__1__binocular__lmdb.json',
+        'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_e2e/hand_train_flora_e2e_20250321__1__binocular__lmdb.json',
+        'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_e2e/hand_train_flora_e2e_20250328__1__binocular__lmdb.json',
+        'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_e2e/hand_train_flora_e2e_20250401__1__binocular__lmdb.json',
     ],
     'test_2d_data': {
         'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_stliu_for_test/hand_test_chichi_keypoint_230912_5k__1__binocular__lmdb.json',

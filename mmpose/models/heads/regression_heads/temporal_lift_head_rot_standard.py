@@ -466,7 +466,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         dis_norm = torch.norm(dis, dim=1)
         poke_mask = dis_norm < 0.012
         poke_mask = torch.concat([poke_mask, poke_mask])
-        if cur_epoch >= self.max_epochs // 2 and sum(poke_mask) > 0:
+        if sum(poke_mask) > 0:
             direction_vector1 = pred_3d_way2[poke_mask,
                                              5, :] - pred_3d_way2[poke_mask,
                                                                   6, :]
@@ -489,9 +489,11 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             convert_2d_mask) * 0.1
         
         # score loss
-        score_lambda = 1.
+        score_lambda = 0.2
         mpjpe = torch.norm(hand3d_pred - hand3d_gt,dim=(1,2)) 
         score = all_sigmas.sigmoid().reshape(len(all_sigmas),-1).mean(-1)
+        mpjpe = mpjpe[~convert_2d_mask.reshape(-1)]
+        score = score[~convert_2d_mask.reshape(-1)]
         score_loss = (1 - self.pearson_corr(mpjpe, score)) * score_lambda
 
         losses_dict = dict(
