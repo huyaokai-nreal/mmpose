@@ -372,6 +372,7 @@ class TopdownPoseLiftNimbleEstimatorSeq(TopdownPoseLiftNimbleEstimator):
                  test_cfg: OptConfigType = None,
                  data_preprocessor: OptConfigType = None,
                  init_cfg: OptMultiConfig = None,
+                 init_cfg_3d: OptMultiConfig = None,
                  metainfo: Optional[dict] = None,
                  seq_len: int = 32,
                  e2e=False):
@@ -387,6 +388,30 @@ class TopdownPoseLiftNimbleEstimatorSeq(TopdownPoseLiftNimbleEstimator):
             metainfo=metainfo,
             e2e=e2e)
         self.seq_len = seq_len
+        self.init_cfg_3d = init_cfg_3d
+        if self.init_cfg_3d:
+            self.load_init_cfg_3d()
+
+    def load_init_cfg_3d(self):
+        state_dict_3d = torch.load(self.init_cfg_3d['checkpoint'])
+        weight_dict = {
+            'liftnet': {},
+            'sigma_conv': {},
+            'temporal': {},
+            'last_layer': {},
+            'nimble_layer': {}
+        }
+        for weight_k in weight_dict.keys():
+            for k, v in state_dict_3d['state_dict'].items():
+                if weight_k in k:
+                    new_k = '.'.join(k.split('.')[2:])
+                    weight_dict[weight_k][new_k] = v
+        self.kpt3d_lift.liftnet.load_state_dict(weight_dict['liftnet'])
+        self.kpt3d_lift.sigma_conv.load_state_dict(weight_dict['sigma_conv'])
+        self.kpt3d_lift.temporal.load_state_dict(weight_dict['temporal'])
+        self.kpt3d_lift.last_layer.load_state_dict(weight_dict['last_layer'])
+        self.kpt3d_lift.nimble_layer.load_state_dict(
+            weight_dict['nimble_layer'])
 
     def forward(self,
                 inputs: torch.Tensor,
