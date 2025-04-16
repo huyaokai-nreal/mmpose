@@ -639,7 +639,7 @@ class RTMCCIPRHeadNimble(RTMCCHead):
             hand3d_pcl_sin = virtual_cam.world_to_eye(
                 data.gt_instances.keypoints3d[0])
             hand3d_gt_pcl.append(hand3d_pcl_sin)
-            kpt3d_tmp = camera_model.window_to_eye(data.gt_instances.keypoints[0, :, :2])
+            kpt3d_tmp = camera_model.window_to_eye(data.gt_instances.keypoints[0, :, :2].copy())
             hand2d_gt_pcl.append(vritual_camera.world_to_window(kpt3d_tmp))
             
         label_2d = torch.cat(label_2d_list)
