@@ -7,7 +7,7 @@ from mmpose.configs._base_.datasets.xs3d_nimble import \
 
 # from configs._base_.datasets.xs3d import datasets_info as kpt3d_datasets_info
 
-train_cfg = dict(max_epochs=30, val_interval=10)
+train_cfg = dict(max_epochs=30, val_interval=5)
 
 # data_root = '/data/AI_DATA'
 data_root = '/data/AI_DATA_WX'
@@ -16,7 +16,7 @@ seq_length = 4
 
 # optimizer
 optim_wrapper = dict(
-    optimizer=dict(type='Adam', lr=5e-5, weight_decay=1e-4),
+    optimizer=dict(type='Adam', lr=2e-5, weight_decay=1e-4),
     paramwise_cfg=dict(
         norm_decay_mult=0,
         bias_decay_mult=0,
@@ -25,7 +25,7 @@ optim_wrapper = dict(
             'head': dict(lr_mult=0.0, decay_mult=0.0),
             'neck': dict(lr_mult=0.0, decay_mult=0.0),
         }),
-    # clip_grad=dict(max_norm=10, norm_type=2),
+    clip_grad=dict(max_norm=10, norm_type=2),
 )
 # learning policy
 # param_scheduler = [
@@ -142,7 +142,12 @@ model = dict(
                     seq_length=seq_length,
                     loss_weight=1,
                 ),
-                dict(type='RLELoss', dim=3, use_target_weight=True),
+                dict(
+                    type='RLELoss',
+                    dim=3,
+                    use_target_weight=True,
+                    flow_model_pretrain_path=
+                    '/data/AI_DATA_WX/ykhu/model/liftnimble_20250326_e30.pth'),
                 dict(type='L1Loss', loss_weight=1.),  # 左目重投影误差
                 dict(type='L1Loss', loss_weight=1.),  # 右目重投影误差
             ]),
@@ -169,7 +174,12 @@ model = dict(
         shift_heatmap=False,
     ),
     init_cfg=dict(
-        type='Pretrained', checkpoint='/data/AI_DATA_WX/ykhu/model/liftnimble_20250326_e30.pth'),
+        type='Pretrained',
+        checkpoint=
+        '/data/AI_DATA/ykhu/model/./rtmtiny_res34_downsample16_e100.pth'),
+    init_cfg_3d=dict(
+        type='Pretrained',
+        checkpoint='/data/AI_DATA_WX/ykhu/model/liftnimble_20250326_e30.pth'),
 )
 
 # base dataset settings
@@ -195,7 +205,7 @@ for data_date in train_date_list:
 #     'data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_062443__all__normal__right__1111__0006__undistort_tar__Flora301.json',
 # ]
 
-train_data_list += kpt3d_datasets_info['convert2d_to_3d_e2e']
+# train_data_list += kpt3d_datasets_info['convert2d_to_3d_e2e']
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
@@ -356,7 +366,7 @@ test_dataloader = val_dataloader
 
 # hooks
 default_hooks = dict(
-    checkpoint=dict(interval=10, save_best='all_mpjpe', rule='less'),
+    checkpoint=dict(interval=5, save_best='all_mpjpe', rule='less'),
     run_time_info=dict(type='RuntimeInfoHookV2'))
 
 # evaluators
