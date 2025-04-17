@@ -4,7 +4,7 @@ from typing import List, Tuple, Union
 import numpy as np
 import torch
 import torch.nn.functional as F
-from mmengine.logging import MessageHub
+# from mmengine.logging import MessageHub
 from torch import Tensor, nn
 
 from mmpose.models.heads.regression_heads.lift_head_rot_standard import \
@@ -392,8 +392,8 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             bone_loss = torch.tensor(0.0, device=loss_pre_root.device)
             major_bone_loss = torch.tensor(0.0, device=loss_pre_root.device)
 
-        mh = MessageHub.get_current_instance()
-        cur_epoch = mh.get_info('epoch')
+        # mh = MessageHub.get_current_instance()
+        # cur_epoch = mh.get_info('epoch')
         magin_value = 0.005
         pinch_mask = (dist_pred > dist_gt - magin_value) & (dist_gt < 0.0225)
         reverse_mask = self.generate_mask(batch_data_samples,
@@ -487,14 +487,22 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         hand_constraint_loss = self.hand_constraint(
             hand3d_pred, self.hand_constraint_index_list,
             convert_2d_mask) * 0.1
-        
+
         # score loss
-        score_lambda = 0.2
-        mpjpe = torch.norm(hand3d_pred - hand3d_gt,dim=(1,2)) 
-        score = all_sigmas.sigmoid().reshape(len(all_sigmas),-1).mean(-1)
-        mpjpe = mpjpe[~convert_2d_mask.reshape(-1)]
-        score = score[~convert_2d_mask.reshape(-1)]
-        score_loss = (1 - self.pearson_corr(mpjpe, score)) * score_lambda
+        # score_lambda = 0.2
+        # mpjpe = torch.norm(hand3d_pred - hand3d_gt, dim=(1, 2))
+        # score = all_sigmas.sigmoid().reshape(len(all_sigmas), -1).mean(-1)
+        # mpjpe = mpjpe[~convert_2d_mask.reshape(-1)]
+        # score = score[~convert_2d_mask.reshape(-1)]
+        # score_loss = (1 - self.pearson_corr(mpjpe, score)) * score_lambda
+
+        # score loss
+        # score_lambda = 0.2
+        # mpjpe = torch.norm(hand3d_pred - hand3d_gt,dim=(1,2))
+        # score = all_sigmas.sigmoid().reshape(len(all_sigmas),-1).mean(-1)
+        # mpjpe = mpjpe[~convert_2d_mask.reshape(-1)]
+        # score = score[~convert_2d_mask.reshape(-1)]
+        # score_loss = (1 - self.pearson_corr(mpjpe, score)) * score_lambda
 
         losses_dict = dict(
             loss_pre_root=loss_pre_root,
@@ -515,7 +523,8 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             flip_trans_loss_add=add_flip_trans_loss,
             loss_left_2d_reproj=loss_left_2d_reproj,
             loss_right_2d_reproj=loss_right_2d_reproj,
-            score_loss=score_loss)
+            # score_loss=score_loss
+        )
 
         return losses_dict
 
@@ -582,12 +591,10 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
                 mask.append(False)
         mask = torch.tensor(mask).unsqueeze(1).unsqueeze(2)
         return mask
-    
+
     @staticmethod
     def pearson_corr(x, y, eps=1e-8):
-        """
-        计算两个一维张量 x, y 的皮尔逊相关系数
-        """
+        """计算两个一维张量 x, y 的皮尔逊相关系数."""
         x_mean = torch.mean(x)
         y_mean = torch.mean(y)
         cov = torch.mean((x - x_mean) * (y - y_mean))
