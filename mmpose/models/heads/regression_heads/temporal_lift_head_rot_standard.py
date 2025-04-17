@@ -490,14 +490,6 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
 
         # score loss
         # score_lambda = 0.2
-        # mpjpe = torch.norm(hand3d_pred - hand3d_gt, dim=(1, 2))
-        # score = all_sigmas.sigmoid().reshape(len(all_sigmas), -1).mean(-1)
-        # mpjpe = mpjpe[~convert_2d_mask.reshape(-1)]
-        # score = score[~convert_2d_mask.reshape(-1)]
-        # score_loss = (1 - self.pearson_corr(mpjpe, score)) * score_lambda
-
-        # score loss
-        # score_lambda = 0.2
         # mpjpe = torch.norm(hand3d_pred - hand3d_gt,dim=(1,2))
         # score = all_sigmas.sigmoid().reshape(len(all_sigmas),-1).mean(-1)
         # mpjpe = mpjpe[~convert_2d_mask.reshape(-1)]
