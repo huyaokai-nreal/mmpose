@@ -192,7 +192,8 @@ train_date_list = [
     '20240401', '20231227', '20240517', '20240425', '20240522', '20240801',
     '20240816', '20240826', '20240820', '20240903', '20240907', '20240926',
     '20240914', '20240923', '20240930', '20241018', '20241030', '20241107',
-    '20241121', '20241114', '20241216', '20250107', '20250113', '20250228'
+    '20241121', '20241114', '20241216', '20250107', '20250113', '20250228',
+    '20250328'
 ]
 train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
 for data_date in train_date_list:
@@ -275,7 +276,8 @@ val_data_list = [
     # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand_test/XS__20230830_081427__pinch__normal__right__1111__0019__undistort_tar__Flora301__kangyingjiayuan_house_random.json',
     # 'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_hand_test/XS__20230830_081909__pinch__bright__left__1111__0019__undistort_tar__Flora301__marker_20240711112656.json',
 ]
-# val_data_list = kpt3d_datasets_info['test_data']['20240219']['Flora301']  # 多背景3d真值数据
+# val_data_list = kpt3d_datasets_info['test_data']['20250219']['Flora301']  # 多背景3d真值数据
+# val_data_list = kpt3d_datasets_info['test_data']['20250328']['Flora301']  # poke
 val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # pipelines
 train_pipeline = [
