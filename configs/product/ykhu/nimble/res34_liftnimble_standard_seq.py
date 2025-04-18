@@ -175,6 +175,10 @@ model = dict(
     ),
     init_cfg=dict(
         type='Pretrained',
+        checkpoint=
+        '/data/AI_DATA/ykhu/model/./rtmtiny_res34_downsample16_e100.pth'),
+    init_cfg_3d=dict(
+        type='Pretrained',
         checkpoint='/data/AI_DATA_WX/ykhu/model/liftnimble_20250326_e30.pth'),
 )
 
