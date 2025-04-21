@@ -78,13 +78,13 @@ model = dict(
         type='PoseDataPreprocessor', mean=[0.449 * 255], std=[0.226 * 255]),
     backbone=dict(
         type='ResNet',
-        depth='26s',
+        depth=34,
         in_channels=1,
         stem_channels=32,
         base_channels=48,
         expansion=1,
         out_indices=(3, ),
-        strides=(1, 2, 2, 1),
+        strides=(1, 2, 1, 1),
         zero_init_residual=False,
         bias_in_conv=False,
         out_channels=backbone_out_channels),
@@ -93,7 +93,7 @@ model = dict(
         in_channels=384,
         out_channels=21,
         input_size=(128, 128, 128),
-        in_featuremap_size=(8, 8),
+        in_featuremap_size=(16, 16),
         simcc_split_ratio=2,
         final_layer_kernel_size=3,
         deploy_output='feat',
@@ -176,10 +176,11 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/AI_DATA/ykhu/model/./rtmtiny_res34_downsample16_e100.pth'),
+        '/data/AI_DATA/ykhu/model/rtmtiny_res34_downsample16_e100.pth'),
     init_cfg_3d=dict(
         type='Pretrained',
-        checkpoint='/data/AI_DATA_WX/ykhu/model/liftnimble_20250326_e30.pth'),
+        checkpoint='/data/AI_DATA_WX/ykhu/model/liftnimble_res34_20250415.pth'
+    ),
 )
 
 # base dataset settings
