@@ -34,7 +34,7 @@ datasets_info = {
             'data_hand/hand_keypoint/annotations/hand_train_flora_20k_230822_1_cam0_lmdb.json',
             'data_hand/hand_keypoint/annotations/hand_train_flora_20k_230829_1_cam0_lmdb.json',
             'data_hand/hand_keypoint/annotations/hand_train_flora_20k__230914__1__cam0__lmdb.json',
-            'data_hand/hand_keypoint/annotations/hand_train_flora_keypoint_231027_20k__1__binocular__lmdb.json',
+            # 'data_hand/hand_keypoint/annotations/hand_train_flora_keypoint_231027_20k__1__binocular__lmdb.json',
             'data_hand/hand_keypoint/annotations/hand_train_flora_keypoint_decoration_1_231017_20k__1__binocular__lmdb.json',
             'data_hand/hand_keypoint/annotations/hand_train_flora_keypoint_bottom_1_231017_20k__1__binocular__lmdb.json',
             'data_hand/hand_keypoint/annotations/hand_train_flora_ces_240709_25k__1__binocular__lmdb.json',
@@ -69,26 +69,30 @@ datasets_info = {
         ],
         # 时序双目2d
         'e2e': [
+            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20241220_1__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20241220_2__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20241220_3__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20241220_4__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20241220_4__3__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20241220_5__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20241220_6__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20241220_7__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20241220_8__1__binocular__lmdb.json',
             'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_241212160__1__binocular__lmdb.json',
             'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_241212180__1__binocular__lmdb.json',
             'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_241212184__1__binocular__lmdb.json',
             'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_24121220__1__binocular__lmdb.json',
             'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_24121221__1__binocular__lmdb.json',
             'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_24121222__1__binocular__lmdb.json',
-            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20241220_1__1__binocular__lmdb.json',
-            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20241220_2__1__binocular__lmdb.json',
-            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20241220_3__1__binocular__lmdb.json',
-            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20241220_4__1__binocular__lmdb.json',
-            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20241220_5__1__binocular__lmdb.json',
-            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20241220_6__1__binocular__lmdb.json',
-            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20241220_7__1__binocular__lmdb.json',
-            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20241220_8__1__binocular__lmdb.json',
             'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20250123__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20250321__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20250328__1__binocular__lmdb.json',
+            'data_hand/hand_keypoint/annotations/hand_train_flora_e2e_20250401__1__binocular__lmdb.json',
         ]
     },
     'test_data': {
         'ella': [
-            'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_gesture_lmdb.json'
+            'data_hand/hand_keypoint/annotations/test_nreal_gesture_1111_1_1_twohand_gesture_lmdb.json',
         ],
         'flora_static_finegrain': [
             'data_hand/hand_keypoint/annotations/hand_test_flora_static_benchmark_230627_10k_lmdb.json',  # flora test
