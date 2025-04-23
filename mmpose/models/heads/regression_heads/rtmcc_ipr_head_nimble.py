@@ -185,7 +185,7 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         B = image_fea.shape[0]
         singlev_scaled_to_orig_xf = torch.eye(4).unsqueeze(0).repeat(
             B, 1, 1).to(image_fea.device)
-        singlev_scaled_to_orig_xf[..., 2, 2] = 1/f_scale
+        singlev_scaled_to_orig_xf[..., 2, 2] = 1/f_scale[0,0]
         scaled_feature_matrix = singlev_scaled_to_orig_xf
 
         ftl_image_fea = image_fea.clone()
@@ -197,6 +197,29 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         ftl_image_fea = point_features_xfed.reshape(image_fea.shape)
         return ftl_image_fea
 
+    def _forward(self,
+                 feats: Tuple[Tensor],
+                 f_scale: Tensor,
+                 mems=None) -> Tuple[Tensor, Tensor]:
+        feat_x, feat_y = RTMCCHead.forward(self, feats)
+        pose_len = self.pose_num
+
+        raw_feats = feats[-1]
+        image_fea = self.proj_layer(raw_feats)
+        ftl_image_fea = self.trans_feat(image_fea, f_scale[:, 0, :, :])
+        feature_fuszion = self.liftnet(ftl_image_fea.reshape(1, -1, 1, 1))
+        mems = torch.zeros_like(feature_fuszion).to(feature_fuszion.device)
+        feat_mix = torch.cat([feature_fuszion, mems], dim=1)
+        output = self.nimble_last_layer(feat_mix)
+        angle = output[:, :pose_len, 0, 0].reshape(1, 19, -1)
+        svd_pt = output[:, pose_len:, 0, 0]
+
+        pred_sigma = self.sigma_conv(image_fea.reshape(1, -1, 1, 1))
+        pred_sigma_reshape = pred_sigma.reshape(
+            pred_sigma.size(0), self.out_channels, 3)
+        score = pred_sigma.sigmoid().mean().reshape(1, 1)
+        return feat_x, feat_y, angle, svd_pt, score, pred_sigma_reshape
+    
     def forward(self, feats: Tuple[Tensor],
                 f_scale: Tensor) -> Tuple[Tensor, Tensor]:
         """Forward the network.
