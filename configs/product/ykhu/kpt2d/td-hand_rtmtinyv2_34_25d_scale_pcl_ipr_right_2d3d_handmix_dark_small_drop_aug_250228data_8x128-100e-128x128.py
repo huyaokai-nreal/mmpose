@@ -105,8 +105,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/AI_DATA/data_hand/model/mmpose/td-hand_rtmtinyv2_26sw_25d_scale_pcl_right_2d3d_handmix_aug_240401data_8x128-100e-128x128/epoch_100.pth'
-    ),
+        '/data/AI_DATA/ykhu/model/rtmtiny_res34_downsample16_e100.pth '),
     root_mode='optimize' if test_type == '3d' else 'gt',
     camera_layout=camera_layout)
 
@@ -298,24 +297,29 @@ val_2d_dataset_name_list = [
     'flora_decoration', 'ella', 'near_two_hands', 'dark_light',
     'wrist_occlusion', 'tattoo', 'bad_bg', 'black_hand'
 ]
-val_2d_data_list = dict()
+# val_2d_data_list = dict()
 #val_data_list = [item for item in val_data_list if '__right__' in item]
-#val_2d_datasets = ['flora_static_finegrain', 'flora_dynamic']
-#val_2d_datasets = ['flora_black']
-#val_2d_datasets = ['flora_decoration']
-#val_2d_datasets = ['ella']
-#val_2d_datasets = ['near_two_hands']
-#val_2d_datasets = ['dark_light']
-#val_2d_datasets = ['wrist_occlusion']
-#val_2d_datasets = ['tattoo']
-for data_name in val_2d_dataset_name_list:
-    val_2d_data_list[data_name] = kpt2d_datasets_info['test_data'][data_name]
-    #val_2d_data_list = [item for sublist in val_2d_data_list for item in sublist]
-    val_2d_data_list[data_name] = [
-        os.path.join(data_root, item) for item in val_2d_data_list[data_name]
-    ]
-#val_2d_data_list = [item for sublist in val_2d_data_list for item in sublist]
-#val_2d_data_list = [os.path.join(data_root, item) for item in val_2d_data_list]
+#val_2d_data_list = ['flora_static_finegrain', 'flora_dynamic']
+# val_2d_data_list = kpt2d_datasets_info['test_data']['flora_black']
+# val_2d_data_list = kpt2d_datasets_info['test_data']['flora_decoration']
+# val_2d_data_list = kpt2d_datasets_info['test_data']['ella']
+# val_2d_data_list = kpt2d_datasets_info['test_data']['near_two_hands']
+# val_2d_data_list = kpt2d_datasets_info['test_data']['bad_bg']
+# val_2d_data_list = kpt2d_datasets_info['test_data']['dark_light']
+# val_2d_data_list = kpt2d_datasets_info['test_data']['wrist_occlusion']
+# val_2d_data_list = kpt2d_datasets_info['test_data']['tattoo']
+val_2d_data_list = kpt2d_datasets_info['test_data']['black_hand']
+# for data_name in val_2d_dataset_name_list:
+#     val_2d_data_list[data_name] = kpt2d_datasets_info['test_data'][data_name]
+#     #val_2d_data_list = [item for sublist in val_2d_data_list for item in sublist]
+#     val_2d_data_list[data_name] = [
+#         os.path.join(data_root, item) for item in val_2d_data_list[data_name]
+#     ]
+# val_2d_data_list = [item for sublist in val_2d_data_list for item in sublist]
+val_2d_data_list = [os.path.join(data_root, item) for item in val_2d_data_list]
+# val_data_list = [
+#     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_072334__pinch__dark__right__1111__0005__undistort_tar__Flora301.json',
+# ]
 train_dataloader = dict(
     batch_size=128,
     num_workers=4,
