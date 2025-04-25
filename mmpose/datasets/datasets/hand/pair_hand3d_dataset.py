@@ -235,7 +235,6 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         f301, f302, f303, f304 = 0, 0, 0, 0
         left, right = 0, 0
         left_filter, right_filter = 0, 0
-        random.shuffle(self.data_file_list)
         for i, anno_file in enumerate(self.data_file_list):
             coco = COCO(anno_file)
             lmdb_path = osp.join(self.lmdb_data_root,
