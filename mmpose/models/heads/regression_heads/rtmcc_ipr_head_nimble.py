@@ -185,7 +185,7 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         B = image_fea.shape[0]
         singlev_scaled_to_orig_xf = torch.eye(4).unsqueeze(0).repeat(
             B, 1, 1).to(image_fea.device)
-        singlev_scaled_to_orig_xf[..., 2, 2] = 1/f_scale[0,0]
+        singlev_scaled_to_orig_xf[..., 2, 2] = 1/f_scale
         scaled_feature_matrix = singlev_scaled_to_orig_xf
 
         ftl_image_fea = image_fea.clone()
@@ -206,7 +206,7 @@ class RTMCCIPRHeadNimble(RTMCCHead):
 
         raw_feats = feats[-1]
         image_fea = self.proj_layer(raw_feats)
-        ftl_image_fea = self.trans_feat(image_fea, f_scale[:, 0, :, :])
+        ftl_image_fea = self.trans_feat(image_fea, f_scale[:, 0, 0, 0])
         feature_fuszion = self.liftnet(ftl_image_fea.reshape(1, -1, 1, 1))
         mems = torch.zeros_like(feature_fuszion).to(feature_fuszion.device)
         feat_mix = torch.cat([feature_fuszion, mems], dim=1)
@@ -400,7 +400,7 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         #     virtual_3d = virtual_cam.window_to_eye(output_2d_sin.detach().cpu().numpy())
         #     world_3d = virtual_cam.eye_to_world(virtual_3d)
         #     result.append(ori_cam.eye_to_window(world_3d))
-        uv_reproj = torch.tensor(result).cuda()
+        uv_reproj = torch.tensor(np.array(result)).cuda()
 
         return hand3d_pred, uv_reproj, sigma
 
