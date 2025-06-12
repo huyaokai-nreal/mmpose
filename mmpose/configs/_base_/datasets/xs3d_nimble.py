@@ -1759,6 +1759,30 @@ datasets_info = {
                 'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250328_152855__poke__normal__left__1101__0004__undistort_tar__Flora304.json',
             ],
         },
+        # 暗光poke 1.8k
+        '20250506': {
+            'Flora301': [
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250506_110518__poke__dark__right__1101__0008__undistort_tar__Flora301.json',
+            ],
+            'Flora303': [
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250506_110518__poke__dark__right__1101__0008__undistort_tar__Flora303.json',
+            ],
+            'Flora304': [
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250506_110518__poke__dark__right__1101__0008__undistort_tar__Flora304.json',
+            ],
+        },
+        # 暗光通用 3.6k
+        '20250520': {
+            'Flora301': [
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250520_112053__all__normal__right__1101__0009__undistort_tar__Flora301.json',
+            ],
+            'Flora303': [
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250520_112053__all__normal__right__1101__0009__undistort_tar__Flora303.json',
+            ],
+            'Flora304': [
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250520_112053__all__normal__right__1101__0009__undistort_tar__Flora304.json',
+            ],
+        }
     }
 }
 
