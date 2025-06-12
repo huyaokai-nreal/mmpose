@@ -140,8 +140,12 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
 
         keypoints3d = np.array(ann['keypoints3d'])[np.newaxis]  # (1,21,3)
         num_keypoints = ann['num_keypoints']
-        keypoints_visible = np.array(ann['keypoints_left'])[...,
-                                                            2].reshape(1, -1)
+        keypoints_visible_left = np.array(ann['keypoints_left'])[...,
+                                                                 2].reshape(
+                                                                     1, -1)
+        keypoints_visible_right = np.array(ann['keypoints_right'])[...,
+                                                                   2].reshape(
+                                                                       1, -1)
         cam_key = ann['camera_instance_id']
         cam_info = self.cams_info[cam_key]
         cam_model_left, cam_model_right = \
@@ -172,7 +176,8 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
             'image_height': left_img_h,
             'bbox_score': np.ones(1, dtype=np.float32),
             'num_keypoints': num_keypoints,
-            'keypoints_visible': keypoints_visible,
+            'keypoints_visible_left': keypoints_visible_left,
+            'keypoints_visible_right': keypoints_visible_right,
             'iscrowd': ann.get('iscrowd', 0),
             'segmentation': ann.get('segmentation', None),
             'id': ann['id'],
@@ -340,7 +345,7 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
             'lower_body_ids': data_info['lower_body_ids'],
             'flip_pairs': data_info['flip_pairs'],
             'flip_indices': data_info['flip_indices'],
-            'keypoints_visible': data_info['keypoints_visible'],
+            'keypoints_visible': data_info['keypoints_visible_left'],
             'camera_name': 'left',
             'reset_stereo_aug': reset_stereo_aug,
         }
@@ -364,7 +369,7 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
             'lower_body_ids': data_info['lower_body_ids'],
             'flip_pairs': data_info['flip_pairs'],
             'flip_indices': data_info['flip_indices'],
-            'keypoints_visible': data_info['keypoints_visible'],
+            'keypoints_visible': data_info['keypoints_visible_right'],
             'camera_name': 'right',
             'reset_stereo_aug': reset_stereo_aug,
         }

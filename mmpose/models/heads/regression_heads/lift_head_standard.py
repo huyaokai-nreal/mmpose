@@ -192,6 +192,7 @@ class LiftHeadStandard(BaseModule):
         nimble_shape = []
         nimble_info = dict()
         uv_coord_im_gt_global = []
+        keypoints_visible = []
 
         all_inv_warp_mat = torch.zeros(B * 2, 3, 2).cuda()
         all_inv_warp_mat.requires_grad = False
@@ -202,6 +203,8 @@ class LiftHeadStandard(BaseModule):
                 leftcam_cam_matrix.append(left_cam_matrix)
                 left_R.append(data_sample.meta['cam_to_virtual_R'])
                 hand3d_gt.append(data_sample.gt_instances.keypoints3d[0])
+                keypoints_visible.append(
+                    data_sample.gt_instances.keypoints_visible)
                 if 'nimble_pose' in data_sample.meta.keys() and not np.equal(
                         data_sample.meta['nimble_pose'].any(), None):
                     nimble_pose.append(data_sample.meta['nimble_pose'])
@@ -255,6 +258,8 @@ class LiftHeadStandard(BaseModule):
         left_hand = torch.tensor(np.array(is_left_hands)).cuda().float()
         uv_coord_im_gt_global = torch.tensor(
             np.array(uv_coord_im_gt_global)).cuda().float()
+        keypoints_visible = torch.tensor(
+            np.array(keypoints_visible)).cuda().float()
         uv_coord_im_gt_global = uv_coord_im_gt_global[..., :2]
         uv_coord_im_gt_global = uv_coord_im_gt_global.view(-1, K, 2)
 
@@ -411,13 +416,15 @@ class LiftHeadStandard(BaseModule):
 
         # 2D GT 转归一化平面坐标：先去畸变，再转系
         # B //= 2
+        uv_coord_im_gt_global_ = uv_coord_im_gt_global.clone()
         for i, data_sample in enumerate(batch_data_samples):
             camera_model = data_sample.meta['ori_camera']
             kpt2d_u = camera_model.undistort(
-                uv_coord_im_gt_global[i].cpu().numpy())
-            uv_coord_im_gt_global[i] = torch.from_numpy(kpt2d_u).cuda()
+                uv_coord_im_gt_global_[i].cpu().numpy())
+            uv_coord_im_gt_global_[i] = torch.from_numpy(kpt2d_u).cuda()
+        uv_coord_im_gt_global_ = uv_coord_im_gt_global_.view(B, N, K, 2)
         uv_coord_im_gt_global = uv_coord_im_gt_global.view(B, N, K, 2)
-        leftcam_uv_gt = uv_coord_im_gt_global[:, 0]
+        leftcam_uv_gt = uv_coord_im_gt_global_[:, 0]
         leftcam_x_gt = (leftcam_uv_gt[:, :, 0] -
                         leftcam_cam_matrix[:, 0, 2].view(
                             (B, 1))) / leftcam_cam_matrix[:, 0, 0].view(B, 1)
@@ -427,7 +434,7 @@ class LiftHeadStandard(BaseModule):
         leftcam_xyz_gt = torch.cat(
             (leftcam_x_gt.unsqueeze(-1), leftcam_y_gt.unsqueeze(-1)),
             dim=2)[:B // 2]
-        rightcam_uv_gt = uv_coord_im_gt_global[:, 1]
+        rightcam_uv_gt = uv_coord_im_gt_global_[:, 1]
         rightcam_x_gt = (
             rightcam_uv_gt[:, :, 0] - rightcam_cam_matrix[:, 0, 2].view(
                 (B, 1))) / rightcam_cam_matrix[:, 0, 0].view(B, 1)
@@ -481,7 +488,8 @@ class LiftHeadStandard(BaseModule):
             'valid_mask': valid_mask,
             'edge_mask': edge_mask,
             'right_edge_mask': right_edge_mask,
-            'left_edge_mask': left_edge_mask
+            'left_edge_mask': left_edge_mask,
+            'keypoints_visible': keypoints_visible,
         }
 
     def postprocess(self, hand3d_standard, left_to_right_rt, left_R,

@@ -135,12 +135,12 @@ model = dict(
                 dict(
                     type='MPJPAELoss',
                     seq_length=seq_length,
-                    loss_weight=1,
+                    loss_weight=20,
                 ),
                 dict(
                     type='MPJPAELoss',
                     seq_length=seq_length,
-                    loss_weight=1,
+                    loss_weight=20,
                 ),
                 dict(
                     type='RLELoss',
@@ -378,6 +378,7 @@ val_evaluator = [
         type='MPJPEV2',
         mode=['mpjpe', 'p-mpjpe'],
         score_metric=True,
+        fit_metric=False,  # True时仅测可见, False全测
         # gesture_list=gesture_list,
         rearrange_result=True,
         result_dir='.'),

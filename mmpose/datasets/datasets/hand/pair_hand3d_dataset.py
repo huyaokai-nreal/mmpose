@@ -7,12 +7,9 @@ from typing import Any, Callable, List, Optional, Sequence, Tuple, Union
 import numpy as np
 from mmengine.dataset.base_dataset import force_full_init
 from mmengine.dataset.utils import default_collate
-
 from mmengine.logging import MessageHub, MMLogger
 from nreal_data_tool import LmdbClient, TarClient
-from nreal_data_tool.schema.instance import (BinocularCameraInstance,
-                                             CameraInstance)
-
+from nreal_data_tool.schema.instance import BinocularCameraInstance
 from nreal_data_tool.utils.camera import (build_from_BinocularCameraInstance,
                                           get_virtual_camera_transform)
 from xtcocotools.coco import COCO
@@ -162,10 +159,15 @@ class PairHand3DDataset(BaseCocoStyleDataset):
 
         keypoints3d = np.array(ann['keypoints3d'])[np.newaxis]  # (1,21,3)
         num_keypoints = ann['num_keypoints']
-        keypoints_visible = np.array(ann['keypoints_left'])[...,
-                                                            2].reshape(1, -1)
+        keypoints_visible_left = np.array(ann['keypoints_left'])[...,
+                                                                 2].reshape(
+                                                                     1, -1)
+        keypoints_visible_right = np.array(ann['keypoints_right'])[...,
+                                                                   2].reshape(
+                                                                       1, -1)
         if 'hot3d' in left_img_path:
-            keypoints_visible[0][0] = 0
+            keypoints_visible_left[0][0] = 0
+            keypoints_visible_right[0][0] = 0
         cam_key = ann['camera_instance_id']
         cam_info = self.cams_info[cam_key]
         cam_model_left, cam_model_right = \
@@ -180,7 +182,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             meta['left_R'] = left_R
             meta['right_R'] = right_R
             meta['virtual_baseline'] = virtual_baseline
-        
+
         data_info = {
             'left_img_id': left_img_id,
             'right_img_id': right_img_id,
@@ -195,7 +197,8 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'image_height': left_img_h,
             'bbox_score': np.ones(1, dtype=np.float32),
             'num_keypoints': num_keypoints,
-            'keypoints_visible': keypoints_visible,
+            'keypoints_visible_left': keypoints_visible_left,
+            'keypoints_visible_right': keypoints_visible_right,
             'iscrowd': ann.get('iscrowd', 0),
             'segmentation': ann.get('segmentation', None),
             'id': ann['id'],
@@ -245,7 +248,9 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             keypoints3d_list = []
             ann_ids = coco.getAnnIds()
             if 'hot3d' in anno_file or 'ume' in anno_file:
-                ann_ids = sorted(random.sample(ann_ids, len(ann_ids) // self.sample_interval))
+                ann_ids = sorted(
+                    random.sample(ann_ids,
+                                  len(ann_ids) // self.sample_interval))
             else:
                 ann_ids = ann_ids[::self.sample_interval]
             for ann_id in ann_ids:
@@ -384,14 +389,10 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         meta_right['hand_scale'] = self.hand_scale_list[data_info['meta']
                                                         ['template_bones_id']]
 
-
         left_cam_xf = meta_left['ori_camera'].camera_to_world_xf
         right_cam_xf = meta_right['ori_camera'].camera_to_world_xf
         left_to_right_rt = np.dot(np.linalg.inv(right_cam_xf), left_cam_xf)
         meta_left['external'] = meta_right['external'] = left_to_right_rt
-
-
-
 
         if self.standard_stereo:
             meta_left['cam_to_virtual_R'] = copy.deepcopy(
@@ -432,7 +433,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'lower_body_ids': data_info['lower_body_ids'],
             'flip_pairs': data_info['flip_pairs'],
             'flip_indices': data_info['flip_indices'],
-            'keypoints_visible': data_info['keypoints_visible'].copy(),
+            'keypoints_visible': data_info['keypoints_visible_left'].copy(),
             'camera_name': 'left'
         }
 
@@ -455,7 +456,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             'lower_body_ids': data_info['lower_body_ids'],
             'flip_pairs': data_info['flip_pairs'],
             'flip_indices': data_info['flip_indices'],
-            'keypoints_visible': data_info['keypoints_visible'].copy(),
+            'keypoints_visible': data_info['keypoints_visible_right'].copy(),
             'camera_name': 'right'
         }
 

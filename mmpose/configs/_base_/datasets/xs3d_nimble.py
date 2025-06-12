@@ -826,14 +826,26 @@ datasets_info = {
             'Flora301': [
                 'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250328_151730__poke__normal__right__1101__0006__undistort_tar__Flora301.json',
                 'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250328_152155__poke__normal__left__1101__0006__undistort_tar__Flora301.json',
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250328_153618__poke__normal__left__1101__0007__undistort_tar__Flora301.json',
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250328_153910__poke__normal__right__1101__0007__undistort_tar__Flora301.json',
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250328_153230__poke__normal__right__1101__0002__undistort_tar__Flora301.json',
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250328_153407__poke__normal__left__1101__0002__undistort_tar__Flora301.json',
             ],
             'Flora303': [
                 'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250328_151730__poke__normal__right__1101__0006__undistort_tar__Flora303.json',
                 'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250328_152155__poke__normal__left__1101__0006__undistort_tar__Flora303.json',
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250328_153618__poke__normal__left__1101__0007__undistort_tar__Flora303.json',
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250328_153910__poke__normal__right__1101__0007__undistort_tar__Flora303.json',
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250328_153230__poke__normal__right__1101__0002__undistort_tar__Flora303.json',
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250328_153407__poke__normal__left__1101__0002__undistort_tar__Flora303.json',
             ],
             'Flora304': [
                 'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250328_151730__poke__normal__right__1101__0006__undistort_tar__Flora304.json',
                 'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250328_152155__poke__normal__left__1101__0006__undistort_tar__Flora304.json',
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250328_153618__poke__normal__left__1101__0007__undistort_tar__Flora304.json',
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250328_153910__poke__normal__right__1101__0007__undistort_tar__Flora304.json',
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250328_153230__poke__normal__right__1101__0002__undistort_tar__Flora304.json',
+                'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250328_153407__poke__normal__left__1101__0002__undistort_tar__Flora304.json',
             ],
         },
         # 掌心向上pinch
