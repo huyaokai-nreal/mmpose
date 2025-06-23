@@ -16,7 +16,7 @@ from mmpose.models.heads.nimble.nimble_utils import (
     euler_angles_to_matrix, matrix_to_euler_angles, matrix_to_quaternion,
     rot6D_to_matirx, rot9D_to_matirx, trans_3d_2_2d)
 from mmpose.models.heads.nimble.simple_NIMBLELayer import sim_NIMBLELayer
-from mmpose.models.utils.gmlp import gMLP
+from mmpose.models.utils.gmlp_v3 import gMLP
 from mmpose.models.utils.tta import flip_coordinates, flip_heatmaps
 from mmpose.registry import MODELS
 from mmpose.utils.tensor_utils import to_numpy
@@ -135,9 +135,9 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         self.proj_layer = nn.Conv2d(
             384, feat_channel, kernel_size=1, padding=0)
         self.nimble_hidden_num = 512
-        self.input_dim = feat_channel * 64
+        self.input_dim = feat_channel* 64
         self.f_standard = 200
-        self.liftnet = gMLP(d_model=self.input_dim, d_ffn=220, num_layers=3)
+        self.liftnet = gMLP(d_model=feat_channel, d_ffn=feat_channel*2, num_layers=3)
         # self.feature_fuszion_layer = nn.Sequential(
         #     nn.Conv2d(feat_channel, feat_channel*4, kernel_size=1),
         #     nn.BatchNorm2d(feat_channel*4, momentum=0.1),
@@ -179,8 +179,8 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         if self.output_sigma:
             self.gap = nn.AdaptiveAvgPool2d((1, 1))
             self.sigma_conv = nn.Conv2d(
-                self.input_dim, self.out_channels * 3, kernel_size=1)
-
+                feat_channel * 64, self.out_channels * 3, kernel_size=1)
+    
     def trans_feat(self, image_fea, f_scale):
         B = image_fea.shape[0]
         singlev_scaled_to_orig_xf = torch.eye(4).unsqueeze(0).repeat(
@@ -196,7 +196,7 @@ class RTMCCIPRHeadNimble(RTMCCHead):
             r_in, point_features_xfed) + t_in.unsqueeze(-1)
         ftl_image_fea = point_features_xfed.reshape(image_fea.shape)
         return ftl_image_fea
-
+    
     def _forward(self,
                  feats: Tuple[Tensor],
                  f_scale: Tensor,
@@ -207,7 +207,7 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         raw_feats = feats[-1]
         image_fea = self.proj_layer(raw_feats)
         ftl_image_fea = self.trans_feat(image_fea, f_scale[:, 0, 0, 0])
-        feature_fuszion = self.liftnet(ftl_image_fea.reshape(1, -1, 1, 1))
+        feature_fuszion = self.liftnet(ftl_image_fea).reshape(1, -1, 1, 1)
         mems = torch.zeros_like(feature_fuszion).to(feature_fuszion.device)
         feat_mix = torch.cat([feature_fuszion, mems], dim=1)
         output = self.nimble_last_layer(feat_mix)
@@ -245,9 +245,9 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         image_fea = self.proj_layer(raw_feats)
         ftl_image_fea = self.trans_feat(image_fea, f_scale[:,0,0,0])
         # feature_fuszion = self.feature_fuszion_layer(ftl_image_fea)
-        feature_fuszion = self.liftnet(ftl_image_fea.reshape(B, -1, 1,
-                                                             1)).reshape(
-                                                                 B, -1, 1, 1)
+        # ftl_image_fea = torch.cat([ftl_image_fea, encoded_heatmap], dim=1)
+        
+        feature_fuszion = self.liftnet(ftl_image_fea).reshape(B, -1, 1, 1)
         # coor_fea = output.clone().reshape(B, -1)
         # if intrix_feats.shape[0] != B:
         #     intrix_fea = intrix_feats.repeat(2, 1)
@@ -842,7 +842,7 @@ class RTMCCIPRHeadNimble(RTMCCHead):
             pinch_loss_add = torch.tensor(0.0, device=loss_pre_root.device)
         
         if cur_epoch > 70:
-            loss_2d_reproject = self.reproject_2d_loss(hand2d_pred_pcl_reproject, hand2d_gt_pcl)
+            loss_2d_reproject = self.reproject_2d_loss(hand2d_pred_pcl_reproject, hand2d_pred_pcl_direct.detach())
         else:
             loss_2d_reproject = torch.tensor(0.0, device=hand2d_gt_pcl.device)
 
