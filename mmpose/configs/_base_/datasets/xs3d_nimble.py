@@ -871,7 +871,7 @@ datasets_info = {
                 'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250228_141631__pinch__normal__right__1101__0005__undistort_tar__Flora304.json',
                 'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250228_141850__pinch__normal__left__1101__0005__undistort_tar__Flora304.json',
             ],
-        }
+        },
         # 暗光通用手势
         '20250520': {
             'Flora301': [
