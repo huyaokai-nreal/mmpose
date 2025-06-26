@@ -46,6 +46,24 @@ class TopdownPose3DEstimator(TopdownPoseEstimator):
         self.last_kpt3d = None
         self.root_id = root_id
         self.refine_kpt = refine_kpt
+        
+    def _forward(self, inputs: Tensor):
+        """Network forward process. Usually includes backbone, neck and head
+        forward without any post-processing.
+
+        Args:
+            inputs (Tensor): Inputs with shape (N, C, H, W).
+
+        Returns:
+            tuple: A tuple of features from ``rpn_head`` and ``roi_head``
+            forward.
+        """
+        x = self.extract_feat(inputs)
+        if self.with_head:
+            x = self.head._forward(x)
+            if isinstance(x, list):
+                x = x[-1]
+        return x
 
     def predict(self, inputs: Tensor, data_samples: SampleList) -> SampleList:
 

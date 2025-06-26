@@ -198,13 +198,10 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         return ftl_image_fea
     
     def _forward(self,
-                 feats: Tuple[Tensor],
-                 f_scale: Tensor,
+                 raw_feats,
+                 f_scale,
                  mems=None) -> Tuple[Tensor, Tensor]:
-        feat_x, feat_y = RTMCCHead.forward(self, feats)
         pose_len = self.pose_num
-
-        raw_feats = feats[-1]
         image_fea = self.proj_layer(raw_feats)
         ftl_image_fea = self.trans_feat(image_fea, f_scale[:, 0, 0, 0])
         feature_fuszion = self.liftnet(ftl_image_fea).reshape(1, -1, 1, 1)
@@ -217,8 +214,7 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         pred_sigma = self.sigma_conv(image_fea.reshape(1, -1, 1, 1))
         pred_sigma_reshape = pred_sigma.reshape(
             pred_sigma.size(0), self.out_channels, 3)
-        score = pred_sigma.sigmoid().mean().reshape(1, 1)
-        return feat_x, feat_y, angle, svd_pt, score, pred_sigma_reshape
+        return angle, svd_pt, pred_sigma_reshape
     
     def forward(self, feats: Tuple[Tensor],
                 f_scale: Tensor) -> Tuple[Tensor, Tensor]:

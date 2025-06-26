@@ -122,6 +122,18 @@ class RTMCCIPRHead3D(RTMCCHead3D):
             self.sigma_conv = nn.Conv2d(
                 self.in_channels, self.out_channels * 3, kernel_size=1)
 
+    def _forward(self, feats: Tuple[Tensor]) -> Tuple[Tensor, Tensor]:
+        feat_x, feat_y, feat_z = super().forward(feats)
+        heatmaps = torch.cat([feat_x, feat_y, feat_z], dim=1)
+        raw_feats = feats[-1]
+        pred_x, pred_y, pred_z = self.ipr_module(feat_x, feat_y, feat_z)
+        output = torch.cat([pred_x, pred_y, pred_z], dim=-1)
+        if self.deploy_output == 'kpt':
+            batch_coords = torch.cat([pred_x, pred_y, pred_z], dim=-1)
+            return batch_coords
+        elif self.deploy_output == 'feat':
+            return feat_x, feat_y, feat_z, raw_feats
+        
     def forward(self, feats: Tuple[Tensor]) -> Tuple[Tensor, Tensor]:
         """Forward the network.
 
@@ -151,7 +163,7 @@ class RTMCCIPRHead3D(RTMCCHead3D):
                 batch_coords = torch.cat([pred_x, pred_y, pred_z], dim=-1)
                 return batch_coords
             elif self.deploy_output == 'feat':
-                return feat_x, feat_y, feat_z
+                return feat_x, feat_y, feat_z, raw_feats
         else:
             return output, heatmaps
 
