@@ -389,7 +389,7 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
             ppl_right = self.pipeline(data_info_right)
             return ppl_left, ppl_right
         else:
-            if self.left_cam_sig == 1:
+            if data_info['cat_id'] == 1:
                 return self.pipeline(data_info_left)
             else:
                 return self.pipeline(data_info_right)
