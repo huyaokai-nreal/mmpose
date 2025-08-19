@@ -130,17 +130,17 @@ model = dict(
                     type='PinchLoss',
                     enter_thre=pinch_thre[0] / 1000,
                     exit_thre=pinch_thre[1] / 1000,
-                    loss_weight=1),
-                dict(type='L1Loss', loss_weight=1),  # 根节点监督
+                    loss_weight=5),
+                dict(type='L1Loss', loss_weight=10),  # 根节点监督
                 dict(
                     type='MPJPAELoss',
                     seq_length=seq_length,
-                    loss_weight=20,
+                    loss_weight=2,
                 ),
                 dict(
                     type='MPJPAELoss',
                     seq_length=seq_length,
-                    loss_weight=20,
+                    loss_weight=2,
                 ),
                 dict(
                     type='RLELoss',
@@ -150,6 +150,7 @@ model = dict(
                     '/data/AI_DATA_WX/ykhu/model/liftnimble_20250326_e30.pth'),
                 dict(type='L1Loss', loss_weight=1.),  # 左目重投影误差
                 dict(type='L1Loss', loss_weight=1.),  # 右目重投影误差
+                dict(type='L1Loss', loss_weight=10.),  # 根节点深度
             ]),
         seq_len=4,
         all_use_kp2d_gt=False,
@@ -183,30 +184,31 @@ dataset_type = 'PairHand3DDatasetSeq'
 data_mode = 'topdown'
 
 train_data_list = []
-train_date_list = [
-    '20230824', '20230828', '20230906', '20230907', '20240220', '20240229',
-    '20240401', '20231227', '20240517', '20240425', '20240522', '20240801',
-    '20240816', '20240826', '20240820', '20240903', '20240907', '20240926',
-    '20240914', '20240923', '20240930', '20241018', '20241030', '20241107',
-    '20241121', '20241114', '20241216', '20250107', '20250113', '20250228',
-    '20250328'
-]
 train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
-for data_date in train_date_list:
+for data_date in kpt3d_datasets_info['train_data']:
     for glasses in train_glasses_list:
-        if data_date in kpt3d_datasets_info['train_data']:
-            train_data_list += kpt3d_datasets_info['train_data'][
-                data_date].get(glasses, [])
+        train_data_list += kpt3d_datasets_info['train_data'][data_date].get(
+            glasses, [])
+
 # train_data_list = [
 #     'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250228_140704__pinch__normal__right__1101__0003__undistort_tar__Flora301.json',
 #     'data_hand/hand_keypoint/annotations3d/filter_IK/annotations3d_nimble/XS__20230824_062443__all__normal__right__1111__0006__undistort_tar__Flora301.json',
 # ]
 
-# train_data_list += kpt3d_datasets_info['convert2d_to_3d_e2e']
+# train_data_list += kpt3d_datasets_info['convert2d_to_3d']
+# import random
+# train_data_list = random.sample(train_data_list, 50)
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
+    # 横向移动bmk
+    # 'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250729_110042__pinch__normal__right__1111__0004__undistort_tar__Flora301.json',
+    # 'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250729_110250__pinch__normal__left__1111__0004__undistort_tar__Flora301.json',
+    # 'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250804_163016__all__normal__right__1111__0002__undistort_tar__Flora301.json',
+    # 'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250804_163247__all__normal__left__1111__0002__undistort_tar__Flora301.json',
+
+    # 通用0005bmk
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_070648__all__normal__right__1111__0005__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_071804__all__bright__left__1111__0005__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_072334__pinch__dark__right__1111__0005__undistort_tar__Flora301.json',
@@ -215,6 +217,7 @@ val_data_list = [
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_073556__pinch__bright__left__1111__0005__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_073857__pinch__normal__right__1111__0005__undistort_tar__Flora301.json',
     'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_074601__pinch__bright__left__1111__0005__undistort_tar__Flora301.json',
+
     # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_075055__all__bright__right__1111__0019__undistort_tar__Flora301.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_075728__all__dark__left__1111__0019__undistort_tar__Flora301.json',
     # 'data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_080158__pinch__normal__right__1111__0019__undistort_tar__Flora301.json',
@@ -285,26 +288,26 @@ train_pipeline = [
                 type='RandomBBoxTransform',
                 scale_factor=[0.75, 1.25],
                 rotate_factor=15,
-                rotate_prob=0.3,
-                shift_prob=0.5,
+                rotate_prob=0.2,
+                shift_prob=0.2,
                 shift_factor=0.2),
             dict(type='TopdownAffine', input_size=codec['input_size'][:2]),
             dict(type='RandomDownSampleImage', min_ratio=0.5, prob=0.2),
             dict(type='MixTwoHands', prob=0.1),
-            dict(
-                type='Albumentation',
-                transforms=[
-                    dict(
-                        type='CoarseDropout',
-                        p=0.2,
-                        max_holes=2,
-                        max_height=16,
-                        max_width=16,
-                    ),
-                ]),
+            # dict(
+            #     type='Albumentation',
+            #     transforms=[
+            #         dict(
+            #             type='CoarseDropout',
+            #             p=0.2,
+            #             max_holes=2,
+            #             max_height=16,
+            #             max_width=16,
+            #         ),
+            #     ]),
             dict(
                 type='GenerateNoiseDarkImage',
-                prob=0.65,
+                prob=0.3,
                 gamma_limit=(0.85, 0.95),
                 alpha_limit=(0.2, 0.5),
                 concat_image=False),

@@ -210,6 +210,10 @@ class LiftHeadStandard(BaseModule):
                     nimble_pose.append(data_sample.meta['nimble_pose'])
                     nimble_trans.append(data_sample.meta['nimble_translation'])
                     nimble_shape.append(data_sample.meta['nimble_shape'])
+                else:
+                    nimble_pose.append(np.zeros((20, 3)))
+                    nimble_trans.append(np.zeros(3))
+                    nimble_shape.append(np.zeros(20))
                 if data_sample.meta['category_id'] == 1:
                     is_left_hands.append(1)
                     if data_sample.meta['flipped']:

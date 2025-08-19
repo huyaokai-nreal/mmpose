@@ -4,7 +4,7 @@ from typing import List, Tuple, Union
 import numpy as np
 import torch
 import torch.nn.functional as F
-# from mmengine.logging import MessageHub
+from mmengine.logging import MessageHub
 from torch import Tensor, nn
 
 from mmpose.models.heads.regression_heads.lift_head_rot_standard import \
@@ -180,8 +180,10 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             return (hand3d_pred, leftcam_uv_reproj_distort[:, None, ...], mems,
                     all_sigmas)
         else:
-            return (hand3d_pred, data['uv_coord_im_pred_global_distort'], mems,
-                    all_sigmas)
+            uv_len = len(data['uv_coord_im_pred_global_distort'])
+            return (hand3d_pred,
+                    data['uv_coord_im_pred_global_distort'][:uv_len // 2],
+                    mems, all_sigmas)
 
     def loss(self,
              feats: Tuple[Tensor],
@@ -236,6 +238,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         pred_3d_way1 = pred_3d_way1 * (1 - convert_2d_mask.float())
         all_sigmas = all_sigmas * (1 - convert_2d_mask.float())
         hand3d_pred = hand3d_pred * (1 - convert_2d_mask.float())
+        hand3d_gt = hand3d_gt * (1 - convert_2d_mask.float())
         pre_shape = pre_shape * (1 - convert_2d_mask.float())
         pre_nimble_trans = pre_nimble_trans * (1 -
                                                convert_2d_mask[..., 0].float())
@@ -306,13 +309,14 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             enhanced_left_pred_3d_way1, enhanced_left_pred_3d_way2,
             enhanced_left_hand3d_pred, dist_pred, enhanced_pre_nimble_trans,
             enhanced_static_hand3d_pred, enhanced_static_pred_3d_way1,
-            re_all_sigmas, norm_left_pred_reproj, norm_right_pred_reproj
+            re_all_sigmas, norm_left_pred_reproj, norm_right_pred_reproj,
+            hand3d_pred[:, 0, 2:]
         ]
         targ_for_loss = [
             enhanced_left_hand3d_gt, enhanced_left_hand3d_part_gt,
             enhanced_left_hand3d_gt, dist_gt, enhanced_gt_nimble_trans,
             enhanced_static_hand3d_gt, enhanced_static_hand3d_gt, hand3d_gt,
-            norm_left_gt_reproj, norm_right_gt_reproj
+            norm_left_gt_reproj, norm_right_gt_reproj, hand3d_gt[:, 0, 2:]
         ]
 
         weight_ini = torch.ones((1, 21, 3))
@@ -334,12 +338,13 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         weight_ini_ori_rle *= (1 - convert_2d_mask.float())
         weight_for_loss = [
             weight_ini_ori, weight_ini_for_pre_nimble, weight_ini_ori, None,
-            None, None, None, weight_ini_ori_rle, weight_ini_2d, weight_ini_2d
+            None, None, None, weight_ini_ori_rle, weight_ini_2d, weight_ini_2d,
+            None
         ]
         losses = self.lift_loss(pred_for_loss, targ_for_loss, weight_for_loss)
         (loss_pre_root, loss_pre_nimble, loss_pre_all, loss_pinch,
          loss_nimble_trans, loss_smooth, loss_smooth_root, loss_rle,
-         loss_left_2d_reproj, loss_right_2d_reproj) = losses
+         loss_left_2d_reproj, loss_right_2d_reproj, loss_depth) = losses
 
         # import ipdb;ipdb.set_trace()
         if self.use_shape_smooth:
@@ -392,15 +397,16 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             bone_loss = torch.tensor(0.0, device=loss_pre_root.device)
             major_bone_loss = torch.tensor(0.0, device=loss_pre_root.device)
 
-        # mh = MessageHub.get_current_instance()
-        # cur_epoch = mh.get_info('epoch')
+        mh = MessageHub.get_current_instance()
+        cur_epoch = mh.get_info('epoch')
         magin_value = 0.005
         pinch_mask = (dist_pred > dist_gt - magin_value) & (dist_gt < 0.0225)
+
         reverse_mask = self.generate_mask(batch_data_samples,
                                           self.reverse_pinch_date_list).to(
                                               pinch_mask.cuda())
         reverse_mask = torch.concat([reverse_mask, reverse_mask])
-        # pinch_reverse_mask = pinch_mask & reverse_mask
+        pinch_reverse_mask = pinch_mask & reverse_mask
 
         # left_edge_mask = data['left_edge_mask'][valid_mask]
         # right_edge_mask = data['right_edge_mask'][valid_mask]
@@ -449,14 +455,14 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
                                                   gt_nimble_trans_yz)
 
         # 当实际为pinch时，试图将dist约束为比gt还小，容易pinch
-        # if cur_epoch >= self.max_epochs // 2 and sum(pinch_mask) > 0:
-        #     margin_value = torch.ones_like(dist_gt) * magin_value
-        #     margin_value[pinch_reverse_mask] = magin_value * 1.5
-        #     pinch_loss_add = self.pinch_loss_func(
-        #         dist_pred[pinch_mask],
-        #         (dist_gt[pinch_mask] - margin_value[pinch_mask])) * 3
-        # else:
-        #     pinch_loss_add = torch.tensor(0.0, device=loss_pre_root.device)
+        if cur_epoch >= self.max_epochs // 2 and sum(pinch_mask) > 0:
+            margin_value = torch.ones_like(dist_gt) * magin_value
+            margin_value[pinch_reverse_mask] = magin_value * 1.5
+            pinch_loss_add = self.pinch_loss_func(
+                dist_pred[pinch_mask],
+                (dist_gt[pinch_mask] - margin_value[pinch_mask])) * 3
+        else:
+            pinch_loss_add = torch.tensor(0.0, device=loss_pre_root.device)
 
         plam_ratio = torch.norm(
             hand3d_gt[:, 9, :] - hand3d_gt[:, 0, :], dim=-1) / 0.08
@@ -495,7 +501,6 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
         # mpjpe = mpjpe[~convert_2d_mask.reshape(-1)]
         # score = score[~convert_2d_mask.reshape(-1)]
         # score_loss = (1 - self.pearson_corr(mpjpe, score)) * score_lambda
-
         losses_dict = dict(
             loss_pre_root=loss_pre_root,
             loss_pre_nimble=loss_pre_nimble,
@@ -510,11 +515,12 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             loss_poke=loss_poke,
             loss_hand_constraint=hand_constraint_loss,
             loss_rle=loss_rle,
-            # pinch_loss_add=pinch_loss_add,
+            pinch_loss_add=pinch_loss_add,
             # trans_loss_add=add_trans_loss,
             flip_trans_loss_add=add_flip_trans_loss,
             loss_left_2d_reproj=loss_left_2d_reproj,
             loss_right_2d_reproj=loss_right_2d_reproj,
+            loss_depth=loss_depth
             # score_loss=score_loss
         )
 
@@ -529,11 +535,14 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
     def generate_mask(self, batch_data_samples, date_list):
         mask = []
         for batch_sample in batch_data_samples[::2]:
-            data_info = batch_sample.img_path.split('/')[-1].split(
-                '__')[1].split('_')[0]
-            if data_info in date_list:
-                mask.append(True)
-            else:
+            if 'hand_train_flora' not in batch_sample.img_path:  # 3d 数据
+                data_info = batch_sample.img_path.split('/')[-1].split(
+                    '__')[1].split('_')[0]
+                if data_info in date_list:
+                    mask.append(True)
+                else:
+                    mask.append(False)
+            else:  # 3d 数据
                 mask.append(False)
         mask = torch.tensor(mask)
         return mask
