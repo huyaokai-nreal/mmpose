@@ -1515,6 +1515,7 @@ datasets_info = {
         'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_e2e/hand_train_flora_e2e_20250328__1__binocular__lmdb.json',
         'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_e2e/hand_train_flora_e2e_20250401__1__binocular__lmdb.json',
         'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_e2e/hand_train_flora_e2e_20250909__1__binocular__lmdb.json',
+        'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_e2e/hand_train_flora_e2e_20250915__1__binocular__lmdb.json',
         'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_stliu/hand_train_flora_10k_230327_1_cam0_lmdb__point_flora.json',
         'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_stliu/hand_train_flora_20k_230822_1_cam0_lmdb.json',
         'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_stliu/hand_train_flora_20k_230829_1_cam0_lmdb.json',
