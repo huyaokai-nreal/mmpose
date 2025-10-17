@@ -217,7 +217,7 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
         B = int(B_ori / seq_len)
         image_fea = self.proj_layer(raw_feats)
         ftl_image_fea = self.trans_feat(image_fea, f_scale[:, 0, 0, 0])
-        feature_fuszion = self.liftnet(ftl_image_fea.reshape(B_ori, -1, 1, 1))
+        feature_fuszion = self.liftnet(ftl_image_fea).reshape(B_ori, -1, 1, 1)
 
         if mems is None:
             mems = torch.zeros(B, feature_fuszion.shape[1], 1, 1).cuda()
@@ -336,7 +336,7 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
             ori_cam = batch_data_sample.meta['ori_camera']
             result.append(ori_cam.eye_to_window(hand3d_sin.cpu().numpy()))
 
-        uv_reproj = torch.tensor(result).cuda()
+        uv_reproj = torch.tensor(np.array(result)).cuda()
 
         return hand3d_pred, uv_reproj, mems, sigma
 
@@ -394,7 +394,7 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
                                  [0, vritual_camera.f[1], vritual_camera.c[1]],
                                  [0, 0, 1]])
             f_scale.append(vritual_camera.f[0] / self.f_standard)
-            hand2d_gt.append(keypoint_2d_lable)
+            hand2d_gt.append(keypoint_2d_lable) # 仅使用pcl2d，此项暂未使用
             intrix_matrix.append(intrix_m)
 
             if 'nimble_pose' not in data.meta or data.meta[
@@ -558,7 +558,6 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
                                   weight_for_loss)
         (loss_pre_root, loss_pre_nimble, loss_pre_all, loss_pinch,
          loss_nimble_trans, loss_rle_all, loss_2d_direct, loss_smooth) = losses
-
         # # 子骨骼向量监督
         bone_loss_weight = 0.1
         bone_3d_pre = (hand3d_pred - hand3d_pred[:, self.joint_parents, :]
@@ -613,7 +612,7 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
 
         if cur_epoch > 35:
             loss_2d_reproject = self.reproject_2d_loss(
-                hand2d_pred_pcl_reproject, hand2d_gt_pcl)
+                hand2d_pred_pcl_reproject, hand2d_pred_pcl_direct.detach())
         else:
             loss_2d_reproject = torch.tensor(0.0, device=hand2d_gt_pcl.device)
 

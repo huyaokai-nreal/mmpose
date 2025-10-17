@@ -99,7 +99,7 @@ model = dict(
                 dict(type='L1Loss', use_target_weight=True,
                      loss_weight=1),  # 3d kpts
                 dict(type='L1Loss', use_target_weight=True,
-                     loss_weight=1),  # 3d kpts leftcam
+                     loss_weight=20),  # 3d kpts leftcam
                 dict(type='L1Loss', use_target_weight=True,
                      loss_weight=1),  # 3d kpts rightcam
                 dict(
@@ -126,7 +126,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/stliu/mmpose/work_dirs/new_datasets/RTMpose_nimble_62th/epoch_100.pth'
+        '/data/AI_DATA_WX/byzhou/nimble_DLT_models/best_all_mpjpe_epoch_51.pth'
     ),
     camera_layout=camera_layout)
 
@@ -246,7 +246,7 @@ pub_aria_data_list, _ = get_aria_anno_paths(data_root)
 overlap_dateset = kpt3d_datasets_info['overlap_train_data']
 overlap_dateset = [os.path.join(data_root, item) for item in overlap_dateset]
 
-converted_2d_dateset = kpt3d_datasets_info['converted_2dto3d_data']
+converted_2d_dateset = kpt3d_datasets_info['convert2d_to_3d']
 converted_2d_dateset = [
     os.path.join(data_root, item) for item in converted_2d_dateset
 ]
@@ -264,9 +264,16 @@ val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 
 # val_data_list = [
 #     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081909__pinch__bright__left__1111__0019__undistort_tar__Flora301.json',
-#     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081427__pinch__normal__right__1111__0019__undistort_tar__Flora301.json',
+#     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081427__pinch__normal__right__1111__0019__undistort_tar__Flora301.json',
+#     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250924_111012__grab__normal__left__1111__0008__undistort_tar__Flora301.json'
 # ]
-
+# pub_train_data_list = pub_train_data_list[:3]
+# train_data_list = train_data_list[:2]
+# train_data_list.append('/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250924_111012__grab__normal__left__1111__0008__undistort_tar__Flora301.json')
+# dataset_weight_list = dataset_weight_list[:3]
+# converted_2d_dateset = converted_2d_dateset[:3]
+# overlap_dateset = overlap_dateset[:3]
+# pub_aria_data_list = pub_aria_data_list[:3]
 train_dataloader = dict(
     batch_size=32,
     num_workers=4,
@@ -396,6 +403,9 @@ if test_type == '3d':
         dict(
             type='MPJPEV2',
             mode='mpjpe',
+            # pinch_thre=pinch_thre,
+            # bmk_save_root='/home/ykhu/workspace/mmpose/work_dirs/bad_case_mono/fisheye6202',
+            # show_bmk_thr=(0, 10000000),
             scale_metric=False,
             with_tag=True,
         ),

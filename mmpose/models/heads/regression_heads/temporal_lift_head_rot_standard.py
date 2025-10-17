@@ -399,14 +399,14 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
 
         mh = MessageHub.get_current_instance()
         cur_epoch = mh.get_info('epoch')
-        magin_value = 0.005
-        pinch_mask = (dist_pred > dist_gt - magin_value) & (dist_gt < 0.0225)
+        # magin_value = 0.005 # 如果是pinch，dist往小了预测
+        # pinch_mask = (dist_gt < 0.014)
 
-        reverse_mask = self.generate_mask(batch_data_samples,
-                                          self.reverse_pinch_date_list).to(
-                                              pinch_mask.cuda())
-        reverse_mask = torch.concat([reverse_mask, reverse_mask])
-        pinch_reverse_mask = pinch_mask & reverse_mask
+        # reverse_mask = self.generate_mask(batch_data_samples,
+        #                                   self.reverse_pinch_date_list).to(
+        #                                       pinch_mask.cuda())
+        # reverse_mask = torch.concat([reverse_mask, reverse_mask])
+        # pinch_reverse_mask = pinch_mask & reverse_mask
 
         # left_edge_mask = data['left_edge_mask'][valid_mask]
         # right_edge_mask = data['right_edge_mask'][valid_mask]
@@ -455,14 +455,14 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
                                                   gt_nimble_trans_yz)
 
         # 当实际为pinch时，试图将dist约束为比gt还小，容易pinch
-        if cur_epoch >= self.max_epochs // 2 and sum(pinch_mask) > 0:
-            margin_value = torch.ones_like(dist_gt) * magin_value
-            margin_value[pinch_reverse_mask] = magin_value * 1.5
-            pinch_loss_add = self.pinch_loss_func(
-                dist_pred[pinch_mask],
-                (dist_gt[pinch_mask] - margin_value[pinch_mask])) * 3
-        else:
-            pinch_loss_add = torch.tensor(0.0, device=loss_pre_root.device)
+        # if cur_epoch >= self.max_epochs // 2 and sum(pinch_mask) > 0:
+        #     margin_value = torch.ones_like(dist_gt) * magin_value
+        #     margin_value[pinch_reverse_mask] = magin_value * 1.5
+        #     pinch_loss_add = self.pinch_loss_func(
+        #         dist_pred[pinch_mask],
+        #         (dist_gt[pinch_mask] - margin_value[pinch_mask])) * 3
+        # else:
+        #     pinch_loss_add = torch.tensor(0.0, device=loss_pre_root.device)
 
         plam_ratio = torch.norm(
             hand3d_gt[:, 9, :] - hand3d_gt[:, 0, :], dim=-1) / 0.08
@@ -515,7 +515,7 @@ class TemporalLiftNimbleHeadStandard(LiftNimbleHeadStandard):
             loss_poke=loss_poke,
             loss_hand_constraint=hand_constraint_loss,
             loss_rle=loss_rle,
-            pinch_loss_add=pinch_loss_add,
+            # pinch_loss_add=pinch_loss_add,
             # trans_loss_add=add_trans_loss,
             flip_trans_loss_add=add_flip_trans_loss,
             loss_left_2d_reproj=loss_left_2d_reproj,

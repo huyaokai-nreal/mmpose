@@ -12,7 +12,7 @@ train_cfg = dict(max_epochs=30, val_interval=5)
 # data_root = '/data/AI_DATA'
 data_root = '/data/AI_DATA_WX'
 # data_root = '/data/AI_DATA_LOCAL'
-seq_length = 4
+seq_length = 8
 
 # optimizer
 optim_wrapper = dict(
@@ -135,24 +135,27 @@ model = dict(
                 dict(
                     type='MPJPAELoss',
                     seq_length=seq_length,
-                    loss_weight=2,
+                    loss_weight=20,
+                    # enable_start_epoch=train_cfg['max_epochs']//2
                 ),
                 dict(
                     type='MPJPAELoss',
                     seq_length=seq_length,
-                    loss_weight=2,
+                    loss_weight=20,
+                    # enable_start_epoch=train_cfg['max_epochs']//2
                 ),
                 dict(
                     type='RLELoss',
                     dim=3,
                     use_target_weight=True,
+                    # enable_start_epoch=train_cfg['max_epochs']//2,
                     flow_model_pretrain_path=
-                    '/data/AI_DATA_WX/ykhu/model/liftnimble_20250326_e30.pth'),
+                    '/data/AI_DATA_WX/ykhu/model/liftnimble_20250815_depthaug.pth'),
                 dict(type='L1Loss', loss_weight=1.),  # 左目重投影误差
                 dict(type='L1Loss', loss_weight=1.),  # 右目重投影误差
-                dict(type='L1Loss', loss_weight=10.),  # 根节点深度
+                dict(type='L1Loss', loss_weight=20.),  # 根节点深度
             ]),
-        seq_len=4,
+        seq_len=seq_length,
         all_use_kp2d_gt=False,
         kpt2d_with_depth=kpt2d_with_depth,
         undistort=True,
@@ -174,9 +177,7 @@ model = dict(
         shift_coords=False,
         shift_heatmap=False,
     ),
-    init_cfg=dict(
-        type='Pretrained',
-        checkpoint='/data/AI_DATA_WX/ykhu/model/liftnimble_20250326_e30.pth'),
+    init_cfg=dict(type='Pretrained', checkpoint='/data/AI_DATA_WX/ykhu/model/liftnimble_20250815_depthaug.pth'),
 )
 
 # base dataset settings
@@ -202,6 +203,9 @@ train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
 
 val_data_list = [
+    # fisheye6202数据
+    # 'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250924_111722__thumbup__normal__left__1111__0008__undistort_tar__Flora301.json',
+    
     # 横向移动bmk
     # 'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250729_110042__pinch__normal__right__1111__0004__undistort_tar__Flora301.json',
     # 'data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250729_110250__pinch__normal__left__1111__0004__undistort_tar__Flora301.json',
@@ -380,9 +384,12 @@ val_evaluator = [
     dict(
         type='MPJPEV2',
         mode=['mpjpe', 'p-mpjpe'],
+        # pinch_thre = pinch_thre, # mm
         score_metric=True,
         fit_metric=False,  # True时仅测可见, False全测
         # gesture_list=gesture_list,
+        # bmk_save_root='/home/ykhu/workspace/mmpose/work_dirs/bad_case_liftnet/fisheye6202',
+        # show_bmk_thr=(0, 10000000),
         rearrange_result=True,
         result_dir='.'),
     # dict(type='EPE'),

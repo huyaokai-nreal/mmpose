@@ -380,8 +380,12 @@ class LiftHeadStandard(BaseModule):
             kpt2d_u = camera_model.undistort(
                 uv_coord_im_pred_global[i].cpu().numpy().astype(np.float32))
             uv_coord_im_pred_global[i] = torch.from_numpy(kpt2d_u).cuda()
+            if self.data_flip_aug:
+                # 增强的后半部分数据也需要去畸变
+                kpt2d_u = camera_model.undistort(
+                    uv_coord_im_pred_global[i+B].cpu().numpy().astype(np.float32))
+                uv_coord_im_pred_global[i+B] = torch.from_numpy(kpt2d_u).cuda()
         uv_coord_im_pred_global = uv_coord_im_pred_global.view(B, N, K, 2)
-
         leftcam_uv = uv_coord_im_pred_global[:, 0]
         leftcam_x = (leftcam_uv[:, :, 0] - leftcam_cam_matrix[:, 0, 2].view(
             (B, 1))) / leftcam_cam_matrix[:, 0, 0].view(B, 1)
