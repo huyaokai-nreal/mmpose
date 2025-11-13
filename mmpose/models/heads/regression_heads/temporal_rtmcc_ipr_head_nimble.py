@@ -394,7 +394,7 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
                                  [0, vritual_camera.f[1], vritual_camera.c[1]],
                                  [0, 0, 1]])
             f_scale.append(vritual_camera.f[0] / self.f_standard)
-            hand2d_gt.append(keypoint_2d_lable) # 仅使用pcl2d，此项暂未使用
+            hand2d_gt.append(keypoint_2d_lable)  # 仅使用pcl2d，此项暂未使用
             intrix_matrix.append(intrix_m)
 
             if 'nimble_pose' not in data.meta or data.meta[
@@ -658,6 +658,16 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
             pinch_loss_add=pinch_loss_add,
             hand_constraint_loss=hand_constraint_loss,
             loss_poke=loss_poke)
+
+        # 如有nan loss 则置为0
+        for key, value in losses.items():
+            if isinstance(value, torch.Tensor):
+                if torch.isnan(value).any() or torch.isinf(value).any():
+                    losses[key] = torch.tensor(0.0, device=value.device)
+            else:
+                if value != value or value == float('inf') or value == float(
+                        '-inf'):
+                    losses[key] = 0.0
 
         # calculate 3d metric
         def cal_mpjpe(pre_kpt, gt_kpt):

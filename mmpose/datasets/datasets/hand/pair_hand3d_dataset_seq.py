@@ -34,7 +34,7 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
                  metainfo: Optional[dict] = None,
                  filter_cfg: Optional[dict] = None,
                  indices: Optional[Union[int, Sequence[int]]] = None,
-                 serialize_data: bool = False,
+                 serialize_data: bool = True,
                  lazy_init: bool = False,
                  max_refetch: int = 100,
                  flip_left_to_right: bool = True,

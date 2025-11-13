@@ -9,7 +9,8 @@ from mmengine.dataset.base_dataset import force_full_init
 from mmengine.dataset.utils import default_collate
 from mmengine.logging import MessageHub, MMLogger
 from nreal_data_tool import LmdbClient, TarClient
-from nreal_data_tool.schema.instance import BinocularCameraInstance, CameraInstance
+from nreal_data_tool.schema.instance import (BinocularCameraInstance,
+                                             CameraInstance)
 from nreal_data_tool.utils.camera import (build_from_BinocularCameraInstance,
                                           build_from_CameraInstance,
                                           get_virtual_camera_transform)
@@ -35,7 +36,7 @@ class Hand3DDatasetSeq(BaseCocoStyleDataset):
                  metainfo: Optional[dict] = None,
                  filter_cfg: Optional[dict] = None,
                  indices: Optional[Union[int, Sequence[int]]] = None,
-                 serialize_data: bool = False,
+                 serialize_data: bool = True,
                  lazy_init: bool = False,
                  max_refetch: int = 100,
                  dataset_weight_list: List = [],
@@ -128,7 +129,6 @@ class Hand3DDatasetSeq(BaseCocoStyleDataset):
             else:
                 return int(len(self.data_list) * self.data_ratio)
 
-
     def _get_mean_hand_bones(self, keypoints3d_list):
         N = keypoints3d_list.shape[0]
         root_keypoints3d = keypoints3d_list[:, :1, :].reshape((N, 1, 1, 3))
@@ -158,9 +158,8 @@ class Hand3DDatasetSeq(BaseCocoStyleDataset):
 
         ann = raw_data_info['raw_ann_info']
         img = raw_data_info['raw_img_info']
-        
-        img_path = osp.join(self.data_prefix['img'],
-                                 img['file_name'])
+
+        img_path = osp.join(self.data_prefix['img'], img['file_name'])
 
         # filter invalid instance
         if 'bbox' not in ann or 'keypoints' not in ann:
@@ -182,7 +181,7 @@ class Hand3DDatasetSeq(BaseCocoStyleDataset):
             ann['keypoints'], dtype=np.float32).reshape(1, -1, 3)
         keypoints = _keypoints[..., :2]
         keypoints3d = np.array(ann['keypoints3d'])[np.newaxis]  # (1,21,3)
-        
+
         keypoints_visible = np.minimum(1, _keypoints[..., 2])
         if 'hot3d' in img_path:
             keypoints_visible[0][0] = 0
@@ -248,11 +247,11 @@ class Hand3DDatasetSeq(BaseCocoStyleDataset):
                     self.cams_info[k] = CameraInstance.from_dict(v)
             keypoints3d_list = []
             ann_ids = coco.getAnnIds()
-            used_ann_ids_num = int(len(ann_ids)*self.sample_interval)
-            begin_num = random.randint(0, len(ann_ids)-used_ann_ids_num)
-            for ann_id in ann_ids[begin_num:begin_num+used_ann_ids_num]:
+            used_ann_ids_num = int(len(ann_ids) * self.sample_interval)
+            begin_num = random.randint(0, len(ann_ids) - used_ann_ids_num)
+            for ann_id in ann_ids[begin_num:begin_num + used_ann_ids_num]:
                 ann = coco.loadAnns(ann_id)[0]
-                img_id = int(ann['id'])//2
+                img_id = int(ann['id']) // 2
                 img = coco.loadImgs(img_id)[0]
 
                 if ann['category_id'] == 1:
@@ -284,7 +283,7 @@ class Hand3DDatasetSeq(BaseCocoStyleDataset):
                 seq_list.append(instance_idx)
                 image_list.append(img)
                 instance_idx += 1
-            
+
             self.dataset_info_list.append(seq_list)
 
             if len(keypoints3d_list) > 0:
@@ -314,7 +313,6 @@ class Hand3DDatasetSeq(BaseCocoStyleDataset):
         data_info['meta']['frame_width'] = data_info['img'].shape[1]
         return data_info
 
-
     def get_seq_idx(self, idx) -> list:
         # 随机一个训练文件
         seq_list = []
@@ -338,7 +336,7 @@ class Hand3DDatasetSeq(BaseCocoStyleDataset):
             seq_list_cur_idx = idx
         idx_list = []
         for i in range(self.seq_len):
-            tmp = max(seq_list_cur_idx - 2*i, 0)
+            tmp = max(seq_list_cur_idx - 2 * i, 0)
             idx_list.append(tmp)
 
         idx_list.reverse()
@@ -363,11 +361,11 @@ class Hand3DDatasetSeq(BaseCocoStyleDataset):
         Returns:
             Any: Depends on ``self.pipeline``.
         """
-        
+
         collate_list = []
         # import ipdb;ipdb.set_trace()
         seq_idx_list = self.get_seq_idx(idx)
-        
+
         for i, idx in enumerate(seq_idx_list):
             data_info_ori = self.get_data_info(idx)
             data_info = copy.deepcopy(data_info_ori)
@@ -376,7 +374,7 @@ class Hand3DDatasetSeq(BaseCocoStyleDataset):
             meta['template_bones'] = self.hand_bones_list[
                 data_info['meta']['template_bones_id']]
             meta['hand_scale'] = self.hand_scale_list[data_info['meta']
-                                                        ['template_bones_id']]
+                                                      ['template_bones_id']]
 
             meta['test_mode'] = self.test_mode
             meta['camera_name'] = 'left'
@@ -405,6 +403,6 @@ class Hand3DDatasetSeq(BaseCocoStyleDataset):
                 data_info['meta']['flipped'] = True
             pipeline_results = self.pipeline(data_info)
             collate_list.append(pipeline_results)
-        
+
         all_results = default_collate(collate_list)
         return all_results

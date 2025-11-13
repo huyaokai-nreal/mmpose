@@ -99,7 +99,7 @@ model = dict(
                 dict(type='L1Loss', use_target_weight=True,
                      loss_weight=1),  # 3d kpts
                 dict(type='L1Loss', use_target_weight=True,
-                     loss_weight=20),  # 3d kpts leftcam
+                     loss_weight=10),  # 3d kpts leftcam
                 dict(type='L1Loss', use_target_weight=True,
                      loss_weight=1),  # 3d kpts rightcam
                 dict(
@@ -112,6 +112,8 @@ model = dict(
                 dict(
                     type='RLELoss',
                     dim=3,
+                    flow_model_pretrain_path=
+                    '/data/AI_DATA_WX/byzhou/nimble_DLT_models/best_all_mpjpe_epoch_51.pth',
                     enable_start_epoch=train_cfg['max_epochs'] // 2),
                 dict(type='L1Loss', use_target_weight=False, loss_weight=2),
                 dict(
@@ -145,7 +147,7 @@ visualizer = dict(
 #     checkpoint=dict(save_best='all mAP', rule='less'))
 
 default_hooks = dict(
-    checkpoint=dict(interval=5, save_best='all_mpjpe', rule='less'),
+    checkpoint=dict(interval=3, save_best='all_mpjpe', rule='less'),
     run_time_info=dict(type='RuntimeInfoHookV2'))
 
 # base dataset settings
@@ -200,18 +202,11 @@ val_pipeline = [
 dataset_type = 'PairHand3DDatasetSeq'
 data_mode = 'topdown'
 train_data_list = []
-train_date_list = [
-    '20230824', '20230828', '20230906', '20230907', '20240220', '20240229',
-    '20240401', '20231227', '20240517', '20240425', '20240522', '20240801',
-    '20240816', '20240826', '20240820', '20240903', '20240907', '20240926',
-    '20240914', '20240923', '20240930', '20241018', '20241030', '20241107'
-]
 train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
-for data_date in train_date_list:
+for data_date in kpt3d_datasets_info['train_data']:
     for glasses in train_glasses_list:
-        if data_date in kpt3d_datasets_info['train_data']:
-            train_data_list += kpt3d_datasets_info['train_data'][
-                data_date].get(glasses, [])
+        train_data_list += kpt3d_datasets_info['train_data'][data_date].get(
+            glasses, [])
 
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
@@ -265,11 +260,12 @@ val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # val_data_list = [
 #     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081909__pinch__bright__left__1111__0019__undistort_tar__Flora301.json',
 #     # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081427__pinch__normal__right__1111__0019__undistort_tar__Flora301.json',
-#     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250924_111012__grab__normal__left__1111__0008__undistort_tar__Flora301.json'
+#     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250924_112651__thumbup__normal__right__1111__0011__undistort_tar__Flora301.json',
+#     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250924_110720__grab__normal__right__1111__0008__undistort_tar__Flora301.json',
+    
 # ]
 # pub_train_data_list = pub_train_data_list[:3]
-# train_data_list = train_data_list[:2]
-# train_data_list.append('/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250924_111012__grab__normal__left__1111__0008__undistort_tar__Flora301.json')
+# train_data_list = train_data_list[:3]
 # dataset_weight_list = dataset_weight_list[:3]
 # converted_2d_dateset = converted_2d_dateset[:3]
 # overlap_dateset = overlap_dateset[:3]
@@ -403,9 +399,7 @@ if test_type == '3d':
         dict(
             type='MPJPEV2',
             mode='mpjpe',
-            # pinch_thre=pinch_thre,
-            # bmk_save_root='/home/ykhu/workspace/mmpose/work_dirs/bad_case_mono/fisheye6202',
-            # show_bmk_thr=(0, 10000000),
+            pinch_thre=pinch_thre,
             scale_metric=False,
             with_tag=True,
         ),
