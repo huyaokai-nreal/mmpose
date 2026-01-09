@@ -45,7 +45,9 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
                  static_prob=0,
                  data_ratio=-1,
                  point_type='3D',
+                 filter_hand_type =False,
                  filter_kpt_exceed=False,
+                 kpt_within_ratio=0.5,
                  sample_interval=1.0,
                  seq_len=4,
                  choice_one=False,
@@ -69,7 +71,9 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
         self.test_mode = test_mode
         self.round_num = round_num
         self.epochs_per_round = epochs_per_round
+        self.filter_hand_type = filter_hand_type
         self.filter_kpt_exceed = filter_kpt_exceed
+        self.kpt_within_ratio = kpt_within_ratio
         self.sample_interval = sample_interval
         self.choice_one = choice_one
         self.static_prob = static_prob
@@ -204,6 +208,10 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
             self.data_file_list = [self.data_file_list[self.sub_data_index]]
         instance_idx = 0
         random.shuffle(self.data_file_list)
+        self.dataset_info_start_idx = []
+        self.anno_to_dataset_file_idx = []
+        left_filter, right_filter = 0, 0
+        invalid_left_anno, invalid_right_anno = 0, 0
         for i, anno_file in enumerate(self.data_file_list):
             coco = COCO(anno_file)
             lmdb_path = osp.join(self.lmdb_data_root,
@@ -218,14 +226,25 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
             else:
                 begin_num = np.random.choice(
                     range(len(ann_ids) - used_ann_ids_num))
+            start_instance_idx = instance_idx
             for ann_id in ann_ids[begin_num:begin_num + used_ann_ids_num]:
                 ann = coco.loadAnns(ann_id)[0]
+                
+                if self.filter_hand_type:
+                    # 真值系统采集数据, 确保每帧（左右目图片）只包含一只手
+                    if ann['category_id'] == 1 and "__left__" not in anno_file:
+                        invalid_left_anno += 1
+                        continue
+                    if ann['category_id'] == 2 and "__right__" not in anno_file:
+                        invalid_right_anno += 1
+                        continue
                 left_img_id = int(ann['image_id'].split('_')[0])
                 right_img_id = int(ann['image_id'].split('_')[1])
                 left_img = coco.loadImgs(left_img_id)[0]
                 right_img = coco.loadImgs(right_img_id)[0]
                 image_list.append(left_img)
                 image_list.append(right_img)
+                
                 if self.filter_kpt_exceed:
                     left_keypoints = np.array(
                         ann['keypoints_left'])[..., :2].reshape(-1, 2)
@@ -234,13 +253,17 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
                     left_within_bounds = PairHand3DDataset \
                         .is_keypoint_within_bounds(
                             left_keypoints, left_img['width'],
-                            left_img['height'])
+                            left_img['height'], self.kpt_within_ratio)
                     right_within_bounds = PairHand3DDataset \
                         .is_keypoint_within_bounds(
                             right_keypoints, right_img['width'],
-                            right_img['height'])
+                            right_img['height'], self.kpt_within_ratio)
                     if not left_within_bounds or not right_within_bounds:
                         filter_annotation_num += 1
+                        if ann['category_id'] == 1:
+                            left_filter += 1
+                        else:
+                            right_filter += 1
                         continue
 
                 data_info = self.parse_data_info(
@@ -261,15 +284,22 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
 
                 instance_list.append(data_info)
                 seq_list.append(instance_idx)
+                self.dataset_info_start_idx.append(start_instance_idx)
+                self.anno_to_dataset_file_idx.append(i)
                 instance_idx += 1
 
             self.dataset_info_list.append(seq_list)
 
         logger: MMLogger = MMLogger.get_current_instance()
         logger.info(
-            f'HandDataset loaded {len(image_list)} images, {len(instance_list)} pair instances'  # noqa
+            f'Train PairHandDataset loaded {len(image_list)} images, {len(instance_list)} pair instances'  # noqa
         )
-
+        logger.info(
+            f'invalid_left_anno by hand_type {invalid_left_anno}, invalid_right_anno by hand_type {invalid_right_anno}'
+        )
+        logger.info(
+            f'left_filter by within_area_ratio: {left_filter} right_filter by within_area_ratio: {right_filter} '  # noqa
+        )
         return instance_list, image_list
 
     def get_image(self, image_path):
@@ -396,42 +426,48 @@ class PairHand3DDatasetSeq(BaseCocoStyleDataset):
 
     def get_seq_idx(self, idx) -> list:
         # 随机一个训练文件
-        seq_list = []
-        while (len(seq_list) == 0):
-            seq_idx = np.random.choice(range(len(self.dataset_info_list)))
-            # 数据分批，并根据当前epoch随机从一个批次中抽一份数据
-            if self.round_num > 0:
-                num_per_round = len(self.dataset_info_list) // self.round_num
-                mh = MessageHub.get_current_instance()
-                cur_epoch = mh.get_info('epoch')
-                round_id = cur_epoch // self.epochs_per_round % self.round_num
-                seq_idx = random.randint(
-                    round_id * num_per_round,
-                    min(
-                        len(self.dataset_info_list) - 1,
-                        (round_id + 1) * num_per_round - 1))
-            seq_list = self.dataset_info_list[seq_idx]
-        seq_list_cur_idx = np.random.choice(range(len(seq_list)))
-
-        if self.test_mode:
-            seq_list_cur_idx = idx
+        # seq_list = []
+        # while (len(seq_list) == 0):
+        #     seq_idx = np.random.choice(range(len(self.dataset_info_list)))
+        #     # 数据分批，并根据当前epoch随机从一个批次中抽一份数据
+        #     if self.round_num > 0:
+        #         num_per_round = len(self.dataset_info_list) // self.round_num
+        #         mh = MessageHub.get_current_instance()
+        #         cur_epoch = mh.get_info('epoch')
+        #         round_id = cur_epoch // self.epochs_per_round % self.round_num
+        #         seq_idx = random.randint(
+        #             round_id * num_per_round,
+        #             min(
+        #                 len(self.dataset_info_list) - 1,
+        #                 (round_id + 1) * num_per_round - 1))
+        #     seq_list = self.dataset_info_list[seq_idx]
+        # seq_list_cur_idx = np.random.choice(range(len(seq_list)))
+        
+        cur_seq_start_idx = self.dataset_info_start_idx[idx]
+        
+        # if self.test_mode:
+        #     seq_list_cur_idx = idx
         idx_list = []
-        if 'hot3d' in self.data_file_list[seq_idx]:
-            for i in range(self.seq_len):
-                tmp = max(seq_list_cur_idx - 2 * i, 0)
-                idx_list.append(tmp)
+        if 'hot3d' in self.data_file_list[self.anno_to_dataset_file_idx[idx]]:
+            for i in range(self.seq_len): # left_hand 和 right_hand交替出现
+                next_idx = idx - 2 * i
+                if i > 0 and next_idx < cur_seq_start_idx:
+                    next_idx = idx_list[-1]
+                idx_list.append(next_idx)
         else:
-            for i in range(self.seq_len):
-                tmp = max(seq_list_cur_idx - i, 0)
-                idx_list.append(tmp)
-        idx_list.reverse()
-        if self.static_prob > 0 and np.random.rand() < self.static_prob:
-            idx_list = np.full(self.seq_len, np.random.choice(idx_list))
-        final_list = []
-        for idx in idx_list:
-            tmp = seq_list[idx]
-            final_list.append(tmp)
-        return final_list
+            for i in range(self.seq_len): # 单手
+                next_idx = idx - i
+                if i > 0 and next_idx < cur_seq_start_idx:
+                    next_idx = idx_list[-1]
+                idx_list.append(next_idx)
+        # idx_list.reverse()
+        # if self.static_prob > 0 and np.random.rand() < self.static_prob:
+        #     idx_list = np.full(self.seq_len, np.random.choice(idx_list))
+        # final_list = []
+        # for idx in idx_list:
+        #     tmp = seq_list[idx]
+        #     final_list.append(tmp)
+        return idx_list[::-1]
 
     @force_full_init
     def prepare_data(self, idx) -> Any:

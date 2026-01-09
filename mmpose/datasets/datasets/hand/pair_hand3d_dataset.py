@@ -44,7 +44,9 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                  sub_data_index=-1,
                  data_ratio=-1,
                  point_type='3D',
+                 filter_hand_type=False,
                  filter_kpt_exceed=False,
+                 kpt_within_ratio=0.5,
                  standard_stereo=False,
                  sample_interval=1,
                  round_num=-1,
@@ -64,7 +66,9 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         self.sub_data_index = int(sub_data_index)
         self.cams_info = dict()
         self.hand_bones_list = list()
+        self.filter_hand_type = filter_hand_type
         self.filter_kpt_exceed = filter_kpt_exceed
+        self.kpt_within_ratio = kpt_within_ratio
         self.sample_interval = sample_interval
         self.standard_stereo = standard_stereo
         self.round_num = round_num
@@ -101,11 +105,11 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             raise NotImplementedError
 
     @staticmethod
-    def is_keypoint_within_bounds(keypoint, image_width, image_height):
+    def is_keypoint_within_bounds(keypoint, image_width, image_height, kpt_within_ratio):
         x, y = keypoint[:, 0], keypoint[:, 1]
         within_mask = ((0 <= x) & (x < image_width)) & ((0 <= y) &
                                                         (y < image_height))
-        return within_mask.sum() >= keypoint.shape[0] * 0.5
+        return within_mask.sum() >= keypoint.shape[0] * kpt_within_ratio
 
     @force_full_init
     def __len__(self) -> int:
@@ -238,6 +242,7 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         f301, f302, f303, f304 = 0, 0, 0, 0
         left, right = 0, 0
         left_filter, right_filter = 0, 0
+        invalid_left_anno, invalid_right_anno = 0, 0
         for i, anno_file in enumerate(self.data_file_list):
             coco = COCO(anno_file)
             lmdb_path = osp.join(self.lmdb_data_root,
@@ -255,21 +260,30 @@ class PairHand3DDataset(BaseCocoStyleDataset):
                 ann_ids = ann_ids[::self.sample_interval]
             for ann_id in ann_ids:
                 ann = coco.loadAnns(ann_id)[0]
+
+                if self.filter_hand_type:
+                    # 真值系统采集数据, 确保每帧（左右目）只包含一只手
+                    if ann['category_id'] == 1 and "__left__" not in anno_file:
+                        invalid_left_anno += 1
+                        continue
+                    if ann['category_id'] == 2 and "__right__" not in anno_file:
+                        invalid_right_anno += 1
+                        continue
                 left_img_id = int(ann['image_id'].split('_')[0])
                 right_img_id = int(ann['image_id'].split('_')[1])
                 left_img = coco.loadImgs(left_img_id)[0]
                 right_img = coco.loadImgs(right_img_id)[0]
-
+                
                 if self.filter_kpt_exceed:
                     left_keypoints = np.array(
                         ann['keypoints_left'])[..., :2].reshape(-1, 2)
                     right_keypoints = np.array(
                         ann['keypoints_right'])[..., :2].reshape(-1, 2)
                     left_within_bounds = self.is_keypoint_within_bounds(
-                        left_keypoints, left_img['width'], left_img['height'])
+                        left_keypoints, left_img['width'], left_img['height'], self.kpt_within_ratio)
                     right_within_bounds = self.is_keypoint_within_bounds(
                         right_keypoints, right_img['width'],
-                        right_img['height'])
+                        right_img['height'], self.kpt_within_ratio)
                     if not left_within_bounds or not right_within_bounds:
                         if ann['category_id'] == 1:
                             left_filter += 1
@@ -321,19 +335,26 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             logger.info(
                 f'Test PairHandDataset loaded {len(image_list)} images, {len(instance_list)} pair instances, filter {filter_annotation_num} pair instances'  # noqa
             )
+            logger.info(
+                f'Test PairHandDataset invalid_left_anno {invalid_left_anno}, invalid_right_anno {invalid_right_anno}'  # noqa
+            )
         else:
             logger.info(
                 f'Train PairHandDataset loaded {len(image_list)} images, {len(instance_list)} pair instances, filter {filter_annotation_num} pair instances'  # noqa
             )
             logger.info(
-                f'flora301: {f301} flora302: {f302} flora303: {f303} flora304: {f304} '  # noqa
-                f'left: {left} right: {right} left_filter: {left_filter} right_filter: {right_filter} '  # noqa
+                f'left: {left} right: {right}')
+            logger.info(
+                f'invalid_left_anno by hand_type {invalid_left_anno}, invalid_right_anno by hand_type {invalid_right_anno}'
+            )
+            logger.info(
+                f'left_filter by within_area_ratio: {left_filter} right_filter by within_area_ratio: {right_filter} '  # noqa
             )
         return instance_list, image_list
 
     def get_data_info(self, idx):
         if not self.test_mode:
-            idx = random.randint(0, self.data_num - 1)
+            # idx = random.randint(0, self.data_num - 1)
             if self.round_num > 0:
                 num_per_round = self.data_num // self.round_num
                 mh = MessageHub.get_current_instance()
@@ -470,7 +491,8 @@ class PairHand3DDataset(BaseCocoStyleDataset):
             data_info_right['meta']['flipped'] = True
         if self.point_type == 'leftcam':
             all_results = self.pipeline(data_info_left)
-        elif self.point_type == '2.5D' and self.test_mode:
+        # elif self.point_type == '2.5D' and self.test_mode:
+        elif self.point_type == '2.5D':
             raw_data = data_info_left if data_info['cat_id'] == 1 else \
                 data_info_right
             return self.pipeline(raw_data)
