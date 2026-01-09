@@ -161,7 +161,7 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
         raw_feats = feats[-1]
         image_fea = self.proj_layer(raw_feats)
         ftl_image_fea = self.trans_feat(image_fea, f_scale[:, 0, :, :])
-        feature_fuszion = self.liftnet(ftl_image_fea.reshape(1, -1, 1, 1))
+        feature_fuszion = self.liftnet(ftl_image_fea).reshape(1, -1, 1, 1)
         if mems is None:
             mems = torch.zeros_like(feature_fuszion).to(feature_fuszion.device)
         feat_mix = torch.cat([feature_fuszion, mems], dim=1)
