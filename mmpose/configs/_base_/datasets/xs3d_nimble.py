@@ -1895,7 +1895,7 @@ datasets_info = {
         'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_nimble_hand_train/XS__20250924_120005__thumbup__normal__right__1111__0004__undistort_tar__Flora301__marker_20240711112656.json',
         'data_hand/hand_keypoint/annotations3d/overlap_binocular_coco_nimble_hand_train/XS__20250924_120217__thumbup__normal__left__1111__0004__undistort_tar__Flora301__marker_20240711114343.json',
     ],
-    'convert2d_to_3d': [
+    'convert2d_to_3d_seq': [
         'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_e2e/hand_train_flora_e2e_20241220_1__1__binocular__lmdb.json',
         'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_e2e/hand_train_flora_e2e_20241220_2__1__binocular__lmdb.json',
         'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_e2e/hand_train_flora_e2e_20241220_3__1__binocular__lmdb.json',
@@ -1917,6 +1917,8 @@ datasets_info = {
         'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_e2e/hand_train_flora_e2e_20250401__1__binocular__lmdb.json',
         'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_e2e/hand_train_flora_e2e_20250909__1__binocular__lmdb.json',
         'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_e2e/hand_train_flora_e2e_20250915__1__binocular__lmdb.json',
+    ],
+    'convert2d_to_3d': [
         'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_stliu/hand_train_flora_10k_230327_1_cam0_lmdb__point_flora.json',
         'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_stliu/hand_train_flora_20k_230822_1_cam0_lmdb.json',
         'data_hand/hand_keypoint/annotations3d/convert2d_to_3d_stliu/hand_train_flora_20k_230829_1_cam0_lmdb.json',
