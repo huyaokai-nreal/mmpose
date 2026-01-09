@@ -364,7 +364,7 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
         nimble_info = dict()
         nimble_lable_exist = []
         use_3d_supervise_mask = []
-
+        
         for i, data in enumerate(batch_data_samples):
             if 'ume' in data.img_path or 'hand_train_flora' in data.img_path:
                 use_3d_supervise_mask.append(False)
@@ -465,7 +465,7 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
         weight_num = sigma.shape[1] * 2
         kpt_weight = torch.eye(weight_num).unsqueeze(0).repeat(
             batch_size, 1, 1).to(sigma.device)
-        if cur_epoch > 35:
+        if cur_epoch > 100:
             sigma_kpt = torch.mean(sigma, dim=-1)
             sigma_kpt_softmax = torch.softmax(sigma_kpt, dim=1)
             sigma_kpt_softmax = sigma_kpt_softmax.unsqueeze(2).repeat(

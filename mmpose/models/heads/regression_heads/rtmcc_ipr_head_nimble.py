@@ -326,15 +326,15 @@ class RTMCCIPRHeadNimble(RTMCCHead):
             hand2d_gt.append(keypoint_2d_lable)
             intrix_matrix.append(intrix_m)
 
-        left_R = torch.tensor(np.array(left_R)).cuda().float()
-        left_hand = torch.tensor(np.array(is_left_hands)).cuda().float()
-        intrix_matrix = torch.tensor(np.array(intrix_matrix)).cuda().float()
+        left_R = torch.tensor(np.array(left_R)).cuda(non_blocking=True).float()
+        left_hand = torch.tensor(np.array(is_left_hands)).cuda(non_blocking=True).float()
+        intrix_matrix = torch.tensor(np.array(intrix_matrix)).cuda(non_blocking=True).float()
         intrix_fea = intrix_matrix.reshape(left_R.shape[0], -1)
-        hand3d_gt = torch.tensor(np.array(hand3d_gt)).cuda().float()
-        hand2d_gt = torch.tensor(np.array(hand2d_gt)).cuda().float()
-        f_scale = torch.tensor(np.array(f_scale)).cuda().float()[:, None, None,
+        hand3d_gt = torch.tensor(np.array(hand3d_gt)).cuda(non_blocking=True).float()
+        hand2d_gt = torch.tensor(np.array(hand2d_gt)).cuda(non_blocking=True).float()
+        f_scale = torch.tensor(np.array(f_scale)).cuda(non_blocking=True).float()[:, None, None,
                                                                  None]
-
+        torch.cuda.synchronize()
         if test_cfg.get('flip_test', False):
             # TTA: flip test -> feats = [orig, flipped]
             assert isinstance(feats, list) and len(feats) == 2
@@ -661,18 +661,19 @@ class RTMCCIPRHeadNimble(RTMCCHead):
             hand2d_gt_pcl.append(vritual_camera.world_to_window(kpt3d_tmp))
 
         label_2d = torch.cat(label_2d_list)
-        left_R = torch.tensor(np.array(left_R)).cuda().float()
-        left_hand = torch.tensor(np.array(is_left_hands)).cuda().float()
-        hand3d_gt = torch.tensor(np.array(hand3d_gt)).cuda().float()
-        hand2d_gt = torch.tensor(np.array(hand2d_gt)).cuda().float()
-        hand2d_gt_pcl = torch.tensor(np.array(hand2d_gt_pcl)).cuda().float()
-        hand3d_gt_pcl = torch.tensor(np.array(hand3d_gt_pcl)).cuda().float()
-        f_scale = torch.tensor(np.array(f_scale)).cuda().float()[:, None, None,
+        left_R = torch.tensor(np.array(left_R)).cuda(non_blocking=True).float()
+        left_hand = torch.tensor(np.array(is_left_hands)).cuda(non_blocking=True).float()
+        hand3d_gt = torch.tensor(np.array(hand3d_gt)).cuda(non_blocking=True).float()
+        hand2d_gt = torch.tensor(np.array(hand2d_gt)).cuda(non_blocking=True).float()
+        hand2d_gt_pcl = torch.tensor(np.array(hand2d_gt_pcl)).cuda(non_blocking=True).float()
+        hand3d_gt_pcl = torch.tensor(np.array(hand3d_gt_pcl)).cuda(non_blocking=True).float()
+        f_scale = torch.tensor(np.array(f_scale)).cuda(non_blocking=True).float()[:, None, None,
                                                                  None]
-        intrix_matrix = torch.tensor(np.array(intrix_matrix)).cuda().float()
+        intrix_matrix = torch.tensor(np.array(intrix_matrix)).cuda(non_blocking=True).float()
         external_matrix = torch.tensor(
-            np.array(external_matrix)).cuda().float()
-        nimble_pose = torch.tensor(np.array(nimble_pose)).cuda().float()
+            np.array(external_matrix)).cuda(non_blocking=True).float()
+        nimble_pose = torch.tensor(np.array(nimble_pose)).cuda(non_blocking=True).float()
+        torch.cuda.synchronize()
         nibmle_root_matrix = batch_rodrigues(nimble_pose[:, 0, :]).reshape(
             -1, 3, 3)
         nibmle_root_matrix = torch.matmul(external_matrix[:, :3, :3],
@@ -709,7 +710,7 @@ class RTMCCIPRHeadNimble(RTMCCHead):
         weight_num = sigma.shape[1] * 2
         kpt_weight = torch.eye(weight_num).unsqueeze(0).repeat(
             batch_size, 1, 1).to(sigma.device)
-        if cur_epoch > 70:
+        if cur_epoch > 100:
             sigma_kpt = torch.mean(sigma, dim=-1)
             sigma_kpt_softmax = torch.softmax(sigma_kpt, dim=1)
             sigma_kpt_softmax = sigma_kpt_softmax.unsqueeze(2).repeat(
