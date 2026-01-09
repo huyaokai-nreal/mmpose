@@ -2,6 +2,7 @@
 import itertools
 import math
 from typing import Iterator, List, Optional, Sized, Union
+import random
 
 import torch
 from mmengine.dataset.sampler import DefaultSampler
@@ -68,6 +69,7 @@ class MultiSourceSampler(Sampler):
                  dataset: Sized,
                  batch_size: int,
                  source_ratio: List[Union[int, float]],
+                 data_ratio: List[Union[int, float]],
                  shuffle: bool = True,
                  round_up: bool = True,
                  seed: Optional[int] = None) -> None:
@@ -91,7 +93,9 @@ class MultiSourceSampler(Sampler):
         self.cumulative_sizes = [0] + list(itertools.accumulate(dataset._lens))
         self.batch_size = batch_size
         self.source_ratio = source_ratio
-        self.num_samples = int(math.ceil(len(self.dataset) * 1.0 / world_size))
+        self.data_ratio = data_ratio
+        # self.num_samples = int(math.ceil(len(self.dataset) * 1.0 / world_size))
+        self.num_samples = int(math.ceil(sum([len(ds) * self.data_ratio[idx] for idx, ds in enumerate(self.dataset.datasets)]) * 1.0 / world_size))
         self.num_per_source = [
             int(batch_size * sr / sum(source_ratio)) for sr in source_ratio
         ]
@@ -104,28 +108,36 @@ class MultiSourceSampler(Sampler):
         self.seed = sync_random_seed() if seed is None else seed
         self.shuffle = shuffle
         self.round_up = round_up
-        self.source2inds = {
-            source: self._indices_of_rank(len(ds))
-            for source, ds in enumerate(dataset.datasets)
-        }
+        self.epoch = 0
 
-    def _infinite_indices(self, sample_size: int) -> Iterator[int]:
+    def _infinite_indices(self, sample_size: int, data_ratio: float) -> Iterator[int]:
         """Infinitely yield a sequence of indices."""
         g = torch.Generator()
         g.manual_seed(self.seed)
+        random.seed(self.seed + self.epoch)
+        
         while True:
             if self.shuffle:
-                yield from torch.randperm(sample_size, generator=g).tolist()
+                if self.epoch // 10:
+                    yield from random.sample(torch.randperm(sample_size, generator=g).tolist()[:int(sample_size * data_ratio)], int(sample_size * data_ratio))
+                else:
+                    yield from random.sample(torch.randperm(sample_size, generator=g).tolist()[int(sample_size * data_ratio):], sample_size - int(sample_size * data_ratio))
             else:
-                yield from torch.arange(sample_size).tolist()
+                yield from random.sample(torch.arange(sample_size).tolist(), int(sample_size * data_ratio))
 
-    def _indices_of_rank(self, sample_size: int) -> Iterator[int]:
+    def _indices_of_rank(self, sample_size: int, data_ratio: float) -> Iterator[int]:
         """Slice the infinite indices by rank."""
         yield from itertools.islice(
-            self._infinite_indices(sample_size), self.rank, None,
+            self._infinite_indices(sample_size, data_ratio), self.rank, None,
             self.world_size)
 
     def __iter__(self) -> Iterator[int]:
+        
+        self.source2inds = {
+            source: self._indices_of_rank(len(ds), self.data_ratio[source])
+            for source, ds in enumerate(self.dataset.datasets)
+        }
+        
         batch_buffer = []
         num_iters = self.num_samples // self.batch_size
         if self.round_up and self.num_samples > num_iters * self.batch_size:
@@ -139,6 +151,7 @@ class MultiSourceSampler(Sampler):
                     if len(batch_buffer_per_source) == num:
                         batch_buffer += batch_buffer_per_source
                         break
+        
         return iter(batch_buffer)
 
     def __len__(self) -> int:
@@ -146,4 +159,4 @@ class MultiSourceSampler(Sampler):
 
     def set_epoch(self, epoch: int) -> None:
         """Compatible in `epoch-based runner."""
-        pass
+        self.epoch = epoch
