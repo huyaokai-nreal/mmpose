@@ -1,13 +1,16 @@
 # flake8: noqa
 import os
 
-_base_ = ['../../../_base_/default_runtime.py']
+_base_ = ['../../../../_base_/default_runtime.py']
 
 from mmpose.configs._base_.datasets.hot3d import (get_aria_anno_paths,
                                                   get_quest3_anno_paths)
 from mmpose.configs._base_.datasets.xs3d_nimble import \
     datasets_info as kpt3d_datasets_info
 from mmpose.configs._base_.datasets.xs3d_ume import datasets_info as kpt3d_ume
+
+# random
+randomness = dict(seed=2025)
 
 # runtime
 train_cfg = dict(max_epochs=60, val_interval=3)
@@ -126,7 +129,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/data/stliu/mmpose/work_dirs/new_datasets/RTMpose_nimble_62th/epoch_100.pth'
+        '/home/byzhou/code/mmpose/liftnimble_DLT_new2DModel_filterAllData_sameSource_postNorm_WX03_1229.pth'
     ),
     camera_layout=camera_layout)
 
@@ -146,6 +149,7 @@ visualizer = dict(
 
 default_hooks = dict(
     checkpoint=dict(interval=5, save_best='all_mpjpe', rule='less'),
+    logger=dict(interval=500),
     run_time_info=dict(type='RuntimeInfoHookV2'))
 
 # base dataset settings
@@ -200,18 +204,11 @@ val_pipeline = [
 dataset_type = 'PairHand3DDatasetSeq'
 data_mode = 'topdown'
 train_data_list = []
-train_date_list = [
-    '20230824', '20230828', '20230906', '20230907', '20240220', '20240229',
-    '20240401', '20231227', '20240517', '20240425', '20240522', '20240801',
-    '20240816', '20240826', '20240820', '20240903', '20240907', '20240926',
-    '20240914', '20240923', '20240930', '20241018', '20241030', '20241107'
-]
 train_glasses_list = ['Flora301', 'Flora302', 'Flora303', 'Flora304']
-for data_date in train_date_list:
+for data_date in kpt3d_datasets_info['train_data']:
     for glasses in train_glasses_list:
-        if data_date in kpt3d_datasets_info['train_data']:
-            train_data_list += kpt3d_datasets_info['train_data'][
-                data_date].get(glasses, [])
+        train_data_list += kpt3d_datasets_info['train_data'][data_date].get(
+            glasses, [])
 
 train_data_list = [os.path.join(data_root, item) for item in train_data_list]
 dataset_weight_list = [1.0 / len(train_data_list)] * len(train_data_list)
@@ -246,7 +243,7 @@ pub_aria_data_list, _ = get_aria_anno_paths(data_root)
 overlap_dateset = kpt3d_datasets_info['overlap_train_data']
 overlap_dateset = [os.path.join(data_root, item) for item in overlap_dateset]
 
-converted_2d_dateset = kpt3d_datasets_info['converted_2dto3d_data']
+converted_2d_dateset = kpt3d_datasets_info['convert2d_to_3d_seq']
 converted_2d_dateset = [os.path.join(data_root, item) for item in converted_2d_dateset]
 
 val_data_list = []
@@ -265,13 +262,23 @@ val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 #     '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/Flora_bmk_fix/XS__20230830_081427__pinch__normal__right__1111__0019__undistort_tar__Flora301.json',
 # ]
 
+# pub_train_data_list = pub_train_data_list[:3]
+# train_data_list = train_data_list[:3]
+# dataset_weight_list = dataset_weight_list[:3]
+# converted_2d_dateset = converted_2d_dateset[:3]
+# overlap_dateset = overlap_dateset[:3]
+# pub_aria_data_list = pub_aria_data_list[:3]
+# val_data_list = val_data_list[:3]
+
 train_dataloader = dict(
     batch_size=32,
     num_workers=4,
+    # pin_memory=True,
     persistent_workers=True,
     sampler=dict(
         type='MultiSourceSampler',
         source_ratio=[0.1, 0.4, 0.35, 0.1, 0.05],
+        data_ratio=[0.5, 0.5, 0.5, 0.5, 0.5],
         batch_size=128),
     collate_fn=dict(type='default_collate'),
     dataset=dict(
@@ -281,14 +288,16 @@ train_dataloader = dict(
             dict(
                 type=dataset_type,
                 sample_interval=1.0/5,  # sample interval会影响看到的图像数量
-                data_ratio=1 / 2.0,  # data ratio不会影响看到的图像数量
+                data_ratio=1,  # data ratio不会影响看到的图像数量
                 data_file_list=pub_train_data_list,
                 data_mode=data_mode,
                 pipeline=train_pipeline,
                 dataset_weight_list=None,
                 data_root=data_root,
                 flip_left_to_right=True,
-                filter_kpt_exceed=False,
+                filter_hand_type=False,
+                filter_kpt_exceed=True,
+                kpt_within_ratio=1.0,
                 point_type='2.5D',
                 round_num=2,
                 epochs_per_round=5,
@@ -298,14 +307,15 @@ train_dataloader = dict(
             dict(
                 type=dataset_type,
                 sample_interval=1.0/4,
-                # serialize_data=True,
-                data_ratio=1 / 2.0,
+                serialize_data=True,
+                data_ratio=1,
                 data_file_list=train_data_list,
                 data_mode=data_mode,
                 pipeline=train_pipeline,
                 dataset_weight_list=dataset_weight_list,
                 data_root=data_root,
                 flip_left_to_right=True,
+                filter_hand_type=True,
                 filter_kpt_exceed=False,
                 point_type='2.5D',
                 seq_len=seq_length,
@@ -314,14 +324,15 @@ train_dataloader = dict(
             dict(
                 type=dataset_type,
                 sample_interval=1,
-                # serialize_data=True,
-                data_ratio=1 / 2.0,
+                serialize_data=True,
+                data_ratio=1,
                 data_file_list=converted_2d_dateset,
                 data_mode=data_mode,
                 pipeline=train_pipeline,
                 dataset_weight_list=None,
                 data_root=data_root,
                 flip_left_to_right=True,
+                filter_hand_type=False,
                 filter_kpt_exceed=False,
                 point_type='2.5D',
                 seq_len=seq_length,
@@ -330,14 +341,15 @@ train_dataloader = dict(
             dict(
                 type=dataset_type,
                 sample_interval=1.0/5,
-                # serialize_data=True,
-                data_ratio=1 / 2.0,
+                serialize_data=True,
+                data_ratio=1,
                 data_file_list=overlap_dateset,
                 data_mode=data_mode,
                 pipeline=train_pipeline,
                 dataset_weight_list=None,
                 data_root=data_root,
                 flip_left_to_right=True,
+                filter_hand_type=True,
                 filter_kpt_exceed=False,
                 point_type='2.5D',
                 seq_len=seq_length,
@@ -346,14 +358,15 @@ train_dataloader = dict(
             dict(
                 type='Hand3DDatasetSeq',
                 sample_interval=1.0/5,
-                data_ratio=1 / 2.0,
+                data_ratio=1,
                 data_file_list=pub_aria_data_list,
                 data_mode=data_mode,
                 pipeline=train_pipeline,
                 dataset_weight_list=None,
                 data_root=data_root,
                 flip_left_to_right=True,
-                filter_kpt_exceed=False,
+                filter_kpt_exceed=True,
+                kpt_within_ratio=1.0,
                 point_type='2.5D',
                 seq_len=seq_length,
             ),
@@ -362,6 +375,7 @@ train_dataloader = dict(
 
 val_3d_dataset = dict(
     type='PairHand3DDataset',
+    # serialize_data=True,
     data_file_list=val_data_list,
     data_mode=data_mode,
     # hand template from outside algorithm, such binocular pipeline
@@ -369,6 +383,7 @@ val_3d_dataset = dict(
     test_mode=True,
     pipeline=val_pipeline,
     flip_left_to_right=True,
+    filter_hand_type=True,
     # mean_bone_template_path=
     # '/data/AI_DATA/data_hand/model/mmpose/mean_hand_bones_230824.npz',
     #point_type='leftcam',
@@ -379,6 +394,7 @@ val_3d_dataset = dict(
 val_dataloader = dict(
     batch_size=64,
     num_workers=4,
+    pin_memory=True,
     persistent_workers=True,
     drop_last=True,
     sampler=dict(
@@ -396,6 +412,7 @@ if test_type == '3d':
             mode='mpjpe',
             scale_metric=False,
             with_tag=True,
+            rearrange_result=True,
         ),
         dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
     ]

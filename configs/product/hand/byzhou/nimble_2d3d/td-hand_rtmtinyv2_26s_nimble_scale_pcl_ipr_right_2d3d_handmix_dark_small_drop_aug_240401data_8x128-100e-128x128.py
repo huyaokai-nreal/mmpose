@@ -8,6 +8,9 @@ from mmpose.configs._base_.datasets.xs3d_nimble import \
 from mmpose.configs._base_.datasets.xs3d_ume import datasets_info as kpt3d_ume
 from mmpose.configs._base_.datasets.hot3d import get_quest3_anno_paths, get_aria_anno_paths
 
+# random
+randomness = dict(seed=2025)
+
 # runtime
 train_cfg = dict(max_epochs=100, val_interval=5)
 find_unused_parameters = True
@@ -274,9 +277,11 @@ train_dataloader = dict(
     batch_size=128,
     num_workers=4,
     persistent_workers=True,
+    pin_memory=True,
     sampler=dict(
         type='MultiSourceSampler',
         source_ratio=[0.1, 0.4, 0.35, 0.1, 0.05],
+        data_ratio=[0.5, 0.5, 0.5, 0.5, 0.5],
         batch_size=128),
     collate_fn=dict(type='default_collate'),
 dataset=dict(
@@ -286,7 +291,7 @@ dataset=dict(
             dict(
                 type=dataset_type,
                 sample_interval=10,    # sample interval会影响看到的图像数量
-                data_ratio=1 / 2.0,    # data ratio不会影响看到的图像数量
+                data_ratio=1,    # data ratio不会影响看到的图像数量
                 data_file_list=pub_train_data_list,
                 data_mode=data_mode,
                 pipeline=train_pipeline,
@@ -302,7 +307,7 @@ dataset=dict(
                 type=dataset_type,
                 sample_interval=4,
                 serialize_data=True,
-                data_ratio=1 / 2.0,
+                data_ratio=1,
                 data_file_list=train_data_list,
                 data_mode=data_mode,
                 pipeline=train_pipeline,
@@ -310,13 +315,14 @@ dataset=dict(
                 data_root=data_root,
                 flip_left_to_right=True,
                 filter_kpt_exceed=True,
+                kpt_within_ratio=1.0,
                 point_type='2.5D',
             ),
             dict(
                 type=dataset_type,
                 sample_interval=1,
                 serialize_data=True,
-                data_ratio=1 / 2.0,
+                data_ratio=1,
                 data_file_list=converted_2d_dateset,
                 data_mode=data_mode,
                 pipeline=train_pipeline,
@@ -324,13 +330,14 @@ dataset=dict(
                 data_root=data_root,
                 flip_left_to_right=True,
                 filter_kpt_exceed=True,
+                kpt_within_ratio=1.0,
                 point_type='2.5D',
             ),
             dict(
                 type=dataset_type,
                 sample_interval=10,
                 serialize_data=True,
-                data_ratio=1 / 2.0,
+                data_ratio=1,
                 data_file_list=overlap_dateset,
                 data_mode=data_mode,
                 pipeline=train_pipeline,
@@ -338,13 +345,14 @@ dataset=dict(
                 data_root=data_root,
                 flip_left_to_right=True,
                 filter_kpt_exceed=True,
+                kpt_within_ratio=1.0,
                 point_type='2.5D',
             ),
             dict(
                 type="Hand3DDataset",
                 sample_interval=10,
                 serialize_data=True,
-                data_ratio=1 / 2.0,
+                data_ratio=1,
                 data_file_list=pub_aria_data_list,
                 data_mode=data_mode,
                 pipeline=train_pipeline,
@@ -377,6 +385,7 @@ val_dataloader = dict(
     batch_size=64,
     num_workers=4,
     persistent_workers=True,
+    pin_memory=True,
     drop_last=False,
     sampler=dict(type='DefaultSampler', shuffle=False, round_up=False),
     collate_fn=dict(type='default_collate'),
