@@ -45,6 +45,7 @@ class Hand3DDataset(BaseCocoStyleDataset):
                  data_ratio=-1,
                  point_type='3D',
                  filter_kpt_exceed=False,
+                 kpt_within_ratio=0.5,
                  flip_left_to_right=False,
                  standard_stereo=False,
                  sample_interval=1,
@@ -65,6 +66,7 @@ class Hand3DDataset(BaseCocoStyleDataset):
         self.cams_info = dict()
         self.hand_bones_list = list()
         self.filter_kpt_exceed = filter_kpt_exceed
+        self.kpt_within_ratio = kpt_within_ratio
         self.sample_interval = sample_interval
         self.standard_stereo = standard_stereo
         self.round_num = round_num
@@ -102,11 +104,11 @@ class Hand3DDataset(BaseCocoStyleDataset):
             raise NotImplementedError
 
     @staticmethod
-    def is_keypoint_within_bounds(keypoint, image_width, image_height):
+    def is_keypoint_within_bounds(keypoint, image_width, image_height, kpt_within_ratio):
         x, y = keypoint[:, 0], keypoint[:, 1]
         within_mask = ((0 <= x) & (x < image_width)) & ((0 <= y) &
                                                         (y < image_height))
-        return within_mask.sum() >= keypoint.shape[0] * 0.5
+        return within_mask.sum() >= keypoint.shape[0] * kpt_within_ratio
 
     @force_full_init
     def __len__(self) -> int:
@@ -234,6 +236,7 @@ class Hand3DDataset(BaseCocoStyleDataset):
             self.data_file_list = [self.data_file_list[self.sub_data_index]]
         f301, f302, f303, f304 = 0, 0, 0, 0
         left, right = 0, 0
+        left_filter, right_filter = 0, 0
         random.shuffle(self.data_file_list)
         for i, anno_file in enumerate(self.data_file_list):
             coco = COCO(anno_file)
@@ -247,8 +250,19 @@ class Hand3DDataset(BaseCocoStyleDataset):
             for ann_id in ann_ids[::self.sample_interval]:
                 ann = coco.loadAnns(ann_id)[0]
                 img_id = int(ann['id'])//2
-                img = coco.loadImgs(img_id)[0]
-
+                img = coco.loadImgs(img_id)[0]               
+                if self.filter_kpt_exceed:
+                    keypoints = np.array(
+                        ann['keypoints'])[..., :2].reshape(-1, 2)
+                    within_bounds = self.is_keypoint_within_bounds(
+                        keypoints, img['width'], img['height'], self.kpt_within_ratio)
+                    if not within_bounds:
+                        if ann['category_id'] == 1:
+                            left_filter += 1
+                        else:
+                            right_filter += 1
+                        filter_annotation_num += 1
+                        continue
                 if ann['category_id'] == 1:
                     left += 1
                 else:
@@ -292,12 +306,13 @@ class Hand3DDataset(BaseCocoStyleDataset):
             )
             logger.info(
                 f'flora301: {f301} flora302: {f302} flora303: {f303} flora304: {f304} '  # noqa
+                f'left_filter: {left_filter} right_filter: {right_filter} '
             )
         return instance_list, image_list
 
     def get_data_info(self, idx):
         if not self.test_mode:
-            idx = random.randint(0, self.data_num - 1)
+            # idx = random.randint(0, self.data_num - 1)
             if self.round_num > 0:
                 num_per_round = self.data_num // self.round_num
                 mh = MessageHub.get_current_instance()
