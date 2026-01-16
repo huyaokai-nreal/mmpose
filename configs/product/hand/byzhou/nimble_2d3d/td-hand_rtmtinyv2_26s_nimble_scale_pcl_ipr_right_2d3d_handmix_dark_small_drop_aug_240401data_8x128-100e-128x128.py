@@ -245,7 +245,7 @@ pub_aria_data_list, _ = get_aria_anno_paths(data_root)
 overlap_dateset = kpt3d_datasets_info['overlap_train_data']
 overlap_dateset = [os.path.join(data_root, item) for item in overlap_dateset]
 
-converted_2d_dateset = kpt3d_datasets_info['convert2d_to_3d']
+converted_2d_dateset = kpt3d_datasets_info['convert2d_to_3d'] + kpt3d_datasets_info['convert2d_to_3d_seq']
 converted_2d_dateset = [os.path.join(data_root, item) for item in converted_2d_dateset]
 
 val_data_list = []
@@ -300,9 +300,7 @@ dataset=dict(
                 flip_left_to_right=True,
                 filter_kpt_exceed=True,
                 kpt_within_ratio=1.0,
-                point_type='2.5D',
-                round_num=2,
-                epochs_per_round=5),
+                point_type='2.5D'),
             dict(
                 type=dataset_type,
                 sample_interval=4,
@@ -314,6 +312,7 @@ dataset=dict(
                 dataset_weight_list=dataset_weight_list,
                 data_root=data_root,
                 flip_left_to_right=True,
+                filter_hand_type=True,
                 filter_kpt_exceed=True,
                 kpt_within_ratio=1.0,
                 point_type='2.5D',
