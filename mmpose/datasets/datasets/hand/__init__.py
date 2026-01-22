@@ -12,10 +12,11 @@ from .hand3d_dataset import Hand3DDataset
 from .hand3d_dataset_seq import Hand3DDatasetSeq
 from .panoptic_hand2d_dataset import PanopticHand2DDataset
 from .rhd2d_dataset import Rhd2DDataset
+from .interhand_single_3d_dataset import InterHandSingle3DDataset
 
 __all__ = [
     'OneHand10KDataset', 'FreiHandDataset', 'PanopticHand2DDataset',
     'Rhd2DDataset', 'CocoWholeBodyHandDataset', 'HANDDataset', 'HANDBboxHeldDataset',
-    'InterHand3DDataset', 'PairHand3DDataset', 'HandAttrDataset',
-    'PairHand3DDatasetSeq', 'Hand3DDataset', 'Hand3DDatasetSeq'
+    'PairHand3DDataset', 'HandAttrDataset',
+    'PairHand3DDatasetSeq', 'Hand3DDataset', 'Hand3DDatasetSeq', 'InterHand3DDataset','InterHandSingle3DDataset'
 ]
