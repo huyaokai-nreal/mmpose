@@ -80,8 +80,6 @@ def main():
     if args.cfg_options is not None:
         cfg.merge_from_dict(args.cfg_options)
     register_all_modules()
-    cfg[f'{args.phase}_dataloader'].dataset.pipeline[
-        -1].pack_transformed = True
     
     dataset_list = [
             # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250924_110720__grab__normal__right__1111__0008__undistort_tar__Flora301_100.json'
@@ -128,14 +126,14 @@ def main():
     rtconfig.intra_op_num_threads = cpu_num_thread
     rtconfig.execution_mode = onnxruntime.ExecutionMode.ORT_SEQUENTIAL
     providers = ['CPUExecutionProvider']
-    onnx_path = "/home/byzhou/code/mmpose/liftnimble_DLT_new2DModel_filterAllData_sameSource_postNorm_WX03_1229_kptAllOnes_WXA100_0105_9ae49f.onnx"
+    onnx_path = "/home/byzhou/code/mmpose/liftnimble_DLT_new2DModel_filterAllData_sameSource_postNorm_WX03_1229_kptAllOnes_filterInvalidHand_WX03_0109_791aa4.onnx"
     ort_session = onnxruntime.InferenceSession(onnx_path, providers=providers, sess_options=rtconfig)
     
     count = 0
     for dataset_idx, dataset_path in enumerate(dataset_list):
         
-        cfg['val_3d_dataset']['data_file_list'] = [dataset_path]    
-        dataset = build_from_cfg(cfg['val_3d_dataset'], DATASETS)
+        cfg['quant_test_3d_dataset']['data_file_list'] = [dataset_path]    
+        dataset = build_from_cfg(cfg['quant_test_3d_dataset'], DATASETS)
 
         print("dataset length ", len(dataset))
         

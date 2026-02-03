@@ -82,8 +82,6 @@ def main():
     if args.cfg_options is not None:
         cfg.merge_from_dict(args.cfg_options)
     register_all_modules()
-    cfg[f'{args.phase}_dataloader'].dataset.pipeline[
-        -1].pack_transformed = True
     
     dataset_list = [
         # # 3d
@@ -109,14 +107,14 @@ def main():
     rtconfig.intra_op_num_threads = cpu_num_thread
     rtconfig.execution_mode = onnxruntime.ExecutionMode.ORT_SEQUENTIAL
     providers = ['CPUExecutionProvider']
-    onnx_path = "/home/byzhou/code/mmpose/liftnimble_DLT_new2DModel_filterAllData_sameSource_postNorm_WX03_1229_kptAllOnes_WXA100_0105_9ae49f.onnx"
+    onnx_path = "/home/byzhou/code/mmpose/liftnimble_DLT_new2DModel_filterAllData_sameSource_postNorm_WX03_1229_kptAllOnes_filterInvalidHand_WX03_0109_791aa4.onnx"
     ort_session = onnxruntime.InferenceSession(onnx_path, providers=providers, sess_options=rtconfig)
     
     count = 0
     for dataset_idx, dataset_path in enumerate(dataset_list):
-        cfg['quant_3d_dataset']['data_file_list'] = [dataset_path]    
-        seq_length = cfg['quant_3d_dataset']["seq_len"]
-        dataset = build_from_cfg(cfg['quant_3d_dataset'], DATASETS)
+        cfg['quant_calib_3d_dataset']['data_file_list'] = [dataset_path]    
+        seq_length = cfg['quant_calib_3d_dataset']["seq_len"]
+        dataset = build_from_cfg(cfg['quant_calib_3d_dataset'], DATASETS)
         if args.nr_sample > 0:
             sample_index = random.sample(range(len(dataset)), args.nr_sample)
         else:
