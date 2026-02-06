@@ -32,7 +32,7 @@ from .temporal_regression_head import TemporalRegressionHead
 from .temporal_rtmcc_ipr_head_nimble import TemporalRTMCCIPRHeadNimble
 from .trajectory_regression_head import TrajectoryRegressionHead
 from .ume_head import UmeHead
-
+from .rtmcc_ipr_head_3d_jointformer import RTMCCIPRHead3DJointFormer
 __all__ = [
     'RegressionHead',
     'IntegralRegressionHead',
@@ -64,6 +64,7 @@ __all__ = [
     'TemporalLiftNimbleHeadStandardE2e2DMono',
     'TemporalUmeLiftNimbleHeadStandardE2e',
     'TemporalRTMCCIPRHeadNimble',
+    'RTMCCIPRHead3DJointFormer',
     # 'PCT_Head', 'PCT_Tokenizer',
     # 'LiftClassifierHead', 'SwinV2TransformerRPE2FC'
 ]
