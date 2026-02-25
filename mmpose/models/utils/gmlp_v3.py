@@ -17,8 +17,8 @@ class ChannelGatingUnit(nn.Module):
 
     def forward(self, x):
         u, v = torch.split(x, [self.d_ffn, self.d_ffn], dim=1)
-        v = self.norm(v)
-        v = self.channel_proj(v)
+        # v = self.norm(v)
+        v = self.norm(self.channel_proj(v))
         out = u * v
         return out
 
@@ -27,17 +27,17 @@ class gMLPBlock(nn.Module):
 
     def __init__(self, d_model, d_ffn):
         super().__init__()
-        self.norm = nn.BatchNorm2d(d_model)
         # self.norm = nn.BatchNorm2d(d_model)
+        self.norm = nn.BatchNorm2d(d_ffn * 2)
         self.channel_proj1 = nn.Conv2d(d_model, d_ffn * 2, kernel_size=1)
         self.channel_proj2 = nn.Conv2d(d_ffn, d_model, kernel_size=1)
         self.cgu = ChannelGatingUnit(d_ffn)
 
     def forward(self, x):
         residual = x
-        x = self.norm(x)
+        # x = self.norm(x)
         # x = F.gelu(self.channel_proj1(x))
-        x = F.relu(self.channel_proj1(x))
+        x = F.relu(self.norm(self.channel_proj1(x)))
         x = self.cgu(x)
         x = self.channel_proj2(x)
         out = x + residual
