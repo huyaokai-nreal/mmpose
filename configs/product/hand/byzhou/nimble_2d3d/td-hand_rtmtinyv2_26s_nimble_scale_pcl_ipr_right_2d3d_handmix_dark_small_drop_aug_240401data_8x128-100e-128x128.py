@@ -123,7 +123,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/home/byzhou/code/mmpose/work_dirs/2d/rtmtiny_2d_model_filterPubData_20251212/best_all mAP_epoch_100.pth'
+        '/data/byzhou/code/mmpose/rtmtiny_2d_model_filterPubData_20251212_epoch100.pth'
     ),
     root_mode='optimize' if test_type == '3d' else 'gt',
     camera_layout=camera_layout)
@@ -147,7 +147,7 @@ default_hooks = dict(
     run_time_info=dict(type='RuntimeInfoHookV2'),
     logger=dict(
         type='LoggerHook',
-        interval=100))
+        interval=300))
 
 # base dataset settings
 backend_args = dict(backend='local')
@@ -266,9 +266,9 @@ val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # ]
 
 # pub_train_data_list = pub_train_data_list[:3]
-# train_data_list = train_data_list[:3]
-# dataset_weight_list = dataset_weight_list[:3]
-# converted_2d_dateset = converted_2d_dateset[:3]
+# train_data_list = train_data_list[:1]
+# dataset_weight_list = dataset_weight_list[:1]
+# converted_2d_dateset = converted_2d_dateset[:1]
 # overlap_dateset = overlap_dateset[:3]
 # pub_aria_data_list = pub_aria_data_list[:3]
 # val_data_list = val_data_list[:3]
@@ -276,12 +276,15 @@ val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 train_dataloader = dict(
     batch_size=128,
     num_workers=4,
+    prefetch_factor=2,
     persistent_workers=True,
     pin_memory=True,
     sampler=dict(
         type='MultiSourceSampler',
-        source_ratio=[0.1, 0.4, 0.35, 0.1, 0.05],
-        data_ratio=[0.5, 0.5, 0.5, 0.5, 0.5],
+        # source_ratio=[0.1, 0.4, 0.35, 0.1, 0.05],
+        # data_ratio=[0.5, 0.5, 0.5, 0.5, 0.5],
+        epochs_per_round=10,
+        round_num=2,
         batch_size=128),
     collate_fn=dict(type='default_collate'),
 dataset=dict(
@@ -291,6 +294,7 @@ dataset=dict(
             dict(
                 type=dataset_type,
                 sample_interval=10,    # sample interval会影响看到的图像数量
+                serialize_data=True,
                 data_ratio=1,    # data ratio不会影响看到的图像数量
                 data_file_list=pub_train_data_list,
                 data_mode=data_mode,
@@ -300,7 +304,10 @@ dataset=dict(
                 flip_left_to_right=True,
                 filter_kpt_exceed=True,
                 kpt_within_ratio=1.0,
-                point_type='2.5D'),
+                point_type='2.5D',
+                round_num=2,
+                epochs_per_round=5
+                ),
             dict(
                 type=dataset_type,
                 sample_interval=4,
@@ -381,7 +388,7 @@ val_3d_dataset = dict(
     data_root=data_root)
 
 val_dataloader = dict(
-    batch_size=64,
+    batch_size=128,
     num_workers=4,
     persistent_workers=True,
     pin_memory=True,
