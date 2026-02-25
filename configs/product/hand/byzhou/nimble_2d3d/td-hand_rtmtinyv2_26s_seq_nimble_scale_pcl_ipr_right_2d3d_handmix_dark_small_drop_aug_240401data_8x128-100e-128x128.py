@@ -115,7 +115,7 @@ model = dict(
                 dict(
                     type='RLELoss',
                     dim=3,
-                    enable_start_epoch=train_cfg['max_epochs'] // 2),
+                    enable_start_epoch=0),
                 dict(type='L1Loss', use_target_weight=False, loss_weight=2),
                 dict(
                     type='MPJPAELoss',
@@ -129,7 +129,7 @@ model = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint=
-        '/home/byzhou/code/mmpose/liftnimble_DLT_new2DModel_filterAllData_sameSource_postNorm_WX03_1229.pth'
+        '/data/byzhou/code/mmpose/liftnimble_DLT_new2DModel_filterAllData_sameSource_postNorm_newSamplerRoundReverse_WXA100_0213.pth'
     ),
     camera_layout=camera_layout)
 
@@ -263,9 +263,9 @@ val_data_list = [os.path.join(data_root, item) for item in val_data_list]
 # ]
 
 # pub_train_data_list = pub_train_data_list[:3]
-# train_data_list = train_data_list[:3]
-# dataset_weight_list = dataset_weight_list[:3]
-# converted_2d_dateset = converted_2d_dateset[:3]
+# train_data_list = train_data_list[:1]
+# dataset_weight_list = dataset_weight_list[:1]
+# converted_2d_dateset = converted_2d_dateset[:1]
 # overlap_dateset = overlap_dateset[:3]
 # pub_aria_data_list = pub_aria_data_list[:3]
 # val_data_list = val_data_list[:3]
@@ -277,8 +277,10 @@ train_dataloader = dict(
     persistent_workers=True,
     sampler=dict(
         type='MultiSourceSampler',
-        source_ratio=[0.1, 0.4, 0.35, 0.1, 0.05],
-        data_ratio=[0.5, 0.5, 0.5, 0.5, 0.5],
+        # source_ratio=[0.1, 0.4, 0.35, 0.1, 0.05],
+        # data_ratio=[0.5, 0.5, 0.5, 0.5, 0.5],
+        epochs_per_round=5,
+        round_num=2,
         batch_size=128),
     collate_fn=dict(type='default_collate'),
     dataset=dict(
@@ -287,7 +289,8 @@ train_dataloader = dict(
         datasets=[
             dict(
                 type=dataset_type,
-                sample_interval=1.0/5,  # sample interval会影响看到的图像数量
+                sample_interval=1.0/5,  # sample interval会影响看到的图像数量                
+                serialize_data=True,
                 data_ratio=1,  # data ratio不会影响看到的图像数量
                 data_file_list=pub_train_data_list,
                 data_mode=data_mode,
@@ -358,6 +361,7 @@ train_dataloader = dict(
             dict(
                 type='Hand3DDatasetSeq',
                 sample_interval=1.0/5,
+                serialize_data=True,
                 data_ratio=1,
                 data_file_list=pub_aria_data_list,
                 data_mode=data_mode,
@@ -375,24 +379,19 @@ train_dataloader = dict(
 
 val_3d_dataset = dict(
     type='PairHand3DDataset',
-    # serialize_data=True,
     data_file_list=val_data_list,
     data_mode=data_mode,
-    # hand template from outside algorithm, such binocular pipeline
-    #extern_hand_template_path = '/home/zx_li/workspace/mmpose/work_dirs/binocular_hand_template.npy',
+    serialize_data=True,
     test_mode=True,
     pipeline=val_pipeline,
     flip_left_to_right=True,
     filter_hand_type=True,
-    # mean_bone_template_path=
-    # '/data/AI_DATA/data_hand/model/mmpose/mean_hand_bones_230824.npz',
-    #point_type='leftcam',
     point_type='2.5D' if camera_layout in ['monocular', 'nimble'] else '3D',
     data_root=data_root,
 )
 
 val_dataloader = dict(
-    batch_size=64,
+    batch_size=128,
     num_workers=4,
     pin_memory=True,
     persistent_workers=True,
