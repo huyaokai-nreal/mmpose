@@ -23,6 +23,10 @@ def parse_args():
         description='Generate data for calibration')
     parser.add_argument('config', help='train config file path')
     parser.add_argument(
+        '--onnx-path',
+        type=str,
+        help='onnx-path')
+    parser.add_argument(
         '--output-dir',
         default='calib_data',
         type=str,
@@ -126,8 +130,8 @@ def main():
     rtconfig.intra_op_num_threads = cpu_num_thread
     rtconfig.execution_mode = onnxruntime.ExecutionMode.ORT_SEQUENTIAL
     providers = ['CPUExecutionProvider']
-    onnx_path = "/home/byzhou/code/mmpose/liftnimble_DLT_new2DModel_filterAllData_sameSource_postNorm_WX03_1229_kptAllOnes_filterInvalidHand_WX03_0109_791aa4.onnx"
-    ort_session = onnxruntime.InferenceSession(onnx_path, providers=providers, sess_options=rtconfig)
+    # onnx_path = "/home/byzhou/code/mmpose/liftnimble_DLT_new2DModel_filterAllData_sameSource_postNorm_WX03_1229_kptAllOnes_filterInvalidHand_WX03_0109_791aa4.onnx"
+    ort_session = onnxruntime.InferenceSession(args.onnx_path, providers=providers, sess_options=rtconfig)
     
     count = 0
     for dataset_idx, dataset_path in enumerate(dataset_list):

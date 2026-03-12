@@ -274,8 +274,8 @@ def main():
     if args.cfg_options is not None:
         cfg.merge_from_dict(args.cfg_options)
     register_all_modules()
-    cfg[f'{args.phase}_dataloader'].dataset.pipeline[
-        -1].pack_transformed = True
+    # cfg[f'{args.phase}_dataloader'].dataset.pipeline[
+    #     -1].pack_transformed = True
     
     dataset_list = [
         # '/data/AI_DATA_WX/data_hand/hand_keypoint/annotations3d/fit_nimble_merge_seqsmooth__binocular_coco/XS__20250924_110720__grab__normal__right__1111__0008__undistort_tar__Flora301_100.json',
@@ -335,10 +335,9 @@ def main():
     valid_num = 0
     for dataset_idx, dataset_path in enumerate(dataset_list):
         
-        cfg[f'{args.phase}_dataloader']["dataset"]["data_file_list"] = [dataset_path]    
+        cfg['quant_test_3d_dataset']['data_file_list'] = [dataset_path]    
+        dataset = build_from_cfg(cfg['quant_test_3d_dataset'], DATASETS)
 
-        dataset = build_from_cfg(cfg[f'{args.phase}_dataloader'].dataset, DATASETS)
-    
         print("length of dataset ", len(dataset))
         
         dataset_name = os.path.splitext(os.path.basename(dataset_path))[0]        

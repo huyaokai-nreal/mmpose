@@ -50,3 +50,19 @@ quant_test_3d_dataset = dict(
     flip_left_to_right=True,
     point_type='2.5D' if camera_layout in  ['monocular', 'nimble'] else '3D',
     data_root=data_root)
+
+
+# evaluators
+val_evaluator = [dict(type='EPE'), dict(type='NrealKeypointAP', with_tag=True)]
+if test_type == '3d':
+    val_evaluator += [
+        dict(
+            type='MPJPEV2',
+            mode='mpjpe',
+            scale_metric=False,
+            with_tag=True,
+            rearrange_result=True,
+        ),
+        dict(type='MPJPEV2', mode='p-mpjpe', prefix='1'),
+    ]
+test_evaluator = val_evaluator
