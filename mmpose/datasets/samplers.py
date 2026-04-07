@@ -106,6 +106,11 @@ class MultiSourceSampler(Sampler):
             round(batch_size * sr / sum(self.source_ratio)) for sr in self.source_ratio
         ]
         
+        # make sure each element > 0
+        for idx in range(len(self.num_per_source)):
+            if self.num_per_source[idx] == 0:
+                self.num_per_source[idx] = 1
+        
         # find max pos
         max_value = max(self.num_per_source)
         # 找到最大值的第一个位置

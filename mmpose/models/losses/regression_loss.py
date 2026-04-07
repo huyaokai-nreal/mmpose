@@ -42,7 +42,8 @@ class RLELoss(nn.Module):
                  flow_model_pretrain_path='',
                  freeze_flow=False,
                  dim=2,
-                 enable_start_epoch=-1):
+                 enable_start_epoch=-1,
+                 enable_end_epoch=100):
         super(RLELoss, self).__init__()
         self.size_average = size_average
         self.use_target_weight = use_target_weight
@@ -50,6 +51,7 @@ class RLELoss(nn.Module):
         self.q_distribution = q_distribution
         self.dim = dim
         self.enable_start_epoch = enable_start_epoch
+        self.enable_end_epoch = enable_end_epoch
 
         self.flow_model = RealNVP(dim)
         if flow_model_pretrain_path:
@@ -80,7 +82,7 @@ class RLELoss(nn.Module):
         if self.enable_start_epoch >= 0:
             mh = MessageHub.get_current_instance()
             cur_epoch = mh.get_info('epoch')
-            if cur_epoch < self.enable_start_epoch:
+            if cur_epoch < self.enable_start_epoch or cur_epoch > self.enable_end_epoch:
                 return torch.tensor(0.0, device=pred.device)
         """Forward function.
 

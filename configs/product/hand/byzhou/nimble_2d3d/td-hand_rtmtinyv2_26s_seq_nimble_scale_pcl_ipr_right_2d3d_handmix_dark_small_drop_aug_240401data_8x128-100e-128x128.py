@@ -30,14 +30,6 @@ optim_wrapper = dict(
         norm_decay_mult=0, bias_decay_mult=0, bypass_duplicate=True))
 param_scheduler = [
     dict(
-        type='LinearLR',
-        begin=0,
-        end=5,
-        start_factor=0.001,
-        end_factor=1.0,
-        by_epoch=True,
-        convert_to_iter_based=True),  # warm-up
-    dict(
         type='CosineAnnealingLR',
         by_epoch=True,
         T_max=train_cfg['max_epochs'],
@@ -115,7 +107,9 @@ model = dict(
                 dict(
                     type='RLELoss',
                     dim=3,
-                    enable_start_epoch=0),
+                    enable_start_epoch=0,
+                    enable_end_epoch=train_cfg['max_epochs'],
+                    ),
                 dict(type='L1Loss', use_target_weight=False, loss_weight=2),
                 dict(
                     type='MPJPAELoss',
@@ -151,6 +145,16 @@ default_hooks = dict(
     checkpoint=dict(interval=5, save_best='all_mpjpe', rule='less'),
     logger=dict(interval=500),
     run_time_info=dict(type='RuntimeInfoHookV2'))
+
+# custom_hooks = [
+#     dict(
+#         type='EMAHook',
+#         ema_type='ExpMomentumEMA',
+#         momentum=0.001,
+#         update_buffers=True,
+#         strict_load=False,
+#         priority=49)
+# ]
 
 # base dataset settings
 backend_args = dict(backend='local')
@@ -281,7 +285,7 @@ train_dataloader = dict(
         # data_ratio=[0.5, 0.5, 0.5, 0.5, 0.5],
         epochs_per_round=5,
         round_num=2,
-        batch_size=128),
+        batch_size=32),
     collate_fn=dict(type='default_collate'),
     dataset=dict(
         type='CombinedDataset',
@@ -302,8 +306,6 @@ train_dataloader = dict(
                 filter_kpt_exceed=True,
                 kpt_within_ratio=1.0,
                 point_type='2.5D',
-                round_num=2,
-                epochs_per_round=5,
                 seq_len=seq_length,
                 choice_one=True,
             ),
@@ -410,6 +412,7 @@ if test_type == '3d':
             type='MPJPEV2',
             mode='mpjpe',
             scale_metric=False,
+            score_metric=True,
             with_tag=True,
             rearrange_result=True,
         ),

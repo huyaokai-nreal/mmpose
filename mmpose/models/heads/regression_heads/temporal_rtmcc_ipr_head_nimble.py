@@ -598,7 +598,7 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
             batch_data_samples, self.reverse_pinch_date_list).to(
                 pinch_mask.cuda())[use_3d_supervise_mask]
         pinch_reverse_mask = pinch_mask & reverse_mask
-        if cur_epoch > 30 and sum(pinch_mask) > 0:
+        if cur_epoch > 0 and sum(pinch_mask) > 0:
             valid_num = len(dist_gt[pinch_mask])
             softmax_weight = F.softmax(-dist_gt[pinch_mask], dim=0) * valid_num
             margin_value = torch.ones_like(dist_gt) * 0.003
@@ -627,7 +627,7 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
                standard_hand3d_gt[:, 5, :]) / 2 - standard_hand3d_gt[:, 6, :]
         dis_norm = torch.norm(dis, dim=1)
         poke_mask = dis_norm < 0.012
-        if cur_epoch > 30 and sum(poke_mask) > 0:
+        if cur_epoch > 60 and sum(poke_mask) > 0:
             direction_vector1 = hand3d_pred[poke_mask,
                                             5, :] - hand3d_pred[poke_mask,
                                                                 6, :]
