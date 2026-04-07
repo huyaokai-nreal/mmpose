@@ -244,6 +244,8 @@ class PairHand3DDataset(BaseCocoStyleDataset):
         left_filter, right_filter = 0, 0
         invalid_left_anno, invalid_right_anno = 0, 0
         for i, anno_file in enumerate(self.data_file_list):
+            if not osp.exists(anno_file):
+                continue
             coco = COCO(anno_file)
             lmdb_path = osp.join(self.lmdb_data_root,
                                  coco.dataset['lmdb_path'])

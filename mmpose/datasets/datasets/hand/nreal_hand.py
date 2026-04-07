@@ -196,6 +196,8 @@ class HANDDataset(BaseCocoStyleDataset):
             all_data_list = self.data_file_list
 
         for anno_file in all_data_list:
+            if not osp.exists(anno_file):
+                continue
             coco = COCO(anno_file)
             lmdb_path = osp.join(self.lmdb_data_root,
                                  coco.dataset['lmdb_path'])
