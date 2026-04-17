@@ -1,6 +1,9 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from .coco_wholebody_hand_dataset import CocoWholeBodyHandDataset
 from .freihand_dataset import FreiHandDataset
+from .hand3d_dataset import Hand3DDataset
+from .hand3d_dataset_seq import Hand3DDatasetSeq
+from .hand3d_dataset_seq_onehand import Hand3DDatasetSeqOneHand
 from .hand_attr import HandAttrDataset
 from .interhand3d_dataset import InterHand3DDataset
 from .nreal_hand import HANDDataset
@@ -8,14 +11,13 @@ from .nreal_hand_held import HANDBboxHeldDataset
 from .onehand10k_dataset import OneHand10KDataset
 from .pair_hand3d_dataset import PairHand3DDataset
 from .pair_hand3d_dataset_seq import PairHand3DDatasetSeq
-from .hand3d_dataset import Hand3DDataset
-from .hand3d_dataset_seq import Hand3DDatasetSeq
 from .panoptic_hand2d_dataset import PanopticHand2DDataset
 from .rhd2d_dataset import Rhd2DDataset
 
 __all__ = [
     'OneHand10KDataset', 'FreiHandDataset', 'PanopticHand2DDataset',
-    'Rhd2DDataset', 'CocoWholeBodyHandDataset', 'HANDDataset', 'HANDBboxHeldDataset',
-    'InterHand3DDataset', 'PairHand3DDataset', 'HandAttrDataset',
-    'PairHand3DDatasetSeq', 'Hand3DDataset', 'Hand3DDatasetSeq'
+    'Rhd2DDataset', 'CocoWholeBodyHandDataset', 'HANDDataset',
+    'HANDBboxHeldDataset', 'InterHand3DDataset', 'PairHand3DDataset',
+    'HandAttrDataset', 'PairHand3DDatasetSeq', 'Hand3DDataset',
+    'Hand3DDatasetSeq', 'Hand3DDatasetSeqOneHand'
 ]

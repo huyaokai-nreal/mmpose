@@ -50,6 +50,7 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
         deploy_output='kpt',
         feat_channel=6,
         map_type='softmax',
+        reproj_map=False,
         seq_len=4,
         enhance_static=True,
     ):
@@ -66,10 +67,13 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
             nn.ReLU(),
             nn.Conv2d(self.nimble_hidden_num, self.input_dim, kernel_size=1))
         self.static_data_date_list = ['20240516', '20240517', '20240522']
-        self.reverse_pinch_date_list = ['20240220', '20240229', '20240926']
+        self.reverse_pinch_date_list = [
+            '20240220', '20240229', '20240926', '20250725'
+        ]
         self.hand_constraint_index_list = [[5, 6, 7, 8], [9, 10, 11, 12],
                                            [13, 14, 15, 16], [17, 18, 19, 20]]
         self.enhance_static = enhance_static
+        self.reproj_map = reproj_map
 
     def independent_part1(self, feat_x, feat_y, left_hand):
         pred_x, pred_y = self.ipr_module(feat_x, feat_y)
@@ -303,42 +307,24 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
                                              left_hand, None,
                                              f_scale[:, 0, 0, 0], output_2d,
                                              intrix_matrix, kpt_weight, True)
-
-        #  修改为对应的_forward结果
-        # feat_x, feat_y, feats = self._forward_1(feats)
-        # rot, svd_pt, mems, score, sigma = self._forward_2(feats, f_scale, mems)
-
-        # feat_x, feat_y, rot, svd_pt, mems, score, sigma = self._forward(
-        #     feats, f_scale, mems)
-        # pred_x, pred_y = self.independent_part1(feat_x, feat_y, left_hand)
-        # cood_2d = torch.cat([pred_x, pred_y], dim=-1)
-        # kpt_weight = self.independent_part2(sigma)
-        # hand3d_wo_root = self.indepentent_part3(feat_x, feat_y, rot, svd_pt, mems, score, left_hand)
-        # hand3d_pred = self.indepentent_part4(hand3d_wo_root, cood_2d, intrix_matrix, kpt_weight)
-        # hand3d_pred = torch.matmul(
-        #     torch.inverse(left_R),
-        #     hand3d_pred.permute(0, 2, 1)).permute(0, 2, 1)
-
-        # 模型直出的2d结果
-        # result = []
-        # for output_2d_sin, batch_data_sample in zip(output_2d,
-        #                                          batch_data_samples):
-        #     ori_cam = batch_data_sample.meta['ori_camera']
-        #     virtual_cam = batch_data_sample.meta['virtual_camera']
-        #     virtual_3d = virtual_cam.window_to_eye(output_2d_sin.detach().cpu().numpy())
-        #     world_3d = virtual_cam.eye_to_world(virtual_3d)
-        #     result.append(ori_cam.eye_to_window(world_3d))
-
-        # 重投影后的2d结果
         result = []
-        for hand3d_sin, batch_data_sample in zip(hand3d_pred,
-                                                 batch_data_samples):
-            ori_cam = batch_data_sample.meta['ori_camera']
-            result.append(ori_cam.eye_to_window(hand3d_sin.cpu().numpy()))
+        if self.reproj_map:
+            for hand3d_sin, batch_data_sample in zip(hand3d_pred,
+                                                     batch_data_samples):
+                ori_cam = batch_data_sample.meta['ori_camera']
+                result.append(ori_cam.eye_to_window(hand3d_sin.cpu().numpy()))
+        else:
+            for output_2d_sin, batch_data_sample in zip(
+                    output_2d, batch_data_samples):
+                ori_cam = batch_data_sample.meta['ori_camera']
+                virtual_cam = batch_data_sample.meta['virtual_camera']
+                virtual_3d = virtual_cam.window_to_eye(
+                    output_2d_sin.detach().cpu().numpy())
+                world_3d = virtual_cam.eye_to_world(virtual_3d)
+                result.append(ori_cam.eye_to_window(world_3d))
 
-        uv_reproj = torch.tensor(np.array(result)).cuda()
-
-        return hand3d_pred, uv_reproj, mems, sigma
+        result = torch.tensor(np.array(result)).cuda()
+        return hand3d_pred, result, mems, sigma
 
     def loss(self,
              inputs: Tuple[Tensor],
@@ -364,7 +350,7 @@ class TemporalRTMCCIPRHeadNimble(RTMCCIPRHeadNimble):
         nimble_info = dict()
         nimble_lable_exist = []
         use_3d_supervise_mask = []
-        
+
         for i, data in enumerate(batch_data_samples):
             if 'ume' in data.img_path or 'hand_train_flora' in data.img_path:
                 use_3d_supervise_mask.append(False)

@@ -4,9 +4,9 @@ import os.path as osp
 import random
 from typing import Any, Callable, List, Optional, Sequence, Tuple, Union
 
-import cv2
 import numpy as np
 from mmengine.dataset.base_dataset import force_full_init
+from mmengine.dataset.utils import default_collate
 from mmengine.logging import MessageHub, MMLogger
 from nreal_data_tool import LmdbClient, TarClient
 from nreal_data_tool.schema.instance import CameraInstance
@@ -19,10 +19,9 @@ from ..base import BaseCocoStyleDataset
 
 
 @DATASETS.register_module()
-class Hand3DDataset(BaseCocoStyleDataset):
+class Hand3DDatasetSeqOneHand(BaseCocoStyleDataset):
 
     METAINFO: dict = dict(from_file='configs/_base_/datasets/nreal_hand.py')
-    category_name_list = ['background', 'hand', 'right_hand']
 
     def __init__(self,
                  data_file_list,
@@ -43,13 +42,12 @@ class Hand3DDataset(BaseCocoStyleDataset):
                  data_ratio=-1,
                  point_type='3D',
                  filter_kpt_exceed=False,
-                 kpt_within_ratio=0.5,
                  flip_left_to_right=False,
                  standard_stereo=False,
                  sample_interval=1,
+                 seq_len=4,
                  round_num=-1,
-                 epochs_per_round=-1,
-                 gina_Bayer=False):
+                 epochs_per_round=-1):
         self.data_ratio = data_ratio
         self.data_file_list = data_file_list
         self.lmdb_client = LmdbClient()
@@ -64,14 +62,13 @@ class Hand3DDataset(BaseCocoStyleDataset):
         self.sub_data_index = int(sub_data_index)
         self.cams_info = dict()
         self.hand_bones_list = list()
+        self.seq_len = seq_len
         self.filter_kpt_exceed = filter_kpt_exceed
-        self.kpt_within_ratio = kpt_within_ratio
         self.sample_interval = sample_interval
         self.standard_stereo = standard_stereo
         self.round_num = round_num
         self.epochs_per_round = epochs_per_round
         self.flip_left_to_right = flip_left_to_right
-        self.gina_Bayer = gina_Bayer
         super().__init__(
             data_root='',
             data_mode=data_mode,
@@ -103,11 +100,12 @@ class Hand3DDataset(BaseCocoStyleDataset):
         else:
             raise NotImplementedError
 
-    def is_keypoint_within_bounds(self, keypoint, image_width, image_height):
+    @staticmethod
+    def is_keypoint_within_bounds(keypoint, image_width, image_height):
         x, y = keypoint[:, 0], keypoint[:, 1]
         within_mask = ((0 <= x) & (x < image_width)) & ((0 <= y) &
                                                         (y < image_height))
-        return within_mask.sum() >= keypoint.shape[0] * self.kpt_within_ratio
+        return within_mask.sum() >= keypoint.shape[0] * 0.5
 
     @force_full_init
     def __len__(self) -> int:
@@ -197,7 +195,6 @@ class Hand3DDataset(BaseCocoStyleDataset):
         if 'camera_angle' not in meta:
             meta['camera_angle'] = 0
         meta['category_id'] = ann['category_id']
-
         data_info = {
             'img_id': ann['image_id'],
             'img_path': img_path,
@@ -220,6 +217,12 @@ class Hand3DDataset(BaseCocoStyleDataset):
             'meta': meta
         }
 
+        if 'nimble_pose' in ann.keys():
+            data_info['nimble_pose'] = np.array(ann['nimble_pose'])
+            data_info['nimble_translation'] = np.array(
+                ann['nimble_translation'])
+            data_info['nimble_shape'] = np.array(ann['nimble_shape'])
+
         if 'crowdIndex' in img:
             data_info['crowd_index'] = img['crowdIndex']
 
@@ -231,38 +234,29 @@ class Hand3DDataset(BaseCocoStyleDataset):
         filter_annotation_num = 0
         if self.sub_data_index >= 0:
             self.data_file_list = [self.data_file_list[self.sub_data_index]]
-        f301, f302, f303, f304 = 0, 0, 0, 0
+        instance_idx = 0
         left, right = 0, 0
-        left_filter, right_filter = 0, 0
         random.shuffle(self.data_file_list)
         for i, anno_file in enumerate(self.data_file_list):
             coco = COCO(anno_file)
             lmdb_path = osp.join(self.lmdb_data_root,
                                  coco.dataset['lmdb_path'])
+            seq_list = []
             if coco.dataset['cameras_info']:  # 真值系统数据
                 for k, v in coco.dataset['cameras_info'].items():
                     self.cams_info[k] = CameraInstance.from_dict(v)
             keypoints3d_list = []
             ann_ids = coco.getAnnIds()
-            for ann_id in ann_ids[::self.sample_interval]:
+            used_ann_ids_num = int(len(ann_ids) * self.sample_interval)
+            begin_num = random.randint(0, len(ann_ids) - used_ann_ids_num)
+            for ann_id in ann_ids[begin_num:begin_num + used_ann_ids_num]:
                 ann = coco.loadAnns(ann_id)[0]
-                if 'ho3d_v3' in lmdb_path or 'gina' in lmdb_path:
-                    img_id = ann['image_id']
+                if 'ho3d_v3' in lmdb_path:
+                    img_id = ann['id']
                 else:
                     img_id = int(ann['id']) // 2  # hot3d, aria
                 img = coco.loadImgs(img_id)[0]
-                if self.filter_kpt_exceed:
-                    keypoints = np.array(ann['keypoints'])[..., :2].reshape(
-                        -1, 2)
-                    within_bounds = self.is_keypoint_within_bounds(
-                        keypoints, img['width'], img['height'])
-                    if not within_bounds:
-                        if ann['category_id'] == 1:
-                            left_filter += 1
-                        else:
-                            right_filter += 1
-                        filter_annotation_num += 1
-                        continue
+
                 if ann['category_id'] == 1:
                     left += 1
                 else:
@@ -286,7 +280,11 @@ class Hand3DDataset(BaseCocoStyleDataset):
                 data_info['meta']['template_bones_id'] = len(
                     self.hand_bones_list)
                 instance_list.append(data_info)
+                seq_list.append(instance_idx)
                 image_list.append(img)
+                instance_idx += 1
+
+            self.dataset_info_list.append(seq_list)
 
             if len(keypoints3d_list) > 0:
                 keypoints3d_list = np.concatenate(keypoints3d_list, axis=0)
@@ -301,34 +299,49 @@ class Hand3DDataset(BaseCocoStyleDataset):
             logger.info(
                 f'Train PairHandDataset loaded {len(image_list)} images, {len(instance_list)} pair instances, filter {filter_annotation_num} pair instances'  # noqa
             )
-            logger.info(
-                f'flora301: {f301} flora302: {f302} flora303: {f303} flora304: {f304} '  # noqa
-            )
         return instance_list, image_list
 
     def get_data_info(self, idx):
-        if not self.test_mode:
-            # idx = random.randint(0, self.data_num - 1)
+        idx = idx % self.data_num
+        data_info = super().get_data_info(idx)
+        data_info['meta']['flipped'] = False
+        data_info['img'] = self.get_image(data_info['img_path'])
+        data_info['meta']['frame_height'] = data_info['img'].shape[0]
+        data_info['meta']['frame_width'] = data_info['img'].shape[1]
+        return data_info
+
+    def get_seq_idx(self, idx) -> list:
+        # 随机一个训练文件
+        seq_list = []
+        while (len(seq_list) == 0):
+            seq_idx = np.random.choice(range(len(self.dataset_info_list)))
+            # 数据分批，并根据当前epoch随机从一个批次中抽一份数据
             if self.round_num > 0:
-                num_per_round = self.data_num // self.round_num
+                num_per_round = len(self.dataset_info_list) // self.round_num
                 mh = MessageHub.get_current_instance()
                 cur_epoch = mh.get_info('epoch')
                 round_id = cur_epoch // self.epochs_per_round % self.round_num
-                idx = random.randint(
+                seq_idx = random.randint(
                     round_id * num_per_round,
-                    min(self.data_num - 1, (round_id + 1) * num_per_round - 1))
-        else:
-            idx = idx % self.data_num
-        data_info = super().get_data_info(idx)
-        data_info['img'] = self.get_image(data_info['img_path'])
-        # gina 去马赛克
-        if self.gina_Bayer:
-            data_info['img'] = cv2.cvtColor(data_info['img'],
-                                            cv2.COLOR_BayerBG2GRAY)
-        data_info['meta']['frame_height'] = data_info['img'].shape[0]
-        data_info['meta']['frame_width'] = data_info['img'].shape[1]
-        data_info['meta']['flipped'] = False
-        return data_info
+                    min(
+                        len(self.dataset_info_list) - 1,
+                        (round_id + 1) * num_per_round - 1))
+            seq_list = self.dataset_info_list[seq_idx]
+        seq_list_cur_idx = np.random.choice(range(len(seq_list)))
+        if self.test_mode:
+            seq_list_cur_idx = idx
+        idx_list = []
+        for i in range(self.seq_len):
+            tmp = max(seq_list_cur_idx - 2 * i, 0)
+            idx_list.append(tmp)
+
+        idx_list.reverse()
+
+        final_list = []
+        for idx in idx_list:
+            tmp = seq_list[idx]
+            final_list.append(tmp)
+        return final_list
 
     @force_full_init
     def prepare_data(self, idx) -> Any:
@@ -344,39 +357,52 @@ class Hand3DDataset(BaseCocoStyleDataset):
         Returns:
             Any: Depends on ``self.pipeline``.
         """
-        data_info_ori = self.get_data_info(idx)
-        data_info = copy.deepcopy(data_info_ori)
-        meta = copy.deepcopy(data_info['meta'])
-        meta['ori_camera'] = copy.deepcopy(data_info['cam_model'])
-        meta['template_bones'] = self.hand_bones_list[data_info['meta']
+
+        collate_list = []
+        seq_idx_list = self.get_seq_idx(idx)
+
+        for i, idx in enumerate(seq_idx_list):
+            data_info_ori = self.get_data_info(idx)
+            data_info = copy.deepcopy(data_info_ori)
+            meta = copy.deepcopy(data_info['meta'])
+            meta['ori_camera'] = copy.deepcopy(data_info['cam_model'])
+            meta['template_bones'] = self.hand_bones_list[
+                data_info['meta']['template_bones_id']]
+            meta['hand_scale'] = self.hand_scale_list[data_info['meta']
                                                       ['template_bones_id']]
-        meta['hand_scale'] = self.hand_scale_list[data_info['meta']
-                                                  ['template_bones_id']]
 
-        meta['test_mode'] = self.test_mode
-        meta['camera_name'] = 'left'
+            meta['test_mode'] = self.test_mode
+            meta['camera_name'] = 'left'
 
-        data_info = {
-            'img_id': data_info['img_id'],
-            'image_width': data_info['img'].shape[1],
-            'image_height': data_info['img'].shape[0],
-            'img_path': data_info['img_path'],
-            'keypoints': data_info['keypoints'].copy(),
-            'img': data_info['img'].copy(),
-            'bbox': data_info['bbox'].copy(),
-            'keypoints3d': data_info['keypoints3d'].copy(),
-            'bbox_score': np.ones(1, dtype=np.float32),
-            'iscrowd': data_info['iscrowd'],
-            'id': data_info['id'],
-            'cat_id': data_info['cat_id'],
-            'meta': meta,
-            'sample_idx': data_info['sample_idx'],
-            'upper_body_ids': data_info['upper_body_ids'],
-            'lower_body_ids': data_info['lower_body_ids'],
-            'keypoints_visible': data_info['keypoints_visible'].copy(),
-            'camera_name': 'left'
-        }
-        if self.flip_left_to_right and data_info['cat_id'] == 1:
-            data_info['meta']['flipped'] = True
-        all_results = self.pipeline(data_info)
+            if 'nimble_pose' in data_info.keys():
+                meta['nimble_pose'] = data_info['nimble_pose']
+                meta['nimble_translation'] = data_info['nimble_translation']
+                meta['nimble_shape'] = data_info['nimble_shape']
+
+            data_info = {
+                'img_id': data_info['img_id'],
+                'image_width': data_info['img'].shape[1],
+                'image_height': data_info['img'].shape[0],
+                'img_path': data_info['img_path'],
+                'keypoints': data_info['keypoints'].copy(),
+                'img': data_info['img'].copy(),
+                'bbox': data_info['bbox'].copy(),
+                'keypoints3d': data_info['keypoints3d'].copy(),
+                'bbox_score': np.ones(1, dtype=np.float32),
+                'iscrowd': data_info['iscrowd'],
+                'id': data_info['id'],
+                'cat_id': data_info['cat_id'],
+                'meta': meta,
+                'sample_idx': data_info['sample_idx'],
+                'upper_body_ids': data_info['upper_body_ids'],
+                'lower_body_ids': data_info['lower_body_ids'],
+                'keypoints_visible': data_info['keypoints_visible'].copy(),
+                'camera_name': 'left'
+            }
+            if self.flip_left_to_right and data_info['cat_id'] == 1:
+                data_info['meta']['flipped'] = True
+            pipeline_results = self.pipeline(data_info)
+            collate_list.append(pipeline_results)
+
+        all_results = default_collate(collate_list)
         return all_results
